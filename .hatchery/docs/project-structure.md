@@ -28,7 +28,6 @@ Hatchery/
 │   ├── audits/                   # Security and quality audit artifacts
 │   ├── branding/                 # SVG logos, icons, banners, and brand guidelines
 │   ├── docs/                     # Reference documentation (this directory)
-│   ├── tests/                    # Test scaffolding and test suite docs
 │   └── ui/                       # Interface mockups and interactive examples
 ├── .github/
 │   ├── workflows/
@@ -60,8 +59,8 @@ Hatchery/
 ├── static/
 │   ├── style.css
 │   └── app.js                    # Status polling, UI interactions
-├── requirements.txt              # Runtime dependencies
-├── requirements-dev.txt          # Dev/test dependencies (ruff, pytest, pytest-cov)
+├── pyproject.toml                # Project metadata, dependencies, tool config
+├── uv.lock                       # Locked dependency versions
 ├── CLAUDE.md                     # Project context and conventions for Claude
 ├── CONTRIBUTING.md
 ├── LICENSE
@@ -106,7 +105,7 @@ Jinja2 templates for unattended install answer files. One template per supported
 
 ### `tests/`
 
-pytest test suite. Mirrors the structure of `lib/`. Run with `pytest tests/`.
+pytest test suite. Mirrors the structure of `lib/`. Run with `uv run pytest`.
 
 ### `.hatchery/`
 

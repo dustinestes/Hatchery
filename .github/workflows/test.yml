@@ -6,13 +6,15 @@ on:
     paths:
       - '**.py'
       - 'tests/**'
-      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/test.yml'
   pull_request:
     paths:
       - '**.py'
       - 'tests/**'
-      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/test.yml'
   workflow_dispatch:
 
@@ -24,15 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+      - uses: astral-sh/setup-uv@v6
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: uv sync
 
       - name: Run tests
-        run: pytest tests/ --cov --cov-fail-under=60 --cov-report=xml
+        run: uv run pytest --cov-report=xml
 
       - name: Upload coverage report
         if: always()

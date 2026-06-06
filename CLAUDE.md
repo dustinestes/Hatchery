@@ -49,7 +49,7 @@ The terminology follows an avian/hatching metaphor. Branded terms are used where
 - **VM control (KVM)**: `virt-install`, `virsh`, `qemu-img` via Python `subprocess`
 - **VM control (Hyper-V, future)**: PowerShell cmdlets via WinRM from a remote Linux host
 - **Post-install provisioning**: WinRM via `pywinrm` (Windows guests); SSH (Linux guests, future)
-- **Dependencies**: `flask`, `pywinrm`, `jinja2` (see `requirements.txt`)
+- **Dependencies**: `flask`, `pywinrm`, `pyyaml` (see `pyproject.toml`)
 
 ## Supported Guests (v1)
 
@@ -86,8 +86,8 @@ Hatchery/
 ├── static/
 │   ├── style.css
 │   └── app.js                    # Status polling, UI interactions
-├── requirements.txt
-├── requirements-dev.txt
+├── pyproject.toml
+├── uv.lock
 └── CLAUDE.md
 ```
 
@@ -212,8 +212,8 @@ All user-generated and user-supplied assets live outside the Hatchery applicatio
 ```
 ~/.local/share/hatchery/
 ├── clutches/       # Clutch definition files (.yaml)
-├── isos/           # ISOs and VHD/VHDX (or symlinks to existing locations)
-└── answerfiles/    # Generated Autounattend.xml and post-boot scripts, per VM
+├── eggs/           # Source images — ISOs, VHDs, VHDX, QCOW2 (vocabulary: Egg)
+└── automation/     # Automation files — answer files, post-boot scripts, cloud-init configs
 ```
 
 Frozen VM states (snapshots) are managed by libvirt/virsh and remain in the hypervisor's storage — they are not duplicated in the data directory.
@@ -240,6 +240,8 @@ Five top-level navigation panes:
 - Provider-agnostic core — hypervisor differences are isolated in `lib/providers/`
 - OS-aware, not OS-assuming — answer files and provisioning adapt to the guest type
 - Errors surface in the UI, not just server logs
+- **1:1:1 naming** — a concept has one name used identically in the UI, documentation, and codebase; if it is called "Eggs" in the UI it is `eggs` in the code and "Eggs" in the docs
+- **Shallow data directory** — target ≤3 levels deep; prefer wider structure over deep nesting; directory names align with vocabulary
 
 ## Host Requirements
 
@@ -247,14 +249,19 @@ The Ubuntu host needs:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools python3 python3-pip
-pip install -r requirements.txt
+    libguestfs-tools swtpm swtpm-tools python3
+```
+
+Install Python dependencies with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv sync
 ```
 
 ## Running Hatchery
 
 ```bash
-python app.py
+uv run python app.py
 # Opens at http://localhost:5000
 ```
 
@@ -264,7 +271,7 @@ python app.py
 
 ### `.hatchery/` Directory
 
-All project meta-content lives in `.hatchery/`: branding assets, documentation, audit artifacts, test scaffolding, and UI mockups. Nothing in `.hatchery/` is required to run the application — it exists for project management, documentation, and contributor tooling. Build and deploy steps should exclude this directory entirely.
+All project meta-content lives in `.hatchery/`: branding assets, documentation, audit artifacts, and UI mockups. Nothing in `.hatchery/` is required to run the application — it exists for project management, documentation, and contributor tooling. Build and deploy steps should exclude this directory entirely.
 
 This convention is used across projects for consistency.
 
@@ -305,7 +312,7 @@ Use conventional commit format with a short present-tense description and the is
 feat: add snapshot list to manage page (#11)
 fix: resolve virsh timeout on slow hosts (#10)
 docs: update getting-started with VirtIO setup (#26)
-chore: pin ruff version in requirements-dev (#24)
+chore: pin ruff version in pyproject.toml (#24)
 refactor: extract answer file strategy to separate classes (#18)
 sec: restrict WinRM credential storage to session scope (#31)
 breaking: rename /api/vms to /api/brood (#7)
@@ -358,8 +365,8 @@ Additional triage labels (`wontfix`, `question`, `help wanted`, `good first issu
 
 - Formatter and linter: `ruff`
 - Line length: 100
-- Run checks: `ruff check . && ruff format --check .`
-- Auto-fix: `ruff check --fix . && ruff format .`
+- Run checks: `uv run ruff check . && uv run ruff format --check .`
+- Auto-fix: `uv run ruff check --fix . && uv run ruff format .`
 
 ### Testing
 
@@ -369,11 +376,11 @@ Before every push and every PR, all checks must pass locally:
 
 1. **Lint** — zero violations:
    ```bash
-   ruff check . && ruff format --check .
+   uv run ruff check . && uv run ruff format --check .
    ```
 2. **Tests** — all passing, ≥60% line coverage:
    ```bash
-   pytest tests/ --cov --cov-fail-under=60
+   uv run pytest
    ```
 3. **Docs** — if behavior changed, update `.hatchery/docs/`, `README.md`, or `CONTRIBUTING.md`
 

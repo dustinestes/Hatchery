@@ -36,7 +36,7 @@ Install the required system packages:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools python3 python3-pip
+    libguestfs-tools swtpm swtpm-tools python3
 ```
 
 Add your user to the `libvirt` and `kvm` groups so you can manage VMs without `sudo`:
@@ -52,13 +52,21 @@ sudo usermod -aG libvirt,kvm $USER
 
 ## Installation
 
+Install [uv](https://docs.astral.sh/uv/) if you don't have it:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Clone and install:
+
 ```bash
 git clone https://github.com/dustin-estes/hatchery.git
 cd hatchery
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
+
+`uv sync` creates a virtual environment at `.venv` and installs all dependencies from `uv.lock`.
 
 ---
 
@@ -67,8 +75,7 @@ pip install -r requirements.txt
 ## Running Hatchery
 
 ```bash
-source .venv/bin/activate
-python app.py
+uv run python app.py
 ```
 
 Open `http://localhost:5000` in your browser. The dashboard shows your current brood (all VMs known to libvirt).

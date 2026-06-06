@@ -25,6 +25,7 @@ Reference documentation for Hatchery.
 |---|---|
 | [`project-structure.md`](project-structure.md) | Root directory layout — every file and folder explained |
 | [`getting-started.md`](getting-started.md) | Host setup, installation, and first VM walkthrough |
+| [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
 | [`errors.md`](errors.md) | Error handling model — HTTP codes, VM operation errors, UI surfacing |
 | [`examples.md`](examples.md) | Real-world scenarios — hatching VMs, managing snapshots, teardown |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |

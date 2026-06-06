@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - '**.py'
+      - 'pyproject.toml'
       - '.github/workflows/lint.yml'
   pull_request:
     paths:
       - '**.py'
+      - 'pyproject.toml'
       - '.github/workflows/lint.yml'
   workflow_dispatch:
 
@@ -20,15 +22,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dev dependencies
+        run: uv sync --group dev
 
       - name: Check
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Format
-        run: ruff format --check .
+        run: uv run ruff format --check .

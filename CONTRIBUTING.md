@@ -47,14 +47,20 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 
 ## Development Setup
 
-No build tooling required. Clone the repo, create a virtual environment, and install dependencies.
+Clone the repo and install dependencies with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/dustin-estes/hatchery.git
 cd hatchery
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+uv sync
+```
+
+`uv sync` creates a virtual environment at `.venv` and installs all runtime and dev dependencies from `uv.lock`.
+
+If you don't have `uv` installed:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 **Host dependencies** (Ubuntu):
@@ -67,7 +73,7 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 **Run the app:**
 
 ```bash
-python app.py
+uv run python app.py
 # http://localhost:5000
 ```
 
@@ -81,7 +87,7 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 
 ## Code & Style Guidelines
 
-- **Python** — formatted and linted with `ruff`. Run `ruff check . && ruff format --check .` before pushing.
+- **Python** — formatted and linted with `ruff`. Run `uv run ruff check . && uv run ruff format --check .` before pushing.
 - **Line length** — 100 characters.
 - **HTML/CSS/JS** — follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
 - **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it.
@@ -100,7 +106,7 @@ Use a conventional commit prefix followed by a short, present-tense description:
 feat: add snapshot list to manage page
 fix: resolve virsh timeout on slow hosts
 docs: update getting-started with VirtIO setup
-chore: pin ruff version in requirements-dev
+chore: pin ruff version in pyproject.toml
 breaking: rename /api/vms to /api/brood
 ```
 
