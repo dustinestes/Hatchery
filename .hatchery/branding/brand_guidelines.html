@@ -1,0 +1,356 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400&family=Inter:wght@400;500&display=swap');
+
+  :root {
+    --font-mono: 'Space Mono', 'Courier New', monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --color-text-primary:         #111111;
+    --color-text-secondary:       #444444;
+    --color-text-tertiary:        #888888;
+    --color-background-secondary: #f5f5f5;
+    --color-border-secondary:     #e0e0e0;
+    --color-border-tertiary:      #e8e8e8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .page { font-family: var(--font-sans); background: #ffffff; padding: 2rem; display: flex; flex-direction: column; gap: 2.5rem; }
+  .section-label { font-family: var(--font-sans); font-size: 10px; letter-spacing: 3px; color: var(--color-text-tertiary); margin-bottom: 1.25rem; }
+  .divider { border: none; border-top: 0.5px solid var(--color-border-secondary); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .four-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+  .card { border-radius: 10px; padding: 1.75rem; border: 0.5px solid var(--color-border-tertiary); }
+  .card-label { font-family: var(--font-sans); font-size: 10px; letter-spacing: 1px; text-align: center; margin-top: 1rem; }
+
+  /* background treatments */
+  .light-bg { background: #f5f5f5; }
+  .dark-bg { background: #111111; border-color: #2a2a2a; }
+  .mid-bg { background: #1e1e1e; border-color: #2e2e2e; }
+
+  /* placeholder mark — replace with real logo SVG when ready */
+  .placeholder-mark {
+    border: 1.5px dashed #cccccc;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .placeholder-mark-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #bbbbbb;
+  }
+  .dark-bg .placeholder-mark,
+  .mid-bg .placeholder-mark { border-color: #3a3a3a; }
+  .dark-bg .placeholder-mark-label,
+  .mid-bg .placeholder-mark-label { color: #444444; }
+
+  /* typography */
+  .type-row { display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta { font-size: 10px; letter-spacing: 1px; color: var(--color-text-tertiary); margin-bottom: 0.25rem; }
+
+  /* palette */
+  .swatch-wrap { display: flex; flex-direction: column; gap: 0.5rem; }
+  .swatch { height: 52px; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); }
+  .swatch-label { font-size: 10px; letter-spacing: 1px; color: var(--color-text-secondary); }
+  .swatch-hex { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-tertiary); }
+
+  /* usage */
+  .usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .usage-card { border-radius: 10px; padding: 1.25rem; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); }
+  .usage-title { font-size: 10px; letter-spacing: 2px; margin-bottom: 1rem; }
+  .do { color: #0d9488; }
+  .dont { color: #dc2626; }
+
+  /* export previews */
+  .export-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+  .export-card { border-radius: 10px; padding: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+  .export-meta { font-size: 9px; letter-spacing: 1px; text-align: center; }
+  .export-filename { font-family: var(--font-mono); font-size: 9px; color: var(--color-text-tertiary); }
+  .checker-light {
+    background-color: #f0f0f0;
+    background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+                      linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                      linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+  }
+  .checker-dark {
+    background-color: #1e1e1e;
+    background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+                      linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+                      linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+    border-color: #2a2a2a;
+  }
+  .checker-dark .export-filename { color: #555; }
+  .checker-dark .export-meta { color: #555; }
+</style>
+
+<div class="page">
+
+  <div>
+    <div class="section-label">Hatchery — BRAND GUIDELINES</div>
+  </div>
+
+  <div>
+    <div class="section-label">PRIMARY MARK — LIGHT</div>
+    <div class="card light-bg" style="padding: 2.5rem;">
+      <div class="placeholder-mark" style="height: 80px;">
+        <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
+        <div class="placeholder-mark-label" style="opacity: 0.6; font-size: 9px;">replace with logo SVG — light variant (dark ink, transparent bg)</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">PRIMARY MARK — DARK</div>
+    <div class="card dark-bg" style="padding: 2.5rem;">
+      <div class="placeholder-mark" style="height: 80px;">
+        <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
+        <div class="placeholder-mark-label" style="opacity: 0.6; font-size: 9px;">replace with logo SVG — dark variant (light ink, transparent bg)</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">SCALE — RESPONSIVE SIZING</div>
+    <div class="three-col">
+      <div class="card light-bg" style="padding: 1.5rem;">
+        <div class="placeholder-mark" style="height: 70px;">
+          <div class="placeholder-mark-label">LOGO</div>
+        </div>
+        <div class="card-label" style="color:#999;">large — splash / header</div>
+      </div>
+      <div class="card light-bg" style="padding: 1.5rem;">
+        <div class="placeholder-mark" style="height: 52px;">
+          <div class="placeholder-mark-label">LOGO</div>
+        </div>
+        <div class="card-label" style="color:#999;">medium — toolbar / nav</div>
+      </div>
+      <div class="card light-bg" style="padding: 1.5rem;">
+        <div class="placeholder-mark" style="height: 36px;">
+          <div class="placeholder-mark-label">LOGO</div>
+        </div>
+        <div class="card-label" style="color:#999;">small — footer / badge</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">DOMAIN-SPECIFIC LOGO — OPTIONAL SUBTEXT</div>
+    <div class="two-col">
+      <div class="card light-bg" style="padding: 2.5rem;">
+        <div class="placeholder-mark" style="height: 80px;">
+          <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
+          <div class="placeholder-mark-label" style="opacity: 0.7; font-size: 9px;">tagline — TBD</div>
+        </div>
+      </div>
+      <div class="card dark-bg" style="padding: 2.5rem;">
+        <div class="placeholder-mark" style="height: 80px;">
+          <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
+          <div class="placeholder-mark-label" style="opacity: 0.7; font-size: 9px;">tagline — TBD</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-top:0.75rem; line-height:1.7;">
+      The subtext line is optional and domain-specific. It describes the scope or context in which Hatchery is deployed. Use it only on product-specific variants — not on the primary mark. Keep it lowercase and update it to match the deployment context.
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">STANDALONE ICON MARK</div>
+    <div class="four-col">
+      <div class="card light-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
+        <div class="placeholder-mark" style="width:48px; height:48px;">
+          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
+        </div>
+        <div class="card-label" style="color:#999;">48px on light</div>
+      </div>
+      <div class="card dark-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
+        <div class="placeholder-mark" style="width:48px; height:48px;">
+          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
+        </div>
+        <div class="card-label" style="color:#666;">48px on dark</div>
+      </div>
+      <div class="card light-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
+        <div class="placeholder-mark" style="width:32px; height:32px;">
+          <div class="placeholder-mark-label" style="font-size:7px;">ICON</div>
+        </div>
+        <div class="card-label" style="color:#999;">32px</div>
+      </div>
+      <div class="card dark-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
+        <div class="placeholder-mark" style="width:16px; height:16px;">
+        </div>
+        <div class="card-label" style="color:#666;">16px favicon</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">COLOR PALETTE</div>
+    <div class="four-col">
+      <div class="swatch-wrap">
+        <div class="swatch" style="background:#111111;"></div>
+        <div class="swatch-label">Ink</div>
+        <div class="swatch-hex">#111111</div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);">primary text, accent line</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background:#f5f5f5; border:0.5px solid #e0e0e0;"></div>
+        <div class="swatch-label">Paper</div>
+        <div class="swatch-hex">#f5f5f5</div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);">light background</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background:#888888;"></div>
+        <div class="swatch-label">Ash</div>
+        <div class="swatch-hex">#888888</div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);">subtitle, secondary text</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background:#cccccc;"></div>
+        <div class="swatch-label">Rule</div>
+        <div class="swatch-hex">#cccccc</div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);">rule lines, borders</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">TYPOGRAPHY</div>
+    <div class="card" style="background:var(--color-background-secondary);">
+      <div class="type-row">
+        <div class="type-meta">PRIMARY — WORDMARK / HEADINGS</div>
+        <div style="font-family:var(--font-sans); font-size:11px; color:var(--color-text-tertiary); line-height:1.7;">Define the primary typeface used in the logo and display contexts. Replace this row with the actual font choice once determined.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">SECONDARY — SUBTEXT / LABELS</div>
+        <div style="font-family:var(--font-sans); font-size:11px; color:var(--color-text-tertiary); line-height:1.7;">Define the secondary typeface used for scope descriptors, UI labels, and supporting marks.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">UI BODY — BODY COPY</div>
+        <div style="font-family:var(--font-sans); font-size:14px; font-weight:400; color:var(--color-text-primary); line-height:1.6;">Interface text, labels, descriptions, and supporting copy.</div>
+        <div style="font-family:var(--font-sans); font-size:10px; color:var(--color-text-tertiary); margin-top:4px;">Inter — 14px / 400 — all UI prose</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">UI LABELS — SPACED CAPS</div>
+        <div style="font-family:var(--font-sans); font-size:10px; font-weight:400; color:var(--color-text-tertiary); letter-spacing:3px;">SECTION LABEL</div>
+        <div style="font-family:var(--font-sans); font-size:10px; color:var(--color-text-tertiary); margin-top:4px;">Inter — 10px / 400 / tracking +3px — section headers</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">USAGE — DO / DON'T</div>
+    <div class="usage-grid">
+      <div class="usage-card">
+        <div class="usage-title do">✓ DO</div>
+        <div style="font-size:12px; color:var(--color-text-secondary); line-height:1.8;">
+          Use on clean light or dark backgrounds only<br>
+          Keep subtext lowercase and domain-specific<br>
+          Use the correct variant for each background<br>
+          Use icon mark at 16px and above<br>
+          Omit subtext on the primary mark
+        </div>
+      </div>
+      <div class="usage-card">
+        <div class="usage-title dont">✗ DON'T</div>
+        <div style="font-size:12px; color:var(--color-text-secondary); line-height:1.8;">
+          Don't use on busy or photographic backgrounds<br>
+          Don't uppercase the subtext<br>
+          Don't add color to the wordmark<br>
+          Don't stretch or skew the mark<br>
+          Don't add subtext to the primary mark
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">BANNERS — README HEADER</div>
+    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-bottom:1.25rem; line-height:1.7;">
+      Horizontal banner: logo mark on the left, vertical divider, tagline on the right.<br>
+      Use a <code style="font-family:var(--font-mono); font-size:9px;">&lt;picture&gt;</code> tag in the README to swap light/dark variants via <code style="font-family:var(--font-mono); font-size:9px;">prefers-color-scheme</code>.
+    </div>
+    <div class="two-col">
+      <div class="card light-bg" style="padding: 1.5rem;">
+        <div style="display:flex; align-items:center; gap:0; height:70px; border:1.5px dashed #cccccc; border-radius:6px; overflow:hidden;">
+          <div style="width:40%; height:100%; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#bbbbbb;">LOGO</span>
+          </div>
+          <div style="width:1px; height:60%; background:#cccccc;"></div>
+          <div style="flex:1; height:100%; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#bbbbbb;">TAGLINE PLACEHOLDER</span>
+          </div>
+        </div>
+        <div class="card-label" style="color:#999;">light background variant</div>
+      </div>
+      <div class="card dark-bg" style="padding: 1.5rem;">
+        <div style="display:flex; align-items:center; gap:0; height:70px; border:1.5px dashed #3a3a3a; border-radius:6px; overflow:hidden;">
+          <div style="width:40%; height:100%; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#444444;">LOGO</span>
+          </div>
+          <div style="width:1px; height:60%; background:#3a3a3a;"></div>
+          <div style="flex:1; height:100%; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#444444;">TAGLINE PLACEHOLDER</span>
+          </div>
+        </div>
+        <div class="card-label" style="color:#666;">dark background variant</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">EXPORT ASSETS — TRANSPARENT BACKGROUND</div>
+    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-bottom:1.25rem; line-height:1.7;">
+      Light variant = dark ink on transparent, for use on light backgrounds.<br>
+      Dark variant = light ink on transparent, for use on dark backgrounds.<br>
+      GitHub <code style="font-family:var(--font-mono); font-size:9px;">&lt;picture&gt;</code> tag: use <code style="font-family:var(--font-mono); font-size:9px;">prefers-color-scheme: dark</code> to swap to the dark variant.
+    </div>
+    <div class="export-grid">
+
+      <div class="export-card checker-light" style="border: 0.5px solid #ddd;">
+        <div class="placeholder-mark" style="width:160px; height:35px;">
+          <div class="placeholder-mark-label">LOGO</div>
+        </div>
+        <div class="export-meta" style="color:#888;">light variant</div>
+        <div class="export-filename">hatchery-logo-light.svg</div>
+      </div>
+
+      <div class="export-card checker-dark" style="border: 0.5px solid #2a2a2a;">
+        <div class="placeholder-mark" style="width:160px; height:35px; border-color:#444;">
+          <div class="placeholder-mark-label" style="color:#555;">LOGO</div>
+        </div>
+        <div class="export-meta">dark variant</div>
+        <div class="export-filename">hatchery-logo-dark.svg</div>
+      </div>
+
+      <div class="export-card checker-light" style="border: 0.5px solid #ddd;">
+        <div class="placeholder-mark" style="width:48px; height:48px;">
+          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
+        </div>
+        <div class="export-meta" style="color:#888;">light variant</div>
+        <div class="export-filename">hatchery-icon-light.svg</div>
+      </div>
+
+      <div class="export-card checker-dark" style="border: 0.5px solid #2a2a2a;">
+        <div class="placeholder-mark" style="width:48px; height:48px; border-color:#444;">
+          <div class="placeholder-mark-label" style="color:#555; font-size:8px;">ICON</div>
+        </div>
+        <div class="export-meta">dark variant</div>
+        <div class="export-filename">hatchery-icon-dark.svg</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

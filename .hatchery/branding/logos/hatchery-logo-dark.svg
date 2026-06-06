@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44">
+  <!--
+    {{ProjectName}} — logo, light variant
+    Dark ink on transparent background. Use on light/white backgrounds.
+    Replace rect and text elements with the real logo when finalized.
+  -->
+  <rect x="1" y="1" width="198" height="42" rx="4"
+        fill="none" stroke="#cccccc" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="100" y="27"
+        font-family="'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+        font-size="10" font-weight="400" fill="#aaaaaa"
+        letter-spacing="2" text-anchor="middle" dominant-baseline="middle">
+    LOGO PLACEHOLDER
+  </text>
+</svg>

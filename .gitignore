@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Flask
+instance/
+*.db
+
+# Hatchery runtime artifacts
+*.img
+.temp/
+
+# IDE
+.idea/
+*.swp
+*.swo

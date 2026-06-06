@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 728 80">
+  <!--
+    {{ProjectName}} — banner, dark background variant
+    Light content on transparent background. Use on dark/black backgrounds.
+    Replace logo and tagline sections with real content when finalized.
+  -->
+
+  <!-- logo placeholder (left) -->
+  <rect x="24" y="16" width="264" height="48" rx="4"
+        fill="none" stroke="#444444" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="156" y="40"
+        font-family="'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+        font-size="9" font-weight="400" fill="#555555"
+        letter-spacing="2" text-anchor="middle" dominant-baseline="middle">
+    LOGO
+  </text>
+
+  <!-- vertical divider -->
+  <line x1="318" y1="12" x2="318" y2="68" stroke="#444444" stroke-width="1"/>
+
+  <!-- tagline placeholder (right) -->
+  <text x="346" y="40"
+        font-family="'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+        font-size="13" font-weight="400" fill="#555555"
+        dominant-baseline="middle">
+    {{ProjectTagline}}
+  </text>
+</svg>
