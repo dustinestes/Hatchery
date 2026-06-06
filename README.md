@@ -5,8 +5,8 @@
 <br/>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/logos/hatchery-logo-dark.svg">
-  <img alt="Hatchery" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="60">
+  <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/banners/hatchery-banner-dark.svg">
+  <img alt="Hatchery" src=".hatchery/branding/banners/hatchery-banner-light.svg" height="160">
 </picture>
 
 <br/><br/>
@@ -158,7 +158,7 @@ MIT License. See [LICENSE](LICENSE) for full terms.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="32" alt="Hatchery">
+  <img align="left" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">hatch, provision, and manage VMs</div>
+<div align="right">Where environments hatch</div>
 <br clear="both">

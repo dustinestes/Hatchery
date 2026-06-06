@@ -1,260 +1,400 @@
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400&family=Inter:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap');
 
   :root {
-    --font-mono: 'Space Mono', 'Courier New', monospace;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --color-text-primary:         #111111;
-    --color-text-secondary:       #444444;
-    --color-text-tertiary:        #888888;
-    --color-background-secondary: #f5f5f5;
-    --color-border-secondary:     #e0e0e0;
-    --color-border-tertiary:      #e8e8e8;
+    --gold:        #C9A84C;
+    --gold-light:  #E4C87A;
+    --gold-dark:   #A6872F;
+    --light-bg:    #FAFAF7;
+    --light-text:  #1A1916;
+    --light-muted: #6B6862;
+    --light-rule:  #E3E3DF;
+    --dark-bg:     #141412;
+    --dark-text:   #F0EFE9;
+    --dark-muted:  #8A8880;
+    --dark-rule:   #2A2A27;
+
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-body:    'Inter', sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  .page { font-family: var(--font-sans); background: #ffffff; padding: 2rem; display: flex; flex-direction: column; gap: 2.5rem; }
-  .section-label { font-family: var(--font-sans); font-size: 10px; letter-spacing: 3px; color: var(--color-text-tertiary); margin-bottom: 1.25rem; }
-  .divider { border: none; border-top: 0.5px solid var(--color-border-secondary); }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
-  .four-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
-  .card { border-radius: 10px; padding: 1.75rem; border: 0.5px solid var(--color-border-tertiary); }
-  .card-label { font-family: var(--font-sans); font-size: 10px; letter-spacing: 1px; text-align: center; margin-top: 1rem; }
 
-  /* background treatments */
-  .light-bg { background: #f5f5f5; }
-  .dark-bg { background: #111111; border-color: #2a2a2a; }
-  .mid-bg { background: #1e1e1e; border-color: #2e2e2e; }
+  .page {
+    font-family: var(--font-body);
+    background: var(--light-bg);
+    color: var(--light-text);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
 
-  /* placeholder mark — replace with real logo SVG when ready */
-  .placeholder-mark {
-    border: 1.5px dashed #cccccc;
-    border-radius: 6px;
+  .section-label {
+    font-family: var(--font-body);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--light-muted);
+    margin-bottom: 1.25rem;
+  }
+
+  .two-col   { display: grid; grid-template-columns: 1fr 1fr;         gap: 1rem; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr;     gap: 1rem; }
+  .four-col  { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+
+  .card {
+    border-radius: 10px;
+    padding: 1.75rem;
+    border: 0.5px solid var(--light-rule);
+  }
+  .card-label {
+    font-family: var(--font-body);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  .light-bg { background: var(--light-bg); }
+  .dark-bg  { background: var(--dark-bg); border-color: var(--dark-rule); }
+
+  .logo-display {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* ── Typography ── */
+  .type-row {
+    display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.25rem;
+    padding: 1rem 0;
+    border-bottom: 0.5px solid var(--light-rule);
   }
-  .placeholder-mark-label {
-    font-family: var(--font-sans);
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: #bbbbbb;
-  }
-  .dark-bg .placeholder-mark,
-  .mid-bg .placeholder-mark { border-color: #3a3a3a; }
-  .dark-bg .placeholder-mark-label,
-  .mid-bg .placeholder-mark-label { color: #444444; }
-
-  /* typography */
-  .type-row { display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
   .type-row:last-child { border-bottom: none; }
-  .type-meta { font-size: 10px; letter-spacing: 1px; color: var(--color-text-tertiary); margin-bottom: 0.25rem; }
+  .type-meta { font-size: 10px; letter-spacing: 1px; color: var(--light-muted); margin-bottom: 0.25rem; }
 
-  /* palette */
+  /* ── Palette ── */
   .swatch-wrap { display: flex; flex-direction: column; gap: 0.5rem; }
-  .swatch { height: 52px; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); }
-  .swatch-label { font-size: 10px; letter-spacing: 1px; color: var(--color-text-secondary); }
-  .swatch-hex { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-tertiary); }
+  .swatch      { height: 52px; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); }
+  .swatch-label { font-size: 10px; letter-spacing: 1px; color: var(--light-text); }
+  .swatch-hex   { font-family: monospace; font-size: 10px; color: var(--light-muted); }
+  .swatch-desc  { font-size: 10px; color: var(--light-muted); }
 
-  /* usage */
+  /* ── Usage ── */
   .usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  .usage-card { border-radius: 10px; padding: 1.25rem; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); }
+  .usage-card {
+    border-radius: 10px;
+    padding: 1.25rem;
+    border: 0.5px solid var(--light-rule);
+    background: #F4F4F1;
+  }
   .usage-title { font-size: 10px; letter-spacing: 2px; margin-bottom: 1rem; }
-  .do { color: #0d9488; }
+  .do   { color: #0d9488; }
   .dont { color: #dc2626; }
 
-  /* export previews */
+  /* ── Export ── */
   .export-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
-  .export-card { border-radius: 10px; padding: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
-  .export-meta { font-size: 9px; letter-spacing: 1px; text-align: center; }
-  .export-filename { font-family: var(--font-mono); font-size: 9px; color: var(--color-text-tertiary); }
+  .export-card {
+    border-radius: 10px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .export-meta     { font-size: 9px; letter-spacing: 1px; text-align: center; color: var(--light-muted); }
+  .export-filename { font-family: monospace; font-size: 9px; color: var(--light-muted); }
+
   .checker-light {
     background-color: #f0f0f0;
-    background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-                      linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-                      linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-                      linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+    background-image:
+      linear-gradient(45deg,  #e0e0e0 25%, transparent 25%),
+      linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+      linear-gradient(45deg,  transparent 75%, #e0e0e0 75%),
+      linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
     background-size: 10px 10px;
     background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
   }
   .checker-dark {
     background-color: #1e1e1e;
-    background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
-                      linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
-                      linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
-                      linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+    background-image:
+      linear-gradient(45deg,  #2a2a2a 25%, transparent 25%),
+      linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+      linear-gradient(45deg,  transparent 75%, #2a2a2a 75%),
+      linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
     background-size: 10px 10px;
     background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
     border-color: #2a2a2a;
   }
-  .checker-dark .export-filename { color: #555; }
+  .checker-dark .export-filename,
   .checker-dark .export-meta { color: #555; }
 </style>
+
+<!--
+  Reusable logo SVG snippet (both light and dark variants are identical in shape/color — #C9A84C).
+  Each instance uses a unique clipPath ID to avoid conflicts when multiple SVGs share the same document.
+-->
 
 <div class="page">
 
   <div>
-    <div class="section-label">Hatchery — BRAND GUIDELINES</div>
+    <div class="section-label">Hatchery — BRAND GUIDELINES — Where environments hatch</div>
   </div>
 
+  <!-- ── PRIMARY MARK — LIGHT ── -->
   <div>
     <div class="section-label">PRIMARY MARK — LIGHT</div>
     <div class="card light-bg" style="padding: 2.5rem;">
-      <div class="placeholder-mark" style="height: 80px;">
-        <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
-        <div class="placeholder-mark-label" style="opacity: 0.6; font-size: 9px;">replace with logo SVG — light variant (dark ink, transparent bg)</div>
+      <div class="logo-display">
+        <svg xmlns="http://www.w3.org/2000/svg" height="80" viewBox="0 0 750 360" role="img" aria-label="Hatchery logo — light variant">
+          <defs><clipPath id="ec-a"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-a)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+          <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+        </svg>
       </div>
     </div>
   </div>
 
+  <!-- ── PRIMARY MARK — DARK ── -->
   <div>
     <div class="section-label">PRIMARY MARK — DARK</div>
     <div class="card dark-bg" style="padding: 2.5rem;">
-      <div class="placeholder-mark" style="height: 80px;">
-        <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
-        <div class="placeholder-mark-label" style="opacity: 0.6; font-size: 9px;">replace with logo SVG — dark variant (light ink, transparent bg)</div>
+      <div class="logo-display">
+        <svg xmlns="http://www.w3.org/2000/svg" height="80" viewBox="0 0 750 360" role="img" aria-label="Hatchery logo — dark variant">
+          <defs><clipPath id="ec-b"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-b)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+          <text fill="#FAFAF7" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+        </svg>
       </div>
     </div>
   </div>
 
+  <!-- ── SCALE ── -->
   <div>
     <div class="section-label">SCALE — RESPONSIVE SIZING</div>
     <div class="three-col">
       <div class="card light-bg" style="padding: 1.5rem;">
-        <div class="placeholder-mark" style="height: 70px;">
-          <div class="placeholder-mark-label">LOGO</div>
+        <div class="logo-display">
+          <svg xmlns="http://www.w3.org/2000/svg" height="70" viewBox="0 0 750 360" aria-label="Hatchery logo large">
+            <defs><clipPath id="ec-c"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+            <g transform="translate(6,105) scale(0.48)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+              <g clip-path="url(#ec-c)">
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+              </g>
+            </g>
+            <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+          </svg>
         </div>
-        <div class="card-label" style="color:#999;">large — splash / header</div>
+        <div class="card-label" style="color: var(--light-muted);">large — splash / header</div>
       </div>
       <div class="card light-bg" style="padding: 1.5rem;">
-        <div class="placeholder-mark" style="height: 52px;">
-          <div class="placeholder-mark-label">LOGO</div>
+        <div class="logo-display">
+          <svg xmlns="http://www.w3.org/2000/svg" height="48" viewBox="0 0 750 360" aria-label="Hatchery logo medium">
+            <defs><clipPath id="ec-d"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+            <g transform="translate(6,105) scale(0.48)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+              <g clip-path="url(#ec-d)">
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+              </g>
+            </g>
+            <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+          </svg>
         </div>
-        <div class="card-label" style="color:#999;">medium — toolbar / nav</div>
+        <div class="card-label" style="color: var(--light-muted);">medium — toolbar / nav</div>
       </div>
       <div class="card light-bg" style="padding: 1.5rem;">
-        <div class="placeholder-mark" style="height: 36px;">
-          <div class="placeholder-mark-label">LOGO</div>
+        <div class="logo-display">
+          <svg xmlns="http://www.w3.org/2000/svg" height="32" viewBox="0 0 750 360" aria-label="Hatchery logo small">
+            <defs><clipPath id="ec-e"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+            <g transform="translate(6,105) scale(0.48)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+              <g clip-path="url(#ec-e)">
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+              </g>
+            </g>
+            <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+          </svg>
         </div>
-        <div class="card-label" style="color:#999;">small — footer / badge</div>
+        <div class="card-label" style="color: var(--light-muted);">small — footer / badge</div>
       </div>
     </div>
   </div>
 
-  <div>
-    <div class="section-label">DOMAIN-SPECIFIC LOGO — OPTIONAL SUBTEXT</div>
-    <div class="two-col">
-      <div class="card light-bg" style="padding: 2.5rem;">
-        <div class="placeholder-mark" style="height: 80px;">
-          <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
-          <div class="placeholder-mark-label" style="opacity: 0.7; font-size: 9px;">tagline — TBD</div>
-        </div>
-      </div>
-      <div class="card dark-bg" style="padding: 2.5rem;">
-        <div class="placeholder-mark" style="height: 80px;">
-          <div class="placeholder-mark-label">LOGO PLACEHOLDER</div>
-          <div class="placeholder-mark-label" style="opacity: 0.7; font-size: 9px;">tagline — TBD</div>
-        </div>
-      </div>
-    </div>
-    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-top:0.75rem; line-height:1.7;">
-      The subtext line is optional and domain-specific. It describes the scope or context in which Hatchery is deployed. Use it only on product-specific variants — not on the primary mark. Keep it lowercase and update it to match the deployment context.
-    </div>
-  </div>
-
+  <!-- ── STANDALONE ICON MARK ── -->
   <div>
     <div class="section-label">STANDALONE ICON MARK</div>
     <div class="four-col">
+
       <div class="card light-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
-        <div class="placeholder-mark" style="width:48px; height:48px;">
-          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
-        </div>
-        <div class="card-label" style="color:#999;">48px on light</div>
+        <svg width="48" height="48" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-h"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-h)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
+        <div class="card-label" style="color: var(--light-muted);">48px on light</div>
       </div>
+
       <div class="card dark-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
-        <div class="placeholder-mark" style="width:48px; height:48px;">
-          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
-        </div>
-        <div class="card-label" style="color:#666;">48px on dark</div>
+        <svg width="48" height="48" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-i"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-i)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
+        <div class="card-label" style="color: var(--dark-muted);">48px on dark</div>
       </div>
+
       <div class="card light-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
-        <div class="placeholder-mark" style="width:32px; height:32px;">
-          <div class="placeholder-mark-label" style="font-size:7px;">ICON</div>
-        </div>
-        <div class="card-label" style="color:#999;">32px</div>
+        <svg width="32" height="32" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-j"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-j)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
+        <div class="card-label" style="color: var(--light-muted);">32px</div>
       </div>
+
       <div class="card dark-bg" style="padding:1.5rem; display:flex; flex-direction:column; align-items:center; gap:1rem;">
-        <div class="placeholder-mark" style="width:16px; height:16px;">
-        </div>
-        <div class="card-label" style="color:#666;">16px favicon</div>
+        <svg width="16" height="16" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-k"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-k)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
+        <div class="card-label" style="color: var(--dark-muted);">16px favicon</div>
       </div>
+
     </div>
   </div>
 
+  <!-- ── COLOR PALETTE ── -->
   <div>
     <div class="section-label">COLOR PALETTE</div>
     <div class="four-col">
       <div class="swatch-wrap">
-        <div class="swatch" style="background:#111111;"></div>
+        <div class="swatch" style="background: #C9A84C;"></div>
+        <div class="swatch-label">Gold</div>
+        <div class="swatch-hex">#C9A84C</div>
+        <div class="swatch-desc">accent — mark, interactive, highlight</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background: #FAFAF7; border: 0.5px solid var(--light-rule);"></div>
+        <div class="swatch-label">Chalk</div>
+        <div class="swatch-hex">#FAFAF7</div>
+        <div class="swatch-desc">light background — primary</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background: #141412;"></div>
+        <div class="swatch-label">Soot</div>
+        <div class="swatch-hex">#141412</div>
+        <div class="swatch-desc">dark background</div>
+      </div>
+      <div class="swatch-wrap">
+        <div class="swatch" style="background: #1A1916;"></div>
         <div class="swatch-label">Ink</div>
-        <div class="swatch-hex">#111111</div>
-        <div style="font-size:10px;color:var(--color-text-tertiary);">primary text, accent line</div>
+        <div class="swatch-hex">#1A1916</div>
+        <div class="swatch-desc">primary text on light</div>
+      </div>
+    </div>
+    <div style="height: 1rem;"></div>
+    <div class="four-col">
+      <div class="swatch-wrap">
+        <div class="swatch" style="background: #E4C87A;"></div>
+        <div class="swatch-label">Gold Light</div>
+        <div class="swatch-hex">#E4C87A</div>
+        <div class="swatch-desc">hover states, tints</div>
       </div>
       <div class="swatch-wrap">
-        <div class="swatch" style="background:#f5f5f5; border:0.5px solid #e0e0e0;"></div>
-        <div class="swatch-label">Paper</div>
-        <div class="swatch-hex">#f5f5f5</div>
-        <div style="font-size:10px;color:var(--color-text-tertiary);">light background</div>
+        <div class="swatch" style="background: #A6872F;"></div>
+        <div class="swatch-label">Gold Dark</div>
+        <div class="swatch-hex">#A6872F</div>
+        <div class="swatch-desc">pressed states, depth</div>
       </div>
       <div class="swatch-wrap">
-        <div class="swatch" style="background:#888888;"></div>
+        <div class="swatch" style="background: #6B6862;"></div>
         <div class="swatch-label">Ash</div>
-        <div class="swatch-hex">#888888</div>
-        <div style="font-size:10px;color:var(--color-text-tertiary);">subtitle, secondary text</div>
+        <div class="swatch-hex">#6B6862</div>
+        <div class="swatch-desc">secondary text, muted labels</div>
       </div>
       <div class="swatch-wrap">
-        <div class="swatch" style="background:#cccccc;"></div>
+        <div class="swatch" style="background: #E3E3DF; border: 0.5px solid var(--light-rule);"></div>
         <div class="swatch-label">Rule</div>
-        <div class="swatch-hex">#cccccc</div>
-        <div style="font-size:10px;color:var(--color-text-tertiary);">rule lines, borders</div>
+        <div class="swatch-hex">#E3E3DF</div>
+        <div class="swatch-desc">borders, dividers</div>
       </div>
     </div>
   </div>
 
+  <!-- ── TYPOGRAPHY ── -->
   <div>
     <div class="section-label">TYPOGRAPHY</div>
-    <div class="card" style="background:var(--color-background-secondary);">
+    <div class="card" style="background: #F4F4F1;">
       <div class="type-row">
         <div class="type-meta">PRIMARY — WORDMARK / HEADINGS</div>
-        <div style="font-family:var(--font-sans); font-size:11px; color:var(--color-text-tertiary); line-height:1.7;">Define the primary typeface used in the logo and display contexts. Replace this row with the actual font choice once determined.</div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--light-text); line-height: 1.2;">Where environments hatch</div>
+        <div style="font-size: 10px; color: var(--light-muted); margin-top: 6px;">Space Grotesk — 700 — wordmark, display headings, UI h1</div>
       </div>
       <div class="type-row">
-        <div class="type-meta">SECONDARY — SUBTEXT / LABELS</div>
-        <div style="font-family:var(--font-sans); font-size:11px; color:var(--color-text-tertiary); line-height:1.7;">Define the secondary typeface used for scope descriptors, UI labels, and supporting marks.</div>
+        <div class="type-meta">SECONDARY — SUBHEADINGS / LABELS</div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 500; color: var(--light-text); line-height: 1.4;">Hatch. Provision. Scale.</div>
+        <div style="font-size: 10px; color: var(--light-muted); margin-top: 6px;">Space Grotesk — 500 — subheadings, nav labels, card titles</div>
       </div>
       <div class="type-row">
         <div class="type-meta">UI BODY — BODY COPY</div>
-        <div style="font-family:var(--font-sans); font-size:14px; font-weight:400; color:var(--color-text-primary); line-height:1.6;">Interface text, labels, descriptions, and supporting copy.</div>
-        <div style="font-family:var(--font-sans); font-size:10px; color:var(--color-text-tertiary); margin-top:4px;">Inter — 14px / 400 — all UI prose</div>
+        <div style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 400; color: var(--light-text); line-height: 1.6;">Interface text, labels, descriptions, and supporting copy. Reads cleanly at small sizes.</div>
+        <div style="font-size: 10px; color: var(--light-muted); margin-top: 4px;">Inter — 14px / 400 — all UI prose</div>
       </div>
       <div class="type-row">
         <div class="type-meta">UI LABELS — SPACED CAPS</div>
-        <div style="font-family:var(--font-sans); font-size:10px; font-weight:400; color:var(--color-text-tertiary); letter-spacing:3px;">SECTION LABEL</div>
-        <div style="font-family:var(--font-sans); font-size:10px; color:var(--color-text-tertiary); margin-top:4px;">Inter — 10px / 400 / tracking +3px — section headers</div>
+        <div style="font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 400; color: var(--light-muted); letter-spacing: 3px;">SECTION LABEL</div>
+        <div style="font-size: 10px; color: var(--light-muted); margin-top: 4px;">Inter — 10px / 400 / tracking +3px — section headers, metadata</div>
       </div>
     </div>
   </div>
 
+  <!-- ── USAGE ── -->
   <div>
     <div class="section-label">USAGE — DO / DON'T</div>
     <div class="usage-grid">
       <div class="usage-card">
         <div class="usage-title do">✓ DO</div>
-        <div style="font-size:12px; color:var(--color-text-secondary); line-height:1.8;">
+        <div style="font-size:12px; color:var(--light-muted); line-height:1.8;">
           Use on clean light or dark backgrounds only<br>
           Keep subtext lowercase and domain-specific<br>
           Use the correct variant for each background<br>
@@ -264,7 +404,7 @@
       </div>
       <div class="usage-card">
         <div class="usage-title dont">✗ DON'T</div>
-        <div style="font-size:12px; color:var(--color-text-secondary); line-height:1.8;">
+        <div style="font-size:12px; color:var(--light-muted); line-height:1.8;">
           Don't use on busy or photographic backgrounds<br>
           Don't uppercase the subtext<br>
           Don't add color to the wordmark<br>
@@ -275,77 +415,129 @@
     </div>
   </div>
 
+  <!-- ── BANNERS ── -->
   <div>
     <div class="section-label">BANNERS — README HEADER</div>
-    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-bottom:1.25rem; line-height:1.7;">
-      Horizontal banner: logo mark on the left, vertical divider, tagline on the right.<br>
-      Use a <code style="font-family:var(--font-mono); font-size:9px;">&lt;picture&gt;</code> tag in the README to swap light/dark variants via <code style="font-family:var(--font-mono); font-size:9px;">prefers-color-scheme</code>.
+    <div style="font-size:11px; font-family:var(--font-body); color:var(--light-muted); margin-bottom:1.25rem; line-height:1.7;">
+      Horizontal banner: logo on the left, vertical divider, tagline on the right.<br>
+      Use a <code style="font-family:monospace; font-size:9px;">&lt;picture&gt;</code> tag in the README to swap light/dark variants via <code style="font-family:monospace; font-size:9px;">prefers-color-scheme</code>.
     </div>
     <div class="two-col">
       <div class="card light-bg" style="padding: 1.5rem;">
-        <div style="display:flex; align-items:center; gap:0; height:70px; border:1.5px dashed #cccccc; border-radius:6px; overflow:hidden;">
-          <div style="width:40%; height:100%; display:flex; align-items:center; justify-content:center;">
-            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#bbbbbb;">LOGO</span>
+        <div style="display:flex; align-items:center; height:70px; border-radius:4px; overflow:hidden;">
+          <div style="flex: 0 0 auto; padding-right: 15px;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="44" viewBox="0 0 750 360" aria-label="Hatchery">
+              <defs><clipPath id="ec-l"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+              <g transform="translate(6,105) scale(0.48)">
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+                <g clip-path="url(#ec-l)">
+                  <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+                  <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+                </g>
+              </g>
+              <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+            </svg>
           </div>
-          <div style="width:1px; height:60%; background:#cccccc;"></div>
-          <div style="flex:1; height:100%; display:flex; align-items:center; justify-content:center;">
-            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#bbbbbb;">TAGLINE PLACEHOLDER</span>
+          <div style="width:1px; height:60%; background:var(--light-rule); flex-shrink:0;"></div>
+          <div style="padding-left:20px;">
+            <div style="font-family:var(--font-body); font-size:9px; color:var(--light-muted); letter-spacing:0.03em;">Hatch. Provision. Scale.</div>
           </div>
         </div>
-        <div class="card-label" style="color:#999;">light background variant</div>
+        <div class="card-label" style="color: var(--light-muted);">light background variant</div>
       </div>
       <div class="card dark-bg" style="padding: 1.5rem;">
-        <div style="display:flex; align-items:center; gap:0; height:70px; border:1.5px dashed #3a3a3a; border-radius:6px; overflow:hidden;">
-          <div style="width:40%; height:100%; display:flex; align-items:center; justify-content:center;">
-            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#444444;">LOGO</span>
+        <div style="display:flex; align-items:center; height:70px; border-radius:4px; overflow:hidden;">
+          <div style="flex: 0 0 auto; padding-right: 15px;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="44" viewBox="0 0 750 360" aria-label="Hatchery">
+              <defs><clipPath id="ec-m"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+              <g transform="translate(6,105) scale(0.48)">
+                <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+                <g clip-path="url(#ec-m)">
+                  <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+                  <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+                </g>
+              </g>
+              <text fill="#FAFAF7" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+            </svg>
           </div>
-          <div style="width:1px; height:60%; background:#3a3a3a;"></div>
-          <div style="flex:1; height:100%; display:flex; align-items:center; justify-content:center;">
-            <span style="font-family:var(--font-sans); font-size:9px; letter-spacing:2px; color:#444444;">TAGLINE PLACEHOLDER</span>
+          <div style="width:1px; height:60%; background:var(--dark-rule); flex-shrink:0;"></div>
+          <div style="padding-left:20px;">
+            <div style="font-family:var(--font-body); font-size:9px; color:var(--dark-muted); letter-spacing:0.03em;">Hatch. Provision. Scale.</div>
           </div>
         </div>
-        <div class="card-label" style="color:#666;">dark background variant</div>
+        <div class="card-label" style="color: var(--dark-muted);">dark background variant</div>
       </div>
     </div>
   </div>
 
+  <!-- ── EXPORT ASSETS ── -->
   <div>
     <div class="section-label">EXPORT ASSETS — TRANSPARENT BACKGROUND</div>
-    <div style="font-size:11px; font-family:var(--font-sans); color:var(--color-text-tertiary); margin-bottom:1.25rem; line-height:1.7;">
+    <div style="font-size:11px; font-family:var(--font-body); color:var(--light-muted); margin-bottom:1.25rem; line-height:1.7;">
       Light variant = dark ink on transparent, for use on light backgrounds.<br>
       Dark variant = light ink on transparent, for use on dark backgrounds.<br>
-      GitHub <code style="font-family:var(--font-mono); font-size:9px;">&lt;picture&gt;</code> tag: use <code style="font-family:var(--font-mono); font-size:9px;">prefers-color-scheme: dark</code> to swap to the dark variant.
+      GitHub <code style="font-family:monospace; font-size:9px;">&lt;picture&gt;</code> tag: use <code style="font-family:monospace; font-size:9px;">prefers-color-scheme: dark</code> to swap to the dark variant.
     </div>
     <div class="export-grid">
 
       <div class="export-card checker-light" style="border: 0.5px solid #ddd;">
-        <div class="placeholder-mark" style="width:160px; height:35px;">
-          <div class="placeholder-mark-label">LOGO</div>
-        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 0 750 360" aria-label="Hatchery logo light">
+          <defs><clipPath id="ec-n"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-n)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+          <text fill="#1A1916" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+        </svg>
         <div class="export-meta" style="color:#888;">light variant</div>
         <div class="export-filename">hatchery-logo-light.svg</div>
       </div>
 
       <div class="export-card checker-dark" style="border: 0.5px solid #2a2a2a;">
-        <div class="placeholder-mark" style="width:160px; height:35px; border-color:#444;">
-          <div class="placeholder-mark-label" style="color:#555;">LOGO</div>
-        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 0 750 360" aria-label="Hatchery logo dark">
+          <defs><clipPath id="ec-o"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-o)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+          <text fill="#FAFAF7" font-family="'Space Grotesk', Arial, sans-serif" font-size="110" font-weight="700" letter-spacing="4" x="155" y="218">Hatchery</text>
+        </svg>
         <div class="export-meta">dark variant</div>
         <div class="export-filename">hatchery-logo-dark.svg</div>
       </div>
 
       <div class="export-card checker-light" style="border: 0.5px solid #ddd;">
-        <div class="placeholder-mark" style="width:48px; height:48px;">
-          <div class="placeholder-mark-label" style="font-size:8px;">ICON</div>
-        </div>
+        <svg width="48" height="48" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-p"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-p)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
         <div class="export-meta" style="color:#888;">light variant</div>
         <div class="export-filename">hatchery-icon-light.svg</div>
       </div>
 
       <div class="export-card checker-dark" style="border: 0.5px solid #2a2a2a;">
-        <div class="placeholder-mark" style="width:48px; height:48px; border-color:#444;">
-          <div class="placeholder-mark-label" style="color:#555; font-size:8px;">ICON</div>
-        </div>
+        <svg width="48" height="48" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg">
+          <defs><clipPath id="ec-q"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+          <g transform="translate(6,105) scale(0.48)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+            <g clip-path="url(#ec-q)">
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+              <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+            </g>
+          </g>
+        </svg>
         <div class="export-meta">dark variant</div>
         <div class="export-filename">hatchery-icon-dark.svg</div>
       </div>

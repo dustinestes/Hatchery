@@ -1,11 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!--
-    {{ProjectName}} — icon, light variant
-    Dark ink on transparent background. Use on light/white backgrounds.
-    Replace with the real icon when finalized.
-  -->
-  <rect x="1" y="1" width="30" height="30" rx="4"
-        fill="none" stroke="#cccccc" stroke-width="1.5" stroke-dasharray="4 3"/>
-  <line x1="1" y1="1" x2="31" y2="31" stroke="#cccccc" stroke-width="1" opacity="0.5"/>
-  <line x1="31" y1="1" x2="1" y2="31" stroke="#cccccc" stroke-width="1" opacity="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 120 96 120" role="img" aria-label="Hatchery icon">
+  <title>Hatchery icon</title>
+  <defs>
+    <clipPath id="ec">
+      <path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(6,105) scale(0.48)">
+    <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"
+      d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+    <g clip-path="url(#ec)">
+      <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+      <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+    </g>
+  </g>
 </svg>

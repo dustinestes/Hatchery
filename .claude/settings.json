@@ -1,0 +1,37 @@
+{
+    "permissions": {
+        "allow": [
+            "Read",
+            "Bash(git log:*)",
+            "Bash(git status:*)",
+            "Bash(git diff:*)",
+            "Bash(git show:*)",
+            "Bash(git branch:*)",
+            "Bash(find:*)",
+            "Bash(grep:*)",
+            "Bash(ls:*)",
+            "Bash(gh issue list:*)",
+            "Bash(gh issue view:*)",
+            "Bash(gh issue status:*)",
+            "Bash(gh issue create:*)",
+            "Bash(gh issue edit:*)",
+            "Bash(gh issue close:*)",
+            "Bash(gh issue reopen:*)",
+            "Bash(gh issue comment:*)",
+            "Bash(git commit:*)",
+            "Bash(git push:*)",
+            "Bash(git checkout:*)",
+            "Bash(git stash:*)",
+            "Bash(gh pr list:*)",
+            "Bash(gh pr view:*)",
+            "Bash(gh pr status:*)",
+            "Bash(gh pr create:*)",
+            "Bash(gh repo view:*)",
+            "Bash(git pull:*)",
+            "Bash(git add:*)",
+            "WebFetch",
+            "Bash(gh api:*)",
+            "Bash(sed:*)"
+        ]
+    }
+}
