@@ -19,15 +19,27 @@ Prior to this, the user ran similar automation against Hyper-V from a Windows ho
 
 ### Vocabulary
 
-| Term | Meaning |
-|---|---|
-| Egg | A source image (ISO or VHD/VHDX) |
-| Hatch / Hatching | Creating and booting a new VM |
-| Fledged | A VM that has completed provisioning and is ready to use |
-| Clutch | A named configuration/profile for a VM type |
-| Nest | A snapshot (a saved state to return to) |
-| Roost | The snapshot restore operation |
-| Brood | The full list of VMs managed by Hatchery |
+The terminology follows an avian/hatching metaphor. Branded terms are used where they add character or precision; standard terms are kept where the branded equivalent would add friction without benefit.
+
+| Category | Standard Term | Hatchery Term | Meaning |
+|---|---|---|---|
+| Infrastructure | Host / Hypervisor | **Nest** | The physical or remote machine running Hatchery and managing VMs |
+| Environment | Deployment group / Stack | **Clutch** | One or more related VMs defined together in a Clutch file |
+| Source image | ISO / VHD / VHDX | **Egg** | A source image used to hatch a VM |
+| All managed VMs | VM inventory | **Brood** | The full list of VMs known to a Nest |
+| Provision | Deploy / Provision | **Hatch** | Create and boot a VM |
+| Provision + save | Deploy + export config | **Export and Hatch** | Save configuration as a Clutch file, then hatch |
+| Save config only | Export / Blueprint | **Export Clutch** | Save configuration to a Clutch file without hatching |
+| Destroy | Delete / Terminate | **Cull** | Destroy a VM and remove its allocated storage |
+| Provisioned state | Ready / Healthy | **Fledged** | A VM that has completed provisioning and is ready to use |
+| Snapshot | Snapshot / Save state | **Freeze** | Save a VM's disk and state at a point in time |
+| Restore | Restore snapshot | **Thaw** | Restore a VM to a previously frozen state |
+| Status check | Health check | **Chirp** | Lightweight ping to confirm a VM is responsive |
+| Power on | Start | Start | — |
+| Graceful shutdown | Shutdown | Stop | — |
+| Forced shutdown | Force off | Force Stop | — |
+| Suspend | Pause | Pause | — |
+| Resume | Resume | Resume | — |
 
 ## Tech Stack
 
@@ -62,7 +74,7 @@ Hatchery/
 │   └── provision.py              # Post-install provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages (Jinja2)
-│   │   ├── index.html            # Dashboard: brood list + status
+│   │   ├── index.html            # Dashboard: brood overview + host stats
 │   │   ├── create.html           # Hatch a new VM (the main form)
 │   │   └── manage.html           # Per-VM controls: power, snapshots
 │   └── answerfiles/              # Unattended install Jinja2 templates
@@ -87,10 +99,10 @@ All hypervisor operations go through a provider interface defined in `lib/provid
 - `create_vm(config)` — hatch a new VM
 - `start_vm(name)` / `stop_vm(name)` / `force_stop_vm(name)`
 - `destroy_vm(name)` — full teardown including disk removal
-- `create_snapshot(name, label)` — create a nest
-- `list_snapshots(name)` — list nests
-- `revert_snapshot(name, label)` — roost
-- `delete_snapshot(name, label)` — delete a nest
+- `create_snapshot(name, label)` — freeze a VM state
+- `list_snapshots(name)` — list frozen states
+- `revert_snapshot(name, label)` — thaw to a saved state
+- `delete_snapshot(name, label)` — delete a frozen state
 - `get_status(name)` — running / shut off / paused / etc.
 
 The libvirt provider calls `virt-install` / `virsh` via subprocess. The future Hyper-V provider will invoke PowerShell cmdlets over WinRM from the Linux host running Hatchery — keeping the user on their Linux machine without needing to switch to the Windows host for VM management.
@@ -147,18 +159,78 @@ Inputs:
 - Win11 / Server 2025: UEFI required + TPM 2.0 emulation via `swtpm`
 
 ### VM Lifecycle (`/manage/<vm-name>`)
-- Start / Shutdown / Force off
-- Destroy + undefine (full teardown, removes disk)
-- Snapshot: create nest
-- Snapshot: list nests
-- Snapshot: revert to nest (roost)
-- Snapshot: delete nest
+- Start / Stop / Force Stop
+- Cull — full teardown, removes disk
+- Freeze — save VM state at a point in time
+- Thaw — restore to a previously frozen state
+- List and delete frozen states
+- Chirp — lightweight status check
 
 ### Dashboard (`/`)
-- Lists all VMs (`virsh list --all`)
-- Shows state (running / shut off / paused)
+- Lists all VMs in the brood with state (running / shut off / paused) and fledged status
+- Host resource consumption (CPU, memory, storage)
+- Available Clutch files and Eggs (ISOs / VHDs)
 - Quick-action buttons per VM
 - JS polls `/api/status` every 5s for live updates
+
+## VM Creation Routes
+
+There are two routes to hatching a VM. Both share the same underlying schema — the ad-hoc route builds a Clutch entry interactively; the templated route reads one from a file.
+
+### Ad-hoc
+
+The user fills out the creation form in the UI. Three actions are available:
+
+| Action | Behaviour |
+|---|---|
+| **Hatch** | Create the VM immediately — no file persistence |
+| **Export and Hatch** | Save the configuration as a Clutch file, then hatch |
+| **Export Clutch** | Save the configuration to a Clutch file without hatching |
+
+Export actions support both creating a new Clutch file and appending a VM definition to an existing one, enabling incremental construction of multi-VM environments.
+
+### Templated
+
+The user selects an existing Clutch file from the UI. Hatchery reads the file and hatches all defined VMs in dependency order. No manual input required beyond selecting the file.
+
+## Clutch Files
+
+A Clutch file is a YAML file defining one or more related VMs to be hatched together. It is the portable, reusable unit of environment configuration in Hatchery.
+
+A single-VM Clutch is valid. A multi-VM Clutch defines an environment — for example, an Active Directory test lab with a domain controller and a client.
+
+**Multi-VM ordering:** Each VM entry may declare a `depends_on` list referencing other VMs in the same Clutch. VMs with no dependencies are hatched in parallel; dependent VMs wait until their prerequisites are fledged. This allows parallel provisioning where safe and sequential provisioning where required.
+
+Clutch files are stored in the user data directory and managed through the Clutches pane in the UI.
+
+## Data Directory
+
+All user-generated and user-supplied assets live outside the Hatchery application source directory. This keeps the source directory portable and supports clean upgrades and reinstalls without touching user data.
+
+**Default root:** `~/.local/share/hatchery/` (XDG-compliant; configurable via Settings)
+
+```
+~/.local/share/hatchery/
+├── clutches/       # Clutch definition files (.yaml)
+├── isos/           # ISOs and VHD/VHDX (or symlinks to existing locations)
+└── answerfiles/    # Generated Autounattend.xml and post-boot scripts, per VM
+```
+
+Frozen VM states (snapshots) are managed by libvirt/virsh and remain in the hypervisor's storage — they are not duplicated in the data directory.
+
+The data directory root is exposed as a setting so power users can point it at a NAS, shared storage, or any preferred location.
+
+## UI Navigation
+
+Five top-level navigation panes:
+
+| Pane | Purpose |
+|---|---|
+| **Dashboard** | Brood overview — VM list, host resource consumption, available Clutch files and Eggs |
+| **Nests** | View and manage Nest host endpoints (local and future remote) |
+| **Clutches** | View and manage Clutch files — create, edit, import, delete |
+| **Automation** | View and manage automation files — OS answer files, post-first-boot scripts |
+| **Settings** | Application configuration — data directory path, Nest connection settings |
 
 ## Design Principles
 
@@ -310,6 +382,10 @@ Nothing reaches the repo that isn't clean, tested, and documented.
 ---
 
 ## Future Scope
+
+### Multiple Nests
+
+v1 manages a single local Nest (the host running Hatchery). Future versions will support registering multiple Nests — local or remote — and managing their broods from a single Hatchery instance. The Nests pane in the UI is designed for this from the start.
 
 ### Any Guest OS on KVM
 
