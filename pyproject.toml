@@ -1,0 +1,24 @@
+[project]
+name = "hatchery"
+version = "0.1.0"
+description = "Local web application for creating and managing KVM virtual machines"
+requires-python = ">=3.11"
+dependencies = [
+    "flask",
+    "pywinrm",
+    "pyyaml",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov --cov-fail-under=60"

@@ -14,6 +14,8 @@
 ![License](https://img.shields.io/badge/license-MIT-111111?style=flat-square&labelColor=555555)
 ![Version](https://img.shields.io/badge/version-v0.1.0-111111?style=flat-square&labelColor=555555)
 ![Platform](https://img.shields.io/badge/platform-Ubuntu%20%7C%20KVM-111111?style=flat-square&labelColor=555555)
+![Python](https://img.shields.io/badge/python-%3E%3D3.11-111111?style=flat-square&labelColor=555555)
+![uv](https://img.shields.io/badge/uv-managed-111111?style=flat-square&labelColor=555555)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustin-estes/hatchery/lint.yml?style=flat-square&label=Lint&labelColor=555555)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustin-estes/hatchery/test.yml?style=flat-square&label=Tests&labelColor=555555)
 
@@ -63,8 +65,9 @@ Hatchery/
 ├── static/
 │   ├── style.css
 │   └── app.js
-├── requirements.txt
-└── requirements-dev.txt
+├── pyproject.toml
+├── uv.lock
+└── CLAUDE.md
 ```
 
 > Full structure guide → [Project Structure](.hatchery/docs/project-structure.md)
@@ -95,13 +98,13 @@ Hatchery/
 | Ubuntu host | KVM-capable hardware |
 | `qemu-kvm`, `libvirt`, `virtinst` | VM control stack |
 | `swtpm`, `swtpm-tools` | TPM emulation (Win11 / Server 2025) |
-| Python 3.x | Runtime |
+| Python ≥3.11 | Runtime |
 | Windows ISO(s) | Your own eval or licensed copies |
 | VirtIO driver ISO | Optional — higher performance disk/network |
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools python3 python3-pip
+    libguestfs-tools swtpm swtpm-tools python3
 ```
 
 ---
@@ -111,8 +114,8 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 ## Where To Start
 
 1. **Install host dependencies** — see requirements above
-2. **Clone and install Python deps** — `pip install -r requirements.txt`
-3. **Run Hatchery** — `python app.py`
+2. **Clone and install Python deps** — `uv sync`
+3. **Run Hatchery** — `uv run python app.py`
 4. **Open the dashboard** — `http://localhost:5000`
 5. **Hatch a VM** — go to `/create`, fill in the form, click Hatch
 

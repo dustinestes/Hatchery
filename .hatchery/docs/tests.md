@@ -29,6 +29,7 @@ tests/
 ├── test_providers/
 │   ├── test_libvirt.py       — libvirt provider (KVM/QEMU)
 │   └── test_hyperv.py        — Hyper-V remote provider (future)
+├── test_config.py             — application config and data directory
 ├── test_answerfile.py         — answer file generation (OS-aware)
 └── test_provision.py          — post-install provisioning
 ```
@@ -46,25 +47,25 @@ Tests mirror the structure of `lib/`. Every module in `lib/` should have a corre
 Install dev dependencies once:
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync
 ```
 
 Run the full suite from the repo root:
 
 ```bash
-pytest tests/
+uv run pytest
 ```
 
 Run with coverage:
 
 ```bash
-pytest tests/ --cov --cov-report=term-missing
+uv run pytest --cov --cov-report=term-missing
 ```
 
 Run a single file:
 
 ```bash
-pytest tests/test_answerfile.py
+uv run pytest tests/test_config.py
 ```
 
 <br>
