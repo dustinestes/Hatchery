@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hatchery — Icon Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:        #C9A84C;
+      --gold-light:  #E4C87A;
+      --gold-dark:   #A6872F;
+      --light-bg:    #FAFAF7;
+      --light-text:  #1A1916;
+      --light-muted: #6B6862;
+      --light-rule:  #E3E3DF;
+      --dark-bg:     #141412;
+      --dark-text:   #F0EFE9;
+      --dark-muted:  #8A8880;
+      --dark-rule:   #2A2A27;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--light-bg);
+      color: var(--light-text);
+      padding: 48px 40px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    .page-header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .page-header .subtitle {
+      font-size: 14px;
+      color: var(--light-muted);
+    }
+    .page-meta {
+      font-size: 12px;
+      color: var(--light-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+
+    /* ── Concept sections ── */
+    .concept {
+      margin-bottom: 64px;
+    }
+    .concept-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .concept-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+    .concept-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .concept-desc {
+      font-size: 14px;
+      color: var(--light-muted);
+      margin-bottom: 24px;
+      max-width: 560px;
+      line-height: 1.6;
+    }
+
+    /* ── Preview grid ── */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--light-rule);
+    }
+
+    .preview-panel {
+      padding: 32px;
+    }
+    .preview-panel.light { background: var(--light-bg); }
+    .preview-panel.dark  { background: var(--dark-bg); }
+
+    .panel-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .preview-panel.light .panel-label { color: var(--light-muted); }
+    .preview-panel.dark  .panel-label { color: var(--dark-muted); }
+
+    .size-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    .size-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .size-tag {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+    .preview-panel.light .size-tag { color: var(--light-muted); }
+    .preview-panel.dark  .size-tag { color: var(--dark-muted); }
+
+    /* ── Divider ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--light-rule);
+      margin: 64px 0;
+    }
+
+    /* ── Notes section ── */
+    .notes {
+      font-size: 13px;
+      color: var(--light-muted);
+      line-height: 1.7;
+      max-width: 640px;
+    }
+    .notes h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--light-text);
+      margin-bottom: 12px;
+    }
+    .notes ul {
+      padding-left: 16px;
+    }
+    .notes li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Icon Concepts</h1>
+  <span class="subtitle">Four directions for review</span>
+</div>
+<p class="page-meta">Hatchery · Brand Identity · Issue #4</p>
+
+<!-- ═══════════════════════════════════════════════════
+     CONCEPT A — Geometric Egg
+     ═══════════════════════════════════════════════════ -->
+<div class="concept">
+  <div class="concept-header">
+    <span class="concept-label">A</span>
+    <span class="concept-name">Geometric Egg</span>
+  </div>
+  <p class="concept-desc">
+    A clean ovoid silhouette — slightly asymmetric top, wider base. Pure shape, no detail. Communicates origin, potential, the brand name directly. Gold fill on light; reversed on dark.
+  </p>
+
+
+<!-- ═══════════════════════════════════════════════════
+     CONCEPT B — Cracked Shell
+     ═══════════════════════════════════════════════════ -->
+<div class="concept">
+  <div class="concept-header">
+    <span class="concept-label">B</span>
+    <span class="concept-name">Cracked Shell</span>
+  </div>
+  <p class="concept-desc">
+    An egg split at the midline — two halves slightly separated, a thin gap between them. Implies emergence, hatching in progress. The crack line is the story. Works as a two-tone mark (gold body, dark gap).
+  </p>
+
+
+<!-- ═══════════════════════════════════════════════════
+     CONCEPT C — Dragon Scale / Facet
+     ═══════════════════════════════════════════════════ -->
+<div class="concept">
+  <div class="concept-header">
+    <span class="concept-label">C</span>
+    <span class="concept-name">Dragon Scale / Facet</span>
+  </div>
+  <p class="concept-desc">
+    A single faceted scale — a diamond with a curved bottom edge, suggesting one scale from a reptilian surface. Geometric, distinctive. References the dragon hatchery metaphor without being literal. Multi-facet shading gives depth using gold tones.
+  </p>
+
+
+<!-- ═══════════════════════════════════════════════════
+     CONCEPT D — Stylised H
+     ═══════════════════════════════════════════════════ -->
+<div class="concept">
+  <div class="concept-header">
+    <span class="concept-label">D</span>
+    <span class="concept-name">Stylised H</span>
+  </div>
+  <p class="concept-desc">
+    The letter H with the crossbar replaced by an egg form — a horizontal oval sits where the bar would be. The letterform is immediately legible at any size. The egg crossbar is the conceptual hook that ties the mark to the brand. Two verticals in gold, egg crossbar as a lighter or outlined form.
+  </p>
+
+<hr>
+
+<div class="notes">
+  <h2>Notes</h2>
+  <ul>
+    <li><strong>A — Geometric Egg:</strong> Strongest brand alignment. The two-ellipse construction gives a natural egg silhouette (wide base tapering to a rounded top). Very clean at small sizes.</li>
+    <li><strong>B — Cracked Shell:</strong> Most narrative — implies the action of hatching. The zigzag crack drops out at 16px, so small-size variant would fall back to the solid split form.</li>
+    <li><strong>C — Dragon Scale:</strong> Most geometric and distinctive. The facet shading adds depth but can be stripped to a single fill for flat/small contexts. References the hatchery metaphor obliquely.</li>
+    <li><strong>D — Stylised H:</strong> Highest legibility at all sizes. The egg crossbar is a subtle nod rather than a primary statement — some viewers will read it as a plain H. Strong for app favicons and UI contexts where the wordmark isn't present.</li>
+    <li>All concepts use <code>#C9A84C</code> as the primary fill. Light/dark background variants are structurally identical — no outline inversion required at this palette.</li>
+  </ul>
+</div>
+
+</body>
+</html>

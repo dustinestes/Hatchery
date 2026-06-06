@@ -1,7 +1,7 @@
 <br><br>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="40" alt="Hatchery">
+  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Documentation</h1>
 <br clear="both">
@@ -29,13 +29,13 @@ Reference documentation for Hatchery.
 | [`examples.md`](examples.md) | Real-world scenarios — hatching VMs, managing snapshots, teardown |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |
 
----
-
 <br>
+
+---
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="32" alt="Hatchery">
+  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">hatch, provision, and manage VMs</div>
+<div align="right">Where environments hatch</div>
 <br clear="both">

@@ -1,7 +1,7 @@
 <br><br>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="40" alt="Hatchery">
+  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Customization</h1>
 <br clear="both">
@@ -54,13 +54,13 @@ To add support for a new guest OS:
 3. Add the OS type to the creation form options in `templates/ui/create.html`
 4. Register any UEFI/TPM requirements in the provider's `create_vm` method
 
----
-
 <br>
+
+---
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="32" alt="Hatchery">
+  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">hatch, provision, and manage VMs</div>
+<div align="right">Where environments hatch</div>
 <br clear="both">
