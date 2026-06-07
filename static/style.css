@@ -1,0 +1,289 @@
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ul[role="list"] { list-style: none; }
+a { text-decoration: none; color: inherit; }
+button { cursor: pointer; border: none; background: none; font: inherit; }
+svg { display: block; flex-shrink: 0; }
+
+/* ── Brand tokens ── */
+:root {
+  --gold:       #C9A84C;
+  --gold-light: #E4C87A;
+  --gold-dark:  #A6872F;
+
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body:    'Inter', sans-serif;
+
+  --topbar-height:           44px;
+  --footer-height:           32px;
+  --sidebar-width:           220px;
+  --sidebar-collapsed-width: 56px;
+  --sidebar-transition:      width 200ms ease;
+}
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --color-bg:             #FAFAF7;
+  --color-bg-sidebar:     #F2F2EE;
+  --color-surface:        #FFFFFF;
+  --color-surface-alt:    #F4F4F1;
+  --color-text:           #1A1916;
+  --color-text-muted:     #6B6862;
+  --color-border:         #E3E3DF;
+  --color-topbar-bg:      #FAFAF7;
+  --color-topbar-border:  #E3E3DF;
+  --color-footer-bg:      #F2F2EE;
+  --color-footer-border:  #E3E3DF;
+  --color-sidebar-text:   #3A3835;
+  --color-sidebar-muted:  #8A8880;
+  --color-nav-hover-bg:   #EAEAE6;
+  --color-nav-active-bg:  #E3E3DF;
+  --color-nav-active-text:#1A1916;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --color-bg:             #1A1917;
+  --color-bg-sidebar:     #141412;
+  --color-surface:        #222220;
+  --color-surface-alt:    #1F1F1C;
+  --color-text:           #F0EFE9;
+  --color-text-muted:     #8A8880;
+  --color-border:         #2A2A27;
+  --color-topbar-bg:      #141412;
+  --color-topbar-border:  #2A2A27;
+  --color-footer-bg:      #141412;
+  --color-footer-border:  #2A2A27;
+  --color-sidebar-text:   #C8C7C1;
+  --color-sidebar-muted:  #6B6862;
+  --color-nav-hover-bg:   #1F1F1C;
+  --color-nav-active-bg:  #252522;
+  --color-nav-active-text:#F0EFE9;
+}
+
+/* ── Base ── */
+html {
+  height: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+body {
+  height: 100%;
+  display: grid;
+  grid-template-rows: var(--topbar-height) 1fr var(--footer-height);
+  overflow: hidden;
+}
+
+/* ── Top bar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--color-topbar-bg);
+  border-bottom: 1px solid var(--color-topbar-border);
+  z-index: 10;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Icon button ── */
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.btn-icon:hover {
+  background: var(--color-nav-hover-bg);
+  color: var(--color-text);
+}
+
+/* Theme toggle — show correct icon per theme */
+[data-theme="light"] .icon-moon { display: none; }
+[data-theme="dark"]  .icon-sun  { display: none; }
+
+/* ── App body ── */
+.app-body {
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--color-bg-sidebar);
+  border-right: 1px solid var(--color-border);
+  transition: var(--sidebar-transition);
+  overflow: hidden;
+  z-index: 5;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
+}
+
+/* Suppress transition on first paint to avoid flash */
+.sidebar-collapsed-init .sidebar {
+  transition: none;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+  overflow: hidden;
+}
+
+.sidebar-item {
+  display: block;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  margin: 1px 8px;
+  color: var(--color-sidebar-text);
+  white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-link:hover {
+  background: var(--color-nav-hover-bg);
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-item.active .sidebar-link {
+  background: var(--color-nav-active-bg);
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-item.active .sidebar-icon {
+  stroke: var(--gold);
+}
+
+.sidebar-label {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 13px;
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+
+.sidebar.collapsed .sidebar-label {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-icon {
+  flex-shrink: 0;
+  transition: stroke 150ms ease;
+}
+
+/* ── Sidebar toggle button ── */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  color: var(--color-sidebar-muted);
+  border-top: 1px solid var(--color-border);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-nav-hover-bg);
+  color: var(--color-text);
+}
+
+.sidebar .icon-expand          { display: none; }
+.sidebar.collapsed .icon-collapse { display: none; }
+.sidebar.collapsed .icon-expand   { display: block; }
+
+/* ── Main content ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg);
+  padding: 32px;
+}
+
+/* ── Pane layout ── */
+.pane-header {
+  margin-bottom: 28px;
+}
+
+.pane-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.pane-subtitle {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* ── Stub placeholder ── */
+.stub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--color-footer-bg);
+  border-top: 1px solid var(--color-footer-border);
+}
+
+.footer-version {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
