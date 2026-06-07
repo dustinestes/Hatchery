@@ -147,7 +147,12 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="footer-left"></div>
+    <div class="footer-left">
+      <div class="nest-status" title="{% if req_missing %}{{ req_missing | length }} tool{{ 's' if req_missing | length != 1 else '' }} missing — install to enable VM operations{% else %}All requirements met{% endif %}">
+        <span class="nest-status-dot {% if req_missing %}nest-status-dot--red{% else %}nest-status-dot--green{% endif %}"></span>
+        <span class="nest-status-label">Nest</span>
+      </div>
+    </div>
     <div class="footer-right">
       <span class="footer-version">v0.1.0</span>
     </div>

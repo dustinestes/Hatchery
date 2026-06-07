@@ -259,6 +259,49 @@ class TestRequirementsWarning:
                 assert "req-warning" in html, f"Expected warning banner on {path}"
 
 
+class TestNestStatus:
+    def test_dot_green_when_requirements_met(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+        ):
+            html = client.get("/").data.decode()
+        assert "nest-status-dot--green" in html
+
+    def test_dot_red_when_requirements_missing(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
+        ):
+            html = client.get("/").data.decode()
+        assert "nest-status-dot--red" in html
+
+    def test_status_present_on_all_panes(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+        ):
+            for path in ["/", "/nests", "/clutches", "/automation", "/settings", "/create"]:
+                html = client.get(path).data.decode()
+                assert "nest-status" in html, f"Expected nest status on {path}"
+
+    def test_tooltip_all_ok_when_met(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+        ):
+            html = client.get("/").data.decode()
+        assert "All requirements met" in html
+
+    def test_tooltip_shows_missing_count(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
+        ):
+            html = client.get("/").data.decode()
+        assert "1 tool missing" in html
+
+
 class TestAPIRoutes:
     def test_api_media_returns_json(self, client):
         resp = client.get("/api/media")

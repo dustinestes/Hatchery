@@ -651,6 +651,31 @@ body {
   letter-spacing: 0.02em;
 }
 
+.nest-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  user-select: none;
+}
+
+.nest-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nest-status-dot--green { background: #4CAF50; }
+.nest-status-dot--amber { background: #D97706; }
+.nest-status-dot--red   { background: #E53935; }
+
+.nest-status-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
 /* ── Requirements warning banner ── */
 .req-warning {
   background-color: color-mix(in srgb, #D97706 8%, var(--color-bg));
