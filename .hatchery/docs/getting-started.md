@@ -14,6 +14,7 @@ How to set up your Ubuntu host and hatch your first VM.
 
 - [Contents](#contents)
 - [Host Requirements](#host-requirements)
+  - [If Requirements Are Missing](#if-requirements-are-missing)
 - [Installation](#installation)
 - [Running Hatchery](#running-hatchery)
 - [Hatching Your First VM](#hatching-your-first-vm)
@@ -36,8 +37,20 @@ Install the required system packages:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools python3
+    libguestfs-tools swtpm swtpm-tools python3 python3-gi
 ```
+
+### If Requirements Are Missing
+
+If any of these tools are not installed when you start Hatchery, an amber warning banner appears at the top of every pane with the exact `apt install` command needed to resolve it:
+
+![Requirements warning banner](assets/screenshot_requirements_warning.png)
+
+Expand "Show missing tools" to see a per-tool breakdown — what each tool is called, what it enables, and which package provides it. The banner clears automatically once the packages are installed and you reload any page.
+
+---
+
+<br>
 
 Add your user to the `libvirt` and `kvm` groups so you can manage VMs without `sudo`:
 
