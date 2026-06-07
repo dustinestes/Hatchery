@@ -37,12 +37,12 @@ vms:
     disk_gb: 80
 
     # os_media (required): source image for this VM
-    # Filename relative to the eggs/ data directory, or an absolute path.
+    # Filename relative to the media/ data directory, or an absolute path.
     # Accepts any format the hypervisor supports: ISO, VHD, VHDX, QCOW2.
     os_media: Win11_24H2.iso
 
     # virtio_drivers (optional): VirtIO driver package
-    # Filename relative to the eggs/ data directory, or an absolute path.
+    # Filename relative to the media/ data directory, or an absolute path.
     # Enables high-performance VirtIO disk and network adapters on Windows guests.
     # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
     virtio_drivers: virtio-win.iso
