@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Hatchery{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('hatchery-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+      var sidebarCollapsed = localStorage.getItem('hatchery-sidebar-collapsed') === 'true';
+      if (sidebarCollapsed) document.documentElement.classList.add('sidebar-collapsed-init');
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <svg class="topbar-icon" width="24" height="24" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><clipPath id="nav-icon-clip"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
+        <g transform="translate(6,105) scale(0.48)">
+          <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
+          <g clip-path="url(#nav-icon-clip)">
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
+            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
+          </g>
+        </g>
+      </svg>
+      <span class="topbar-name">Hatchery</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- App body: sidebar + content -->
+  <div class="app-body">
+
+    <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+      <ul class="sidebar-nav" role="list">
+
+        <li class="sidebar-item{% if active_pane == 'dashboard' %} active{% endif %}">
+          <a href="{{ url_for('dashboard') }}" class="sidebar-link" title="Dashboard">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <span class="sidebar-label">Dashboard</span>
+          </a>
+        </li>
+
+        <li class="sidebar-item{% if active_pane == 'nests' %} active{% endif %}">
+          <a href="{{ url_for('nests') }}" class="sidebar-link" title="Nests">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="3" width="20" height="5" rx="1"/><rect x="2" y="10" width="20" height="5" rx="1"/><rect x="2" y="17" width="20" height="5" rx="1"/>
+              <circle cx="18.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12.5" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            <span class="sidebar-label">Nests</span>
+          </a>
+        </li>
+
+        <li class="sidebar-item{% if active_pane == 'clutches' %} active{% endif %}">
+          <a href="{{ url_for('clutches') }}" class="sidebar-link" title="Clutches">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 18 L12 22 L22 18"/><path d="M2 13 L12 17 L22 13"/><path d="M2 8 L12 12 L22 8 L12 4 Z"/>
+            </svg>
+            <span class="sidebar-label">Clutches</span>
+          </a>
+        </li>
+
+        <li class="sidebar-item{% if active_pane == 'automation' %} active{% endif %}">
+          <a href="{{ url_for('automation') }}" class="sidebar-link" title="Automation">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            <span class="sidebar-label">Automation</span>
+          </a>
+        </li>
+
+        <li class="sidebar-item{% if active_pane == 'settings' %} active{% endif %}">
+          <a href="{{ url_for('settings') }}" class="sidebar-link" title="Settings">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span class="sidebar-label">Settings</span>
+          </a>
+        </li>
+
+      </ul>
+
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+        <svg class="icon-collapse" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </nav>
+
+    <main class="content" id="main-content">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-left"></div>
+    <div class="footer-right">
+      <span class="footer-version">v0.1.0</span>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
