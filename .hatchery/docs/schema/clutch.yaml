@@ -1,0 +1,97 @@
+# Clutch file schema reference
+#
+# A Clutch file defines one or more related VMs to be hatched together.
+# A single-VM Clutch is valid. Multi-VM Clutches define an environment —
+# for example, a domain controller and a joined client.
+#
+# Loaded and validated by: lib/clutch.py
+
+# ── Top-level fields ───────────────────────────────────────────────────────────
+
+# name (required): human-readable environment name
+name: win-dev-lab
+
+# description (optional): free-form description of this environment
+description: Windows 11 development environment
+
+# vms (required): list of one or more VM definitions
+vms:
+
+  # ── VM fields ───────────────────────────────────────────────────────────────
+
+  - # name (required): unique identifier for this VM within the Clutch
+    name: win11-dev
+
+    # os (required): guest OS type
+    # Accepted values: win10 | win11 | server2022 | server2025
+    # Controls: answer file template selection, UEFI/TPM requirements
+    os: win11
+
+    # vcpus (required): number of virtual CPUs — must be >= 1
+    vcpus: 4
+
+    # ram_gb (required): RAM in GB — must be >= 1
+    ram_gb: 8
+
+    # disk_gb (required): disk size in GB — must be >= 1
+    disk_gb: 80
+
+    # os_media (required): source image for this VM
+    # Filename relative to the eggs/ data directory, or an absolute path.
+    # Accepts any format the hypervisor supports: ISO, VHD, VHDX, QCOW2.
+    os_media: Win11_24H2.iso
+
+    # virtio_drivers (optional): VirtIO driver package
+    # Filename relative to the eggs/ data directory, or an absolute path.
+    # Enables high-performance VirtIO disk and network adapters on Windows guests.
+    # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
+    virtio_drivers: virtio-win.iso
+
+    # os_config (optional): OS deployment configuration file
+    # Filename relative to the automation/ data directory, or an absolute path.
+    # Windows: Autounattend.xml or a Jinja2 template (.xml.j2)
+    # Linux (future): cloud-init user-data, kickstart, or preseed file
+    # Credentials and OS-specific configuration live in this file — not here.
+    os_config: win11-unattend.xml.j2
+
+    # automations (optional): ordered list of post-boot automation scripts
+    # Filenames relative to the automation/ data directory.
+    # Executed in order against the VM after it is fledged, via WinRM (Windows)
+    # or SSH (Linux, future). Omit or leave empty to skip post-boot automation.
+    automations:
+      - install-chocolatey.ps1
+      - install-dev-tools.ps1
+
+    # depends_on (optional): VM names in this Clutch that must be fully fledged
+    # before this VM is hatched. VMs with no dependencies hatch in parallel.
+    # Omit or leave empty for no dependency.
+    depends_on: []
+
+
+# ── Multi-VM example ───────────────────────────────────────────────────────────
+#
+# name: ad-test-lab
+# description: Active Directory test lab — domain controller and joined client
+#
+# vms:
+#   - name: dc01
+#     os: server2022
+#     vcpus: 2
+#     ram_gb: 4
+#     disk_gb: 60
+#     os_media: server2022-eval.iso
+#     os_config: server2022-unattend.xml.j2
+#     automations:
+#       - promote-domain-controller.ps1
+#
+#   - name: client01
+#     os: win11
+#     vcpus: 4
+#     ram_gb: 8
+#     disk_gb: 80
+#     os_media: Win11_24H2.iso
+#     os_config: win11-unattend.xml.j2
+#     automations:
+#       - join-domain.ps1
+#     depends_on:
+#       - dc01    # hatches only after dc01 is fledged
