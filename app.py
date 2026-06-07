@@ -4,6 +4,7 @@ import subprocess
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 from lib import config
+from lib import db
 from lib import clutch as clutch_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -14,6 +15,7 @@ app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-pro
 
 config.load()
 config.init_data_dir()
+db.init_db(config.data_dir() / "hatchery.db")
 
 
 @app.context_processor
