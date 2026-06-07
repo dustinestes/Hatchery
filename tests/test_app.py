@@ -6,6 +6,7 @@ import lib.config as cfg
 from app import app as flask_app
 from lib.clutch import VMConfig
 from lib.providers.libvirt import LibvirtProvider
+from lib.requirements import Requirement
 
 
 @pytest.fixture
@@ -212,6 +213,40 @@ class TestScanDir:
         result = client.get("/api/clutches").get_json()
         assert "lab.yaml" in result
         assert "notes.txt" not in result
+
+
+class TestRequirementsWarning:
+    def test_no_banner_when_all_present(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+        ):
+            html = client.get("/").data.decode()
+        assert "req-warning" not in html
+
+    def test_banner_shown_when_tools_missing(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
+        ):
+            html = client.get("/").data.decode()
+        assert "req-warning" in html
+        assert "libvirt-clients" in html
+
+    def test_apt_command_shown_in_banner(self, client):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
+        ):
+            html = client.get("/").data.decode()
+        assert "sudo apt install libvirt-clients" in html
+
+    def test_banner_appears_on_all_panes(self, client):
+        missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
+        with patch("lib.requirements.check_all", return_value=missing):
+            for path in ["/", "/nests", "/clutches", "/automation", "/settings", "/create"]:
+                html = client.get(path).data.decode()
+                assert "req-warning" in html, f"Expected warning banner on {path}"
 
 
 class TestAPIRoutes:

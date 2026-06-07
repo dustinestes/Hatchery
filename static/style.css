@@ -650,3 +650,100 @@ body {
   color: var(--color-text-muted);
   letter-spacing: 0.02em;
 }
+
+/* ── Requirements warning banner ── */
+.req-warning {
+  background-color: color-mix(in srgb, #D97706 8%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, #D97706 28%, var(--color-border));
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+}
+
+.req-warning-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.req-warning-icon {
+  color: #D97706;
+  flex-shrink: 0;
+}
+
+.req-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: color-mix(in srgb, #D97706 20%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, #D97706 35%, var(--color-border));
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #D97706;
+}
+
+.req-warning-text {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.req-warning-cmd {
+  display: block;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 12px;
+  margin-bottom: 10px;
+  user-select: all;
+  cursor: text;
+  word-break: break-all;
+}
+
+.req-warning-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  user-select: none;
+  list-style: none;
+}
+
+.req-warning-details summary::-webkit-details-marker { display: none; }
+.req-warning-details summary::before { content: "▶ "; font-size: 10px; }
+.req-warning-details[open] summary::before { content: "▼ "; font-size: 10px; }
+
+.req-warning-list {
+  margin-top: 8px;
+  padding-left: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.req-warning-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.req-warning-list li:last-child { border-bottom: none; }
+
+.req-warning-pkg {
+  margin-left: auto;
+  opacity: 0.75;
+}

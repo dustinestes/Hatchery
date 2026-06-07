@@ -5,6 +5,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 
 from lib import config
 from lib import clutch as clutch_lib
+from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
 from lib.providers.libvirt import LibvirtProvider
 
@@ -13,6 +14,16 @@ app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-pro
 
 config.load()
 config.init_data_dir()
+
+
+@app.context_processor
+def inject_requirements():
+    checks = req_lib.check_all()
+    req_missing = req_lib.missing(checks)
+    return {
+        "req_missing": req_missing,
+        "req_apt_cmd": req_lib.apt_install_command(req_missing),
+    }
 
 
 def _provider() -> LibvirtProvider:
