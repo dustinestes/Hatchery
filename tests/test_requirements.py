@@ -4,23 +4,28 @@ from lib.requirements import Requirement, _check_python3_gi, apt_install_command
 
 
 class TestCheckPython3Gi:
-    def test_present_when_subprocess_succeeds(self):
+    def test_present_when_dpkg_reports_installed(self):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+            mock_run.return_value = MagicMock(returncode=0, stdout="install ok installed")
             assert _check_python3_gi() is True
 
-    def test_absent_when_subprocess_fails(self):
+    def test_absent_when_dpkg_reports_not_installed(self):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=1)
+            mock_run.return_value = MagicMock(returncode=0, stdout="unknown ok not-installed")
             assert _check_python3_gi() is False
 
-    def test_runs_against_system_python(self):
+    def test_absent_when_dpkg_query_fails(self):
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+            mock_run.return_value = MagicMock(returncode=1, stdout="")
+            assert _check_python3_gi() is False
+
+    def test_uses_dpkg_query(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="install ok installed")
             _check_python3_gi()
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "python3"
-        assert "import gi" in " ".join(cmd)
+        assert cmd[0] == "dpkg-query"
+        assert "python3-gi" in cmd
 
 
 class TestCheckAll:

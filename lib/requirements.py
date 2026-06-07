@@ -23,9 +23,13 @@ _CLI_TOOLS = [
 
 
 def _check_python3_gi() -> bool:
-    """Check gi availability against the system Python, not the venv."""
-    result = subprocess.run(["python3", "-c", "import gi"], capture_output=True)
-    return result.returncode == 0
+    """Check via dpkg-query — bypasses venv PATH issues that fool subprocess python3."""
+    result = subprocess.run(
+        ["dpkg-query", "--show", "--showformat=${Status}", "python3-gi"],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() == "install ok installed"
 
 
 def check_all() -> list[Requirement]:
