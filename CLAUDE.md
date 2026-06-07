@@ -249,7 +249,7 @@ The Ubuntu host needs:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools python3
+    libguestfs-tools swtpm swtpm-tools python3 python3-gi
 ```
 
 Install Python dependencies with [uv](https://docs.astral.sh/uv/):
