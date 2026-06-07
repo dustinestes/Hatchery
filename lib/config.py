@@ -3,7 +3,7 @@ import yaml
 from pathlib import Path
 
 _APP_NAME = "hatchery"
-_DATA_SUBDIRS = ["clutches", "eggs", "automation"]
+_DATA_SUBDIRS = ["clutches", "media", "automation"]
 
 
 def _default_config_file() -> Path:

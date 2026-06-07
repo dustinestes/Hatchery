@@ -7,5 +7,32 @@
   <h1 class="pane-title">Dashboard</h1>
   <p class="pane-subtitle">Brood overview — VM list, host resources, and available Clutch files and Eggs.</p>
 </div>
-<div class="stub">Dashboard content coming soon</div>
+
+<!-- ── Brood ── -->
+<section class="dashboard-section">
+  <div class="section-header">
+    <h2 class="section-title">Brood</h2>
+    <a href="{{ url_for('create') }}" class="btn btn-primary btn-sm">+ Hatch VM</a>
+  </div>
+  <div class="stub">VM list coming soon</div>
+</section>
+
+<!-- ── Clutches ── -->
+<section class="dashboard-section">
+  <div class="section-header">
+    <h2 class="section-title">Clutches</h2>
+    <a href="{{ url_for('create') }}" class="btn btn-secondary btn-sm">+ New</a>
+  </div>
+  {% if clutch_files %}
+    <ul class="file-list">
+      {% for f in clutch_files %}
+        <li class="file-list-item">
+          <span class="file-name">{{ f }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('create') }}" class="link">Hatch a VM</a> and export a Clutch to get started.</p>
+  {% endif %}
+</section>
 {% endblock %}

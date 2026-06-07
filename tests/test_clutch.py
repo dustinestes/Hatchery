@@ -226,3 +226,73 @@ class TestVMConfigModel:
     def test_negative_vcpus_rejected(self):
         with pytest.raises(Exception):
             VMConfig(name="vm1", os="win11", vcpus=-1, ram_gb=4, disk_gb=40, os_media="win11.iso")
+
+
+# ── Export ────────────────────────────────────────────────────────────────────
+
+
+def make_clutch(name="my-lab"):
+    vm = VMConfig(name="vm1", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+    return clutch.Clutch(name=name, vms=[vm])
+
+
+class TestExport:
+    def test_creates_file(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "my-lab", tmp_path)
+        assert path.exists()
+
+    def test_adds_yaml_extension(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "my-lab", tmp_path)
+        assert path.name == "my-lab.yaml"
+
+    def test_preserves_existing_yaml_extension(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "my-lab.yaml", tmp_path)
+        assert path.name == "my-lab.yaml"
+
+    def test_raises_if_file_exists(self, tmp_path):
+        c = make_clutch()
+        clutch.export(c, "my-lab", tmp_path)
+        with pytest.raises(FileExistsError, match="my-lab.yaml"):
+            clutch.export(c, "my-lab", tmp_path)
+
+    def test_written_file_is_valid_clutch(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "exported", tmp_path)
+        loaded = clutch.load(path)
+        assert loaded.name == "my-lab"
+        assert loaded.vms[0].name == "vm1"
+
+
+class TestAppendVM:
+    def test_appends_vm(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "lab", tmp_path)
+        vm2 = VMConfig(name="vm2", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso")
+        updated = clutch.append_vm(vm2, path)
+        assert len(updated.vms) == 2
+        assert updated.vms[1].name == "vm2"
+
+    def test_persists_appended_vm(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "lab", tmp_path)
+        vm2 = VMConfig(name="vm2", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso")
+        clutch.append_vm(vm2, path)
+        loaded = clutch.load(path)
+        assert len(loaded.vms) == 2
+
+    def test_raises_on_duplicate_name(self, tmp_path):
+        c = make_clutch()
+        path = clutch.export(c, "lab", tmp_path)
+        vm_dup = VMConfig(
+            name="vm1", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso"
+        )
+        with pytest.raises(ValueError, match="already exists"):
+            clutch.append_vm(vm_dup, path)
+
+    def test_raises_if_target_missing(self, tmp_path):
+        vm = VMConfig(name="vm1", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso")
+        with pytest.raises(FileNotFoundError):
+            clutch.append_vm(vm, tmp_path / "missing.yaml")

@@ -25,7 +25,7 @@ The terminology follows an avian/hatching metaphor. Branded terms are used where
 |---|---|---|---|
 | Infrastructure | Host / Hypervisor | **Nest** | The physical or remote machine running Hatchery and managing VMs |
 | Environment | Deployment group / Stack | **Clutch** | One or more related VMs defined together in a Clutch file |
-| Source image | ISO / VHD / VHDX | **Egg** | A source image used to hatch a VM |
+| Source image | ISO / VHD / VHDX | **Egg** | A source image used to hatch a VM *(reserved — dormant, not currently used in UI or directory structure)* |
 | All managed VMs | VM inventory | **Brood** | The full list of VMs known to a Nest |
 | Provision | Deploy / Provision | **Hatch** | Create and boot a VM |
 | Provision + save | Deploy + export config | **Export and Hatch** | Save configuration as a Clutch file, then hatch |
@@ -212,7 +212,7 @@ All user-generated and user-supplied assets live outside the Hatchery applicatio
 ```
 ~/.local/share/hatchery/
 ├── clutches/       # Clutch definition files (.yaml)
-├── eggs/           # Source images — ISOs, VHDs, VHDX, QCOW2 (vocabulary: Egg)
+├── media/          # Source images — ISOs, VHDs, VHDX, QCOW2
 └── automation/     # Automation files — answer files, post-boot scripts, cloud-init configs
 ```
 
@@ -226,7 +226,7 @@ Five top-level navigation panes:
 
 | Pane | Purpose |
 |---|---|
-| **Dashboard** | Brood overview — VM list, host resource consumption, available Clutch files and Eggs |
+| **Dashboard** | Brood overview — VM list, host resource consumption, available Clutch files and media |
 | **Nests** | View and manage Nest host endpoints (local and future remote) |
 | **Clutches** | View and manage Clutch files — create, edit, import, delete |
 | **Automation** | View and manage automation files — OS answer files, post-first-boot scripts |
@@ -240,7 +240,7 @@ Five top-level navigation panes:
 - Provider-agnostic core — hypervisor differences are isolated in `lib/providers/`
 - OS-aware, not OS-assuming — answer files and provisioning adapt to the guest type
 - Errors surface in the UI, not just server logs
-- **1:1:1 naming** — a concept has one name used identically in the UI, documentation, and codebase; if it is called "Eggs" in the UI it is `eggs` in the code and "Eggs" in the docs
+- **1:1:1 naming** — a concept has one name used identically in the UI, documentation, and codebase; if it is called "Clutch" in the UI it is `clutch` in the code and "Clutch" in the docs
 - **Shallow data directory** — target ≤3 levels deep; prefer wider structure over deep nesting; directory names align with vocabulary
 
 ## Host Requirements

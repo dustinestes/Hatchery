@@ -7,5 +7,22 @@
   <h1 class="pane-title">Clutches</h1>
   <p class="pane-subtitle">View and manage Clutch files — create, edit, import, and delete environment definitions.</p>
 </div>
-<div class="stub">Clutches content coming soon</div>
+
+<section class="dashboard-section">
+  <div class="section-header">
+    <h2 class="section-title">Clutch Files</h2>
+    <a href="{{ url_for('create') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
+  </div>
+  {% if clutch_files %}
+    <ul class="file-list">
+      {% for f in clutch_files %}
+        <li class="file-list-item">
+          <span class="file-name">{{ f }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('create') }}" class="link">Create one</a> from the VM creation form.</p>
+  {% endif %}
+</section>
 {% endblock %}

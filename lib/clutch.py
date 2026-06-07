@@ -93,6 +93,46 @@ def load(path: str | Path) -> Clutch:
         raise ValueError(_format_errors(exc, path)) from exc
 
 
+def export(clutch_obj: Clutch, filename: str, clutches_dir: Path) -> Path:
+    """Write a Clutch to a new YAML file in clutches_dir.
+
+    Raises FileExistsError if a file with that name already exists.
+    """
+    clutches_dir = Path(clutches_dir)
+    if not filename.endswith(".yaml"):
+        filename = f"{filename}.yaml"
+    path = clutches_dir / filename
+    if path.exists():
+        raise FileExistsError(f"Clutch file already exists: {filename}")
+    _write_yaml(clutch_obj, path)
+    return path
+
+
+def append_vm(config: VMConfig, path: str | Path) -> Clutch:
+    """Append a VM entry to an existing Clutch file.
+
+    Raises ValueError if a VM with the same name already exists.
+    Re-validates the full Clutch after appending.
+    """
+    path = Path(path)
+    existing = load(path)
+    vm_names = {vm.name for vm in existing.vms}
+    if config.name in vm_names:
+        raise ValueError(f"VM {config.name!r} already exists in '{path.name}'")
+    updated = Clutch(
+        name=existing.name, description=existing.description, vms=[*existing.vms, config]
+    )
+    _write_yaml(updated, path)
+    return updated
+
+
+def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = clutch_obj.model_dump(mode="json", exclude_none=True)
+    with open(path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
 def _format_errors(exc: ValidationError, path: Path) -> str:
     lines = [f"Invalid Clutch file '{path.name}':"]
     for err in exc.errors():
