@@ -101,3 +101,62 @@ class TestDismiss:
         notif.dismiss(nid1)
         rows = {r["id"]: r for r in notif.list_recent()}
         assert rows[nid2]["dismissed"] == 0
+
+
+class TestResolveByMessagePrefix:
+    def test_resolves_matching_warnings(self):
+        nid = notif.record("warning", "Missing requirement: virsh not found")
+        notif.resolve_by_message_prefix("Missing requirement:")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved"] == 1
+
+    def test_only_resolves_matching_prefix(self):
+        nid_match = notif.record("warning", "Missing requirement: foo")
+        nid_other = notif.record("warning", "Different warning message")
+        notif.resolve_by_message_prefix("Missing requirement:")
+        rows = {r["id"]: r for r in notif.list_recent()}
+        assert rows[nid_match]["resolved"] == 1
+        assert rows[nid_other]["resolved"] == 0
+
+    def test_does_not_resolve_activity_tier(self):
+        nid = notif.record("activity", "Missing requirement: mentioned in activity")
+        notif.resolve_by_message_prefix("Missing requirement:")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved"] == 0
+
+    def test_noop_when_no_matches(self):
+        notif.record("warning", "Some other warning")
+        notif.resolve_by_message_prefix("Nonexistent prefix:")
+        assert notif.count_unresolved_warnings() == 1
+
+    def test_idempotent_on_already_resolved(self):
+        nid = notif.record("warning", "Missing requirement: already resolved")
+        notif.resolve(nid)
+        notif.resolve_by_message_prefix("Missing requirement:")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved"] == 1
+
+
+class TestCountUnresolvedWarnings:
+    def test_zero_when_empty(self):
+        assert notif.count_unresolved_warnings() == 0
+
+    def test_counts_unresolved_warnings(self):
+        notif.record("warning", "first warning")
+        notif.record("warning", "second warning")
+        assert notif.count_unresolved_warnings() == 2
+
+    def test_excludes_resolved_warnings(self):
+        nid = notif.record("warning", "resolved warning")
+        notif.resolve(nid)
+        notif.record("warning", "active warning")
+        assert notif.count_unresolved_warnings() == 1
+
+    def test_excludes_activity_tier(self):
+        notif.record("activity", "not a warning")
+        assert notif.count_unresolved_warnings() == 0
+
+    def test_dismissed_warning_still_counts_as_unresolved(self):
+        nid = notif.record("warning", "dismissed but not resolved")
+        notif.dismiss(nid)
+        assert notif.count_unresolved_warnings() == 1

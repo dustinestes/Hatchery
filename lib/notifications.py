@@ -54,3 +54,28 @@ def dismiss(notification_id: int) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def resolve_by_message_prefix(prefix: str) -> None:
+    """Resolve all unresolved warnings whose message starts with the given prefix."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "UPDATE notifications SET resolved = 1 "
+            "WHERE tier = 'warning' AND resolved = 0 AND message LIKE ?",
+            (f"{prefix}%",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def count_unresolved_warnings() -> int:
+    """Return the count of unresolved warning notifications."""
+    conn = db.get_connection()
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE tier = 'warning' AND resolved = 0"
+        ).fetchone()[0]
+    finally:
+        conn.close()

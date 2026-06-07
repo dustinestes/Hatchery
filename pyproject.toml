@@ -19,6 +19,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
+exclude = [".hatchery"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

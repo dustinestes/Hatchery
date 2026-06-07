@@ -8,13 +8,9 @@
   <p class="pane-subtitle">Configure and provision a new virtual machine.</p>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="alert alert-{{ category }}">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+{% if form_error %}
+  <div class="alert alert-error">{{ form_error }}</div>
+{% endif %}
 
 <form method="post" action="{{ url_for('create_post') }}" id="hatch-form">
 
