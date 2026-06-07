@@ -84,16 +84,21 @@ def settings():
 # ── VM creation ───────────────────────────────────────────────────────────────
 
 
-@app.route("/create", methods=["GET"])
-def create():
+def _render_create_form(form_values=None):
     return render_template(
         "create.html",
         active_pane="dashboard",
+        form_values=form_values,
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media"),
         automation_files=_scan_dir("automation"),
         clutch_files=_scan_dir("clutches", [".yaml"]),
     )
+
+
+@app.route("/create", methods=["GET"])
+def create():
+    return _render_create_form()
 
 
 @app.route("/create", methods=["POST"])
@@ -103,7 +108,7 @@ def create_post():
         vm = _vm_config_from_form(request.form)
     except ValueError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("create"))
+        return _render_create_form(form_values=request.form)
 
     # ── Export actions ────────────────────────────────────────────────────────
     if action in ("export_clutch", "export_and_hatch"):
@@ -125,7 +130,7 @@ def create_post():
                 flash(f"VM '{vm.name}' appended to '{target}'.", "success")
         except (ValueError, FileExistsError, FileNotFoundError) as exc:
             flash(str(exc), "error")
-            return redirect(url_for("create"))
+            return _render_create_form(form_values=request.form)
 
     # ── Hatch action ──────────────────────────────────────────────────────────
     if action in ("hatch", "export_and_hatch"):
@@ -134,7 +139,7 @@ def create_post():
             flash(f"VM '{vm.name}' is hatching.", "success")
         except (FileNotFoundError, subprocess.CalledProcessError) as exc:
             flash(str(exc), "error")
-            return redirect(url_for("create"))
+            return _render_create_form(form_values=request.form)
 
     if action == "export_clutch":
         return redirect(url_for("clutches"))

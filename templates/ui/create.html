@@ -24,13 +24,13 @@
     <div class="form-grid">
       <div class="form-group">
         <label class="form-label" for="name">VM Name <span class="required">*</span></label>
-        <input type="text" id="name" name="name" class="form-input" required placeholder="e.g. win11-dev">
+        <input type="text" id="name" name="name" class="form-input" required placeholder="e.g. win11-dev" value="{{ form_values.get('name', '') if form_values else '' }}">
       </div>
       <div class="form-group">
         <label class="form-label" for="os">Guest OS <span class="required">*</span></label>
         <select id="os" name="os" class="form-select" required>
           {% for os_type in os_types %}
-            <option value="{{ os_type }}">{{ os_type }}</option>
+            <option value="{{ os_type }}" {% if form_values and form_values.get('os') == os_type %}selected{% endif %}>{{ os_type }}</option>
           {% endfor %}
         </select>
       </div>
@@ -43,15 +43,15 @@
     <div class="form-grid form-grid-3">
       <div class="form-group">
         <label class="form-label" for="vcpus">vCPUs <span class="required">*</span></label>
-        <input type="number" id="vcpus" name="vcpus" class="form-input" required min="1" value="2">
+        <input type="number" id="vcpus" name="vcpus" class="form-input" required min="1" value="{{ form_values.get('vcpus', '2') if form_values else '2' }}">
       </div>
       <div class="form-group">
         <label class="form-label" for="ram_gb">RAM (GB) <span class="required">*</span></label>
-        <input type="number" id="ram_gb" name="ram_gb" class="form-input" required min="1" value="4">
+        <input type="number" id="ram_gb" name="ram_gb" class="form-input" required min="1" value="{{ form_values.get('ram_gb', '4') if form_values else '4' }}">
       </div>
       <div class="form-group">
         <label class="form-label" for="disk_gb">Disk (GB) <span class="required">*</span></label>
-        <input type="number" id="disk_gb" name="disk_gb" class="form-input" required min="1" value="60">
+        <input type="number" id="disk_gb" name="disk_gb" class="form-input" required min="1" value="{{ form_values.get('disk_gb', '60') if form_values else '60' }}">
       </div>
     </div>
   </section>
@@ -63,9 +63,9 @@
       <div class="form-group">
         <label class="form-label" for="os_media">OS Media <span class="required">*</span></label>
         <select id="os_media" name="os_media" class="form-select" required>
-          <option value="">— none —</option>
+          <option value="" {% if not form_values or not form_values.get('os_media') %}selected{% endif %}>— none —</option>
           {% for f in media_files %}
-            <option value="{{ f }}">{{ f }}</option>
+            <option value="{{ f }}" {% if form_values and form_values.get('os_media') == f %}selected{% endif %}>{{ f }}</option>
           {% endfor %}
         </select>
         {% if not media_files %}
@@ -75,9 +75,9 @@
       <div class="form-group">
         <label class="form-label" for="virtio_drivers">VirtIO Drivers <span class="form-optional">(optional)</span></label>
         <select id="virtio_drivers" name="virtio_drivers" class="form-select">
-          <option value="">— none —</option>
+          <option value="" {% if not form_values or not form_values.get('virtio_drivers') %}selected{% endif %}>— none —</option>
           {% for f in media_files %}
-            <option value="{{ f }}">{{ f }}</option>
+            <option value="{{ f }}" {% if form_values and form_values.get('virtio_drivers') == f %}selected{% endif %}>{{ f }}</option>
           {% endfor %}
         </select>
       </div>
@@ -91,9 +91,9 @@
       <div class="form-group">
         <label class="form-label" for="os_config">OS Config <span class="form-optional">(optional)</span></label>
         <select id="os_config" name="os_config" class="form-select">
-          <option value="">— none —</option>
+          <option value="" {% if not form_values or not form_values.get('os_config') %}selected{% endif %}>— none —</option>
           {% for f in automation_files %}
-            <option value="{{ f }}">{{ f }}</option>
+            <option value="{{ f }}" {% if form_values and form_values.get('os_config') == f %}selected{% endif %}>{{ f }}</option>
           {% endfor %}
         </select>
         {% if not automation_files %}
@@ -108,8 +108,11 @@
         <div class="listbox-panel">
           <div class="listbox-header">Available</div>
           <ul class="listbox-list" id="available-scripts" role="listbox" aria-label="Available scripts">
+            {% set selected_automations = form_values.getlist('automations') if form_values else [] %}
             {% for f in automation_files %}
-              <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
+              {% if f not in selected_automations %}
+                <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
+              {% endif %}
             {% endfor %}
           </ul>
         </div>
@@ -122,7 +125,11 @@
         </div>
         <div class="listbox-panel">
           <div class="listbox-header">Selected (run order)</div>
-          <ul class="listbox-list" id="selected-scripts" role="listbox" aria-label="Selected scripts"></ul>
+          <ul class="listbox-list" id="selected-scripts" role="listbox" aria-label="Selected scripts">
+            {% for f in selected_automations %}
+              <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
+            {% endfor %}
+          </ul>
         </div>
       </div>
       <select multiple name="automations" id="automations-hidden" aria-hidden="true" style="display:none"></select>
@@ -134,7 +141,7 @@
     <h2 class="form-section-title">Orchestration</h2>
     <div class="form-group form-group-half">
       <label class="form-label" for="depends_on">Depends On <span class="form-optional">(optional — comma-separated VM names)</span></label>
-      <input type="text" id="depends_on" name="depends_on" class="form-input" placeholder="e.g. dc01, dns01">
+      <input type="text" id="depends_on" name="depends_on" class="form-input" placeholder="e.g. dc01, dns01" value="{{ form_values.get('depends_on', '') if form_values else '' }}">
     </div>
   </section>
 
@@ -143,33 +150,33 @@
     <h2 class="form-section-title">Clutch Export</h2>
     <div class="export-mode-tabs">
       <label class="export-mode-option">
-        <input type="radio" name="export_mode" value="new" checked id="export-mode-new"> Create new Clutch file
+        <input type="radio" name="export_mode" value="new" id="export-mode-new" {% if not form_values or form_values.get('export_mode', 'new') == 'new' %}checked{% endif %}> Create new Clutch file
       </label>
       <label class="export-mode-option">
-        <input type="radio" name="export_mode" value="append" id="export-mode-append"> Append to existing
+        <input type="radio" name="export_mode" value="append" id="export-mode-append" {% if form_values and form_values.get('export_mode') == 'append' %}checked{% endif %}> Append to existing
       </label>
     </div>
 
-    <div id="export-new" class="export-panel">
+    <div id="export-new" class="export-panel" {% if form_values and form_values.get('export_mode') == 'append' %}hidden{% endif %}>
       <div class="form-grid">
         <div class="form-group">
           <label class="form-label" for="clutch_name">Clutch Name <span class="form-optional">(optional — defaults to filename)</span></label>
-          <input type="text" id="clutch_name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab">
+          <input type="text" id="clutch_name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab" value="{{ form_values.get('clutch_name', '') if form_values else '' }}">
         </div>
         <div class="form-group">
           <label class="form-label" for="clutch_filename">Filename</label>
-          <input type="text" id="clutch_filename" name="clutch_filename" class="form-input" placeholder="e.g. dev-lab (without .yaml)">
+          <input type="text" id="clutch_filename" name="clutch_filename" class="form-input" placeholder="e.g. dev-lab (without .yaml)" value="{{ form_values.get('clutch_filename', '') if form_values else '' }}">
         </div>
       </div>
     </div>
 
-    <div id="export-append" class="export-panel" hidden>
+    <div id="export-append" class="export-panel" {% if not form_values or form_values.get('export_mode', 'new') != 'append' %}hidden{% endif %}>
       <div class="form-group form-group-half">
         <label class="form-label" for="clutch_append_target">Append to Clutch</label>
         <select id="clutch_append_target" name="clutch_append_target" class="form-select">
-          <option value="">— select a Clutch file —</option>
+          <option value="" {% if not form_values or not form_values.get('clutch_append_target') %}selected{% endif %}>— select a Clutch file —</option>
           {% for f in clutch_files %}
-            <option value="{{ f }}">{{ f }}</option>
+            <option value="{{ f }}" {% if form_values and form_values.get('clutch_append_target') == f %}selected{% endif %}>{{ f }}</option>
           {% endfor %}
         </select>
         {% if not clutch_files %}
