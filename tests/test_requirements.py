@@ -1,13 +1,33 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from lib.requirements import Requirement, apt_install_command, check_all, missing
+from lib.requirements import Requirement, _check_python3_gi, apt_install_command, check_all, missing
+
+
+class TestCheckPython3Gi:
+    def test_present_when_subprocess_succeeds(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            assert _check_python3_gi() is True
+
+    def test_absent_when_subprocess_fails(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1)
+            assert _check_python3_gi() is False
+
+    def test_runs_against_system_python(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            _check_python3_gi()
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "python3"
+        assert "import gi" in " ".join(cmd)
 
 
 class TestCheckAll:
     def test_returns_six_requirements(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("importlib.util.find_spec", return_value=object()),
+            patch("lib.requirements._check_python3_gi", return_value=True),
         ):
             results = check_all()
         assert len(results) == 6
@@ -15,7 +35,7 @@ class TestCheckAll:
     def test_all_present_when_tools_found(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("importlib.util.find_spec", return_value=object()),
+            patch("lib.requirements._check_python3_gi", return_value=True),
         ):
             results = check_all()
         assert all(r.present for r in results)
@@ -23,7 +43,7 @@ class TestCheckAll:
     def test_all_absent_when_tools_missing(self):
         with (
             patch("shutil.which", return_value=None),
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
         assert all(not r.present for r in results)
@@ -31,24 +51,24 @@ class TestCheckAll:
     def test_cli_tools_use_shutil_which(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool") as mock_which,
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             check_all()
         assert mock_which.call_count == 5
 
-    def test_python3_gi_absent_when_find_spec_returns_none(self):
+    def test_python3_gi_absent_when_check_returns_false(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
         gi = next(r for r in results if r.name == "python3-gi")
         assert not gi.present
 
-    def test_python3_gi_present_when_find_spec_succeeds(self):
+    def test_python3_gi_present_when_check_returns_true(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("importlib.util.find_spec", return_value=object()),
+            patch("lib.requirements._check_python3_gi", return_value=True),
         ):
             results = check_all()
         gi = next(r for r in results if r.name == "python3-gi")
@@ -60,7 +80,7 @@ class TestCheckAll:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
         virsh = next(r for r in results if r.name == "virsh")
@@ -71,7 +91,7 @@ class TestCheckAll:
     def test_requirement_fields_populated(self):
         with (
             patch("shutil.which", return_value=None),
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
         for r in results:
@@ -82,7 +102,7 @@ class TestCheckAll:
     def test_contains_expected_tools(self):
         with (
             patch("shutil.which", return_value=None),
-            patch("importlib.util.find_spec", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
         names = {r.name for r in results}

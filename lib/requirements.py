@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import importlib.util
 import shutil
+import subprocess
 from dataclasses import dataclass
 
 
@@ -22,6 +22,12 @@ _CLI_TOOLS = [
 ]
 
 
+def _check_python3_gi() -> bool:
+    """Check gi availability against the system Python, not the venv."""
+    result = subprocess.run(["python3", "-c", "import gi"], capture_output=True)
+    return result.returncode == 0
+
+
 def check_all() -> list[Requirement]:
     results = [
         Requirement(name, package, required_for, shutil.which(name) is not None)
@@ -32,7 +38,7 @@ def check_all() -> list[Requirement]:
             "python3-gi",
             "python3-gi",
             "virt-install Python runtime dependency",
-            importlib.util.find_spec("gi") is not None,
+            _check_python3_gi(),
         )
     )
     return results
