@@ -105,11 +105,21 @@ class TestCreateRoute:
             resp = client.post("/create", data=VALID_FORM, follow_redirects=False)
         assert resp.headers["Location"].endswith("/")
 
-    def test_hatch_with_invalid_vcpus_redirects_to_create(self, client):
+    def test_hatch_with_invalid_vcpus_rerenders_form(self, client):
         bad = {**VALID_FORM, "vcpus": "0"}
-        resp = client.post("/create", data=bad, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/create" in resp.headers["Location"]
+        resp = client.post("/create", data=bad)
+        assert resp.status_code == 200
+        assert "hatch-form" in resp.data.decode()
+
+    def test_hatch_with_invalid_vcpus_shows_error(self, client):
+        bad = {**VALID_FORM, "vcpus": "0"}
+        html = client.post("/create", data=bad).data.decode()
+        assert "alert" in html
+
+    def test_form_values_preserved_on_validation_error(self, client):
+        bad = {**VALID_FORM, "vcpus": "0", "name": "my-preserved-vm"}
+        html = client.post("/create", data=bad).data.decode()
+        assert "my-preserved-vm" in html
 
     def test_export_clutch_redirects_to_clutches(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -125,25 +135,25 @@ class TestCreateRoute:
         assert resp.status_code == 302
         assert "/clutches" in resp.headers["Location"]
 
-    def test_export_clutch_missing_filename_stays_on_create(self, client):
+    def test_export_clutch_missing_filename_rerenders_form(self, client):
         form = {
             **VALID_FORM,
             "action": "export_clutch",
             "export_mode": "new",
             "clutch_filename": "",
         }
-        resp = client.post("/create", data=form, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/create" in resp.headers["Location"]
+        resp = client.post("/create", data=form)
+        assert resp.status_code == 200
+        assert "hatch-form" in resp.data.decode()
 
-    def test_provider_error_redirects_to_create(self, client):
+    def test_provider_error_rerenders_form(self, client):
         with patch("app._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
-            resp = client.post("/create", data=VALID_FORM, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/create" in resp.headers["Location"]
+            resp = client.post("/create", data=VALID_FORM)
+        assert resp.status_code == 200
+        assert "hatch-form" in resp.data.decode()
 
-    def test_export_append_blank_target_stays_on_create(self, client, tmp_path, monkeypatch):
+    def test_export_append_blank_target_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
         form = {
@@ -152,9 +162,9 @@ class TestCreateRoute:
             "export_mode": "append",
             "clutch_append_target": "",
         }
-        resp = client.post("/create", data=form, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/create" in resp.headers["Location"]
+        resp = client.post("/create", data=form)
+        assert resp.status_code == 200
+        assert "hatch-form" in resp.data.decode()
 
     def test_export_append_happy_path_redirects_to_clutches(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
