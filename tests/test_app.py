@@ -166,6 +166,11 @@ class TestCreateRoute:
         assert resp.status_code == 200
         assert "hatch-form" in resp.data.decode()
 
+    def test_filename_label_has_required_indicator(self, client):
+        html = client.get("/create").data.decode()
+        assert 'for="clutch_filename"' in html
+        assert 'class="required"' in html
+
     def test_export_append_happy_path_redirects_to_clutches(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         clutches_dir = tmp_path / "clutches"

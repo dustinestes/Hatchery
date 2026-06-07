@@ -110,6 +110,26 @@
   modeAppend.addEventListener('change', updatePanels);
 })();
 
+/* Clutch filename conditional required — only required when an export action is submitted in "new" mode */
+(function () {
+  var filenameInput = document.getElementById('clutch_filename');
+  var modeNew = document.getElementById('export-mode-new');
+  var exportBtns = document.querySelectorAll('[value="export_clutch"], [value="export_and_hatch"]');
+  var hatchBtn = document.querySelector('[value="hatch"]');
+
+  if (!filenameInput || !modeNew) return;
+
+  exportBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      filenameInput.required = modeNew.checked;
+    });
+  });
+
+  if (hatchBtn) hatchBtn.addEventListener('click', function () {
+    filenameInput.required = false;
+  });
+})();
+
 /* Sidebar collapse toggle */
 (function () {
   var sidebar = document.getElementById('sidebar');
