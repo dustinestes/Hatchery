@@ -40,6 +40,9 @@
             <li class="clutch-summary-vm">
               <span class="vm-name">{{ vm.name }}</span>
               <span class="vm-os tag">{{ vm.os }}</span>
+              <span class="tag">{{ vm.vcpus }} vCPU</span>
+              <span class="tag">{{ vm.ram_gb }} GB RAM</span>
+              <span class="tag">{{ vm.disk_gb }} GB disk</span>
               {% if vm.depends_on %}
                 <span class="vm-depends">after: {{ vm.depends_on|join(', ') }}</span>
               {% endif %}
@@ -72,6 +75,9 @@
     html += '<ol class="clutch-summary-vms">';
     data.vms.forEach(function (vm) {
       html += '<li class="clutch-summary-vm"><span class="vm-name">' + vm.name + '</span><span class="vm-os tag">' + vm.os + '</span>';
+      html += '<span class="tag">' + vm.vcpus + ' vCPU</span>';
+      html += '<span class="tag">' + vm.ram_gb + ' GB RAM</span>';
+      html += '<span class="tag">' + vm.disk_gb + ' GB disk</span>';
       if (vm.depends_on && vm.depends_on.length) {
         html += '<span class="vm-depends">after: ' + vm.depends_on.join(', ') + '</span>';
       }

@@ -487,6 +487,14 @@ class TestHatchClutchRoute:
         html = client.get("/hatch-clutch?clutch=my-lab.yaml").data.decode()
         assert "dc01" in html
 
+    def test_get_summary_shows_resource_pills(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        html = client.get("/hatch-clutch?clutch=my-lab.yaml").data.decode()
+        assert "2 vCPU" in html
+        assert "4 GB RAM" in html
+        assert "60 GB disk" in html
+
     def test_get_invalid_clutch_shows_error(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
