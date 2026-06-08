@@ -375,6 +375,71 @@ body {
   font-size: 12px;
 }
 
+.btn-danger {
+  background: #C62828;
+  color: #fff;
+  border-color: #C62828;
+}
+
+.btn-danger:hover {
+  background: #B71C1C;
+  border-color: #B71C1C;
+}
+
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 400px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--color-text);
+}
+
+.modal-body {
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 20px;
+}
+
+.modal-body p {
+  margin: 0 0 6px;
+}
+
+.modal-body p:last-child {
+  margin: 0;
+}
+
+.modal-warning {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ── Alerts ── */
 .alert {
   padding: 10px 14px;
