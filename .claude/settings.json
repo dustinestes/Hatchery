@@ -31,7 +31,11 @@
             "Bash(git add:*)",
             "WebFetch",
             "Bash(gh api:*)",
-            "Bash(sed:*)"
+            "Bash(sed:*)",
+            "Bash(gh pr checks:*)",
+            "Bash(gh run view:*)",
+            "Bash(uv run pytest:*)",
+            "Bash(uv run ruff:*)"
         ]
     }
 }
