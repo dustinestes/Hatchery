@@ -108,6 +108,13 @@ def export(clutch_obj: Clutch, filename: str, clutches_dir: Path) -> Path:
     return path
 
 
+def save(clutch_obj: Clutch, path: str | Path) -> Path:
+    """Write a Clutch to a specific path, creating or overwriting."""
+    path = Path(path)
+    _write_yaml(clutch_obj, path)
+    return path
+
+
 def append_vm(config: VMConfig, path: str | Path) -> Clutch:
     """Append a VM entry to an existing Clutch file.
 

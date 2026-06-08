@@ -1,30 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Build Clutch — Hatchery{% endblock %}
+{% block title %}Edit Clutch — Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
-  <h1 class="pane-title">Build Clutch</h1>
-  <p class="pane-subtitle">Define a new environment from scratch.</p>
+  <h1 class="pane-title">Edit Clutch</h1>
+  <p class="pane-subtitle">{{ current_filename }}</p>
 </div>
 
 {% if form_error %}
   <div class="alert alert-error">{{ form_error }}</div>
 {% endif %}
 
-<form method="post" action="{{ url_for('build_post') }}" id="build-form">
+<form method="post" action="{{ url_for('edit_post') }}" id="edit-form">
+  <input type="hidden" id="existing-filename" name="existing_filename" value="{{ current_filename }}">
 
   <section class="form-section">
     <h2 class="form-section-title">Clutch</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label class="form-label" for="clutch-name">Name <span class="form-optional">(optional — defaults to filename)</span></label>
-        <input type="text" id="clutch-name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab">
+        <label class="form-label" for="clutch-name">Name</label>
+        <input type="text" id="clutch-name" name="clutch_name" class="form-input"
+               value="{{ clutch_obj.name if clutch_obj else '' }}" placeholder="e.g. My Dev Lab">
       </div>
       <div class="form-group">
         <label class="form-label" for="clutch-filename">Filename <span class="required">*</span></label>
         <div class="filename-input-wrap">
-          <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required placeholder="e.g. dev-lab">
+          <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required
+                 value="{{ current_filename[:-5] if current_filename.endswith('.yaml') else current_filename }}">
           <span class="filename-ext">.yaml</span>
         </div>
       </div>
@@ -53,13 +56,24 @@
 {% block scripts %}
 <script>
 (function () {
-  var form = document.getElementById('build-form');
+  var form = document.getElementById('edit-form');
   if (!form) return;
 
   var rows = hatchery.vmRows.init('vm-rows', 'vm-row-template');
   if (!rows) return;
 
-  rows.addRow();
+  var existingFile = document.getElementById('existing-filename').value;
+  if (existingFile) {
+    fetch('/api/clutch/' + encodeURIComponent(existingFile))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) return;
+        data.vms.forEach(function (vm) { rows.addRow(vm); });
+        rows.updateDependsOnAll();
+        rows.applyPendingDepends();
+        rows.markClean();
+      });
+  }
 
   document.getElementById('add-vm-btn').addEventListener('click', function () {
     rows.addRow();

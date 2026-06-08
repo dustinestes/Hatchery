@@ -168,8 +168,214 @@ class TestBuildRoute:
         html = client.get("/build").data.decode()
         assert "build-form" in html
 
-    def test_build_post_returns_200(self, client):
-        assert client.post("/build", data={}).status_code == 200
+    def test_build_post_no_filename_rerenders_form(self, client):
+        resp = client.post("/build", data={"clutch_filename": ""})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_build_post_no_vms_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.post("/build", data={"clutch_filename": "new-lab"})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_build_post_saves_and_redirects(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_name": "Test Lab",
+            "clutch_filename": "test-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        assert (tmp_path / "clutches" / "test-lab.yaml").exists()
+
+    def test_build_post_duplicate_filename_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        form = {
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_build_post_unexpected_export_error_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_filename": "test-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("app.clutch_lib.export", side_effect=RuntimeError("disk full")):
+            resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+
+class TestEditRoute:
+    def test_get_no_clutch_redirects_to_clutches(self, client):
+        resp = client.get("/edit", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/clutches" in resp.headers["Location"]
+
+    def test_get_missing_file_redirects_to_clutches(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.get("/edit?clutch=ghost.yaml", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_get_valid_clutch_returns_200(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        assert client.get("/edit?clutch=my-lab.yaml").status_code == 200
+
+    def test_get_shows_edit_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        html = client.get("/edit?clutch=my-lab.yaml").data.decode()
+        assert "edit-form" in html
+
+    def test_post_saves_in_place(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "Updated Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        assert "my-lab.yaml" in resp.headers["Location"]
+
+    def test_post_rename_creates_new_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "Renamed Lab",
+            "clutch_filename": "renamed-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        assert (tmp_path / "clutches" / "renamed-lab.yaml").exists()
+        assert not (tmp_path / "clutches" / "my-lab.yaml").exists()
+
+    def test_post_rename_conflict_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        _make_clutch(tmp_path, name="other-lab", vm_name="ws01")
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "Other",
+            "clutch_filename": "other-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/edit", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_empty_clutch_name_defaults_to_filename_stem(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_post_no_vms_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        resp = client.post(
+            "/edit",
+            data={"existing_filename": "my-lab.yaml", "clutch_filename": "my-lab"},
+        )
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_unexpected_save_error_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("app.clutch_lib.save", side_effect=RuntimeError("I/O error")):
+            resp = client.post("/edit", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_no_existing_filename_redirects(self, client):
+        resp = client.post("/edit", data={"existing_filename": ""}, follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_post_no_filename_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        resp = client.post(
+            "/edit", data={"existing_filename": "my-lab.yaml", "clutch_filename": ""}
+        )
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
 
 
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
@@ -269,6 +475,19 @@ class TestAPIClutchDetail:
         data = client.get("/api/clutch/my-lab.yaml").get_json()
         assert any(v["name"] == "dc01" for v in data["vms"])
 
+    def test_vm_includes_all_fields(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        data = client.get("/api/clutch/my-lab.yaml").get_json()
+        vm = data["vms"][0]
+        assert "os_media" in vm
+        assert "vcpus" in vm
+        assert "ram_gb" in vm
+        assert "disk_gb" in vm
+        assert "virtio_drivers" in vm
+        assert "os_config" in vm
+        assert vm["os_media"] == "win11.iso"
+
     def test_not_found_returns_404(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
@@ -287,6 +506,35 @@ class TestAPIClutchDetail:
         (tmp_path / "clutches" / "bad.yaml").write_text("not: valid: clutch: yaml: [")
         resp = client.get("/api/clutch/bad.yaml")
         assert resp.status_code == 400
+
+
+class TestDeleteClutch:
+    def test_delete_existing_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        path = _make_clutch(tmp_path)
+        resp = client.post("/clutch/my-lab.yaml/delete", follow_redirects=False)
+        assert resp.status_code == 302
+        assert not path.exists()
+
+    def test_delete_redirects_to_clutches(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        resp = client.post("/clutch/my-lab.yaml/delete", follow_redirects=False)
+        assert "/clutches" in resp.headers["Location"]
+
+    def test_delete_nonexistent_file_still_redirects(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.post("/clutch/ghost.yaml/delete", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_delete_path_traversal_blocked(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        # Flask routing decodes %2F as a path separator, so it never reaches the route
+        resp = client.post("/clutch/..%2Fmy-lab.yaml/delete", follow_redirects=False)
+        assert resp.status_code == 404
+        assert (tmp_path / "clutches" / "my-lab.yaml").exists()
 
 
 class TestProvider:
@@ -348,6 +596,7 @@ class TestNestStatus:
                 "/hatch-clutch",
                 "/build",
                 "/notifications",
+                # /edit redirects without ?clutch= — skip it here
             ]:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
