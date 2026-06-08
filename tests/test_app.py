@@ -630,6 +630,14 @@ class TestDeleteClutch:
         assert resp.status_code == 404
         assert (tmp_path / "clutches" / "my-lab.yaml").exists()
 
+    def test_clutches_page_uses_modal_not_confirm(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        html = client.get("/clutches").data.decode()
+        assert "delete-modal-backdrop" in html
+        assert "delete-clutch-btn" in html
+        assert "confirm(" not in html
+
 
 class TestProvider:
     def test_returns_libvirt_provider(self, tmp_path, monkeypatch):
