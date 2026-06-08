@@ -58,24 +58,34 @@
     <div class="form-grid">
       <div class="form-group">
         <label class="form-label" for="os_media">OS Media <span class="required">*</span></label>
-        <select id="os_media" name="os_media" class="form-select" required>
-          <option value="" {% if not form_values or not form_values.get('os_media') %}selected{% endif %}>— none —</option>
-          {% for f in media_files %}
-            <option value="{{ f }}" {% if form_values and form_values.get('os_media') == f %}selected{% endif %}>{{ f }}</option>
-          {% endfor %}
-        </select>
+        <div class="select-with-refresh">
+          <select id="os_media" name="os_media" class="form-select" required>
+            <option value="" {% if not form_values or not form_values.get('os_media') %}selected{% endif %}>— none —</option>
+            {% for f in media_files %}
+              <option value="{{ f }}" {% if form_values and form_values.get('os_media') == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn-icon" data-refresh="media" data-target="os_media" title="Refresh media files">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
         {% if not media_files %}
           <p class="form-hint">No media files found. Add ISO/VHD/QCOW2 files to the media directory.</p>
         {% endif %}
       </div>
       <div class="form-group">
         <label class="form-label" for="virtio_drivers">VirtIO Drivers <span class="form-optional">(optional)</span></label>
-        <select id="virtio_drivers" name="virtio_drivers" class="form-select">
-          <option value="" {% if not form_values or not form_values.get('virtio_drivers') %}selected{% endif %}>— none —</option>
-          {% for f in media_files %}
-            <option value="{{ f }}" {% if form_values and form_values.get('virtio_drivers') == f %}selected{% endif %}>{{ f }}</option>
-          {% endfor %}
-        </select>
+        <div class="select-with-refresh">
+          <select id="virtio_drivers" name="virtio_drivers" class="form-select">
+            <option value="" {% if not form_values or not form_values.get('virtio_drivers') %}selected{% endif %}>— none —</option>
+            {% for f in media_files %}
+              <option value="{{ f }}" {% if form_values and form_values.get('virtio_drivers') == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn-icon" data-refresh="media" data-target="virtio_drivers" title="Refresh media files">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -86,12 +96,17 @@
     <div class="form-grid">
       <div class="form-group">
         <label class="form-label" for="os_config">OS Config <span class="form-optional">(optional)</span></label>
-        <select id="os_config" name="os_config" class="form-select">
-          <option value="" {% if not form_values or not form_values.get('os_config') %}selected{% endif %}>— none —</option>
-          {% for f in automation_files %}
-            <option value="{{ f }}" {% if form_values and form_values.get('os_config') == f %}selected{% endif %}>{{ f }}</option>
-          {% endfor %}
-        </select>
+        <div class="select-with-refresh">
+          <select id="os_config" name="os_config" class="form-select">
+            <option value="" {% if not form_values or not form_values.get('os_config') %}selected{% endif %}>— none —</option>
+            {% for f in automation_files %}
+              <option value="{{ f }}" {% if form_values and form_values.get('os_config') == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn-icon" data-refresh="automation" data-target="os_config" title="Refresh automation files">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
         {% if not automation_files %}
           <p class="form-hint">No automation files found. Add answer files via the Automation pane.</p>
         {% endif %}

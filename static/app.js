@@ -260,6 +260,47 @@
   });
 })();
 
+/* Dropdown refresh — repopulate media/automation selects without a page reload */
+(function () {
+  var ENDPOINTS = {
+    media: '/api/media',
+    automation: '/api/automation',
+  };
+
+  function rebuildOptions(select, files) {
+    var prev = select.value;
+    var hasEmpty = select.options.length > 0 && select.options[0].value === '';
+    select.innerHTML = '';
+    if (hasEmpty) {
+      var empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = '— none —';
+      select.appendChild(empty);
+    }
+    files.forEach(function (f) {
+      var opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      select.appendChild(opt);
+    });
+    select.value = files.indexOf(prev) !== -1 ? prev : '';
+  }
+
+  document.querySelectorAll('[data-refresh]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var endpoint = ENDPOINTS[btn.dataset.refresh];
+      var target = document.getElementById(btn.dataset.target);
+      if (!endpoint || !target) return;
+      btn.disabled = true;
+      fetch(endpoint)
+        .then(function (r) { return r.json(); })
+        .then(function (files) { rebuildOptions(target, files); })
+        .catch(function () {})
+        .finally(function () { btn.disabled = false; });
+    });
+  });
+})();
+
 /* Sidebar collapse toggle */
 (function () {
   var sidebar = document.getElementById('sidebar');
