@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lib.clutch import VMConfig
-from lib.providers.libvirt import LibvirtProvider, _system_env
+from lib.providers.libvirt import LibvirtProvider, _check_media_accessible, _qemu_user, _system_env
 
 
 # ── _system_env ───────────────────────────────────────────────────────────────
@@ -34,6 +34,117 @@ class TestSystemEnv:
         assert "/home/user/.venv/bin" in os.environ["PATH"]
 
 
+# ── _qemu_user ────────────────────────────────────────────────────────────────
+
+
+class TestQemuUser:
+    def test_returns_libvirt_qemu_when_file_missing(self, tmp_path, monkeypatch):
+        import lib.providers.libvirt as libvirt_mod
+
+        monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", tmp_path / "nonexistent.conf")
+        assert _qemu_user() == "libvirt-qemu"
+
+    def test_returns_configured_user(self, tmp_path, monkeypatch):
+        import lib.providers.libvirt as libvirt_mod
+
+        conf = tmp_path / "qemu.conf"
+        conf.write_text('user = "dustin"\n')
+        monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", conf)
+        assert _qemu_user() == "dustin"
+
+    def test_ignores_commented_lines(self, tmp_path, monkeypatch):
+        import lib.providers.libvirt as libvirt_mod
+
+        conf = tmp_path / "qemu.conf"
+        conf.write_text('# user = "root"\nuser = "myuser"\n')
+        monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", conf)
+        assert _qemu_user() == "myuser"
+
+    def test_returns_libvirt_qemu_when_no_user_setting(self, tmp_path, monkeypatch):
+        import lib.providers.libvirt as libvirt_mod
+
+        conf = tmp_path / "qemu.conf"
+        conf.write_text('# various settings\ngroup = "kvm"\n')
+        monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", conf)
+        assert _qemu_user() == "libvirt-qemu"
+
+    def test_returns_none_when_file_permission_denied(self, tmp_path, monkeypatch):
+        import lib.providers.libvirt as libvirt_mod
+
+        conf = tmp_path / "qemu.conf"
+        conf.write_text('user = "dustin"\n')
+        conf.chmod(0o000)
+        monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", conf)
+        assert _qemu_user() is None
+
+
+# ── _check_media_accessible ───────────────────────────────────────────────────
+
+
+class TestCheckMediaAccessible:
+    @pytest.fixture(autouse=True)
+    def _default_qemu_user(self, monkeypatch):
+        # Simulate default libvirt-qemu so world-permission checks run in all tests
+        monkeypatch.setattr("lib.providers.libvirt._qemu_user", lambda: "libvirt-qemu")
+
+    def test_noop_when_file_does_not_exist(self, tmp_path):
+        _check_media_accessible(tmp_path / "does-not-exist.iso")
+
+    def test_raises_when_file_not_world_readable(self, tmp_path):
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o640)
+        with pytest.raises(PermissionError, match="world-readable"):
+            _check_media_accessible(f)
+
+    def test_file_error_includes_chmod_command(self, tmp_path):
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o640)
+        with pytest.raises(PermissionError, match=r"chmod o\+r"):
+            _check_media_accessible(f)
+
+    def test_raises_when_parent_dir_not_world_executable(self, tmp_path):
+        media_dir = tmp_path / "media"
+        media_dir.mkdir()
+        media_dir.chmod(0o750)
+        f = media_dir / "win11.iso"
+        f.touch()
+        f.chmod(0o644)
+        with pytest.raises(PermissionError, match=r"chmod o\+x"):
+            _check_media_accessible(f)
+
+    def test_error_references_getting_started(self, tmp_path):
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o640)
+        with pytest.raises(PermissionError, match="Getting Started"):
+            _check_media_accessible(f)
+
+    def test_noop_when_qemu_runs_as_current_user(self, tmp_path, monkeypatch):
+        import getpass
+
+        monkeypatch.setattr("lib.providers.libvirt._qemu_user", getpass.getuser)
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o600)  # not world-readable — irrelevant when qemu == current user
+        _check_media_accessible(f)  # should not raise
+
+    def test_noop_when_qemu_runs_as_root(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.providers.libvirt._qemu_user", lambda: "root")
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o600)
+        _check_media_accessible(f)  # should not raise
+
+    def test_noop_when_qemu_conf_unreadable(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.providers.libvirt._qemu_user", lambda: None)
+        f = tmp_path / "win11.iso"
+        f.touch()
+        f.chmod(0o600)
+        _check_media_accessible(f)  # should not raise
+
+
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -50,6 +161,10 @@ def provider(tmp_path):
 
 
 class TestCreateVM:
+    @pytest.fixture(autouse=True)
+    def _skip_access_check(self, monkeypatch):
+        monkeypatch.setattr("lib.providers.libvirt._check_media_accessible", lambda _: None)
+
     def test_calls_virt_install(self, tmp_path, provider):
         iso = provider.media_dir / "win11.iso"
         iso.touch()

@@ -158,6 +158,9 @@ def create_post():
         try:
             _provider().create_vm(vm)
             notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+        except PermissionError as exc:
+            notif_lib.record("warning", str(exc).splitlines()[0])
+            return _render_create_form(form_values=request.form, form_error=str(exc))
         except (FileNotFoundError, subprocess.CalledProcessError) as exc:
             return _render_create_form(form_values=request.form, form_error=str(exc))
 
