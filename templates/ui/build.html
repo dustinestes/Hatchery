@@ -19,12 +19,12 @@
     <div class="form-grid">
       <div class="form-group">
         <label class="form-label" for="clutch-name">Name <span class="form-optional">(optional — defaults to filename)</span></label>
-        <input type="text" id="clutch-name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab">
+        <input type="text" id="clutch-name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab" value="{{ form_name }}">
       </div>
       <div class="form-group">
         <label class="form-label" for="clutch-filename">Filename <span class="required">*</span></label>
         <div class="filename-input-wrap">
-          <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required placeholder="e.g. dev-lab">
+          <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required placeholder="e.g. dev-lab" value="{{ form_filename }}">
           <span class="filename-ext">.yaml</span>
         </div>
       </div>
@@ -48,6 +48,9 @@
 </form>
 
 {% include '_vm_row_template.html' %}
+{% if form_vms %}
+<script type="application/json" id="build-form-vms">{{ form_vms | tojson }}</script>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -59,7 +62,14 @@
   var rows = hatchery.vmRows.init('vm-rows', 'vm-row-template');
   if (!rows) return;
 
-  rows.addRow();
+  var fvEl = document.getElementById('build-form-vms');
+  if (fvEl) {
+    JSON.parse(fvEl.textContent).forEach(function (vm) { rows.addRow(vm); });
+    rows.updateDependsOnAll();
+    rows.applyPendingDepends();
+  } else {
+    rows.addRow();
+  }
 
   document.getElementById('add-vm-btn').addEventListener('click', function () {
     rows.addRow();
