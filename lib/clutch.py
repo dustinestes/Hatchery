@@ -64,7 +64,41 @@ class Clutch(BaseModel):
                 if dep not in vm_names:
                     raise ValueError(f"VM {vm.name!r} depends_on unknown VM {dep!r}")
 
+        graph = {vm.name: list(vm.depends_on) for vm in self.vms}
+        cycle = _detect_cycle(graph)
+        if cycle:
+            raise ValueError(f"Circular dependency detected: {' → '.join(cycle)}")
+
         return self
+
+
+def _detect_cycle(graph: dict[str, list[str]]) -> list[str] | None:
+    """Return the cycle as an ordered list of node names (last == first), or None."""
+    visited: set[str] = set()
+    in_stack: set[str] = set()
+    stack: list[str] = []
+
+    def dfs(name: str) -> list[str] | None:
+        visited.add(name)
+        in_stack.add(name)
+        stack.append(name)
+        for dep in graph.get(name, []):
+            if dep not in visited:
+                result = dfs(dep)
+                if result is not None:
+                    return result
+            elif dep in in_stack:
+                return stack[stack.index(dep) :] + [dep]
+        stack.pop()
+        in_stack.discard(name)
+        return None
+
+    for name in graph:
+        if name not in visited:
+            result = dfs(name)
+            if result is not None:
+                return result
+    return None
 
 
 def load(path: str | Path) -> Clutch:
