@@ -21,13 +21,13 @@
       <div class="form-group">
         <label class="form-label" for="clutch-name">Name</label>
         <input type="text" id="clutch-name" name="clutch_name" class="form-input"
-               value="{{ clutch_obj.name if clutch_obj else '' }}" placeholder="e.g. My Dev Lab">
+               value="{{ form_name }}" placeholder="e.g. My Dev Lab">
       </div>
       <div class="form-group">
         <label class="form-label" for="clutch-filename">Filename <span class="required">*</span></label>
         <div class="filename-input-wrap">
           <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required
-                 value="{{ current_filename[:-5] if current_filename.endswith('.yaml') else current_filename }}">
+                 value="{{ form_filename }}">
           <span class="filename-ext">.yaml</span>
         </div>
       </div>

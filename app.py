@@ -335,11 +335,13 @@ def edit():
         clutch_obj = _load_clutch(filename)
     except Exception:
         return redirect(url_for("clutches"))
+    current_stem = filename[:-5] if filename.endswith(".yaml") else filename
     return render_template(
         "edit.html",
         form_error=None,
+        form_name=clutch_obj.name,
+        form_filename=current_stem,
         current_filename=filename,
-        clutch_obj=clutch_obj,
         **_build_template_ctx(),
     )
 
@@ -355,14 +357,19 @@ def edit_post():
 
     if not old_filename:
         return redirect(url_for("clutches"))
-    if not new_filename_raw:
+
+    def _rerender(error):
         return render_template(
             "edit.html",
-            form_error="Filename is required.",
+            form_error=error,
+            form_name=new_name,
+            form_filename=new_filename_raw,
             current_filename=old_filename,
-            clutch_obj=None,
             **ctx,
         )
+
+    if not new_filename_raw:
+        return _rerender("Filename is required.")
 
     new_filename = (
         new_filename_raw if new_filename_raw.endswith(".yaml") else f"{new_filename_raw}.yaml"
@@ -374,39 +381,21 @@ def edit_post():
         vms = _vm_list_from_form(request.form)
         c = clutch_lib.Clutch(name=new_name, vms=vms)
     except Exception as exc:
-        return render_template(
-            "edit.html",
-            form_error=str(exc),
-            current_filename=old_filename,
-            clutch_obj=None,
-            **ctx,
-        )
+        return _rerender(str(exc))
 
     clutches_dir = config.data_dir() / "clutches"
     new_path = clutches_dir / new_filename
     old_path = clutches_dir / old_filename
 
     if new_path != old_path and new_path.exists():
-        return render_template(
-            "edit.html",
-            form_error=f"'{new_filename}' already exists.",
-            current_filename=old_filename,
-            clutch_obj=None,
-            **ctx,
-        )
+        return _rerender(f"'{new_filename}' already exists.")
 
     try:
         clutch_lib.save(c, new_path)
         if new_path != old_path:
             old_path.unlink(missing_ok=True)
     except Exception as exc:
-        return render_template(
-            "edit.html",
-            form_error=str(exc),
-            current_filename=old_filename,
-            clutch_obj=None,
-            **ctx,
-        )
+        return _rerender(str(exc))
 
     notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
     return redirect(url_for("edit", clutch=new_filename))

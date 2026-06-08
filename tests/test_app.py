@@ -316,6 +316,26 @@ class TestEditRoute:
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
 
+    def test_post_rename_conflict_preserves_form_values(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        _make_clutch(tmp_path, name="other-lab", vm_name="ws01")
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "Attempted Name",
+            "clutch_filename": "other-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        html = client.post("/edit", data=form).data.decode()
+        assert "Attempted Name" in html
+        assert 'value="other-lab"' in html
+
     def test_post_empty_clutch_name_defaults_to_filename_stem(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
