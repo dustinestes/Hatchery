@@ -26,7 +26,7 @@ The terminology follows an avian/hatching metaphor. Branded terms are used where
 | Infrastructure | Host / Hypervisor | **Nest** | The physical or remote machine running Hatchery and managing VMs |
 | Environment | Deployment group / Stack | **Clutch** | One or more related VMs defined together in a Clutch file |
 | Source image | ISO / VHD / VHDX | **Egg** | A source image used to hatch a VM *(reserved — dormant, not currently used in UI or directory structure)* |
-| All managed VMs | VM inventory | **Brood** | The full list of VMs known to a Nest |
+| All managed VMs | VM inventory | ~~Brood~~ *(retired)* | Dropped — use "VMs" or "Virtual Machines" in UI and code |
 | Provision | Deploy / Provision | **Hatch** | Create and boot a VM |
 | Provision + save | Deploy + export config | **Export and Hatch** | Save configuration as a Clutch file, then hatch |
 | Save config only | Export / Blueprint | **Export Clutch** | Save configuration to a Clutch file without hatching |
@@ -74,7 +74,7 @@ Hatchery/
 │   └── provision.py              # Post-install provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages (Jinja2)
-│   │   ├── index.html            # Dashboard: brood overview + host stats
+│   │   ├── index.html            # Dashboard: VM list + host stats
 │   │   ├── create.html           # Hatch a new VM (the main form)
 │   │   └── manage.html           # Per-VM controls: power, snapshots
 │   └── answerfiles/              # Unattended install Jinja2 templates
@@ -95,7 +95,7 @@ Hatchery/
 
 All hypervisor operations go through a provider interface defined in `lib/providers/base.py`. Each provider implements:
 
-- `list_vms()` — return the full brood
+- `list_vms()` — return all VMs known to the provider
 - `create_vm(config)` — hatch a new VM
 - `start_vm(name)` / `stop_vm(name)` / `force_stop_vm(name)`
 - `destroy_vm(name)` — full teardown including disk removal
@@ -167,9 +167,9 @@ Inputs:
 - Chirp — lightweight status check
 
 ### Dashboard (`/`)
-- Lists all VMs in the brood with state (running / shut off / paused) and fledged status
+- Two-panel layout: Nest selector (left) and VM list (right)
+- Lists all VMs with state (running / shut off / paused) and fledged status
 - Host resource consumption (CPU, memory, storage)
-- Available Clutch files and Eggs (ISOs / VHDs)
 - Quick-action buttons per VM
 - JS polls `/api/status` every 5s for live updates
 
@@ -226,7 +226,7 @@ Five top-level navigation panes:
 
 | Pane | Purpose |
 |---|---|
-| **Dashboard** | Brood overview — VM list, host resource consumption, available Clutch files and media |
+| **Dashboard** | VM list and host resource consumption, scoped to the selected Nest |
 | **Nests** | View and manage Nest host endpoints (local and future remote) |
 | **Clutches** | View and manage Clutch files — create, edit, import, delete |
 | **Automation** | View and manage automation files — OS answer files, post-first-boot scripts |
@@ -392,7 +392,7 @@ Nothing reaches the repo that isn't clean, tested, and documented.
 
 ### Multiple Nests
 
-v1 manages a single local Nest (the host running Hatchery). Future versions will support registering multiple Nests — local or remote — and managing their broods from a single Hatchery instance. The Nests pane in the UI is designed for this from the start.
+v1 manages a single local Nest (the host running Hatchery). Future versions will support registering multiple Nests — local or remote — and managing their VMs from a single Hatchery instance. The Nests pane in the UI is designed for this from the start.
 
 ### Any Guest OS on KVM
 
