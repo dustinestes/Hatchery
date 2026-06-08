@@ -1,3 +1,169 @@
+/* VM row builder — shared between /build and /edit */
+window.hatchery = window.hatchery || {};
+hatchery.vmRows = (function () {
+  function init(containerId, templateId) {
+    var container = document.getElementById(containerId);
+    var template = document.getElementById(templateId);
+    if (!container || !template) return null;
+
+    var rowIdx = 0;
+    var isDirty = false;
+
+    function addRow(vmData) {
+      var clone = template.content.cloneNode(true);
+      var row = clone.querySelector('.vm-row');
+      row.dataset.vmIndex = rowIdx++;
+
+      var toggleBtn = row.querySelector('.vm-row-toggle');
+      var body = row.querySelector('.vm-row-body');
+      var summary = row.querySelector('.vm-row-summary');
+      var nameInput = row.querySelector('.vm-name-input');
+
+      toggleBtn.addEventListener('click', function () {
+        var isOpen = !body.hidden;
+        body.hidden = isOpen;
+        toggleBtn.setAttribute('aria-expanded', String(!isOpen));
+      });
+
+      row.querySelector('.vm-row-remove').addEventListener('click', function () {
+        row.remove();
+        updateDependsOnAll();
+        isDirty = true;
+      });
+
+      nameInput.addEventListener('input', function () {
+        summary.textContent = this.value.trim() || 'New VM';
+        updateDependsOnAll();
+        isDirty = true;
+      });
+
+      row.querySelectorAll('input, select').forEach(function (el) {
+        el.addEventListener('change', function () { isDirty = true; });
+      });
+
+      if (vmData) {
+        set(row, '[name="vm_name[]"]', vmData.name);
+        summary.textContent = vmData.name || 'New VM';
+        set(row, '[name="vm_os[]"]', vmData.os);
+        set(row, '[name="vm_vcpus[]"]', vmData.vcpus);
+        set(row, '[name="vm_ram_gb[]"]', vmData.ram_gb);
+        set(row, '[name="vm_disk_gb[]"]', vmData.disk_gb);
+        set(row, '[name="vm_os_media[]"]', vmData.os_media);
+        set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
+        set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
+        if (vmData.depends_on && vmData.depends_on.length) {
+          row.dataset.pendingDepends = vmData.depends_on.join(',');
+        }
+      } else {
+        body.hidden = false;
+        toggleBtn.setAttribute('aria-expanded', 'true');
+      }
+
+      container.appendChild(clone);
+    }
+
+    function set(row, selector, value) {
+      var el = row.querySelector(selector);
+      if (el && value !== undefined && value !== null) el.value = value;
+    }
+
+    function clearRows() {
+      container.innerHTML = '';
+      rowIdx = 0;
+    }
+
+    function getAllVmNames() {
+      return Array.from(container.querySelectorAll('.vm-name-input'))
+        .map(function (el) { return el.value.trim(); })
+        .filter(Boolean);
+    }
+
+    function updateDependsOnAll() {
+      var names = getAllVmNames();
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var thisName = row.querySelector('.vm-name-input').value.trim();
+        var depSel = row.querySelector('.vm-depends-on');
+        if (!depSel) return;
+        var selected = Array.from(depSel.selectedOptions).map(function (o) { return o.value; });
+        depSel.innerHTML = '';
+        names.filter(function (n) { return n !== thisName; }).forEach(function (n) {
+          var opt = document.createElement('option');
+          opt.value = n;
+          opt.textContent = n;
+          opt.selected = selected.indexOf(n) !== -1;
+          depSel.appendChild(opt);
+        });
+      });
+    }
+
+    function applyPendingDepends() {
+      container.querySelectorAll('.vm-row[data-pending-depends]').forEach(function (row) {
+        var pending = row.dataset.pendingDepends.split(',').filter(Boolean);
+        var depSel = row.querySelector('.vm-depends-on');
+        if (!depSel) return;
+        Array.from(depSel.options).forEach(function (opt) {
+          opt.selected = pending.indexOf(opt.value) !== -1;
+        });
+        delete row.dataset.pendingDepends;
+      });
+    }
+
+    function serializeDependsOn() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var depSel = row.querySelector('.vm-depends-on');
+        var hidden = row.querySelector('.vm-depends-on-hidden');
+        if (depSel && hidden) {
+          hidden.value = Array.from(depSel.selectedOptions)
+            .map(function (o) { return o.value; })
+            .join(',');
+        }
+      });
+    }
+
+    return {
+      addRow: addRow,
+      clearRows: clearRows,
+      updateDependsOnAll: updateDependsOnAll,
+      applyPendingDepends: applyPendingDepends,
+      serializeDependsOn: serializeDependsOn,
+      markDirty: function () { isDirty = true; },
+      markClean: function () { isDirty = false; },
+      dirty: function () { return isDirty; },
+    };
+  }
+
+  return { init: init };
+})();
+
+/* Topbar — Hatch dropdown */
+(function () {
+  var btn = document.getElementById('hatch-dropdown-btn');
+  var menu = document.getElementById('hatch-dropdown-menu');
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = !menu.hidden;
+    menu.hidden = open;
+    btn.setAttribute('aria-expanded', String(!open));
+  });
+
+  document.addEventListener('click', function () {
+    if (!menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      btn.focus();
+    }
+  });
+})();
+
 /* Theme toggle */
 (function () {
   var toggle = document.getElementById('theme-toggle');

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Hatch Clutch — Hatchery{% endblock %}
+
+{% block content %}
+<div class="pane-header">
+  <h1 class="pane-title">Hatch Clutch</h1>
+  <p class="pane-subtitle">Select a Clutch and hatch its VMs.</p>
+</div>
+
+{% if form_error %}
+  <div class="alert alert-error">{{ form_error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('hatch_clutch_post') }}" id="hatch-clutch-form">
+
+  <section class="form-section">
+    <h2 class="form-section-title">Clutch</h2>
+    <div class="form-group form-group-half">
+      <label class="form-label" for="clutch-file-select">Clutch File <span class="required">*</span></label>
+      <select id="clutch-file-select" name="clutch_file" class="form-select" required>
+        <option value="">— select a Clutch —</option>
+        {% for f in clutch_files %}
+          <option value="{{ f }}" {% if preselected == f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+      {% if not clutch_files %}
+        <p class="form-hint">No Clutch files found. <a href="{{ url_for('build') }}" class="link">Build one</a> first.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="form-section" id="clutch-summary-section" {% if not clutch_obj %}hidden{% endif %}>
+    <h2 class="form-section-title">Summary</h2>
+    <div id="clutch-summary">
+      {% if clutch_obj %}
+        <p class="clutch-summary-count">{{ clutch_obj.vms|length }} VM{{ 's' if clutch_obj.vms|length != 1 else '' }} will be hatched</p>
+        <ol class="clutch-summary-vms">
+          {% for vm in clutch_obj.vms %}
+            <li class="clutch-summary-vm">
+              <span class="vm-name">{{ vm.name }}</span>
+              <span class="vm-os tag">{{ vm.os }}</span>
+              {% if vm.depends_on %}
+                <span class="vm-depends">after: {{ vm.depends_on|join(', ') }}</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="action-bar">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+    <button type="submit" class="btn btn-primary">Hatch</button>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var select = document.getElementById('clutch-file-select');
+  var section = document.getElementById('clutch-summary-section');
+  var summary = document.getElementById('clutch-summary');
+  if (!select || !section || !summary) return;
+
+  function renderSummary(data) {
+    var count = data.vms.length;
+    var html = '<p class="clutch-summary-count">' + count + ' VM' + (count !== 1 ? 's' : '') + ' will be hatched</p>';
+    html += '<ol class="clutch-summary-vms">';
+    data.vms.forEach(function (vm) {
+      html += '<li class="clutch-summary-vm"><span class="vm-name">' + vm.name + '</span><span class="vm-os tag">' + vm.os + '</span>';
+      if (vm.depends_on && vm.depends_on.length) {
+        html += '<span class="vm-depends">after: ' + vm.depends_on.join(', ') + '</span>';
+      }
+      html += '</li>';
+    });
+    html += '</ol>';
+    summary.innerHTML = html;
+    section.hidden = false;
+  }
+
+  select.addEventListener('change', function () {
+    var filename = this.value;
+    if (!filename) { section.hidden = true; return; }
+    fetch('/api/clutch/' + encodeURIComponent(filename))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { section.hidden = true; return; }
+        renderSummary(data);
+      })
+      .catch(function () { section.hidden = true; });
+  });
+})();
+</script>
+{% endblock %}

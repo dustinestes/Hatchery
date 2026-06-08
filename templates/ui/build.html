@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Build Clutch — Hatchery{% endblock %}
+
+{% block content %}
+<div class="pane-header">
+  <h1 class="pane-title">Build Clutch</h1>
+  <p class="pane-subtitle">Define a new environment from scratch.</p>
+</div>
+
+{% if form_error %}
+  <div class="alert alert-error">{{ form_error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('build_post') }}" id="build-form">
+
+  <section class="form-section">
+    <h2 class="form-section-title">Clutch</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="clutch-name">Name <span class="form-optional">(optional — defaults to filename)</span></label>
+        <input type="text" id="clutch-name" name="clutch_name" class="form-input" placeholder="e.g. My Dev Lab">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="clutch-filename">Filename <span class="required">*</span></label>
+        <div class="filename-input-wrap">
+          <input type="text" id="clutch-filename" name="clutch_filename" class="form-input" required placeholder="e.g. dev-lab">
+          <span class="filename-ext">.yaml</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <div class="section-header">
+      <h2 class="form-section-title" style="margin-bottom:0">VMs</h2>
+      <button type="button" id="add-vm-btn" class="btn btn-secondary btn-sm">+ Add VM</button>
+    </div>
+    <div id="vm-rows" class="vm-rows"></div>
+    <p class="empty-state" id="vm-rows-empty" hidden>No VMs yet. Add one above.</p>
+  </section>
+
+  <div class="action-bar">
+    <a href="{{ url_for('clutches') }}" class="btn btn-ghost" id="cancel-btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Clutch</button>
+  </div>
+
+</form>
+
+{% include '_vm_row_template.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('build-form');
+  if (!form) return;
+
+  var rows = hatchery.vmRows.init('vm-rows', 'vm-row-template');
+  if (!rows) return;
+
+  rows.addRow();
+
+  document.getElementById('add-vm-btn').addEventListener('click', function () {
+    rows.addRow();
+    rows.updateDependsOnAll();
+    rows.markDirty();
+  });
+
+  form.addEventListener('submit', function () {
+    rows.serializeDependsOn();
+    rows.markClean();
+  });
+
+  document.getElementById('cancel-btn').addEventListener('click', function () {
+    rows.markClean();
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (rows.dirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
+{% endblock %}

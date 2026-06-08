@@ -106,66 +106,39 @@ def notifications_pane():
 # ── VM creation ───────────────────────────────────────────────────────────────
 
 
-def _render_create_form(form_values=None, form_error=None):
+def _render_hatch_form(form_values=None, form_error=None):
     return render_template(
-        "create.html",
+        "hatch.html",
         active_pane="dashboard",
         form_values=form_values,
         form_error=form_error,
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media"),
         automation_files=_scan_dir("automation"),
-        clutch_files=_scan_dir("clutches", [".yaml"]),
     )
 
 
-@app.route("/create", methods=["GET"])
-def create():
-    return _render_create_form()
+@app.route("/hatch", methods=["GET"])
+def hatch():
+    return _render_hatch_form()
 
 
-@app.route("/create", methods=["POST"])
-def create_post():
-    action = request.form.get("action", "hatch")
+@app.route("/hatch", methods=["POST"])
+def hatch_post():
     try:
         vm = _vm_config_from_form(request.form)
     except ValueError as exc:
-        return _render_create_form(form_values=request.form, form_error=str(exc))
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
 
-    # ── Export actions ────────────────────────────────────────────────────────
-    if action in ("export_clutch", "export_and_hatch"):
-        export_mode = request.form.get("export_mode", "new")
-        try:
-            if export_mode == "new":
-                filename = request.form.get("clutch_filename", "").strip()
-                if not filename:
-                    raise ValueError("Clutch filename is required when creating a new file.")
-                clutch_name = request.form.get("clutch_name", filename).strip() or filename
-                new_clutch = clutch_lib.Clutch(name=clutch_name, vms=[vm])
-                clutch_lib.export(new_clutch, filename, config.data_dir() / "clutches")
-                notif_lib.record("activity", f"Clutch '{filename}.yaml' created.")
-            else:
-                target = request.form.get("clutch_append_target", "").strip()
-                if not target:
-                    raise ValueError("Select an existing Clutch file to append to.")
-                clutch_lib.append_vm(vm, config.data_dir() / "clutches" / target)
-                notif_lib.record("activity", f"VM '{vm.name}' appended to '{target}'.")
-        except (ValueError, FileExistsError, FileNotFoundError) as exc:
-            return _render_create_form(form_values=request.form, form_error=str(exc))
+    try:
+        _provider().create_vm(vm)
+        notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+    except PermissionError as exc:
+        notif_lib.record("warning", str(exc).splitlines()[0])
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
 
-    # ── Hatch action ──────────────────────────────────────────────────────────
-    if action in ("hatch", "export_and_hatch"):
-        try:
-            _provider().create_vm(vm)
-            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-        except PermissionError as exc:
-            notif_lib.record("warning", str(exc).splitlines()[0])
-            return _render_create_form(form_values=request.form, form_error=str(exc))
-        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-            return _render_create_form(form_values=request.form, form_error=str(exc))
-
-    if action == "export_clutch":
-        return redirect(url_for("clutches"))
     return redirect(url_for("dashboard"))
 
 
@@ -192,6 +165,242 @@ def _vm_config_from_form(form) -> VMConfig:
         raise ValueError(f"Invalid form data: {exc}") from exc
 
 
+# ── Hatch Clutch ─────────────────────────────────────────────────────────────
+
+
+def _render_hatch_clutch_form(clutch_files, preselected="", clutch_obj=None, form_error=None):
+    return render_template(
+        "hatch_clutch.html",
+        active_pane="dashboard",
+        clutch_files=clutch_files,
+        preselected=preselected,
+        clutch_obj=clutch_obj,
+        form_error=form_error,
+    )
+
+
+def _load_clutch(filename: str):
+    """Load a Clutch file from the clutches data directory by bare filename."""
+    from pathlib import Path
+
+    safe = Path(filename).name
+    return clutch_lib.load(config.data_dir() / "clutches" / safe)
+
+
+@app.route("/hatch-clutch", methods=["GET"])
+def hatch_clutch():
+    clutch_files = _scan_dir("clutches", [".yaml"])
+    preselected = request.args.get("clutch", "").strip()
+    clutch_obj = None
+    form_error = None
+    if preselected:
+        try:
+            clutch_obj = _load_clutch(preselected)
+        except Exception as exc:
+            form_error = str(exc)
+    return _render_hatch_clutch_form(clutch_files, preselected, clutch_obj, form_error)
+
+
+@app.route("/hatch-clutch", methods=["POST"])
+def hatch_clutch_post():
+    clutch_files = _scan_dir("clutches", [".yaml"])
+    filename = request.form.get("clutch_file", "").strip()
+    if not filename:
+        return _render_hatch_clutch_form(clutch_files, form_error="Select a Clutch file to hatch.")
+    try:
+        clutch_obj = _load_clutch(filename)
+    except FileNotFoundError:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            form_error=f"Clutch file '{filename}' not found.",
+        )
+    except Exception as exc:
+        return _render_hatch_clutch_form(clutch_files, preselected=filename, form_error=str(exc))
+
+    for vm in clutch_obj.vms:
+        try:
+            _provider().create_vm(vm)
+            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+        except PermissionError as exc:
+            notif_lib.record("warning", str(exc).splitlines()[0])
+            return _render_hatch_clutch_form(
+                clutch_files,
+                preselected=filename,
+                clutch_obj=clutch_obj,
+                form_error=str(exc),
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            return _render_hatch_clutch_form(
+                clutch_files,
+                preselected=filename,
+                clutch_obj=clutch_obj,
+                form_error=str(exc),
+            )
+
+    return redirect(url_for("dashboard"))
+
+
+# ── Clutch builder ───────────────────────────────────────────────────────────
+
+
+def _vm_list_from_form(form):
+    """Parse and validate a list of VMConfig objects from array-notation form fields."""
+
+    names = form.getlist("vm_name[]")
+    oses = form.getlist("vm_os[]")
+    vcpus_list = form.getlist("vm_vcpus[]")
+    ram_list = form.getlist("vm_ram_gb[]")
+    disk_list = form.getlist("vm_disk_gb[]")
+    os_medias = form.getlist("vm_os_media[]")
+    virtio_list = form.getlist("vm_virtio_drivers[]")
+    os_config_list = form.getlist("vm_os_config[]")
+    depends_list = form.getlist("vm_depends_on[]")
+
+    if not any(n.strip() for n in names):
+        raise ValueError("Add at least one VM before saving.")
+
+    vms = []
+    for i, name in enumerate(names):
+        depends_raw = depends_list[i] if i < len(depends_list) else ""
+        depends_on = [d.strip() for d in depends_raw.split(",") if d.strip()]
+        vms.append(
+            VMConfig(
+                name=name.strip(),
+                os=oses[i] if i < len(oses) else "",
+                vcpus=int(vcpus_list[i] or 1) if i < len(vcpus_list) else 1,
+                ram_gb=int(ram_list[i] or 1) if i < len(ram_list) else 1,
+                disk_gb=int(disk_list[i] or 20) if i < len(disk_list) else 20,
+                os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
+                virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
+                os_config=(os_config_list[i] or None) if i < len(os_config_list) else None,
+                depends_on=depends_on,
+            )
+        )
+    return vms
+
+
+def _build_template_ctx():
+    return dict(
+        active_pane="clutches",
+        os_types=[e.value for e in GuestOS],
+        media_files=_scan_dir("media"),
+        automation_files=_scan_dir("automation"),
+    )
+
+
+@app.route("/build", methods=["GET"])
+def build():
+    return render_template("build.html", form_error=None, **_build_template_ctx())
+
+
+@app.route("/build", methods=["POST"])
+def build_post():
+    ctx = _build_template_ctx()
+    clutch_name = request.form.get("clutch_name", "").strip()
+    filename = request.form.get("clutch_filename", "").strip()
+
+    if not filename:
+        return render_template("build.html", form_error="Filename is required.", **ctx)
+    if not clutch_name:
+        clutch_name = filename
+
+    try:
+        vms = _vm_list_from_form(request.form)
+        c = clutch_lib.Clutch(name=clutch_name, vms=vms)
+    except Exception as exc:
+        return render_template("build.html", form_error=str(exc), **ctx)
+
+    try:
+        clutch_lib.export(c, filename, config.data_dir() / "clutches")
+    except FileExistsError:
+        return render_template("build.html", form_error=f"'{filename}.yaml' already exists.", **ctx)
+    except Exception as exc:
+        return render_template("build.html", form_error=str(exc), **ctx)
+
+    saved = filename if filename.endswith(".yaml") else f"{filename}.yaml"
+    notif_lib.record("activity", f"Clutch '{saved}' created.")
+    return redirect(url_for("build"))
+
+
+# ── Clutch editor ─────────────────────────────────────────────────────────────
+
+
+@app.route("/edit", methods=["GET"])
+def edit():
+    filename = request.args.get("clutch", "").strip()
+    if not filename:
+        return redirect(url_for("clutches"))
+    try:
+        clutch_obj = _load_clutch(filename)
+    except Exception:
+        return redirect(url_for("clutches"))
+    current_stem = filename[:-5] if filename.endswith(".yaml") else filename
+    return render_template(
+        "edit.html",
+        form_error=None,
+        form_name=clutch_obj.name,
+        form_filename=current_stem,
+        current_filename=filename,
+        **_build_template_ctx(),
+    )
+
+
+@app.route("/edit", methods=["POST"])
+def edit_post():
+    from pathlib import Path as _Path
+
+    ctx = _build_template_ctx()
+    old_filename = _Path(request.form.get("existing_filename", "").strip()).name
+    new_name = request.form.get("clutch_name", "").strip()
+    new_filename_raw = request.form.get("clutch_filename", "").strip()
+
+    if not old_filename:
+        return redirect(url_for("clutches"))
+
+    def _rerender(error):
+        return render_template(
+            "edit.html",
+            form_error=error,
+            form_name=new_name,
+            form_filename=new_filename_raw,
+            current_filename=old_filename,
+            **ctx,
+        )
+
+    if not new_filename_raw:
+        return _rerender("Filename is required.")
+
+    new_filename = (
+        new_filename_raw if new_filename_raw.endswith(".yaml") else f"{new_filename_raw}.yaml"
+    )
+    if not new_name:
+        new_name = _Path(new_filename).stem
+
+    try:
+        vms = _vm_list_from_form(request.form)
+        c = clutch_lib.Clutch(name=new_name, vms=vms)
+    except Exception as exc:
+        return _rerender(str(exc))
+
+    clutches_dir = config.data_dir() / "clutches"
+    new_path = clutches_dir / new_filename
+    old_path = clutches_dir / old_filename
+
+    if new_path != old_path and new_path.exists():
+        return _rerender(f"'{new_filename}' already exists.")
+
+    try:
+        clutch_lib.save(c, new_path)
+        if new_path != old_path:
+            old_path.unlink(missing_ok=True)
+    except Exception as exc:
+        return _rerender(str(exc))
+
+    notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
+    return redirect(url_for("edit", clutch=new_filename))
+
+
 # ── API ───────────────────────────────────────────────────────────────────────
 
 
@@ -208,6 +417,47 @@ def api_automation():
 @app.route("/api/clutches")
 def api_clutches():
     return jsonify(_scan_dir("clutches", [".yaml"]))
+
+
+@app.route("/api/clutch/<filename>")
+def api_clutch_detail(filename):
+    try:
+        c = _load_clutch(filename)
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(
+        {
+            "name": c.name,
+            "description": c.description,
+            "vms": [
+                {
+                    "name": v.name,
+                    "os": v.os,
+                    "vcpus": v.vcpus,
+                    "ram_gb": v.ram_gb,
+                    "disk_gb": v.disk_gb,
+                    "os_media": v.os_media,
+                    "virtio_drivers": v.virtio_drivers or "",
+                    "os_config": v.os_config or "",
+                    "depends_on": v.depends_on,
+                }
+                for v in c.vms
+            ],
+        }
+    )
+
+
+@app.route("/clutch/<filename>/delete", methods=["POST"])
+def clutch_delete(filename):
+    from pathlib import Path
+
+    safe = Path(filename).name
+    path = config.data_dir() / "clutches" / safe
+    path.unlink(missing_ok=True)
+    notif_lib.record("activity", f"Clutch '{safe}' deleted.")
+    return redirect(url_for("clutches"))
 
 
 @app.route("/api/notifications")

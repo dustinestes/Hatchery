@@ -266,6 +266,27 @@ class TestExport:
         assert loaded.vms[0].name == "vm1"
 
 
+class TestSave:
+    def test_creates_file(self, tmp_path):
+        c = make_clutch()
+        path = clutch.save(c, tmp_path / "new.yaml")
+        assert path.exists()
+
+    def test_overwrites_existing_file(self, tmp_path):
+        c = make_clutch()
+        path = tmp_path / "existing.yaml"
+        path.write_text("old content")
+        clutch.save(c, path)
+        loaded = clutch.load(path)
+        assert loaded.name == "my-lab"
+
+    def test_written_file_is_valid_clutch(self, tmp_path):
+        c = make_clutch()
+        path = clutch.save(c, tmp_path / "saved.yaml")
+        loaded = clutch.load(path)
+        assert loaded.vms[0].name == "vm1"
+
+
 class TestAppendVM:
     def test_appends_vm(self, tmp_path):
         c = make_clutch()
