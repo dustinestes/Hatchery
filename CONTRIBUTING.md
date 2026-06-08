@@ -107,7 +107,7 @@ feat: add snapshot list to manage page
 fix: resolve virsh timeout on slow hosts
 docs: update getting-started with VirtIO setup
 chore: pin ruff version in pyproject.toml
-breaking: rename /api/vms to /api/brood
+breaking: rename /api/status to /api/nest-status
 ```
 
 | Prefix | When to use |

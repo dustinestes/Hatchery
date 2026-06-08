@@ -14,7 +14,7 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def list_vms(self) -> list[dict]:
-        """Return the full brood — all VMs known to this provider."""
+        """Return all VMs known to this provider."""
 
     @abstractmethod
     def get_status(self, name: str) -> str:

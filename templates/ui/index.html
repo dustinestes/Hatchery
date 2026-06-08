@@ -5,32 +5,29 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Dashboard</h1>
-  <p class="pane-subtitle">Brood overview — VM list, host resources, and available Clutch files and Eggs.</p>
+  <p class="pane-subtitle">Active VMs and host resources across your Nests.</p>
 </div>
 
-<!-- ── Brood ── -->
-<section class="dashboard-section">
-  <div class="section-header">
-    <h2 class="section-title">Brood</h2>
-  </div>
-  <div class="stub">VM list coming soon</div>
-</section>
+<div class="dashboard-layout">
 
-<!-- ── Clutches ── -->
-<section class="dashboard-section">
-  <div class="section-header">
-    <h2 class="section-title">Clutches</h2>
-  </div>
-  {% if clutch_files %}
-    <ul class="file-list">
-      {% for f in clutch_files %}
-        <li class="file-list-item">
-          <span class="file-name">{{ f }}</span>
-        </li>
-      {% endfor %}
+  <!-- ── Nests ── -->
+  <aside class="nest-panel">
+    <h2 class="section-title">Nests</h2>
+    <ul class="nest-list">
+      <li class="nest-item nest-item--active">
+        <span class="nest-status-dot nest-status-dot--online" title="Online"></span>
+        <span class="nest-name">Local</span>
+      </li>
     </ul>
-  {% else %}
-    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('build') }}" class="link">Build a Clutch</a> to define and hatch an environment.</p>
-  {% endif %}
-</section>
+  </aside>
+
+  <!-- ── Virtual Machines ── -->
+  <section class="dashboard-section">
+    <div class="section-header">
+      <h2 class="section-title">Virtual Machines</h2>
+    </div>
+    <p class="empty-state">No VMs are running on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.</p>
+  </section>
+
+</div>
 {% endblock %}
