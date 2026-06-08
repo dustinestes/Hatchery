@@ -170,6 +170,20 @@ class TestCreateRoute:
         assert resp.status_code == 200
         assert "hatch-form" in resp.data.decode()
 
+    def test_permission_error_rerenders_form_and_records_warning(self, client):
+        err_msg = (
+            "The hypervisor (libvirt-qemu) cannot access: win11.iso\n"
+            "Run: chmod o+x '/home/user'\n"
+            "See Getting Started — Media Access for the recommended setup."
+        )
+        with patch("app._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = PermissionError(err_msg)
+            resp = client.post("/create", data=VALID_FORM)
+        assert resp.status_code == 200
+        assert "hatch-form" in resp.data.decode()
+        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
+        assert any("libvirt-qemu" in w["message"] for w in warnings)
+
     def test_export_append_blank_target_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()

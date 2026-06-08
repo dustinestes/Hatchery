@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import os
 import shutil
 import subprocess
@@ -8,6 +9,8 @@ from pathlib import Path
 
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
+
+_QEMU_CONF = Path("/etc/libvirt/qemu.conf")
 
 
 def _system_env() -> dict[str, str]:
@@ -26,6 +29,86 @@ def _system_env() -> dict[str, str]:
             p for p in env.get("PATH", "").split(os.pathsep) if p != venv_bin
         )
     return env
+
+
+def _qemu_user() -> str | None:
+    """Return the user QEMU processes will run as, per /etc/libvirt/qemu.conf.
+
+    Returns:
+        - The configured username if the file is readable and has a user line.
+        - 'libvirt-qemu' if the file is absent or readable but has no user line
+          (compiled-in default).
+        - None if the file exists but cannot be read — caller should skip access
+          checks to avoid false positives.
+    """
+    try:
+        content = _QEMU_CONF.read_text()
+    except PermissionError:
+        return None  # file exists but unreadable — QEMU user unknown
+    except OSError:
+        return "libvirt-qemu"  # file absent — compiled-in default
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        if key.strip() == "user":
+            return value.strip().strip("\"'")
+    return "libvirt-qemu"
+
+
+def _check_media_accessible(path: Path) -> None:
+    """Raise PermissionError if the QEMU process cannot read the given media file.
+
+    QEMU runs as 'libvirt-qemu' by default. It requires world-read on the file
+    and world-execute on every directory in the path chain. Home directories are
+    typically 0o750 (no world-execute), which blocks access silently.
+
+    If qemu.conf configures QEMU to run as the current user or root, the check
+    is skipped entirely — QEMU has the same access rights as the running user.
+
+    Called before virt-install so the user gets an actionable error instead of a
+    cryptic hypervisor message. Missing files are intentionally ignored — they
+    are caught earlier by _resolve_media.
+    """
+    try:
+        file_mode = path.stat().st_mode
+    except OSError:
+        return  # file does not exist; _resolve_media handles the error
+
+    # Determine who QEMU will run as and skip the check when we can't tell.
+    qemu_user = _qemu_user()
+    if qemu_user is None:
+        return  # qemu.conf unreadable — can't verify, skip to avoid false positives
+    try:
+        current_user = getpass.getuser()
+    except Exception:  # pragma: no cover
+        current_user = ""
+    if qemu_user in (current_user, "root"):
+        return
+
+    if not (file_mode & 0o004):
+        raise PermissionError(
+            f"Media file is not world-readable: {path}\n"
+            f"Run: chmod o+r '{path}'\n"
+            "See Getting Started — Media Access for the recommended setup."
+        )
+
+    blocked = []
+    for parent in path.parents:
+        try:
+            if not (parent.stat().st_mode & 0o001):
+                blocked.append(parent)
+        except OSError:  # pragma: no cover
+            break
+
+    if blocked:
+        dirs = " ".join(f"'{p}'" for p in sorted(blocked, key=lambda p: len(str(p))))
+        raise PermissionError(
+            f"The hypervisor (libvirt-qemu) cannot access: {path.name}\n"
+            f"Run: chmod o+x {dirs}\n"
+            "See Getting Started — Media Access for the recommended setup."
+        )
 
 
 # OS types that require UEFI firmware and TPM 2.0 emulation
@@ -57,6 +140,10 @@ class LibvirtProvider(BaseProvider):
         os_media = self._resolve_media(config.os_media)
         virtio = self._resolve_media(config.virtio_drivers) if config.virtio_drivers else None
         os_config = self._resolve_automation(config.os_config) if config.os_config else None
+
+        _check_media_accessible(os_media)
+        if virtio:
+            _check_media_accessible(virtio)
 
         answer_img: Path | None = None
         try:
