@@ -1,8 +1,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
+import app as app_module
 import lib.clutch as clutch_lib
 import lib.config as cfg
+import lib.db as db_module
+import lib.notifications as notif_lib
 from app import app as flask_app
 from lib.clutch import VMConfig
 from lib.providers.libvirt import LibvirtProvider
@@ -14,6 +17,13 @@ def client():
     flask_app.config["TESTING"] = True
     with flask_app.test_client() as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def isolate_db(tmp_path):
+    db_module.init_db(tmp_path / "hatchery.db")
+    yield
+    db_module._db_path = None
 
 
 VALID_FORM = {
@@ -42,6 +52,9 @@ class TestRoutes:
 
     def test_settings_returns_200(self, client):
         assert client.get("/settings").status_code == 200
+
+    def test_notifications_returns_200(self, client):
+        assert client.get("/notifications").status_code == 200
 
 
 class TestActivePane:
@@ -78,6 +91,10 @@ class TestPageTitles:
     def test_settings_title(self, client):
         html = client.get("/settings").data.decode()
         assert "Settings" in html
+
+    def test_notifications_title(self, client):
+        html = client.get("/notifications").data.decode()
+        assert "Notifications" in html
 
 
 class TestCreateRoute:
@@ -194,8 +211,6 @@ class TestCreateRoute:
 
 class TestProvider:
     def test_returns_libvirt_provider(self, tmp_path, monkeypatch):
-        import app as app_module
-
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         provider = app_module._provider()
         assert isinstance(provider, LibvirtProvider)
@@ -230,81 +245,127 @@ class TestScanDir:
         assert "notes.txt" not in result
 
 
-class TestRequirementsWarning:
-    def test_no_banner_when_all_present(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
-        ):
-            html = client.get("/").data.decode()
-        assert "req-warning" not in html
-
-    def test_banner_shown_when_tools_missing(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
-        ):
-            html = client.get("/").data.decode()
-        assert "req-warning" in html
-        assert "libvirt-clients" in html
-
-    def test_apt_command_shown_in_banner(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
-        ):
-            html = client.get("/").data.decode()
-        assert "sudo apt install libvirt-clients" in html
-
-    def test_banner_appears_on_all_panes(self, client):
-        missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
-        with patch("lib.requirements.check_all", return_value=missing):
-            for path in ["/", "/nests", "/clutches", "/automation", "/settings", "/create"]:
-                html = client.get(path).data.decode()
-                assert "req-warning" in html, f"Expected warning banner on {path}"
-
-
 class TestNestStatus:
-    def test_dot_green_when_requirements_met(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
-        ):
+    def test_dot_green_when_no_warnings(self, client):
+        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
             html = client.get("/").data.decode()
         assert "nest-status-dot--green" in html
 
-    def test_dot_red_when_requirements_missing(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
-        ):
+    def test_dot_red_when_has_warnings(self, client):
+        with patch("lib.notifications.count_unresolved_warnings", return_value=2):
             html = client.get("/").data.decode()
         assert "nest-status-dot--red" in html
 
     def test_status_present_on_all_panes(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
-        ):
-            for path in ["/", "/nests", "/clutches", "/automation", "/settings", "/create"]:
+        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
+            for path in [
+                "/",
+                "/nests",
+                "/clutches",
+                "/automation",
+                "/settings",
+                "/create",
+                "/notifications",
+            ]:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
 
-    def test_tooltip_all_ok_when_met(self, client):
-        with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
-        ):
+    def test_tooltip_all_ok_when_no_warnings(self, client):
+        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
             html = client.get("/").data.decode()
-        assert "All requirements met" in html
+        assert "All systems operational" in html
 
-    def test_tooltip_shows_missing_count(self, client):
+    def test_tooltip_shows_warning_count(self, client):
+        with patch("lib.notifications.count_unresolved_warnings", return_value=3):
+            html = client.get("/").data.decode()
+        assert "3 unresolved warning" in html
+
+
+class TestRequirementsSync:
+    def test_records_warning_for_missing_tool(self):
         with patch(
             "lib.requirements.check_all",
             return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
         ):
-            html = client.get("/").data.decode()
-        assert "1 tool missing" in html
+            app_module._sync_requirements()
+        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
+        assert any("virsh" in w["message"] for w in warnings)
+
+    def test_no_warnings_when_all_tools_present(self):
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+        ):
+            app_module._sync_requirements()
+        assert notif_lib.count_unresolved_warnings() == 0
+
+    def test_resolves_stale_warning_when_tool_now_present(self):
+        notif_lib.record("warning", "Missing requirement: 'virsh' is not installed — VM lifecycle")
+        assert notif_lib.count_unresolved_warnings() == 1
+        with patch(
+            "lib.requirements.check_all",
+            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", True)],
+        ):
+            app_module._sync_requirements()
+        assert notif_lib.count_unresolved_warnings() == 0
+
+
+class TestNotificationsRoute:
+    def test_returns_200(self, client):
+        assert client.get("/notifications").status_code == 200
+
+    def test_shows_recorded_item(self, client):
+        notif_lib.record("activity", "test activity message")
+        html = client.get("/notifications").data.decode()
+        assert "test activity message" in html
+
+    def test_shows_empty_state_when_no_items(self, client):
+        html = client.get("/notifications").data.decode()
+        assert "No notifications yet" in html
+
+    def test_shows_tier_badge(self, client):
+        notif_lib.record("warning", "a warning notification")
+        html = client.get("/notifications").data.decode()
+        assert "notif-tier-badge--warning" in html
+
+
+class TestNotificationsAPI:
+    def test_returns_200(self, client):
+        assert client.get("/api/notifications").status_code == 200
+
+    def test_response_is_json(self, client):
+        resp = client.get("/api/notifications")
+        assert resp.content_type == "application/json"
+
+    def test_has_items_key(self, client):
+        data = client.get("/api/notifications").get_json()
+        assert "items" in data
+
+    def test_has_unresolved_warning_count_key(self, client):
+        data = client.get("/api/notifications").get_json()
+        assert "unresolved_warning_count" in data
+
+    def test_items_contains_recorded_notification(self, client):
+        notif_lib.record("activity", "api test message")
+        data = client.get("/api/notifications").get_json()
+        assert any(item["message"] == "api test message" for item in data["items"])
+
+    def test_warning_count_reflects_unresolved(self, client):
+        notif_lib.record("warning", "Missing requirement: some tool")
+        data = client.get("/api/notifications").get_json()
+        assert data["unresolved_warning_count"] >= 1
+
+    def test_dismiss_returns_ok(self, client):
+        nid = notif_lib.record("activity", "to be dismissed")
+        resp = client.post(f"/api/notifications/{nid}/dismiss")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"ok": True}
+
+    def test_dismiss_marks_notification_dismissed(self, client):
+        nid = notif_lib.record("activity", "dismiss me")
+        client.post(f"/api/notifications/{nid}/dismiss")
+        row = next(r for r in notif_lib.list_recent() if r["id"] == nid)
+        assert row["dismissed"] == 1
 
 
 class TestAPIRoutes:

@@ -1,11 +1,12 @@
 import os
 import subprocess
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
 from lib import clutch as clutch_lib
+from lib import notifications as notif_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
 from lib.providers.libvirt import LibvirtProvider
@@ -13,18 +14,31 @@ from lib.providers.libvirt import LibvirtProvider
 app = Flask(__name__, template_folder="templates/ui")
 app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-production")
 
+_REQ_WARNING_PREFIX = "Missing requirement:"
+
+
+def _sync_requirements() -> None:
+    """Re-evaluate host requirements and sync warning notifications."""
+    notif_lib.resolve_by_message_prefix(_REQ_WARNING_PREFIX)
+    for req in req_lib.missing(req_lib.check_all()):
+        notif_lib.record(
+            "warning",
+            f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}",
+        )
+
+
 config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
+_sync_requirements()
 
 
 @app.context_processor
-def inject_requirements():
-    checks = req_lib.check_all()
-    req_missing = req_lib.missing(checks)
+def inject_nest_status():
+    warning_count = notif_lib.count_unresolved_warnings()
     return {
-        "req_missing": req_missing,
-        "req_apt_cmd": req_lib.apt_install_command(req_missing),
+        "nest_has_warnings": warning_count > 0,
+        "nest_warning_count": warning_count,
     }
 
 
@@ -83,14 +97,21 @@ def settings():
     return render_template("settings.html", active_pane="settings", cfg=cfg)
 
 
+@app.route("/notifications")
+def notifications_pane():
+    items = notif_lib.list_recent(500)
+    return render_template("notifications.html", active_pane="notifications", items=items)
+
+
 # ── VM creation ───────────────────────────────────────────────────────────────
 
 
-def _render_create_form(form_values=None):
+def _render_create_form(form_values=None, form_error=None):
     return render_template(
         "create.html",
         active_pane="dashboard",
         form_values=form_values,
+        form_error=form_error,
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media"),
         automation_files=_scan_dir("automation"),
@@ -109,8 +130,7 @@ def create_post():
     try:
         vm = _vm_config_from_form(request.form)
     except ValueError as exc:
-        flash(str(exc), "error")
-        return _render_create_form(form_values=request.form)
+        return _render_create_form(form_values=request.form, form_error=str(exc))
 
     # ── Export actions ────────────────────────────────────────────────────────
     if action in ("export_clutch", "export_and_hatch"):
@@ -123,25 +143,23 @@ def create_post():
                 clutch_name = request.form.get("clutch_name", filename).strip() or filename
                 new_clutch = clutch_lib.Clutch(name=clutch_name, vms=[vm])
                 clutch_lib.export(new_clutch, filename, config.data_dir() / "clutches")
-                flash(f"Clutch '{filename}.yaml' created.", "success")
+                notif_lib.record("activity", f"Clutch '{filename}.yaml' created.")
             else:
                 target = request.form.get("clutch_append_target", "").strip()
                 if not target:
                     raise ValueError("Select an existing Clutch file to append to.")
                 clutch_lib.append_vm(vm, config.data_dir() / "clutches" / target)
-                flash(f"VM '{vm.name}' appended to '{target}'.", "success")
+                notif_lib.record("activity", f"VM '{vm.name}' appended to '{target}'.")
         except (ValueError, FileExistsError, FileNotFoundError) as exc:
-            flash(str(exc), "error")
-            return _render_create_form(form_values=request.form)
+            return _render_create_form(form_values=request.form, form_error=str(exc))
 
     # ── Hatch action ──────────────────────────────────────────────────────────
     if action in ("hatch", "export_and_hatch"):
         try:
             _provider().create_vm(vm)
-            flash(f"VM '{vm.name}' is hatching.", "success")
+            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
         except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-            flash(str(exc), "error")
-            return _render_create_form(form_values=request.form)
+            return _render_create_form(form_values=request.form, form_error=str(exc))
 
     if action == "export_clutch":
         return redirect(url_for("clutches"))
@@ -187,6 +205,22 @@ def api_automation():
 @app.route("/api/clutches")
 def api_clutches():
     return jsonify(_scan_dir("clutches", [".yaml"]))
+
+
+@app.route("/api/notifications")
+def api_notifications():
+    return jsonify(
+        {
+            "items": notif_lib.list_recent(10),
+            "unresolved_warning_count": notif_lib.count_unresolved_warnings(),
+        }
+    )
+
+
+@app.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
+def api_dismiss_notification(notification_id):
+    notif_lib.dismiss(notification_id)
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -30,6 +30,7 @@ Reference documentation for Hatchery.
 | [`examples.md`](examples.md) | Real-world scenarios — hatching VMs, managing snapshots, teardown |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |
 | [`database.md`](database.md) | Database design — what lives in SQLite, what doesn't, and why |
+| [`notifications.md`](notifications.md) | Notification system — tiers, lifecycle, UI components, startup sync, and contributor tooling |
 | [`schema/clutch.yaml`](schema/clutch.yaml) | Annotated Clutch file schema reference with single-VM and multi-VM examples |
 | [`schema/database.md`](schema/database.md) | Database schema reference — table definitions, columns, row cap, migration plan |
 
