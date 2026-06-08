@@ -1,10 +1,37 @@
+import os
 import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from lib.clutch import VMConfig
-from lib.providers.libvirt import LibvirtProvider
+from lib.providers.libvirt import LibvirtProvider, _system_env
+
+
+# ── _system_env ───────────────────────────────────────────────────────────────
+
+
+class TestSystemEnv:
+    def test_strips_venv_bin_from_path(self, monkeypatch):
+        monkeypatch.setenv("VIRTUAL_ENV", "/home/user/.venv")
+        monkeypatch.setenv("PATH", "/home/user/.venv/bin:/usr/local/bin:/usr/bin")
+        env = _system_env()
+        path_parts = env["PATH"].split(os.pathsep)
+        assert "/home/user/.venv/bin" not in path_parts
+        assert "/usr/local/bin" in path_parts
+
+    def test_noop_when_virtual_env_not_set(self, monkeypatch):
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+        env = _system_env()
+        assert env["PATH"] == "/usr/local/bin:/usr/bin"
+
+    def test_returns_copy_not_os_environ(self, monkeypatch):
+        monkeypatch.setenv("VIRTUAL_ENV", "/home/user/.venv")
+        monkeypatch.setenv("PATH", "/home/user/.venv/bin:/usr/bin")
+        env = _system_env()
+        assert env is not os.environ
+        assert "/home/user/.venv/bin" in os.environ["PATH"]
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────

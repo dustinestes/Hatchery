@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -7,6 +8,25 @@ from pathlib import Path
 
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
+
+
+def _system_env() -> dict[str, str]:
+    """Strip the uv venv bin from PATH before spawning system Python scripts.
+
+    virt-install uses '#!/usr/bin/env python3'. When Hatchery runs via uv,
+    the venv bin is prepended to PATH so 'python3' resolves to the venv's
+    Python, which lacks system site-packages (e.g. python3-gi). Removing the
+    venv bin restores the system Python lookup without affecting C binaries.
+    """
+    env = os.environ.copy()
+    venv = env.get("VIRTUAL_ENV", "")
+    if venv:
+        venv_bin = os.path.join(venv, "bin")
+        env["PATH"] = os.pathsep.join(
+            p for p in env.get("PATH", "").split(os.pathsep) if p != venv_bin
+        )
+    return env
+
 
 # OS types that require UEFI firmware and TPM 2.0 emulation
 _UEFI_REQUIRED = {GuestOS.WIN11, GuestOS.SERVER2025}
@@ -46,7 +66,7 @@ class LibvirtProvider(BaseProvider):
                 answer_img = self._create_answer_image(os_config)
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, env=_system_env())
         finally:
             if answer_img and answer_img.exists():
                 answer_img.unlink()
@@ -103,6 +123,7 @@ class LibvirtProvider(BaseProvider):
                 ],
                 check=True,
                 capture_output=True,
+                env=_system_env(),
             )
         return img
 
