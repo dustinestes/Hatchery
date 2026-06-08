@@ -18,6 +18,7 @@
       {% for f in clutch_files %}
         <li class="file-list-item">
           <span class="file-name">{{ f }}</span>
+          <a href="{{ url_for('hatch_clutch', clutch=f) }}" class="btn btn-primary btn-sm">Hatch</a>
         </li>
       {% endfor %}
     </ul>

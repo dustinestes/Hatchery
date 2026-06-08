@@ -2,10 +2,12 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 import app as app_module
+import lib.clutch as clutch_lib
 import lib.config as cfg
 import lib.db as db_module
 import lib.notifications as notif_lib
 from app import app as flask_app
+from lib.clutch import VMConfig, Clutch
 from lib.providers.libvirt import LibvirtProvider
 from lib.requirements import Requirement
 
@@ -166,6 +168,126 @@ class TestBuildRoute:
         html = client.get("/build").data.decode()
         assert "build-form" in html
 
+    def test_build_post_returns_200(self, client):
+        assert client.post("/build", data={}).status_code == 200
+
+
+def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
+    clutches_dir = tmp_path / "clutches"
+    clutches_dir.mkdir(exist_ok=True)
+    vm = VMConfig(name=vm_name, os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+    c = Clutch(name=name, vms=[vm])
+    clutch_lib.export(c, name, clutches_dir)
+    return clutches_dir / f"{name}.yaml"
+
+
+class TestHatchClutchRoute:
+    def test_get_returns_200(self, client):
+        assert client.get("/hatch-clutch").status_code == 200
+
+    def test_get_contains_form(self, client):
+        html = client.get("/hatch-clutch").data.decode()
+        assert "hatch-clutch-form" in html
+
+    def test_get_preselects_clutch_from_query_param(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        html = client.get("/hatch-clutch?clutch=my-lab.yaml").data.decode()
+        assert "dc01" in html
+
+    def test_get_invalid_clutch_shows_error(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        (tmp_path / "clutches" / "bad.yaml").write_text("not: valid: clutch: yaml: [")
+        html = client.get("/hatch-clutch?clutch=bad.yaml").data.decode()
+        assert "alert" in html
+
+    def test_post_no_file_rerenders_form(self, client):
+        resp = client.post("/hatch-clutch", data={"clutch_file": ""})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_file_not_found_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.post("/hatch-clutch", data={"clutch_file": "missing.yaml"})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_invalid_clutch_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        (tmp_path / "clutches" / "bad.yaml").write_text("not: valid: clutch: yaml: [")
+        resp = client.post("/hatch-clutch", data={"clutch_file": "bad.yaml"})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_hatches_all_vms_and_redirects(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
+        with patch("app._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            resp = client.post(
+                "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
+            )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/")
+        mock_prov.return_value.create_vm.assert_called_once()
+
+    def test_post_provider_error_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        with patch("app._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
+            resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_permission_error_records_warning(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        with patch("app._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = PermissionError(
+                "cannot access: win11.iso"
+            )
+            client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
+        assert any("cannot access" in w["message"] for w in warnings)
+
+
+class TestAPIClutchDetail:
+    def test_returns_json(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        resp = client.get("/api/clutch/my-lab.yaml")
+        assert resp.status_code == 200
+        assert resp.content_type == "application/json"
+
+    def test_returns_vm_list(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, vm_name="dc01")
+        data = client.get("/api/clutch/my-lab.yaml").get_json()
+        assert any(v["name"] == "dc01" for v in data["vms"])
+
+    def test_not_found_returns_404(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.get("/api/clutch/ghost.yaml")
+        assert resp.status_code == 404
+
+    def test_path_traversal_is_stripped(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        resp = client.get("/api/clutch/..%2Fsome-file.yaml")
+        assert resp.status_code == 404
+
+    def test_invalid_clutch_returns_400(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        (tmp_path / "clutches" / "bad.yaml").write_text("not: valid: clutch: yaml: [")
+        resp = client.get("/api/clutch/bad.yaml")
+        assert resp.status_code == 400
+
 
 class TestProvider:
     def test_returns_libvirt_provider(self, tmp_path, monkeypatch):
@@ -223,6 +345,7 @@ class TestNestStatus:
                 "/automation",
                 "/settings",
                 "/hatch",
+                "/hatch-clutch",
                 "/build",
                 "/notifications",
             ]:

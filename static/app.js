@@ -1,3 +1,32 @@
+/* Topbar — Hatch dropdown */
+(function () {
+  var btn = document.getElementById('hatch-dropdown-btn');
+  var menu = document.getElementById('hatch-dropdown-menu');
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = !menu.hidden;
+    menu.hidden = open;
+    btn.setAttribute('aria-expanded', String(!open));
+  });
+
+  document.addEventListener('click', function () {
+    if (!menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !menu.hidden) {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      btn.focus();
+    }
+  });
+})();
+
 /* Theme toggle */
 (function () {
   var toggle = document.getElementById('theme-toggle');

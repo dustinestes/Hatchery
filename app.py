@@ -5,6 +5,7 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
+from lib import clutch as clutch_lib
 from lib import notifications as notif_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -164,6 +165,82 @@ def _vm_config_from_form(form) -> VMConfig:
         raise ValueError(f"Invalid form data: {exc}") from exc
 
 
+# ── Hatch Clutch ─────────────────────────────────────────────────────────────
+
+
+def _render_hatch_clutch_form(clutch_files, preselected="", clutch_obj=None, form_error=None):
+    return render_template(
+        "hatch_clutch.html",
+        active_pane="dashboard",
+        clutch_files=clutch_files,
+        preselected=preselected,
+        clutch_obj=clutch_obj,
+        form_error=form_error,
+    )
+
+
+def _load_clutch(filename: str):
+    """Load a Clutch file from the clutches data directory by bare filename."""
+    from pathlib import Path
+
+    safe = Path(filename).name
+    return clutch_lib.load(config.data_dir() / "clutches" / safe)
+
+
+@app.route("/hatch-clutch", methods=["GET"])
+def hatch_clutch():
+    clutch_files = _scan_dir("clutches", [".yaml"])
+    preselected = request.args.get("clutch", "").strip()
+    clutch_obj = None
+    form_error = None
+    if preselected:
+        try:
+            clutch_obj = _load_clutch(preselected)
+        except Exception as exc:
+            form_error = str(exc)
+    return _render_hatch_clutch_form(clutch_files, preselected, clutch_obj, form_error)
+
+
+@app.route("/hatch-clutch", methods=["POST"])
+def hatch_clutch_post():
+    clutch_files = _scan_dir("clutches", [".yaml"])
+    filename = request.form.get("clutch_file", "").strip()
+    if not filename:
+        return _render_hatch_clutch_form(clutch_files, form_error="Select a Clutch file to hatch.")
+    try:
+        clutch_obj = _load_clutch(filename)
+    except FileNotFoundError:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            form_error=f"Clutch file '{filename}' not found.",
+        )
+    except Exception as exc:
+        return _render_hatch_clutch_form(clutch_files, preselected=filename, form_error=str(exc))
+
+    for vm in clutch_obj.vms:
+        try:
+            _provider().create_vm(vm)
+            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+        except PermissionError as exc:
+            notif_lib.record("warning", str(exc).splitlines()[0])
+            return _render_hatch_clutch_form(
+                clutch_files,
+                preselected=filename,
+                clutch_obj=clutch_obj,
+                form_error=str(exc),
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            return _render_hatch_clutch_form(
+                clutch_files,
+                preselected=filename,
+                clutch_obj=clutch_obj,
+                form_error=str(exc),
+            )
+
+    return redirect(url_for("dashboard"))
+
+
 # ── Clutch builder ───────────────────────────────────────────────────────────
 
 
@@ -206,6 +283,23 @@ def api_automation():
 @app.route("/api/clutches")
 def api_clutches():
     return jsonify(_scan_dir("clutches", [".yaml"]))
+
+
+@app.route("/api/clutch/<filename>")
+def api_clutch_detail(filename):
+    try:
+        c = _load_clutch(filename)
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(
+        {
+            "name": c.name,
+            "description": c.description,
+            "vms": [{"name": v.name, "os": v.os, "depends_on": v.depends_on} for v in c.vms],
+        }
+    )
 
 
 @app.route("/api/notifications")
