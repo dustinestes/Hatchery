@@ -9,6 +9,7 @@ from lib import clutch as clutch_lib
 from lib import notifications as notif_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
+from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
 
 app = Flask(__name__, template_folder="templates/ui")
@@ -244,6 +245,36 @@ def hatch_clutch_post():
 # ── Clutch builder ───────────────────────────────────────────────────────────
 
 
+def _vm_dicts_from_form(form) -> list[dict]:
+    """Extract raw VM dicts from form fields without validation, used for error re-renders."""
+    names = form.getlist("vm_name[]")
+    oses = form.getlist("vm_os[]")
+    vcpus_list = form.getlist("vm_vcpus[]")
+    ram_list = form.getlist("vm_ram_gb[]")
+    disk_list = form.getlist("vm_disk_gb[]")
+    os_medias = form.getlist("vm_os_media[]")
+    virtio_list = form.getlist("vm_virtio_drivers[]")
+    os_config_list = form.getlist("vm_os_config[]")
+    depends_list = form.getlist("vm_depends_on[]")
+    result = []
+    for i, name in enumerate(names):
+        dep_raw = depends_list[i] if i < len(depends_list) else ""
+        result.append(
+            {
+                "name": name,
+                "os": oses[i] if i < len(oses) else "",
+                "vcpus": vcpus_list[i] if i < len(vcpus_list) else "2",
+                "ram_gb": ram_list[i] if i < len(ram_list) else "4",
+                "disk_gb": disk_list[i] if i < len(disk_list) else "60",
+                "os_media": os_medias[i] if i < len(os_medias) else "",
+                "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
+                "os_config": os_config_list[i] if i < len(os_config_list) else "",
+                "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
+            }
+        )
+    return result
+
+
 def _vm_list_from_form(form):
     """Parse and validate a list of VMConfig objects from array-notation form fields."""
 
@@ -300,23 +331,36 @@ def build_post():
     clutch_name = request.form.get("clutch_name", "").strip()
     filename = request.form.get("clutch_filename", "").strip()
 
+    def _rerender(error):
+        return render_template(
+            "build.html",
+            form_error=error,
+            form_name=clutch_name,
+            form_filename=filename,
+            form_vms=_vm_dicts_from_form(request.form),
+            **ctx,
+        )
+
     if not filename:
-        return render_template("build.html", form_error="Filename is required.", **ctx)
+        return _rerender("Filename is required.")
     if not clutch_name:
         clutch_name = filename
 
     try:
         vms = _vm_list_from_form(request.form)
         c = clutch_lib.Clutch(name=clutch_name, vms=vms)
+    except ValidationError as exc:
+        msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
+        return _rerender("; ".join(msgs))
     except Exception as exc:
-        return render_template("build.html", form_error=str(exc), **ctx)
+        return _rerender(str(exc))
 
     try:
         clutch_lib.export(c, filename, config.data_dir() / "clutches")
     except FileExistsError:
-        return render_template("build.html", form_error=f"'{filename}.yaml' already exists.", **ctx)
+        return _rerender(f"'{filename}.yaml' already exists.")
     except Exception as exc:
-        return render_template("build.html", form_error=str(exc), **ctx)
+        return _rerender(str(exc))
 
     saved = filename if filename.endswith(".yaml") else f"{filename}.yaml"
     notif_lib.record("activity", f"Clutch '{saved}' created.")
@@ -380,6 +424,9 @@ def edit_post():
     try:
         vms = _vm_list_from_form(request.form)
         c = clutch_lib.Clutch(name=new_name, vms=vms)
+    except ValidationError as exc:
+        msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
+        return _rerender("; ".join(msgs))
     except Exception as exc:
         return _rerender(str(exc))
 

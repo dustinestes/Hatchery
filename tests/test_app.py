@@ -233,6 +233,50 @@ class TestBuildRoute:
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
 
+    def test_build_post_circular_dep_shows_clean_error(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_name": "Cycle Lab",
+            "clutch_filename": "cycle-lab",
+            "vm_name[]": ["dc01", "client01"],
+            "vm_os[]": ["win11", "win11"],
+            "vm_vcpus[]": ["2", "2"],
+            "vm_ram_gb[]": ["4", "4"],
+            "vm_disk_gb[]": ["60", "60"],
+            "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_depends_on[]": ["client01", "dc01"],
+        }
+        resp = client.post("/build", data=form)
+        body = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Circular dependency detected" in body
+        assert "Value error," not in body
+        assert "pydantic" not in body.lower()
+        assert not (tmp_path / "clutches" / "cycle-lab.yaml").exists()
+
+    def test_build_post_validation_error_preserves_form_state(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": ["dc01", "client01"],
+            "vm_os[]": ["win11", "win11"],
+            "vm_vcpus[]": ["2", "2"],
+            "vm_ram_gb[]": ["4", "4"],
+            "vm_disk_gb[]": ["60", "60"],
+            "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_depends_on[]": ["client01", "dc01"],
+        }
+        resp = client.post("/build", data=form)
+        body = resp.data.decode()
+        assert resp.status_code == 200
+        assert 'value="My Lab"' in body
+        assert 'value="my-lab"' in body
+        assert "dc01" in body
+        assert "client01" in body
+
 
 class TestEditRoute:
     def test_get_no_clutch_redirects_to_clutches(self, client):
@@ -363,6 +407,28 @@ class TestEditRoute:
         )
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
+
+    def test_post_circular_dep_shows_clean_error(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": ["dc01", "client01"],
+            "vm_os[]": ["win11", "win11"],
+            "vm_vcpus[]": ["2", "2"],
+            "vm_ram_gb[]": ["4", "4"],
+            "vm_disk_gb[]": ["60", "60"],
+            "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_depends_on[]": ["client01", "dc01"],
+        }
+        resp = client.post("/edit", data=form)
+        body = resp.data.decode()
+        assert resp.status_code == 200
+        assert "Circular dependency detected" in body
+        assert "Value error," not in body
+        assert "pydantic" not in body.lower()
 
     def test_post_unexpected_save_error_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
