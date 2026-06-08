@@ -46,7 +46,8 @@ def inject_nest_status():
 def _provider() -> LibvirtProvider:
     data = config.data_dir()
     return LibvirtProvider(
-        media_dir=data / "media",
+        iso_dir=data / "media" / "iso",
+        virtio_dir=data / "media" / "virtio",
         automation_dir=data / "automation",
     )
 
@@ -114,7 +115,8 @@ def _render_hatch_form(form_values=None, form_error=None):
         form_values=form_values,
         form_error=form_error,
         os_types=[e.value for e in GuestOS],
-        media_files=_scan_dir("media"),
+        media_files=_scan_dir("media/iso"),
+        virtio_files=_scan_dir("media/virtio"),
         automation_files=_scan_dir("automation"),
     )
 
@@ -315,7 +317,8 @@ def _build_template_ctx():
     return dict(
         active_pane="clutches",
         os_types=[e.value for e in GuestOS],
-        media_files=_scan_dir("media"),
+        media_files=_scan_dir("media/iso"),
+        virtio_files=_scan_dir("media/virtio"),
         automation_files=_scan_dir("automation"),
     )
 
@@ -451,9 +454,14 @@ def edit_post():
 # ── API ───────────────────────────────────────────────────────────────────────
 
 
-@app.route("/api/media")
-def api_media():
-    return jsonify(_scan_dir("media"))
+@app.route("/api/media/iso")
+def api_media_iso():
+    return jsonify(_scan_dir("media/iso"))
+
+
+@app.route("/api/media/virtio")
+def api_media_virtio():
+    return jsonify(_scan_dir("media/virtio"))
 
 
 @app.route("/api/automation")

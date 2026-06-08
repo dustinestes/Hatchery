@@ -52,7 +52,7 @@
           <label class="form-label">VirtIO Drivers <span class="form-optional">(optional)</span></label>
           <select name="vm_virtio_drivers[]" class="form-select">
             <option value="">— none —</option>
-            {% for f in media_files %}
+            {% for f in virtio_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
           </select>

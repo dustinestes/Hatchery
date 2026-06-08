@@ -150,11 +150,13 @@ class TestCheckMediaAccessible:
 
 @pytest.fixture
 def provider(tmp_path):
-    media = tmp_path / "media"
+    iso_dir = tmp_path / "media" / "iso"
+    virtio_dir = tmp_path / "media" / "virtio"
     automation = tmp_path / "automation"
-    media.mkdir()
+    iso_dir.mkdir(parents=True)
+    virtio_dir.mkdir(parents=True)
     automation.mkdir()
-    return LibvirtProvider(media_dir=media, automation_dir=automation)
+    return LibvirtProvider(iso_dir=iso_dir, virtio_dir=virtio_dir, automation_dir=automation)
 
 
 # ── create_vm ─────────────────────────────────────────────────────────────────
@@ -166,7 +168,7 @@ class TestCreateVM:
         monkeypatch.setattr("lib.providers.libvirt._check_media_accessible", lambda _: None)
 
     def test_calls_virt_install(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = VMConfig(
             name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
@@ -180,7 +182,7 @@ class TestCreateVM:
         assert "test-vm" in cmd
 
     def test_sets_memory_from_ram_gb(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = VMConfig(
             name="test-vm", os="win11", vcpus=2, ram_gb=8, disk_gb=40, os_media="win11.iso"
@@ -193,7 +195,7 @@ class TestCreateVM:
         assert cmd[idx + 1] == "8192"
 
     def test_win11_adds_uefi_and_tpm(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = VMConfig(
             name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
@@ -207,7 +209,7 @@ class TestCreateVM:
         assert "--tpm" in cmd
 
     def test_win10_no_uefi(self, tmp_path, provider):
-        iso = provider.media_dir / "win10.iso"
+        iso = provider.iso_dir / "win10.iso"
         iso.touch()
         vm = VMConfig(
             name="test-vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso"
@@ -220,7 +222,7 @@ class TestCreateVM:
         assert "--tpm" not in cmd
 
     def test_server2025_adds_uefi_and_tpm(self, tmp_path, provider):
-        iso = provider.media_dir / "server2025.iso"
+        iso = provider.iso_dir / "server2025.iso"
         iso.touch()
         vm = VMConfig(
             name="srv", os="server2025", vcpus=2, ram_gb=4, disk_gb=60, os_media="server2025.iso"
@@ -233,8 +235,8 @@ class TestCreateVM:
         assert "--tpm" in cmd
 
     def test_virtio_adds_cdrom(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
-        virtio = provider.media_dir / "virtio-win.iso"
+        iso = provider.iso_dir / "win11.iso"
+        virtio = provider.virtio_dir / "virtio-win.iso"
         iso.touch()
         virtio.touch()
         vm = VMConfig(
@@ -253,7 +255,7 @@ class TestCreateVM:
         assert any("virtio-win.iso" in arg and "cdrom" in arg for arg in cmd)
 
     def test_os_config_creates_floppy(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         answer = provider.automation_dir / "win11.xml"
         answer.write_text("<Autounattend/>")
@@ -277,7 +279,7 @@ class TestCreateVM:
         assert any("floppy" in arg for arg in cmd)
 
     def test_floppy_cleaned_up_on_success(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         answer = provider.automation_dir / "win11.xml"
         answer.write_text("<Autounattend/>")
@@ -299,7 +301,7 @@ class TestCreateVM:
         assert not img_path.exists()
 
     def test_floppy_cleaned_up_on_failure(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         answer = provider.automation_dir / "win11.xml"
         answer.write_text("<Autounattend/>")
@@ -330,7 +332,7 @@ class TestCreateVM:
             provider.create_vm(vm)
 
     def test_missing_automation_raises(self, tmp_path, provider):
-        iso = provider.media_dir / "win11.iso"
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = VMConfig(
             name="test-vm",
@@ -437,22 +439,22 @@ class TestSnapshots:
 
 class TestPathResolution:
     def test_resolve_media_relative(self, provider):
-        f = provider.media_dir / "test.iso"
+        f = provider.iso_dir / "test.iso"
         f.touch()
-        assert provider._resolve_media("test.iso") == f
+        assert provider._resolve_media("test.iso", provider.iso_dir) == f
 
     def test_resolve_media_absolute(self, tmp_path, provider):
         f = tmp_path / "elsewhere.iso"
         f.touch()
-        assert provider._resolve_media(str(f)) == f
+        assert provider._resolve_media(str(f), provider.iso_dir) == f
 
     def test_resolve_media_missing_relative_raises(self, provider):
-        with pytest.raises(FileNotFoundError, match="media directory"):
-            provider._resolve_media("nope.iso")
+        with pytest.raises(FileNotFoundError, match="Media file not found"):
+            provider._resolve_media("nope.iso", provider.iso_dir)
 
     def test_resolve_media_missing_absolute_raises(self, tmp_path, provider):
         with pytest.raises(FileNotFoundError):
-            provider._resolve_media(str(tmp_path / "nope.iso"))
+            provider._resolve_media(str(tmp_path / "nope.iso"), provider.iso_dir)
 
     def test_resolve_automation_relative(self, provider):
         f = provider.automation_dir / "answer.xml"

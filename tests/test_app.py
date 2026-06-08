@@ -644,23 +644,24 @@ class TestProvider:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         provider = app_module._provider()
         assert isinstance(provider, LibvirtProvider)
-        assert provider.media_dir == tmp_path / "media"
+        assert provider.iso_dir == tmp_path / "media" / "iso"
+        assert provider.virtio_dir == tmp_path / "media" / "virtio"
         assert provider.automation_dir == tmp_path / "automation"
 
 
 class TestScanDir:
     def test_returns_empty_when_subdir_missing(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        resp = client.get("/api/media")
+        resp = client.get("/api/media/iso")
         assert resp.get_json() == []
 
     def test_returns_files_in_dir(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        media = tmp_path / "media"
-        media.mkdir()
-        (media / "win11.iso").touch()
-        (media / "win10.iso").touch()
-        result = client.get("/api/media").get_json()
+        iso = tmp_path / "media" / "iso"
+        iso.mkdir(parents=True)
+        (iso / "win11.iso").touch()
+        (iso / "win10.iso").touch()
+        result = client.get("/api/media/iso").get_json()
         assert "win10.iso" in result
         assert "win11.iso" in result
 
@@ -802,13 +803,14 @@ class TestNotificationsAPI:
 
 
 class TestAPIRoutes:
-    def test_api_media_returns_json(self, client):
-        resp = client.get("/api/media")
+    def test_api_media_iso_returns_json(self, client):
+        resp = client.get("/api/media/iso")
         assert resp.status_code == 200
-        assert resp.content_type == "application/json"
+        assert isinstance(resp.get_json(), list)
 
-    def test_api_media_is_list(self, client):
-        resp = client.get("/api/media")
+    def test_api_media_virtio_returns_json(self, client):
+        resp = client.get("/api/media/virtio")
+        assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
     def test_api_automation_returns_json(self, client):
