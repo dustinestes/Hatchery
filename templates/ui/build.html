@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Build Clutch — Hatchery{% endblock %}
+
+{% block content %}
+<div class="pane-header">
+  <h1 class="pane-title">Build Clutch</h1>
+  <p class="pane-subtitle">Define and hatch a multi-VM environment.</p>
+</div>
+
+{% if form_error %}
+  <div class="alert alert-error">{{ form_error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('build_post') }}" id="build-form">
+
+  <!-- ── Load bar ── -->
+  <section class="form-section">
+    <h2 class="form-section-title">Clutch</h2>
+    <div class="form-row">
+      <div class="form-group form-group-grow">
+        <label class="form-label" for="load_clutch">Load existing Clutch</label>
+        <select id="load_clutch" name="load_clutch" class="form-select">
+          <option value="">— new Clutch —</option>
+          {% for f in clutch_files %}
+            <option value="{{ f }}">{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group form-group-align-end">
+        <button type="button" id="load-clutch-btn" class="btn btn-secondary">Load</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── VM rows (populated by JS) ── -->
+  <section class="form-section" id="vm-rows-section">
+    <div class="section-header">
+      <h2 class="form-section-title">VMs</h2>
+      <button type="button" id="add-vm-btn" class="btn btn-secondary btn-sm">+ Add VM</button>
+    </div>
+    <div id="vm-rows">
+      <!-- VM rows injected here by JS -->
+    </div>
+  </section>
+
+  <!-- ── Action bar ── -->
+  <div class="action-bar">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
+    <button type="submit" name="action" value="export_clutch" class="btn btn-secondary">Export Clutch</button>
+    <button type="submit" name="action" value="export_and_hatch" class="btn btn-secondary">Export &amp; Hatch</button>
+    <button type="submit" name="action" value="hatch" class="btn btn-primary">Hatch</button>
+  </div>
+
+</form>
+
+<!-- VM row template (cloned by JS) -->
+<template id="vm-row-template">
+  <div class="vm-row" data-vm-index="">
+    <div class="vm-row-header">
+      <button type="button" class="vm-row-toggle" aria-expanded="false">
+        <span class="vm-row-summary">New VM</span>
+        <svg class="vm-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <button type="button" class="vm-row-remove btn-icon" title="Remove VM" aria-label="Remove VM">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="vm-row-body" hidden>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">VM Name <span class="required">*</span></label>
+          <input type="text" name="vm_name[]" class="form-input vm-name-input" required placeholder="e.g. win11-dev">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Guest OS <span class="required">*</span></label>
+          <select name="vm_os[]" class="form-select" required>
+            {% for os_type in os_types %}
+              <option value="{{ os_type }}">{{ os_type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-grid form-grid-3">
+        <div class="form-group">
+          <label class="form-label">vCPUs <span class="required">*</span></label>
+          <input type="number" name="vm_vcpus[]" class="form-input" required min="1" value="2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">RAM (GB) <span class="required">*</span></label>
+          <input type="number" name="vm_ram_gb[]" class="form-input" required min="1" value="4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Disk (GB) <span class="required">*</span></label>
+          <input type="number" name="vm_disk_gb[]" class="form-input" required min="1" value="60">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">OS Media <span class="required">*</span></label>
+          <select name="vm_os_media[]" class="form-select" required>
+            <option value="">— none —</option>
+            {% for f in media_files %}
+              <option value="{{ f }}">{{ f }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">VirtIO Drivers <span class="form-optional">(optional)</span></label>
+          <select name="vm_virtio_drivers[]" class="form-select">
+            <option value="">— none —</option>
+            {% for f in media_files %}
+              <option value="{{ f }}">{{ f }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Depends On <span class="form-optional">(optional)</span></label>
+          <select name="vm_depends_on[]" class="form-select vm-depends-on" multiple>
+            <!-- options populated by JS based on current VM names in the builder -->
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}

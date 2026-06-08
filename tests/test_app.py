@@ -2,12 +2,10 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 import app as app_module
-import lib.clutch as clutch_lib
 import lib.config as cfg
 import lib.db as db_module
 import lib.notifications as notif_lib
 from app import app as flask_app
-from lib.clutch import VMConfig
 from lib.providers.libvirt import LibvirtProvider
 from lib.requirements import Requirement
 
@@ -97,76 +95,51 @@ class TestPageTitles:
         assert "Notifications" in html
 
 
-class TestCreateRoute:
-    def test_create_get_returns_200(self, client):
-        assert client.get("/create").status_code == 200
+class TestHatchRoute:
+    def test_hatch_get_returns_200(self, client):
+        assert client.get("/hatch").status_code == 200
 
-    def test_create_get_contains_form(self, client):
-        html = client.get("/create").data.decode()
+    def test_hatch_get_contains_form(self, client):
+        html = client.get("/hatch").data.decode()
         assert "hatch-form" in html
 
-    def test_create_get_shows_os_types(self, client):
-        html = client.get("/create").data.decode()
+    def test_hatch_get_shows_os_types(self, client):
+        html = client.get("/hatch").data.decode()
         assert "win11" in html
 
     def test_hatch_action_calls_provider(self, client):
         with patch("app._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            resp = client.post("/create", data=VALID_FORM)
+            resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 302
         mock_prov.return_value.create_vm.assert_called_once()
 
     def test_hatch_redirects_to_dashboard(self, client):
         with patch("app._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            resp = client.post("/create", data=VALID_FORM, follow_redirects=False)
+            resp = client.post("/hatch", data=VALID_FORM, follow_redirects=False)
         assert resp.headers["Location"].endswith("/")
 
     def test_hatch_with_invalid_vcpus_rerenders_form(self, client):
         bad = {**VALID_FORM, "vcpus": "0"}
-        resp = client.post("/create", data=bad)
+        resp = client.post("/hatch", data=bad)
         assert resp.status_code == 200
         assert "hatch-form" in resp.data.decode()
 
     def test_hatch_with_invalid_vcpus_shows_error(self, client):
         bad = {**VALID_FORM, "vcpus": "0"}
-        html = client.post("/create", data=bad).data.decode()
+        html = client.post("/hatch", data=bad).data.decode()
         assert "alert" in html
 
     def test_form_values_preserved_on_validation_error(self, client):
         bad = {**VALID_FORM, "vcpus": "0", "name": "my-preserved-vm"}
-        html = client.post("/create", data=bad).data.decode()
+        html = client.post("/hatch", data=bad).data.decode()
         assert "my-preserved-vm" in html
-
-    def test_export_clutch_redirects_to_clutches(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        (tmp_path / "clutches").mkdir(parents=True, exist_ok=True)
-        form = {
-            **VALID_FORM,
-            "action": "export_clutch",
-            "export_mode": "new",
-            "clutch_filename": "test-export",
-            "clutch_name": "",
-        }
-        resp = client.post("/create", data=form, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/clutches" in resp.headers["Location"]
-
-    def test_export_clutch_missing_filename_rerenders_form(self, client):
-        form = {
-            **VALID_FORM,
-            "action": "export_clutch",
-            "export_mode": "new",
-            "clutch_filename": "",
-        }
-        resp = client.post("/create", data=form)
-        assert resp.status_code == 200
-        assert "hatch-form" in resp.data.decode()
 
     def test_provider_error_rerenders_form(self, client):
         with patch("app._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
-            resp = client.post("/create", data=VALID_FORM)
+            resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 200
         assert "hatch-form" in resp.data.decode()
 
@@ -178,49 +151,20 @@ class TestCreateRoute:
         )
         with patch("app._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(err_msg)
-            resp = client.post("/create", data=VALID_FORM)
+            resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 200
         assert "hatch-form" in resp.data.decode()
         warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
         assert any("libvirt-qemu" in w["message"] for w in warnings)
 
-    def test_export_append_blank_target_rerenders_form(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        (tmp_path / "clutches").mkdir()
-        form = {
-            **VALID_FORM,
-            "action": "export_clutch",
-            "export_mode": "append",
-            "clutch_append_target": "",
-        }
-        resp = client.post("/create", data=form)
-        assert resp.status_code == 200
-        assert "hatch-form" in resp.data.decode()
 
-    def test_filename_label_has_required_indicator(self, client):
-        html = client.get("/create").data.decode()
-        assert 'for="clutch_filename"' in html
-        assert 'class="required"' in html
+class TestBuildRoute:
+    def test_build_get_returns_200(self, client):
+        assert client.get("/build").status_code == 200
 
-    def test_export_append_happy_path_redirects_to_clutches(self, client, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        clutches_dir = tmp_path / "clutches"
-        clutches_dir.mkdir()
-        existing_vm = VMConfig(
-            name="existing-vm", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso"
-        )
-        clutch_lib.export(
-            clutch_lib.Clutch(name="my-lab", vms=[existing_vm]), "my-lab", clutches_dir
-        )
-        form = {
-            **VALID_FORM,
-            "action": "export_clutch",
-            "export_mode": "append",
-            "clutch_append_target": "my-lab.yaml",
-        }
-        resp = client.post("/create", data=form, follow_redirects=False)
-        assert resp.status_code == 302
-        assert "/clutches" in resp.headers["Location"]
+    def test_build_get_contains_build_form(self, client):
+        html = client.get("/build").data.decode()
+        assert "build-form" in html
 
 
 class TestProvider:
@@ -278,7 +222,8 @@ class TestNestStatus:
                 "/clutches",
                 "/automation",
                 "/settings",
-                "/create",
+                "/hatch",
+                "/build",
                 "/notifications",
             ]:
                 html = client.get(path).data.decode()

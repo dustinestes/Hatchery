@@ -587,6 +587,12 @@ body {
 }
 
 /* ── Dashboard sections ── */
+.dashboard-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
 .dashboard-section {
   margin-bottom: 32px;
 }

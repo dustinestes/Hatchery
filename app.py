@@ -5,7 +5,6 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
-from lib import clutch as clutch_lib
 from lib import notifications as notif_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -106,66 +105,39 @@ def notifications_pane():
 # ── VM creation ───────────────────────────────────────────────────────────────
 
 
-def _render_create_form(form_values=None, form_error=None):
+def _render_hatch_form(form_values=None, form_error=None):
     return render_template(
-        "create.html",
+        "hatch.html",
         active_pane="dashboard",
         form_values=form_values,
         form_error=form_error,
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media"),
         automation_files=_scan_dir("automation"),
-        clutch_files=_scan_dir("clutches", [".yaml"]),
     )
 
 
-@app.route("/create", methods=["GET"])
-def create():
-    return _render_create_form()
+@app.route("/hatch", methods=["GET"])
+def hatch():
+    return _render_hatch_form()
 
 
-@app.route("/create", methods=["POST"])
-def create_post():
-    action = request.form.get("action", "hatch")
+@app.route("/hatch", methods=["POST"])
+def hatch_post():
     try:
         vm = _vm_config_from_form(request.form)
     except ValueError as exc:
-        return _render_create_form(form_values=request.form, form_error=str(exc))
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
 
-    # ── Export actions ────────────────────────────────────────────────────────
-    if action in ("export_clutch", "export_and_hatch"):
-        export_mode = request.form.get("export_mode", "new")
-        try:
-            if export_mode == "new":
-                filename = request.form.get("clutch_filename", "").strip()
-                if not filename:
-                    raise ValueError("Clutch filename is required when creating a new file.")
-                clutch_name = request.form.get("clutch_name", filename).strip() or filename
-                new_clutch = clutch_lib.Clutch(name=clutch_name, vms=[vm])
-                clutch_lib.export(new_clutch, filename, config.data_dir() / "clutches")
-                notif_lib.record("activity", f"Clutch '{filename}.yaml' created.")
-            else:
-                target = request.form.get("clutch_append_target", "").strip()
-                if not target:
-                    raise ValueError("Select an existing Clutch file to append to.")
-                clutch_lib.append_vm(vm, config.data_dir() / "clutches" / target)
-                notif_lib.record("activity", f"VM '{vm.name}' appended to '{target}'.")
-        except (ValueError, FileExistsError, FileNotFoundError) as exc:
-            return _render_create_form(form_values=request.form, form_error=str(exc))
+    try:
+        _provider().create_vm(vm)
+        notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+    except PermissionError as exc:
+        notif_lib.record("warning", str(exc).splitlines()[0])
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        return _render_hatch_form(form_values=request.form, form_error=str(exc))
 
-    # ── Hatch action ──────────────────────────────────────────────────────────
-    if action in ("hatch", "export_and_hatch"):
-        try:
-            _provider().create_vm(vm)
-            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-        except PermissionError as exc:
-            notif_lib.record("warning", str(exc).splitlines()[0])
-            return _render_create_form(form_values=request.form, form_error=str(exc))
-        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-            return _render_create_form(form_values=request.form, form_error=str(exc))
-
-    if action == "export_clutch":
-        return redirect(url_for("clutches"))
     return redirect(url_for("dashboard"))
 
 
@@ -190,6 +162,32 @@ def _vm_config_from_form(form) -> VMConfig:
         )
     except Exception as exc:
         raise ValueError(f"Invalid form data: {exc}") from exc
+
+
+# ── Clutch builder ───────────────────────────────────────────────────────────
+
+
+def _render_build_form(form_error=None):
+    clutch_files = _scan_dir("clutches", [".yaml"])
+    return render_template(
+        "build.html",
+        active_pane="dashboard",
+        form_error=form_error,
+        os_types=[e.value for e in GuestOS],
+        clutch_files=clutch_files,
+        media_files=_scan_dir("media"),
+        automation_files=_scan_dir("automation"),
+    )
+
+
+@app.route("/build", methods=["GET"])
+def build():
+    return _render_build_form()
+
+
+@app.route("/build", methods=["POST"])
+def build_post():
+    return _render_build_form()
 
 
 # ── API ───────────────────────────────────────────────────────────────────────

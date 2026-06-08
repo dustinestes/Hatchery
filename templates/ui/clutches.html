@@ -11,7 +11,7 @@
 <section class="dashboard-section">
   <div class="section-header">
     <h2 class="section-title">Clutch Files</h2>
-    <a href="{{ url_for('create') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
+    <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
   </div>
   {% if clutch_files %}
     <ul class="file-list">
@@ -22,7 +22,7 @@
       {% endfor %}
     </ul>
   {% else %}
-    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('create') }}" class="link">Create one</a> from the VM creation form.</p>
+    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('build') }}" class="link">Build a Clutch</a> to define and hatch an environment.</p>
   {% endif %}
 </section>
 {% endblock %}
