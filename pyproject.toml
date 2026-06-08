@@ -23,4 +23,4 @@ exclude = [".hatchery"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov --cov-fail-under=60"
+addopts = "--cov --cov-fail-under=90"
