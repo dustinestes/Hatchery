@@ -196,6 +196,108 @@ class TestCrossVMValidation:
         with pytest.raises(ValueError, match="cannot depend on itself"):
             clutch.load(write_clutch(tmp_path, content))
 
+    def test_direct_cycle_rejected(self, tmp_path):
+        content = textwrap.dedent("""\
+            name: cycle-lab
+            vms:
+              - name: vm-a
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-b]
+              - name: vm-b
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-a]
+        """)
+        with pytest.raises(ValueError, match="Circular dependency"):
+            clutch.load(write_clutch(tmp_path, content))
+
+    def test_three_node_cycle_rejected(self, tmp_path):
+        content = textwrap.dedent("""\
+            name: three-cycle
+            vms:
+              - name: vm-a
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-b]
+              - name: vm-b
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-c]
+              - name: vm-c
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-a]
+        """)
+        with pytest.raises(ValueError, match="Circular dependency"):
+            clutch.load(write_clutch(tmp_path, content))
+
+    def test_cycle_error_includes_node_names(self, tmp_path):
+        content = textwrap.dedent("""\
+            name: cycle-lab
+            vms:
+              - name: dc01
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [client01]
+              - name: client01
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [dc01]
+        """)
+        with pytest.raises(ValueError, match="dc01") as exc_info:
+            clutch.load(write_clutch(tmp_path, content))
+        assert "client01" in str(exc_info.value)
+
+    def test_valid_chain_not_rejected(self, tmp_path):
+        content = textwrap.dedent("""\
+            name: chain-lab
+            vms:
+              - name: vm-a
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+              - name: vm-b
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-a]
+              - name: vm-c
+                os: win11
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                depends_on: [vm-b]
+        """)
+        result = clutch.load(write_clutch(tmp_path, content))
+        assert len(result.vms) == 3
+
 
 class TestFileErrors:
     def test_file_not_found(self, tmp_path):
