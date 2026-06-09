@@ -126,19 +126,25 @@ _OS_VARIANT: dict[GuestOS, str] = {
 class LibvirtProvider(BaseProvider):
     def __init__(
         self,
-        media_dir: Path,
+        iso_dir: Path,
+        virtio_dir: Path,
         automation_dir: Path,
         storage_pool: str = "default",
     ) -> None:
-        self.media_dir = Path(media_dir)
+        self.iso_dir = Path(iso_dir)
+        self.virtio_dir = Path(virtio_dir)
         self.automation_dir = Path(automation_dir)
         self.storage_pool = storage_pool
 
     # ── VM creation ───────────────────────────────────────────────────────────
 
     def create_vm(self, config: VMConfig) -> None:
-        os_media = self._resolve_media(config.os_media)
-        virtio = self._resolve_media(config.virtio_drivers) if config.virtio_drivers else None
+        os_media = self._resolve_media(config.os_media, self.iso_dir)
+        virtio = (
+            self._resolve_media(config.virtio_drivers, self.virtio_dir)
+            if config.virtio_drivers
+            else None
+        )
         os_config = self._resolve_automation(config.os_config) if config.os_config else None
 
         _check_media_accessible(os_media)
@@ -280,15 +286,15 @@ class LibvirtProvider(BaseProvider):
 
     # ── Path resolution ───────────────────────────────────────────────────────
 
-    def _resolve_media(self, filename: str) -> Path:
+    def _resolve_media(self, filename: str, media_dir: Path) -> Path:
         path = Path(filename)
         if path.is_absolute():
             if not path.exists():
                 raise FileNotFoundError(f"Media file not found: {path}")
             return path
-        resolved = self.media_dir / filename
+        resolved = media_dir / filename
         if not resolved.exists():
-            raise FileNotFoundError(f"Media file not found in media directory: {filename}")
+            raise FileNotFoundError(f"Media file not found: {filename}")
         return resolved
 
     def _resolve_automation(self, filename: str) -> Path:

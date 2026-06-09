@@ -429,7 +429,8 @@ hatchery.vmRows = (function () {
 /* Dropdown refresh — repopulate media/automation selects without a page reload */
 (function () {
   var ENDPOINTS = {
-    media: '/api/media',
+    iso: '/api/media/iso',
+    virtio: '/api/media/virtio',
     automation: '/api/automation',
   };
 
