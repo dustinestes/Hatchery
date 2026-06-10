@@ -73,7 +73,7 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 **Run the app:**
 
 ```bash
-uv run python app.py
+uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 # http://localhost:5000
 ```
 

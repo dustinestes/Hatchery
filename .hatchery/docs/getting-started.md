@@ -20,6 +20,8 @@ How to set up your Ubuntu host and hatch your first VM.
   - [If Requirements Are Missing](#if-requirements-are-missing)
 - [Installation](#installation)
 - [Running Hatchery](#running-hatchery)
+  - [Running as a Service](#running-as-a-service)
+  - [Uninstalling the Service](#uninstalling-the-service)
 - [Hatching Your First VM](#hatching-your-first-vm)
 - [VirtIO Drivers](#virtio-drivers)
 - [Windows 11 and Server 2025](#windows-11-and-server-2025)
@@ -121,10 +123,46 @@ uv sync
 ## Running Hatchery
 
 ```bash
-uv run python app.py
+uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 ```
 
-Open `http://localhost:5000` in your browser. The dashboard shows your current brood (all VMs known to libvirt).
+Open `http://localhost:5000` in your browser. The dashboard shows all VMs known to libvirt.
+
+### Running as a Service
+
+To have Hatchery start automatically and run in the background, install it as a systemd user service using the provided install script:
+
+```bash
+bash scripts/install-service.sh
+```
+
+The script auto-detects the Hatchery directory and the `uv` binary, writes the configured service file to `~/.config/systemd/user/hatchery.service`, enables and starts the service, and optionally adds a short hostname entry to `/etc/hosts`.
+
+Check that the service is running:
+
+```bash
+systemctl --user status hatchery
+```
+
+**Optional — short hostname**
+
+The install script prompts you to add a short hostname. If you want to add it manually instead:
+
+```bash
+echo "127.0.0.1  hatchery.local" | sudo tee -a /etc/hosts
+```
+
+You can then open `http://hatchery.local:5000` in your browser.
+
+> **Note:** Browsers will show a "Not Secure" warning for `http://hatchery.local` because it is HTTP rather than HTTPS. On first visit you may be prompted to confirm you want to proceed. This is expected — all traffic stays on your machine and there is no real security risk. If you prefer to avoid the warning, answer **No** when the install script asks about the hostname and use `http://localhost:5000` instead, which browsers treat as a secure context.
+
+### Uninstalling the Service
+
+To remove the service and undo any `/etc/hosts` changes:
+
+```bash
+bash scripts/uninstall-service.sh
+```
 
 ---
 
@@ -134,9 +172,9 @@ Open `http://localhost:5000` in your browser. The dashboard shows your current b
 
 1. Copy your Windows ISO into the media directory:
    ```bash
-   cp /path/to/Win11.iso ~/.local/share/hatchery/media/
+   cp /path/to/Win11.iso ~/.local/share/hatchery/media/iso/
    ```
-2. Go to `http://localhost:5000/create`
+2. Go to `http://localhost:5000/hatch`
 3. Fill in the form:
    - **VM name** — a short identifier, e.g. `win11-dev`
    - **Guest OS** — selects the answer file template and configures UEFI/TPM automatically

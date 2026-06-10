@@ -5,6 +5,7 @@ description = "Local web application for creating and managing KVM virtual machi
 requires-python = ">=3.11"
 dependencies = [
     "flask",
+    "gunicorn",
     "pydantic",
     "pywinrm",
     "pyyaml",

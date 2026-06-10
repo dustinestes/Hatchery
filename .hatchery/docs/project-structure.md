@@ -37,7 +37,11 @@ Hatchery/
 ├── .vscode/
 │   ├── launch.json               # Flask debug configuration
 │   └── settings.json             # Python + ruff settings
-├── app.py                        # Flask app entry point, all API routes
+├── hatchery.py                   # Flask app entry point, all API routes
+├── scripts/
+│   ├── hatchery.service          # systemd user unit template
+│   ├── install-service.sh        # installs the systemd service and optional hostname
+│   └── uninstall-service.sh      # removes the service and hostname entry
 ├── lib/
 │   ├── providers/
 │   │   ├── base.py               # Abstract provider interface
@@ -73,9 +77,13 @@ Hatchery/
 
 ## Files and Folders
 
-### `app.py`
+### `hatchery.py`
 
-Flask entry point. Defines all routes: the dashboard (`/`), VM creation form (`/create`), per-VM management (`/manage/<name>`), and the status polling API (`/api/status`). Instantiates the active provider and passes it to route handlers.
+Flask entry point. Defines all routes: the dashboard (`/`), single-VM hatch form (`/hatch`), clutch build form (`/build`), and all API endpoints. Instantiates the active provider and passes it to route handlers.
+
+### `scripts/`
+
+Service installation helpers. Run `bash scripts/install-service.sh` to install Hatchery as a systemd user service — the script detects the install directory and `uv` path automatically. Run `bash scripts/uninstall-service.sh` to remove the service and any `/etc/hosts` entry. See [Getting Started — Running as a Service](getting-started.md#running-as-a-service).
 
 ### `lib/providers/`
 
