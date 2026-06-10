@@ -9,6 +9,87 @@ hatchery.vmRows = (function () {
     var rowIdx = 0;
     var isDirty = false;
 
+    function initDualListbox(row) {
+      var available = row.querySelector('.vm-avail-scripts');
+      var selected = row.querySelector('.vm-sel-scripts');
+      var addBtn = row.querySelector('.vm-add-script');
+      var removeBtn = row.querySelector('.vm-remove-script');
+      var upBtn = row.querySelector('.vm-move-up');
+      var downBtn = row.querySelector('.vm-move-down');
+
+      if (!available || !selected) return;
+
+      function selectItem(list, item) {
+        list.querySelectorAll('.listbox-item').forEach(function (el) {
+          el.classList.remove('selected');
+        });
+        item.classList.add('selected');
+      }
+
+      available.addEventListener('click', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) selectItem(available, item);
+      });
+      selected.addEventListener('click', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) selectItem(selected, item);
+      });
+      available.addEventListener('dblclick', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
+      });
+      selected.addEventListener('dblclick', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) { available.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (addBtn) addBtn.addEventListener('click', function () {
+        var item = available.querySelector('.listbox-item.selected');
+        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (removeBtn) removeBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item) { available.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (upBtn) upBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item && item.previousElementSibling) {
+          selected.insertBefore(item, item.previousElementSibling);
+        }
+      });
+      if (downBtn) downBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item && item.nextElementSibling) {
+          selected.insertBefore(item.nextElementSibling, item);
+        }
+      });
+
+      var refreshBtn = row.querySelector('.vm-refresh-scripts');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+          refreshBtn.disabled = true;
+          fetch('/api/automation')
+            .then(function (r) { return r.json(); })
+            .then(function (files) {
+              var selNames = Array.from(selected.querySelectorAll('.listbox-item'))
+                .map(function (el) { return el.dataset.value; });
+              available.innerHTML = '';
+              files.filter(function (f) { return selNames.indexOf(f) === -1; })
+                .forEach(function (f) {
+                  var li = document.createElement('li');
+                  li.className = 'listbox-item';
+                  li.dataset.value = f;
+                  li.setAttribute('role', 'option');
+                  li.setAttribute('tabindex', '0');
+                  li.textContent = f;
+                  available.appendChild(li);
+                });
+            })
+            .catch(function () {})
+            .finally(function () { refreshBtn.disabled = false; });
+        });
+      }
+    }
+
     function addRow(vmData) {
       var clone = template.content.cloneNode(true);
       var row = clone.querySelector('.vm-row');
@@ -41,6 +122,8 @@ hatchery.vmRows = (function () {
         el.addEventListener('change', function () { isDirty = true; });
       });
 
+      initDualListbox(row);
+
       if (vmData) {
         set(row, '[name="vm_name[]"]', vmData.name);
         summary.textContent = vmData.name || 'New VM';
@@ -51,6 +134,17 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
         set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
         set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
+        if (vmData.automations && vmData.automations.length) {
+          var avail = row.querySelector('.vm-avail-scripts');
+          var sel = row.querySelector('.vm-sel-scripts');
+          if (avail && sel) {
+            vmData.automations.forEach(function (scriptName) {
+              var items = Array.from(avail.querySelectorAll('.listbox-item'));
+              var item = items.find(function (el) { return el.dataset.value === scriptName; });
+              if (item) sel.appendChild(item);
+            });
+          }
+        }
         if (vmData.depends_on && vmData.depends_on.length) {
           row.dataset.pendingDepends = vmData.depends_on.join(',');
         }
@@ -120,12 +214,25 @@ hatchery.vmRows = (function () {
       });
     }
 
+    function serializeAutomations() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var selScripts = row.querySelector('.vm-sel-scripts');
+        var hidden = row.querySelector('.vm-automations-hidden');
+        if (selScripts && hidden) {
+          hidden.value = Array.from(selScripts.querySelectorAll('.listbox-item'))
+            .map(function (el) { return el.dataset.value; })
+            .join(',');
+        }
+      });
+    }
+
     return {
       addRow: addRow,
       clearRows: clearRows,
       updateDependsOnAll: updateDependsOnAll,
       applyPendingDepends: applyPendingDepends,
       serializeDependsOn: serializeDependsOn,
+      serializeAutomations: serializeAutomations,
       markDirty: function () { isDirty = true; },
       markClean: function () { isDirty = false; },
       dirty: function () { return isDirty; },
@@ -406,27 +513,8 @@ hatchery.vmRows = (function () {
   pollNotifications();
 })();
 
-/* Clutch filename conditional required — only required when an export action is submitted in "new" mode */
-(function () {
-  var filenameInput = document.getElementById('clutch_filename');
-  var modeNew = document.getElementById('export-mode-new');
-  var exportBtns = document.querySelectorAll('[value="export_clutch"], [value="export_and_hatch"]');
-  var hatchBtn = document.querySelector('[value="hatch"]');
-
-  if (!filenameInput || !modeNew) return;
-
-  exportBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      filenameInput.required = modeNew.checked;
-    });
-  });
-
-  if (hatchBtn) hatchBtn.addEventListener('click', function () {
-    filenameInput.required = false;
-  });
-})();
-
-/* Dropdown refresh — repopulate media/automation selects without a page reload */
+/* Dropdown refresh — repopulate media/automation selects without a page reload.
+   Uses event delegation so it works for dynamically-added VM row elements. */
 (function () {
   var ENDPOINTS = {
     iso: '/api/media/iso',
@@ -453,18 +541,19 @@ hatchery.vmRows = (function () {
     select.value = files.indexOf(prev) !== -1 ? prev : '';
   }
 
-  document.querySelectorAll('[data-refresh]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var endpoint = ENDPOINTS[btn.dataset.refresh];
-      var target = document.getElementById(btn.dataset.target);
-      if (!endpoint || !target) return;
-      btn.disabled = true;
-      fetch(endpoint)
-        .then(function (r) { return r.json(); })
-        .then(function (files) { rebuildOptions(target, files); })
-        .catch(function () {})
-        .finally(function () { btn.disabled = false; });
-    });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-refresh]');
+    if (!btn) return;
+    var endpoint = ENDPOINTS[btn.dataset.refresh];
+    var formGroup = btn.closest('.form-group');
+    var target = formGroup && formGroup.querySelector('select');
+    if (!endpoint || !target) return;
+    btn.disabled = true;
+    fetch(endpoint)
+      .then(function (r) { return r.json(); })
+      .then(function (files) { rebuildOptions(target, files); })
+      .catch(function () {})
+      .finally(function () { btn.disabled = false; });
   });
 })();
 

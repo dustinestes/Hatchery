@@ -45,7 +45,8 @@
 
   <div class="action-bar">
     <a href="{{ url_for('clutches') }}" class="btn btn-ghost" id="cancel-btn">Cancel</a>
-    <button type="submit" class="btn btn-primary">Save Clutch</button>
+    <button type="submit" name="action" value="save" class="btn btn-secondary">Save Clutch</button>
+    <button type="submit" name="action" value="save_and_hatch" class="btn btn-primary">Save and Hatch</button>
   </div>
 
 </form>
@@ -83,6 +84,7 @@
 
   form.addEventListener('submit', function () {
     rows.serializeDependsOn();
+    rows.serializeAutomations();
     rows.markClean();
   });
 
