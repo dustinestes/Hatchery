@@ -744,6 +744,17 @@ class TestRequirementsSync:
             app_module._sync_requirements()
         assert notif_lib.count_unresolved_warnings() == 0
 
+    def test_does_not_duplicate_warning_on_repeated_calls(self):
+        missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
+        with patch("lib.requirements.check_all", return_value=missing):
+            app_module._sync_requirements()
+            app_module._sync_requirements()
+            app_module._sync_requirements()
+        warnings = [
+            n for n in notif_lib.list_recent() if n["tier"] == "warning" and n["resolved"] == 0
+        ]
+        assert len(warnings) == 1
+
 
 class TestNotificationsRoute:
     def test_returns_200(self, client):

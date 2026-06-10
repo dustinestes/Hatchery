@@ -33,6 +33,7 @@
       <td class="notif-table-status">
         {% if item.resolved %}
           <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
+          {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
         {% elif item.dismissed %}
           <span class="notif-status-badge notif-status-badge--dismissed">Dismissed</span>
         {% elif item.tier == 'warning' %}

@@ -22,12 +22,13 @@ _REQ_WARNING_PREFIX = "Missing requirement:"
 
 def _sync_requirements() -> None:
     """Re-evaluate host requirements and sync warning notifications."""
-    notif_lib.resolve_by_message_prefix(_REQ_WARNING_PREFIX)
-    for req in req_lib.missing(req_lib.check_all()):
-        notif_lib.record(
-            "warning",
-            f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}",
-        )
+    for req in req_lib.check_all():
+        msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
+        if not req.present:
+            if not notif_lib.has_active_warning(msg):
+                notif_lib.record("warning", msg)
+        else:
+            notif_lib.resolve_by_message_prefix(msg)
 
 
 def _background_loop(stop_event: threading.Event) -> None:

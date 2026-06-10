@@ -1242,6 +1242,12 @@ body {
 
 .notif-table-msg { line-height: 1.4; }
 
+.notif-resolved-at {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .btn-dismiss {
   font-size: 16px;
   color: var(--color-text-muted);

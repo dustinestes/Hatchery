@@ -80,6 +80,17 @@ class TestResolve:
         row = next(r for r in notif.list_recent() if r["id"] == nid)
         assert row["resolved"] == 1
 
+    def test_sets_resolved_at(self):
+        nid = notif.record("warning", "something broke")
+        notif.resolve(nid)
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved_at"] is not None
+
+    def test_resolved_at_is_none_before_resolution(self):
+        nid = notif.record("warning", "something broke")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved_at"] is None
+
     def test_does_not_affect_other_rows(self):
         nid1 = notif.record("warning", "one")
         nid2 = notif.record("warning", "two")
@@ -124,6 +135,17 @@ class TestResolveByMessagePrefix:
         row = next(r for r in notif.list_recent() if r["id"] == nid)
         assert row["resolved"] == 0
 
+    def test_sets_resolved_at_on_matching_warnings(self):
+        nid = notif.record("warning", "Missing requirement: virsh not found")
+        notif.resolve_by_message_prefix("Missing requirement:")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved_at"] is not None
+
+    def test_resolved_at_null_on_unresolved(self):
+        nid = notif.record("warning", "Missing requirement: virsh not found")
+        row = next(r for r in notif.list_recent() if r["id"] == nid)
+        assert row["resolved_at"] is None
+
     def test_noop_when_no_matches(self):
         notif.record("warning", "Some other warning")
         notif.resolve_by_message_prefix("Nonexistent prefix:")
@@ -135,6 +157,28 @@ class TestResolveByMessagePrefix:
         notif.resolve_by_message_prefix("Missing requirement:")
         row = next(r for r in notif.list_recent() if r["id"] == nid)
         assert row["resolved"] == 1
+
+
+class TestHasActiveWarning:
+    def test_returns_false_when_no_warnings(self):
+        assert notif.has_active_warning("some warning") is False
+
+    def test_returns_true_for_active_warning(self):
+        notif.record("warning", "virsh missing")
+        assert notif.has_active_warning("virsh missing") is True
+
+    def test_returns_false_after_warning_resolved(self):
+        nid = notif.record("warning", "virsh missing")
+        notif.resolve(nid)
+        assert notif.has_active_warning("virsh missing") is False
+
+    def test_returns_false_for_activity_tier(self):
+        notif.record("activity", "some activity")
+        assert notif.has_active_warning("some activity") is False
+
+    def test_exact_match_only(self):
+        notif.record("warning", "virsh missing — details")
+        assert notif.has_active_warning("virsh missing") is False
 
 
 class TestCountUnresolvedWarnings:
