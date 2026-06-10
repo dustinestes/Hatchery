@@ -1,5 +1,7 @@
+import atexit
 import os
 import subprocess
+import threading
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -28,10 +30,24 @@ def _sync_requirements() -> None:
         )
 
 
+def _background_loop(stop_event: threading.Event) -> None:
+    while not stop_event.wait(config.bg_interval()):
+        _sync_requirements()
+
+
+def _start_background_thread() -> threading.Event:
+    stop = threading.Event()
+    t = threading.Thread(target=_background_loop, args=(stop,), daemon=True)
+    t.start()
+    atexit.register(stop.set)
+    return stop
+
+
 config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
 _sync_requirements()
+_start_background_thread()
 
 
 @app.context_processor

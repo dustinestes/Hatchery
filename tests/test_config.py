@@ -8,7 +8,7 @@ def isolated_config(monkeypatch, tmp_path):
     """Redirect all paths to tmp_path and reset in-memory state for each test."""
     monkeypatch.setattr(cfg, "CONFIG_FILE", tmp_path / "config.yaml")
     monkeypatch.setattr(cfg, "DEFAULT_DATA_DIR", tmp_path / "data")
-    monkeypatch.setattr(cfg, "_DEFAULTS", {"data_dir": str(tmp_path / "data")})
+    monkeypatch.setattr(cfg, "_DEFAULTS", {"data_dir": str(tmp_path / "data"), "bg_interval": 60})
     monkeypatch.setattr(cfg, "_config", {})
     return tmp_path
 
@@ -108,3 +108,20 @@ class TestInitDataDir:
         assert not cfg.data_dir().exists()
         cfg.init_data_dir()
         assert cfg.data_dir().is_dir()
+
+
+class TestBgInterval:
+    def test_returns_default(self, isolated_config):
+        assert cfg.bg_interval() == 60
+
+    def test_returns_configured_value(self, isolated_config):
+        cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        import yaml
+
+        with open(cfg.CONFIG_FILE, "w") as f:
+            yaml.dump({"data_dir": str(isolated_config / "data"), "bg_interval": 30}, f)
+        cfg.load()
+        assert cfg.bg_interval() == 30
+
+    def test_returns_int(self, isolated_config):
+        assert isinstance(cfg.bg_interval(), int)

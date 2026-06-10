@@ -1,3 +1,4 @@
+import threading
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -761,6 +762,38 @@ class TestNotificationsRoute:
         notif_lib.record("warning", "a warning notification")
         html = client.get("/notifications").data.decode()
         assert "notif-tier-badge--warning" in html
+
+
+class TestBackgroundThread:
+    def test_loop_calls_sync_on_timeout(self):
+        stop = MagicMock()
+        stop.wait.side_effect = [False, True]
+        with patch.object(app_module, "_sync_requirements") as mock_sync:
+            app_module._background_loop(stop)
+        mock_sync.assert_called_once()
+
+    def test_loop_calls_sync_multiple_ticks(self):
+        stop = MagicMock()
+        stop.wait.side_effect = [False, False, False, True]
+        with patch.object(app_module, "_sync_requirements") as mock_sync:
+            app_module._background_loop(stop)
+        assert mock_sync.call_count == 3
+
+    def test_loop_exits_without_sync_when_stopped_immediately(self):
+        stop = MagicMock()
+        stop.wait.return_value = True
+        with patch.object(app_module, "_sync_requirements") as mock_sync:
+            app_module._background_loop(stop)
+        mock_sync.assert_not_called()
+
+    def test_start_background_thread_spawns_daemon_thread(self):
+        with patch("threading.Thread") as mock_thread_cls:
+            mock_t = MagicMock()
+            mock_thread_cls.return_value = mock_t
+            stop = app_module._start_background_thread()
+        assert mock_thread_cls.call_args.kwargs.get("daemon") is True
+        mock_t.start.assert_called_once()
+        assert isinstance(stop, threading.Event)
 
 
 class TestNotificationsAPI:
