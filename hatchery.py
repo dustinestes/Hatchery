@@ -1,5 +1,7 @@
+import atexit
 import os
 import subprocess
+import threading
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -20,18 +22,33 @@ _REQ_WARNING_PREFIX = "Missing requirement:"
 
 def _sync_requirements() -> None:
     """Re-evaluate host requirements and sync warning notifications."""
-    notif_lib.resolve_by_message_prefix(_REQ_WARNING_PREFIX)
-    for req in req_lib.missing(req_lib.check_all()):
-        notif_lib.record(
-            "warning",
-            f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}",
-        )
+    for req in req_lib.check_all():
+        msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
+        if not req.present:
+            if not notif_lib.has_active_warning(msg):
+                notif_lib.record("warning", msg)
+        else:
+            notif_lib.resolve_by_message_prefix(msg)
+
+
+def _background_loop(stop_event: threading.Event) -> None:
+    while not stop_event.wait(config.bg_interval()):
+        _sync_requirements()
+
+
+def _start_background_thread() -> threading.Event:
+    stop = threading.Event()
+    t = threading.Thread(target=_background_loop, args=(stop,), daemon=True)
+    t.start()
+    atexit.register(stop.set)
+    return stop
 
 
 config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
 _sync_requirements()
+_start_background_thread()
 
 
 @app.context_processor

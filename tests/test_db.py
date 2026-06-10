@@ -48,6 +48,28 @@ class TestInitDb:
         db_module.init_db(path)
         assert path.exists()
 
+    def test_migration_adds_resolved_at_to_existing_db(self, tmp_path):
+        import sqlite3
+
+        path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(str(path))
+        conn.execute(
+            "CREATE TABLE notifications ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "created_at TEXT NOT NULL, tier TEXT NOT NULL, "
+            "message TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, "
+            "dismissed INTEGER NOT NULL DEFAULT 0)"
+        )
+        conn.commit()
+        conn.close()
+        db_module.init_db(path)
+        conn = db_module.get_connection()
+        try:
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(notifications)").fetchall()]
+            assert "resolved_at" in cols
+        finally:
+            conn.close()
+
     def test_creates_parent_dirs(self, tmp_path):
         path = tmp_path / "deep" / "nested" / "hatchery.db"
         db_module.init_db(path)
@@ -57,7 +79,15 @@ class TestInitDb:
         conn = db_module.get_connection()
         try:
             cols = [r["name"] for r in conn.execute("PRAGMA table_info(notifications)").fetchall()]
-            assert cols == ["id", "created_at", "tier", "message", "resolved", "dismissed"]
+            assert cols == [
+                "id",
+                "created_at",
+                "tier",
+                "message",
+                "resolved",
+                "resolved_at",
+                "dismissed",
+            ]
         finally:
             conn.close()
 

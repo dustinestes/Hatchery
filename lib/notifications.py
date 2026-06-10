@@ -38,9 +38,13 @@ def list_recent(n: int = 50) -> list[dict]:
 
 def resolve(notification_id: int) -> None:
     """Mark a warning notification as resolved."""
+    now = datetime.now(timezone.utc).isoformat()
     conn = db.get_connection()
     try:
-        conn.execute("UPDATE notifications SET resolved = 1 WHERE id = ?", (notification_id,))
+        conn.execute(
+            "UPDATE notifications SET resolved = 1, resolved_at = ? WHERE id = ?",
+            (now, notification_id),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -58,14 +62,28 @@ def dismiss(notification_id: int) -> None:
 
 def resolve_by_message_prefix(prefix: str) -> None:
     """Resolve all unresolved warnings whose message starts with the given prefix."""
+    now = datetime.now(timezone.utc).isoformat()
     conn = db.get_connection()
     try:
         conn.execute(
-            "UPDATE notifications SET resolved = 1 "
+            "UPDATE notifications SET resolved = 1, resolved_at = ? "
             "WHERE tier = 'warning' AND resolved = 0 AND message LIKE ?",
-            (f"{prefix}%",),
+            (now, f"{prefix}%"),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def has_active_warning(message: str) -> bool:
+    """Return True if an unresolved warning with this exact message already exists."""
+    conn = db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM notifications WHERE tier = 'warning' AND resolved = 0 AND message = ? LIMIT 1",
+            (message,),
+        ).fetchone()
+        return row is not None
     finally:
         conn.close()
 

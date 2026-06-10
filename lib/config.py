@@ -19,7 +19,10 @@ def _default_data_dir() -> Path:
 CONFIG_FILE: Path = _default_config_file()
 DEFAULT_DATA_DIR: Path = _default_data_dir()
 
-_DEFAULTS: dict = {"data_dir": str(DEFAULT_DATA_DIR)}
+_DEFAULTS: dict = {
+    "data_dir": str(DEFAULT_DATA_DIR),
+    "bg_interval": 60,
+}
 _config: dict = {}
 
 
@@ -53,6 +56,11 @@ def get() -> dict:
 def data_dir() -> Path:
     """Return the configured data directory as a Path."""
     return Path(get()["data_dir"])
+
+
+def bg_interval() -> int:
+    """Return the background re-evaluation interval in seconds."""
+    return int(get()["bg_interval"])
 
 
 def init_data_dir() -> None:

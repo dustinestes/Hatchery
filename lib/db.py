@@ -7,18 +7,26 @@ _MAX_NOTIFICATIONS = 500
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notifications (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at TEXT    NOT NULL,
-    tier       TEXT    NOT NULL,
-    message    TEXT    NOT NULL,
-    resolved   INTEGER NOT NULL DEFAULT 0,
-    dismissed  INTEGER NOT NULL DEFAULT 0
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT    NOT NULL,
+    tier        TEXT    NOT NULL,
+    message     TEXT    NOT NULL,
+    resolved    INTEGER NOT NULL DEFAULT 0,
+    resolved_at TEXT,
+    dismissed   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS clutch_instances (
     id INTEGER PRIMARY KEY AUTOINCREMENT
 );
 """
+
+# Applied after schema creation so existing databases gain new columns without
+# data loss. Each statement is attempted once; OperationalError means the column
+# already exists and is silently skipped.
+_MIGRATIONS = [
+    "ALTER TABLE notifications ADD COLUMN resolved_at TEXT",
+]
 
 _db_path: Path | None = None
 
@@ -30,6 +38,12 @@ def init_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     try:
         conn.executescript(_SCHEMA)
+        for migration in _MIGRATIONS:
+            try:
+                conn.execute(migration)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
     finally:
         conn.close()
 
