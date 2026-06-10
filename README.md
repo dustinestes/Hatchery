@@ -50,7 +50,7 @@ Hatchery is a local web application for creating, provisioning, and managing VMs
 
 ```
 Hatchery/
-├── app.py                        # Flask app, all API routes
+├── hatchery.py                   # Flask app, all API routes
 ├── lib/
 │   ├── providers/
 │   │   ├── base.py               # Abstract provider interface
@@ -115,7 +115,8 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 
 1. **Install host dependencies** — see requirements above
 2. **Clone and install Python deps** — `uv sync`
-3. **Run Hatchery** — `uv run python app.py`
+3. **Run Hatchery** — `uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1`
+   > To run as a background service that starts automatically, see [Running as a Service](.hatchery/docs/getting-started.md#running-as-a-service).
 4. **Open the dashboard** — `http://localhost:5000`
 5. **Hatch a VM** — go to `/create`, fill in the form, click Hatch
 

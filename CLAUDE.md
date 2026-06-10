@@ -64,7 +64,7 @@ Each OS has its own answer file template under `templates/answerfiles/`.
 
 ```
 Hatchery/
-├── app.py                        # Flask app, all API routes
+├── hatchery.py                   # Flask app, all API routes
 ├── lib/
 │   ├── providers/
 │   │   ├── base.py               # Abstract provider interface
@@ -261,7 +261,7 @@ uv sync
 ## Running Hatchery
 
 ```bash
-uv run python app.py
+uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 # Opens at http://localhost:5000
 ```
 

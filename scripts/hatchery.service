@@ -1,0 +1,13 @@
+[Unit]
+Description=Hatchery VM manager
+After=network.target
+
+[Service]
+# Run scripts/install-service.sh to install this unit — it fills in the correct
+# WorkingDirectory and uv binary path automatically.
+WorkingDirectory=/path/to/Hatchery
+ExecStart=/path/to/uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

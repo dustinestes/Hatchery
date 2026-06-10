@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-import app as app_module
+import hatchery as app_module
 import lib.clutch as clutch_lib
 import lib.config as cfg
 import lib.db as db_module
 import lib.notifications as notif_lib
-from app import app as flask_app
+from hatchery import app as flask_app
 from lib.clutch import VMConfig, Clutch
 from lib.providers.libvirt import LibvirtProvider
 from lib.requirements import Requirement
@@ -110,14 +110,14 @@ class TestHatchRoute:
         assert "win11" in html
 
     def test_hatch_action_calls_provider(self, client):
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 302
         mock_prov.return_value.create_vm.assert_called_once()
 
     def test_hatch_redirects_to_dashboard(self, client):
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             resp = client.post("/hatch", data=VALID_FORM, follow_redirects=False)
         assert resp.headers["Location"].endswith("/")
@@ -139,7 +139,7 @@ class TestHatchRoute:
         assert "my-preserved-vm" in html
 
     def test_provider_error_rerenders_form(self, client):
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
             resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 200
@@ -151,7 +151,7 @@ class TestHatchRoute:
             "Run: chmod o+x '/home/user'\n"
             "See Getting Started — Media Access for the recommended setup."
         )
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(err_msg)
             resp = client.post("/hatch", data=VALID_FORM)
         assert resp.status_code == 200
@@ -228,7 +228,7 @@ class TestBuildRoute:
             "vm_os_media[]": "win11.iso",
             "vm_depends_on[]": "",
         }
-        with patch("app.clutch_lib.export", side_effect=RuntimeError("disk full")):
+        with patch("hatchery.clutch_lib.export", side_effect=RuntimeError("disk full")):
             resp = client.post("/build", data=form)
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
@@ -445,7 +445,7 @@ class TestEditRoute:
             "vm_os_media[]": "win11.iso",
             "vm_depends_on[]": "",
         }
-        with patch("app.clutch_lib.save", side_effect=RuntimeError("I/O error")):
+        with patch("hatchery.clutch_lib.save", side_effect=RuntimeError("I/O error")):
             resp = client.post("/edit", data=form)
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
@@ -525,7 +525,7 @@ class TestHatchClutchRoute:
     def test_post_hatches_all_vms_and_redirects(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             resp = client.post(
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
@@ -537,7 +537,7 @@ class TestHatchClutchRoute:
     def test_post_provider_error_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
             resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         assert resp.status_code == 200
@@ -546,7 +546,7 @@ class TestHatchClutchRoute:
     def test_post_permission_error_records_warning(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        with patch("app._provider") as mock_prov:
+        with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
             )
