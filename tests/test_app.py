@@ -99,6 +99,53 @@ class TestPageTitles:
         assert "Notifications" in html
 
 
+class TestSettingsRoute:
+    def test_get_shows_current_data_dir(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
+        html = client.get("/settings").data.decode()
+        assert str(tmp_path) in html
+
+    def test_get_shows_config_file_path(self, client):
+        html = client.get("/settings").data.decode()
+        assert str(cfg.CONFIG_FILE) in html
+
+    def test_post_valid_saves_and_redirects(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        resp = client.post("/settings", data={"data_dir": str(tmp_path)})
+        assert resp.status_code == 302
+        assert "saved=1" in resp.headers["Location"]
+        assert saved["data_dir"] == str(tmp_path)
+
+    def test_post_empty_path_shows_error(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
+        resp = client.post("/settings", data={"data_dir": ""})
+        assert resp.status_code == 200
+        assert "required" in resp.data.decode().lower()
+
+    def test_post_expands_tilde(self, client, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        client.post("/settings", data={"data_dir": "~/hatchery/data"})
+        assert not saved["data_dir"].startswith("~")
+
+    def test_get_saved_param_shows_success_banner(self, client):
+        html = client.get("/settings?saved=1").data.decode()
+        assert "saved" in html.lower()
+
+    def test_post_calls_init_data_dir(self, client, tmp_path, monkeypatch):
+        called = []
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: None)
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: called.append(True))
+        client.post("/settings", data={"data_dir": str(tmp_path)})
+        assert called
+
+
 class TestBuildRoute:
     def test_build_get_returns_200(self, client):
         assert client.get("/build").status_code == 200

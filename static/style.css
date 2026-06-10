@@ -492,6 +492,10 @@ body {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.form-grid-1 {
+  grid-template-columns: 1fr;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -568,6 +572,63 @@ body {
   font-size: 11px;
   color: var(--color-text-muted);
   margin-top: 2px;
+}
+
+.form-input:disabled,
+.form-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+  background: var(--color-surface-alt);
+}
+
+.form-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  color: var(--color-surface);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: bold;
+  line-height: 1;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.form-help-icon::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-bg-sidebar);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1.5;
+  white-space: normal;
+  width: 280px;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 200;
+  font-family: var(--font-body);
+}
+
+.form-help-icon:hover::after {
+  visibility: visible;
+  opacity: 1;
 }
 
 .select-with-refresh {

@@ -114,8 +114,35 @@ def automation():
 
 @app.route("/settings")
 def settings():
-    cfg = config.get()
-    return render_template("settings.html", active_pane="settings", cfg=cfg)
+    return render_template(
+        "settings.html",
+        active_pane="settings",
+        cfg=config.get(),
+        config_file=str(config.CONFIG_FILE),
+        form_error=None,
+        form_saved=request.args.get("saved") == "1",
+    )
+
+
+@app.route("/settings", methods=["POST"])
+def settings_post():
+    from pathlib import Path
+
+    data_dir_raw = request.form.get("data_dir", "").strip()
+    if not data_dir_raw:
+        return render_template(
+            "settings.html",
+            active_pane="settings",
+            cfg=config.get(),
+            config_file=str(config.CONFIG_FILE),
+            form_error="Data directory path is required.",
+            form_saved=False,
+        )
+
+    new_cfg = {**config.get(), "data_dir": str(Path(data_dir_raw).expanduser())}
+    config.save(new_cfg)
+    config.init_data_dir()
+    return redirect(url_for("settings", saved="1"))
 
 
 @app.route("/notifications")
