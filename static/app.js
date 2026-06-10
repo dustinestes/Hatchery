@@ -9,6 +9,61 @@ hatchery.vmRows = (function () {
     var rowIdx = 0;
     var isDirty = false;
 
+    function initDualListbox(row) {
+      var available = row.querySelector('.vm-avail-scripts');
+      var selected = row.querySelector('.vm-sel-scripts');
+      var addBtn = row.querySelector('.vm-add-script');
+      var removeBtn = row.querySelector('.vm-remove-script');
+      var upBtn = row.querySelector('.vm-move-up');
+      var downBtn = row.querySelector('.vm-move-down');
+
+      if (!available || !selected) return;
+
+      function selectItem(list, item) {
+        list.querySelectorAll('.listbox-item').forEach(function (el) {
+          el.classList.remove('selected');
+        });
+        item.classList.add('selected');
+      }
+
+      available.addEventListener('click', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) selectItem(available, item);
+      });
+      selected.addEventListener('click', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) selectItem(selected, item);
+      });
+      available.addEventListener('dblclick', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
+      });
+      selected.addEventListener('dblclick', function (e) {
+        var item = e.target.closest('.listbox-item');
+        if (item) { available.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (addBtn) addBtn.addEventListener('click', function () {
+        var item = available.querySelector('.listbox-item.selected');
+        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (removeBtn) removeBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item) { available.appendChild(item); item.classList.remove('selected'); }
+      });
+      if (upBtn) upBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item && item.previousElementSibling) {
+          selected.insertBefore(item, item.previousElementSibling);
+        }
+      });
+      if (downBtn) downBtn.addEventListener('click', function () {
+        var item = selected.querySelector('.listbox-item.selected');
+        if (item && item.nextElementSibling) {
+          selected.insertBefore(item.nextElementSibling, item);
+        }
+      });
+    }
+
     function addRow(vmData) {
       var clone = template.content.cloneNode(true);
       var row = clone.querySelector('.vm-row');
@@ -41,6 +96,8 @@ hatchery.vmRows = (function () {
         el.addEventListener('change', function () { isDirty = true; });
       });
 
+      initDualListbox(row);
+
       if (vmData) {
         set(row, '[name="vm_name[]"]', vmData.name);
         summary.textContent = vmData.name || 'New VM';
@@ -51,6 +108,17 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
         set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
         set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
+        if (vmData.automations && vmData.automations.length) {
+          var avail = row.querySelector('.vm-avail-scripts');
+          var sel = row.querySelector('.vm-sel-scripts');
+          if (avail && sel) {
+            vmData.automations.forEach(function (scriptName) {
+              var items = Array.from(avail.querySelectorAll('.listbox-item'));
+              var item = items.find(function (el) { return el.dataset.value === scriptName; });
+              if (item) sel.appendChild(item);
+            });
+          }
+        }
         if (vmData.depends_on && vmData.depends_on.length) {
           row.dataset.pendingDepends = vmData.depends_on.join(',');
         }
@@ -120,12 +188,25 @@ hatchery.vmRows = (function () {
       });
     }
 
+    function serializeAutomations() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var selScripts = row.querySelector('.vm-sel-scripts');
+        var hidden = row.querySelector('.vm-automations-hidden');
+        if (selScripts && hidden) {
+          hidden.value = Array.from(selScripts.querySelectorAll('.listbox-item'))
+            .map(function (el) { return el.dataset.value; })
+            .join(',');
+        }
+      });
+    }
+
     return {
       addRow: addRow,
       clearRows: clearRows,
       updateDependsOnAll: updateDependsOnAll,
       applyPendingDepends: applyPendingDepends,
       serializeDependsOn: serializeDependsOn,
+      serializeAutomations: serializeAutomations,
       markDirty: function () { isDirty = true; },
       markClean: function () { isDirty = false; },
       dirty: function () { return isDirty; },

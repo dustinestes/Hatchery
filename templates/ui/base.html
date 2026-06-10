@@ -38,16 +38,7 @@
     <div class="topbar-actions">
 
       <!-- Quick VM actions -->
-      <div class="topbar-dropdown" id="hatch-dropdown-wrap">
-        <button class="btn btn-primary btn-sm topbar-dropdown-trigger" id="hatch-dropdown-btn" aria-haspopup="true" aria-expanded="false">
-          + Hatch
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="dropdown-menu" id="hatch-dropdown-menu" hidden>
-          <a href="{{ url_for('hatch') }}" class="dropdown-item">Hatch VM</a>
-          <a href="{{ url_for('hatch_clutch') }}" class="dropdown-item">Hatch Clutch</a>
-        </div>
-      </div>
+      <a href="{{ url_for('hatch_clutch') }}" class="btn btn-primary btn-sm">+ Hatch</a>
       <a href="{{ url_for('build') }}" class="btn btn-secondary btn-sm">+ Build</a>
       <div class="topbar-divider"></div>
 

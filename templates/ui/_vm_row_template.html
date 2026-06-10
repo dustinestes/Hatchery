@@ -76,6 +76,35 @@
           <input type="hidden" name="vm_depends_on[]" class="vm-depends-on-hidden" value="">
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Post-Boot Scripts <span class="form-optional">(optional — defines run order)</span></label>
+        <div class="dual-listbox">
+          <div class="listbox-panel">
+            <div class="listbox-header">Available</div>
+            <ul class="listbox-list vm-avail-scripts" role="listbox" aria-label="Available scripts">
+              {% for f in automation_files %}
+                <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="listbox-controls">
+            <button type="button" class="btn-listbox vm-add-script" title="Add" aria-label="Add to selected">›</button>
+            <button type="button" class="btn-listbox vm-remove-script" title="Remove" aria-label="Remove from selected">‹</button>
+            <div class="listbox-spacer"></div>
+            <button type="button" class="btn-listbox vm-move-up" title="Move up" aria-label="Move up">↑</button>
+            <button type="button" class="btn-listbox vm-move-down" title="Move down" aria-label="Move down">↓</button>
+          </div>
+          <div class="listbox-panel">
+            <div class="listbox-header">Selected (run order)</div>
+            <ul class="listbox-list vm-sel-scripts" role="listbox" aria-label="Selected scripts">
+            </ul>
+          </div>
+        </div>
+        {% if not automation_files %}
+          <p class="form-hint">No automation files found. Add scripts via the Automation pane.</p>
+        {% endif %}
+        <input type="hidden" name="vm_automations[]" class="vm-automations-hidden" value="">
+      </div>
     </div>
   </div>
 </template>

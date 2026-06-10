@@ -122,69 +122,6 @@ def notifications_pane():
     return render_template("notifications.html", active_pane="notifications", items=items)
 
 
-# ── VM creation ───────────────────────────────────────────────────────────────
-
-
-def _render_hatch_form(form_values=None, form_error=None):
-    return render_template(
-        "hatch.html",
-        active_pane="dashboard",
-        form_values=form_values,
-        form_error=form_error,
-        os_types=[e.value for e in GuestOS],
-        media_files=_scan_dir("media/iso"),
-        virtio_files=_scan_dir("media/virtio"),
-        automation_files=_scan_dir("automation"),
-    )
-
-
-@app.route("/hatch", methods=["GET"])
-def hatch():
-    return _render_hatch_form()
-
-
-@app.route("/hatch", methods=["POST"])
-def hatch_post():
-    try:
-        vm = _vm_config_from_form(request.form)
-    except ValueError as exc:
-        return _render_hatch_form(form_values=request.form, form_error=str(exc))
-
-    try:
-        _provider().create_vm(vm)
-        notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-    except PermissionError as exc:
-        notif_lib.record("warning", str(exc).splitlines()[0])
-        return _render_hatch_form(form_values=request.form, form_error=str(exc))
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        return _render_hatch_form(form_values=request.form, form_error=str(exc))
-
-    return redirect(url_for("dashboard"))
-
-
-def _vm_config_from_form(form) -> VMConfig:
-    """Parse and validate VMConfig from a form submission."""
-    automations = form.getlist("automations")
-    depends_raw = form.get("depends_on", "").strip()
-    depends_on = [d.strip() for d in depends_raw.split(",") if d.strip()]
-
-    try:
-        return VMConfig(
-            name=form.get("name", "").strip(),
-            os=form.get("os", ""),
-            vcpus=int(form.get("vcpus", 0)),
-            ram_gb=int(form.get("ram_gb", 0)),
-            disk_gb=int(form.get("disk_gb", 0)),
-            os_media=form.get("os_media", "").strip(),
-            virtio_drivers=form.get("virtio_drivers") or None,
-            os_config=form.get("os_config") or None,
-            automations=automations,
-            depends_on=depends_on,
-        )
-    except Exception as exc:
-        raise ValueError(f"Invalid form data: {exc}") from exc
-
-
 # ── Hatch Clutch ─────────────────────────────────────────────────────────────
 
 
@@ -274,10 +211,12 @@ def _vm_dicts_from_form(form) -> list[dict]:
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
     result = []
     for i, name in enumerate(names):
         dep_raw = depends_list[i] if i < len(depends_list) else ""
+        auto_raw = automations_list[i] if i < len(automations_list) else ""
         result.append(
             {
                 "name": name,
@@ -288,6 +227,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
                 "os_config": os_config_list[i] if i < len(os_config_list) else "",
+                "automations": [a.strip() for a in auto_raw.split(",") if a.strip()],
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
             }
         )
@@ -305,6 +245,7 @@ def _vm_list_from_form(form):
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
 
     if not any(n.strip() for n in names):
@@ -314,6 +255,8 @@ def _vm_list_from_form(form):
     for i, name in enumerate(names):
         depends_raw = depends_list[i] if i < len(depends_list) else ""
         depends_on = [d.strip() for d in depends_raw.split(",") if d.strip()]
+        auto_raw = automations_list[i] if i < len(automations_list) else ""
+        automations = [a.strip() for a in auto_raw.split(",") if a.strip()]
         vms.append(
             VMConfig(
                 name=name.strip(),
@@ -324,6 +267,7 @@ def _vm_list_from_form(form):
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
                 os_config=(os_config_list[i] or None) if i < len(os_config_list) else None,
+                automations=automations,
                 depends_on=depends_on,
             )
         )
@@ -350,6 +294,7 @@ def build_post():
     ctx = _build_template_ctx()
     clutch_name = request.form.get("clutch_name", "").strip()
     filename = request.form.get("clutch_filename", "").strip()
+    action = request.form.get("action", "save")
 
     def _rerender(error):
         return render_template(
@@ -384,6 +329,19 @@ def build_post():
 
     saved = filename if filename.endswith(".yaml") else f"{filename}.yaml"
     notif_lib.record("activity", f"Clutch '{saved}' created.")
+
+    if action == "save_and_hatch":
+        for vm in c.vms:
+            try:
+                _provider().create_vm(vm)
+                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+            except PermissionError as exc:
+                notif_lib.record("warning", str(exc).splitlines()[0])
+                return _rerender(str(exc))
+            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+                return _rerender(str(exc))
+        return redirect(url_for("dashboard"))
+
     return redirect(url_for("build"))
 
 
@@ -418,6 +376,7 @@ def edit_post():
     old_filename = _Path(request.form.get("existing_filename", "").strip()).name
     new_name = request.form.get("clutch_name", "").strip()
     new_filename_raw = request.form.get("clutch_filename", "").strip()
+    action = request.form.get("action", "save")
 
     if not old_filename:
         return redirect(url_for("clutches"))
@@ -465,6 +424,19 @@ def edit_post():
         return _rerender(str(exc))
 
     notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
+
+    if action == "save_and_hatch":
+        for vm in c.vms:
+            try:
+                _provider().create_vm(vm)
+                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+            except PermissionError as exc:
+                notif_lib.record("warning", str(exc).splitlines()[0])
+                return _rerender(str(exc))
+            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+                return _rerender(str(exc))
+        return redirect(url_for("dashboard"))
+
     return redirect(url_for("edit", clutch=new_filename))
 
 
@@ -513,6 +485,7 @@ def api_clutch_detail(filename):
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
                     "os_config": v.os_config or "",
+                    "automations": v.automations,
                     "depends_on": v.depends_on,
                 }
                 for v in c.vms

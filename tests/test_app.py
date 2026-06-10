@@ -27,14 +27,15 @@ def isolate_db(tmp_path):
     db_module._db_path = None
 
 
-VALID_FORM = {
-    "name": "test-vm",
-    "os": "win11",
-    "vcpus": "2",
-    "ram_gb": "4",
-    "disk_gb": "40",
-    "os_media": "win11.iso",
-    "action": "hatch",
+VALID_BUILD_FORM = {
+    "clutch_filename": "test-lab",
+    "vm_name[]": "dc01",
+    "vm_os[]": "win11",
+    "vm_vcpus[]": "2",
+    "vm_ram_gb[]": "4",
+    "vm_disk_gb[]": "60",
+    "vm_os_media[]": "win11.iso",
+    "vm_depends_on[]": "",
 }
 
 
@@ -96,69 +97,6 @@ class TestPageTitles:
     def test_notifications_title(self, client):
         html = client.get("/notifications").data.decode()
         assert "Notifications" in html
-
-
-class TestHatchRoute:
-    def test_hatch_get_returns_200(self, client):
-        assert client.get("/hatch").status_code == 200
-
-    def test_hatch_get_contains_form(self, client):
-        html = client.get("/hatch").data.decode()
-        assert "hatch-form" in html
-
-    def test_hatch_get_shows_os_types(self, client):
-        html = client.get("/hatch").data.decode()
-        assert "win11" in html
-
-    def test_hatch_action_calls_provider(self, client):
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.create_vm = MagicMock()
-            resp = client.post("/hatch", data=VALID_FORM)
-        assert resp.status_code == 302
-        mock_prov.return_value.create_vm.assert_called_once()
-
-    def test_hatch_redirects_to_dashboard(self, client):
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.create_vm = MagicMock()
-            resp = client.post("/hatch", data=VALID_FORM, follow_redirects=False)
-        assert resp.headers["Location"].endswith("/")
-
-    def test_hatch_with_invalid_vcpus_rerenders_form(self, client):
-        bad = {**VALID_FORM, "vcpus": "0"}
-        resp = client.post("/hatch", data=bad)
-        assert resp.status_code == 200
-        assert "hatch-form" in resp.data.decode()
-
-    def test_hatch_with_invalid_vcpus_shows_error(self, client):
-        bad = {**VALID_FORM, "vcpus": "0"}
-        html = client.post("/hatch", data=bad).data.decode()
-        assert "alert" in html
-
-    def test_form_values_preserved_on_validation_error(self, client):
-        bad = {**VALID_FORM, "vcpus": "0", "name": "my-preserved-vm"}
-        html = client.post("/hatch", data=bad).data.decode()
-        assert "my-preserved-vm" in html
-
-    def test_provider_error_rerenders_form(self, client):
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
-            resp = client.post("/hatch", data=VALID_FORM)
-        assert resp.status_code == 200
-        assert "hatch-form" in resp.data.decode()
-
-    def test_permission_error_rerenders_form_and_records_warning(self, client):
-        err_msg = (
-            "The hypervisor (libvirt-qemu) cannot access: win11.iso\n"
-            "Run: chmod o+x '/home/user'\n"
-            "See Getting Started — Media Access for the recommended setup."
-        )
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.create_vm.side_effect = PermissionError(err_msg)
-            resp = client.post("/hatch", data=VALID_FORM)
-        assert resp.status_code == 200
-        assert "hatch-form" in resp.data.decode()
-        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
-        assert any("libvirt-qemu" in w["message"] for w in warnings)
 
 
 class TestBuildRoute:
@@ -277,6 +215,70 @@ class TestBuildRoute:
         assert 'value="my-lab"' in body
         assert "dc01" in body
         assert "client01" in body
+
+    def test_build_post_saves_automations_in_clutch(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "vm_automations[]": "setup.ps1,configure.ps1"}
+        client.post("/build", data=form)
+        c = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
+        assert c.vms[0].automations == ["setup.ps1", "configure.ps1"]
+
+    def test_build_post_save_and_hatch_calls_provider(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "action": "save_and_hatch"}
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        mock_prov.return_value.create_vm.assert_called_once()
+
+    def test_build_post_save_and_hatch_redirects_to_dashboard(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "action": "save_and_hatch"}
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.headers["Location"].endswith("/")
+
+    def test_build_post_save_and_hatch_saves_clutch_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "action": "save_and_hatch"}
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            client.post("/build", data=form)
+        assert (tmp_path / "clutches" / "test-lab.yaml").exists()
+
+    def test_build_post_save_and_hatch_provider_error_rerenders_form(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "action": "save_and_hatch"}
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no iso")
+            resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_build_post_save_and_hatch_permission_error_records_warning(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "action": "save_and_hatch"}
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = PermissionError(
+                "libvirt-qemu cannot access\nRun: chmod o+x"
+            )
+            resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
+        assert any("libvirt-qemu" in w["message"] for w in warnings)
 
 
 class TestEditRoute:
@@ -461,6 +463,101 @@ class TestEditRoute:
         resp = client.post(
             "/edit", data={"existing_filename": "my-lab.yaml", "clutch_filename": ""}
         )
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+
+    def test_post_save_and_hatch_calls_provider(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "action": "save_and_hatch",
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        mock_prov.return_value.create_vm.assert_called_once()
+
+    def test_post_save_and_hatch_redirects_to_dashboard(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "action": "save_and_hatch",
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.headers["Location"].endswith("/")
+
+    def test_post_save_and_hatch_permission_error_records_warning(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "action": "save_and_hatch",
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = PermissionError(
+                "libvirt-qemu cannot access\nRun: chmod o+x"
+            )
+            resp = client.post("/edit", data=form)
+        assert resp.status_code == 200
+        assert "alert" in resp.data.decode()
+        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
+        assert any("libvirt-qemu" in w["message"] for w in warnings)
+
+    def test_post_save_and_hatch_provider_error_rerenders_form(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "action": "save_and_hatch",
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no iso")
+            resp = client.post("/edit", data=form)
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
 
@@ -696,7 +793,6 @@ class TestNestStatus:
                 "/clutches",
                 "/automation",
                 "/settings",
-                "/hatch",
                 "/hatch-clutch",
                 "/build",
                 "/notifications",
