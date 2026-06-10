@@ -537,9 +537,7 @@ class TestEditRoute:
         warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
         assert any("libvirt-qemu" in w["message"] for w in warnings)
 
-    def test_post_save_and_hatch_provider_error_rerenders_form(
-        self, client, tmp_path, monkeypatch
-    ):
+    def test_post_save_and_hatch_provider_error_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
         form = {

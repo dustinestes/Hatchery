@@ -509,6 +509,27 @@ body {
   letter-spacing: 0.01em;
 }
 
+.form-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.btn-refresh-label {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--gold);
+  line-height: 0;
+  opacity: 0.7;
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+}
+
+.btn-refresh-label:hover { opacity: 1; }
+.btn-refresh-label:disabled { opacity: 0.3; cursor: default; }
+
 .required {
   color: var(--gold);
 }
@@ -579,6 +600,9 @@ body {
 }
 
 .listbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
   font-weight: 500;
   color: var(--color-text-muted);
