@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import getpass
 import os
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
+from lib import answerfile as answerfile_lib
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
 
@@ -138,14 +138,13 @@ class LibvirtProvider(BaseProvider):
 
     # ── VM creation ───────────────────────────────────────────────────────────
 
-    def create_vm(self, config: VMConfig) -> None:
+    def create_vm(self, config: VMConfig, admin_password: str | None = None) -> None:
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         virtio = (
             self._resolve_media(config.virtio_drivers, self.virtio_dir)
             if config.virtio_drivers
             else None
         )
-        os_config = self._resolve_automation(config.os_config) if config.os_config else None
 
         _check_media_accessible(os_media)
         if virtio:
@@ -155,8 +154,15 @@ class LibvirtProvider(BaseProvider):
         try:
             cmd = self._build_create_cmd(config, os_media, virtio)
 
-            if os_config:
-                answer_img = self._create_answer_image(os_config)
+            if config.admin_username and admin_password:
+                xml = answerfile_lib.render(
+                    config.os, config.name, config.admin_username, admin_password
+                )
+                answer_img = self._create_answer_image(xml)
+                cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
+            elif config.os_config:
+                os_config = self._resolve_automation(config.os_config)
+                answer_img = self._create_answer_image(os_config.read_text())
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
             subprocess.run(cmd, check=True, env=_system_env())
@@ -200,10 +206,10 @@ class LibvirtProvider(BaseProvider):
 
         return cmd
 
-    def _create_answer_image(self, answer_file: Path) -> Path:  # pragma: no cover
-        """Wrap an answer file in a FAT image using virt-make-fs."""
+    def _create_answer_image(self, xml_content: str) -> Path:  # pragma: no cover
+        """Write xml_content into a FAT floppy image as Autounattend.xml."""
         with tempfile.TemporaryDirectory() as staging:
-            shutil.copy(answer_file, Path(staging) / "Autounattend.xml")
+            (Path(staging) / "Autounattend.xml").write_text(xml_content, encoding="utf-8")
             img = Path(tempfile.mktemp(suffix="-autounattend.img"))
             subprocess.run(
                 [

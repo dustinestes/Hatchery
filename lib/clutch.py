@@ -23,6 +23,7 @@ class VMConfig(BaseModel):
     os_media: str
     virtio_drivers: str | None = None
     os_config: str | None = None
+    admin_username: str | None = None
     automations: list[str] = []
     depends_on: list[str] = []
 

@@ -206,7 +206,8 @@ def hatch_clutch_post():
 
     for vm in clutch_obj.vms:
         try:
-            _provider().create_vm(vm)
+            pw = request.form.get(f"credentials[{vm.name}]") or None
+            _provider().create_vm(vm, admin_password=pw)
             notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
             notif_lib.record("warning", str(exc).splitlines()[0])
@@ -240,6 +241,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
     result = []
@@ -256,6 +258,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
                 "os_config": os_config_list[i] if i < len(os_config_list) else "",
+                "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
                 "automations": [a.strip() for a in auto_raw.split(",") if a.strip()],
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
             }
@@ -274,6 +277,7 @@ def _vm_list_from_form(form):
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
 
@@ -296,11 +300,24 @@ def _vm_list_from_form(form):
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
                 os_config=(os_config_list[i] or None) if i < len(os_config_list) else None,
+                admin_username=(admin_username_list[i] or None)
+                if i < len(admin_username_list)
+                else None,
                 automations=automations,
                 depends_on=depends_on,
             )
         )
     return vms
+
+
+def _passwords_from_form(form, vms) -> dict[str, str | None]:
+    """Return {vm_name: password} for the build/edit array-notation form fields.
+
+    Passwords are indexed by position (parallel to vm_name[]) and keyed by
+    the resolved VM name so callers can look up by name at hatch time.
+    """
+    raw = form.getlist("vm_admin_password[]")
+    return {vm.name: (raw[i] or None) if i < len(raw) else None for i, vm in enumerate(vms)}
 
 
 def _build_template_ctx():
@@ -361,9 +378,10 @@ def build_post():
     notif_lib.record("activity", f"Clutch '{saved}' created.")
 
     if action == "save_and_hatch":
+        passwords = _passwords_from_form(request.form, c.vms)
         for vm in c.vms:
             try:
-                _provider().create_vm(vm)
+                _provider().create_vm(vm, admin_password=passwords.get(vm.name))
                 notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
             except PermissionError as exc:
                 notif_lib.record("warning", str(exc).splitlines()[0])
@@ -456,9 +474,10 @@ def edit_post():
     notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
 
     if action == "save_and_hatch":
+        passwords = _passwords_from_form(request.form, c.vms)
         for vm in c.vms:
             try:
-                _provider().create_vm(vm)
+                _provider().create_vm(vm, admin_password=passwords.get(vm.name))
                 notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
             except PermissionError as exc:
                 notif_lib.record("warning", str(exc).splitlines()[0])
@@ -520,6 +539,7 @@ def api_clutch_detail(filename):
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
                     "os_config": v.os_config or "",
+                    "admin_username": v.admin_username or "",
                     "automations": v.automations,
                     "depends_on": v.depends_on,
                 }

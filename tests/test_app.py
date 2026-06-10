@@ -271,6 +271,31 @@ class TestBuildRoute:
         c = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
         assert c.vms[0].automations == ["setup.ps1", "configure.ps1"]
 
+    def test_build_post_admin_username_saved_to_clutch(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_admin_username[]": "alice",
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
+        assert saved.vms[0].admin_username == "alice"
+
+    def test_build_post_admin_password_not_in_clutch(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_admin_username[]": "alice",
+            "vm_admin_password[]": "s3cr3t",
+        }
+        client.post("/build", data=form, follow_redirects=False)
+        raw = (tmp_path / "clutches" / "test-lab.yaml").read_text()
+        assert "s3cr3t" not in raw
+        assert "admin_password" not in raw
+
     def test_build_post_save_and_hatch_calls_provider(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
@@ -677,6 +702,56 @@ class TestHatchClutchRoute:
         assert resp.headers["Location"].endswith("/")
         mock_prov.return_value.create_vm.assert_called_once()
 
+    def test_post_passes_password_to_create_vm(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            admin_username="alice",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            client.post(
+                "/hatch-clutch",
+                data={"clutch_file": "my-lab.yaml", "credentials[dc01]": "s3cr3t"},
+                follow_redirects=False,
+            )
+        _, kwargs = mock_prov.return_value.create_vm.call_args
+        assert kwargs.get("admin_password") == "s3cr3t"
+
+    def test_post_password_none_when_not_provided(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            admin_username="alice",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            client.post(
+                "/hatch-clutch",
+                data={"clutch_file": "my-lab.yaml"},
+                follow_redirects=False,
+            )
+        _, kwargs = mock_prov.return_value.create_vm.call_args
+        assert kwargs.get("admin_password") is None
+
     def test_post_provider_error_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
@@ -723,7 +798,28 @@ class TestAPIClutchDetail:
         assert "disk_gb" in vm
         assert "virtio_drivers" in vm
         assert "os_config" in vm
+        assert "admin_username" in vm
         assert vm["os_media"] == "win11.iso"
+
+    def test_vm_includes_admin_username(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            admin_username="alice",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        import lib.clutch as clutch_lib
+
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        data = client.get("/api/clutch/my-lab.yaml").get_json()
+        assert data["vms"][0]["admin_username"] == "alice"
 
     def test_not_found_returns_404(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)

@@ -346,6 +346,65 @@ class TestCreateVM:
         with pytest.raises(FileNotFoundError, match="missing.xml"):
             provider.create_vm(vm)
 
+    def test_credentials_renders_answer_file(self, tmp_path, provider):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        img_path = tmp_path / "fake.img"
+        img_path.touch()
+        vm = VMConfig(
+            name="test-vm",
+            os="win10",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win10.iso",
+            admin_username="alice",
+        )
+        with patch.object(provider, "_create_answer_image", return_value=img_path) as mock_img:
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+                provider.create_vm(vm, admin_password="secret")
+        xml_arg = mock_img.call_args[0][0]
+        assert "alice" in xml_arg
+        assert "secret" in xml_arg
+        cmd = mock_run.call_args[0][0]
+        assert any("floppy" in arg for arg in cmd)
+
+    def test_credentials_skipped_when_no_password(self, tmp_path, provider):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        vm = VMConfig(
+            name="test-vm",
+            os="win10",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win10.iso",
+            admin_username="alice",
+        )
+        with patch.object(provider, "_create_answer_image") as mock_img:
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+                provider.create_vm(vm, admin_password=None)
+        mock_img.assert_not_called()
+
+    def test_credentials_skipped_when_no_username(self, tmp_path, provider):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        vm = VMConfig(
+            name="test-vm",
+            os="win10",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win10.iso",
+        )
+        with patch.object(provider, "_create_answer_image") as mock_img:
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+                provider.create_vm(vm, admin_password="secret")
+        mock_img.assert_not_called()
+
 
 # ── Power state ───────────────────────────────────────────────────────────────
 

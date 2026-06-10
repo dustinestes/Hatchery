@@ -133,6 +133,7 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_disk_gb[]"]', vmData.disk_gb);
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
         set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
+        set(row, '[name="vm_admin_username[]"]', vmData.admin_username || '');
         set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
         if (vmData.automations && vmData.automations.length) {
           var avail = row.querySelector('.vm-avail-scripts');

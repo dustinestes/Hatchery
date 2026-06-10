@@ -47,9 +47,16 @@ vms:
     # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
     virtio_drivers: virtio-win.iso
 
+    # admin_username (optional): administrator account name for unattended install
+    # When set alongside an admin password (supplied at hatch time — never stored),
+    # Hatchery renders an Autounattend.xml automatically. Leave unset to provide
+    # a pre-authored os_config file instead.
+    admin_username: admin
+
     # os_config (optional): OS deployment configuration file
     # Filename relative to automation/os_config/ in the data directory, or an absolute path.
-    # Windows: Autounattend.xml (pre-authored; credentials-based rendering is automatic)
+    # Windows: Autounattend.xml (pre-authored); ignored when admin_username is set
+    # and a password is provided at hatch time — rendered automatically instead.
     # Linux (future): cloud-init user-data, kickstart, or preseed file
     os_config: win11-unattend.xml
 
