@@ -154,6 +154,8 @@ echo "127.0.0.1  hatchery.local" | sudo tee -a /etc/hosts
 
 You can then open `http://hatchery.local:5000` in your browser.
 
+> **Note:** Browsers will show a "Not Secure" warning for `http://hatchery.local` because it is HTTP rather than HTTPS. On first visit you may be prompted to confirm you want to proceed. This is expected — all traffic stays on your machine and there is no real security risk. If you prefer to avoid the warning, answer **No** when the install script asks about the hostname and use `http://localhost:5000` instead, which browsers treat as a secure context.
+
 ### Uninstalling the Service
 
 To remove the service and undo any `/etc/hosts` changes:
