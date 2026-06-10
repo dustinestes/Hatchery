@@ -65,7 +65,7 @@ def _provider() -> LibvirtProvider:
     return LibvirtProvider(
         iso_dir=data / "media" / "iso",
         virtio_dir=data / "media" / "virtio",
-        automation_dir=data / "automation",
+        automation_dir=data / "automation" / "os_config",
     )
 
 
@@ -104,9 +104,11 @@ def clutches():
 
 @app.route("/automation")
 def automation():
-    automation_files = _scan_dir("automation")
     return render_template(
-        "automation.html", active_pane="automation", automation_files=automation_files
+        "automation.html",
+        active_pane="automation",
+        os_config_files=_scan_dir("automation/os_config"),
+        scripts_files=_scan_dir("automation/scripts"),
     )
 
 
@@ -280,7 +282,8 @@ def _build_template_ctx():
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media/iso"),
         virtio_files=_scan_dir("media/virtio"),
-        automation_files=_scan_dir("automation"),
+        os_config_files=_scan_dir("automation/os_config"),
+        scripts_files=_scan_dir("automation/scripts"),
     )
 
 
@@ -453,9 +456,14 @@ def api_media_virtio():
     return jsonify(_scan_dir("media/virtio"))
 
 
-@app.route("/api/automation")
-def api_automation():
-    return jsonify(_scan_dir("automation"))
+@app.route("/api/automation/os-config")
+def api_automation_os_config():
+    return jsonify(_scan_dir("automation/os_config"))
+
+
+@app.route("/api/automation/scripts")
+def api_automation_scripts():
+    return jsonify(_scan_dir("automation/scripts"))
 
 
 @app.route("/api/clutches")

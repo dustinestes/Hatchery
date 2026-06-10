@@ -742,7 +742,7 @@ class TestProvider:
         assert isinstance(provider, LibvirtProvider)
         assert provider.iso_dir == tmp_path / "media" / "iso"
         assert provider.virtio_dir == tmp_path / "media" / "virtio"
-        assert provider.automation_dir == tmp_path / "automation"
+        assert provider.automation_dir == tmp_path / "automation" / "os_config"
 
 
 class TestScanDir:
@@ -951,8 +951,13 @@ class TestAPIRoutes:
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
-    def test_api_automation_returns_json(self, client):
-        resp = client.get("/api/automation")
+    def test_api_automation_os_config_returns_json(self, client):
+        resp = client.get("/api/automation/os-config")
+        assert resp.status_code == 200
+        assert isinstance(resp.get_json(), list)
+
+    def test_api_automation_scripts_returns_json(self, client):
+        resp = client.get("/api/automation/scripts")
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 

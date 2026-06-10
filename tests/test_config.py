@@ -95,7 +95,7 @@ class TestInitDataDir:
         cfg.load()
         cfg.init_data_dir()
         root = cfg.data_dir()
-        for subdir in ["clutches", "media", "automation"]:
+        for subdir in ["clutches", "media", "automation/os_config", "automation/scripts"]:
             assert (root / subdir).is_dir(), f"Expected {subdir}/ to exist"
 
     def test_is_idempotent(self, isolated_config):

@@ -211,9 +211,11 @@ All user-generated and user-supplied assets live outside the Hatchery applicatio
 
 ```
 ~/.local/share/hatchery/
-├── clutches/       # Clutch definition files (.yaml)
-├── media/          # Source images — ISOs, VHDs, VHDX, QCOW2
-└── automation/     # Automation files — answer files, post-boot scripts, cloud-init configs
+├── clutches/               # Clutch definition files (.yaml)
+├── media/                  # Source images — ISOs, VHDs, VHDX, QCOW2
+└── automation/
+    ├── os_config/          # OS deployment config — Autounattend.xml, cloud-init, preseed
+    └── scripts/            # Post-boot scripts — .ps1 (Windows), .sh (Linux)
 ```
 
 Frozen VM states (snapshots) are managed by libvirt/virsh and remain in the hypervisor's storage — they are not duplicated in the data directory.

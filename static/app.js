@@ -67,7 +67,7 @@ hatchery.vmRows = (function () {
       if (refreshBtn) {
         refreshBtn.addEventListener('click', function () {
           refreshBtn.disabled = true;
-          fetch('/api/automation')
+          fetch('/api/automation/scripts')
             .then(function (r) { return r.json(); })
             .then(function (files) {
               var selNames = Array.from(selected.querySelectorAll('.listbox-item'))
@@ -519,7 +519,7 @@ hatchery.vmRows = (function () {
   var ENDPOINTS = {
     iso: '/api/media/iso',
     virtio: '/api/media/virtio',
-    automation: '/api/automation',
+    os_config: '/api/automation/os-config',
   };
 
   function rebuildOptions(select, files) {
