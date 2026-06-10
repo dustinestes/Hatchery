@@ -48,14 +48,13 @@ vms:
     virtio_drivers: virtio-win.iso
 
     # os_config (optional): OS deployment configuration file
-    # Filename relative to the automation/ data directory, or an absolute path.
-    # Windows: Autounattend.xml or a Jinja2 template (.xml.j2)
+    # Filename relative to automation/os_config/ in the data directory, or an absolute path.
+    # Windows: Autounattend.xml (pre-authored; credentials-based rendering is automatic)
     # Linux (future): cloud-init user-data, kickstart, or preseed file
-    # Credentials and OS-specific configuration live in this file — not here.
-    os_config: win11-unattend.xml.j2
+    os_config: win11-unattend.xml
 
     # automations (optional): ordered list of post-boot automation scripts
-    # Filenames relative to the automation/ data directory.
+    # Filenames relative to automation/scripts/ in the data directory.
     # Executed in order against the VM after it is fledged, via WinRM (Windows)
     # or SSH (Linux, future). Omit or leave empty to skip post-boot automation.
     automations:
@@ -80,7 +79,7 @@ vms:
 #     ram_gb: 4
 #     disk_gb: 60
 #     os_media: server2022-eval.iso
-#     os_config: server2022-unattend.xml.j2
+#     os_config: server2022-unattend.xml
 #     automations:
 #       - promote-domain-controller.ps1
 #
@@ -90,7 +89,7 @@ vms:
 #     ram_gb: 8
 #     disk_gb: 80
 #     os_media: Win11_24H2.iso
-#     os_config: win11-unattend.xml.j2
+#     os_config: win11-unattend.xml
 #     automations:
 #       - join-domain.ps1
 #     depends_on:

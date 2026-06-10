@@ -3,7 +3,15 @@ import yaml
 from pathlib import Path
 
 _APP_NAME = "hatchery"
-_DATA_SUBDIRS = ["clutches", "media/iso", "media/virtio", "media/vhd", "media/qemu", "automation"]
+_DATA_SUBDIRS = [
+    "clutches",
+    "media/iso",
+    "media/virtio",
+    "media/vhd",
+    "media/qemu",
+    "automation/os_config",
+    "automation/scripts",
+]
 
 
 def _default_config_file() -> Path:

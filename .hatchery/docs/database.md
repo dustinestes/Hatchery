@@ -61,7 +61,7 @@ If the database is lost or corrupted, Hatchery recreates it on next startup. No 
 ~/.local/share/hatchery/hatchery.db
 ```
 
-The database lives at the root of the data directory alongside `clutches/`, `media/`, and `automation/`. If the data directory is relocated in Settings, the database moves with it.
+The database lives at the root of the data directory alongside `clutches/`, `media/`, and `automation/`. If the data directory is relocated in Settings, the database moves with it. The `automation/` directory is further divided into `os_config/` (answer files, cloud-init) and `scripts/` (post-boot scripts).
 
 **First run:** Created automatically. Schema is initialized with `CREATE TABLE IF NOT EXISTS` — safe to call on every startup.
 
@@ -91,7 +91,8 @@ The file is not included in the Hatchery source repository.
 | Data | Where it lives | Why |
 |---|---|---|
 | Clutch definitions | `clutches/*.yaml` | User-authored — version controlled, human-readable, shareable |
-| Automation scripts | `automation/*` | User-authored — same reasons |
+| OS config files | `automation/os_config/*` | User-authored — same reasons |
+| Post-boot scripts | `automation/scripts/*` | User-authored — same reasons |
 | Application configuration | Config file (YAML) | User-authored — editable outside the app, survives DB reset |
 | Source images | `media/*` | Binary files — not relational data |
 | Frozen VM states (snapshots) | Managed by libvirt/virsh | Owned by the hypervisor, not Hatchery |

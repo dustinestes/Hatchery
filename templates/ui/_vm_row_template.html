@@ -72,13 +72,13 @@
         <div class="form-group">
           <div class="form-label-row">
             <label class="form-label">OS Config <span class="form-optional">(optional)</span></label>
-            <button type="button" class="btn-refresh-label" data-refresh="automation" title="Refresh automation files">
+            <button type="button" class="btn-refresh-label" data-refresh="os_config" title="Refresh OS config files">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           </div>
           <select name="vm_os_config[]" class="form-select">
             <option value="">— none —</option>
-            {% for f in automation_files %}
+            {% for f in os_config_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
           </select>
@@ -102,7 +102,7 @@
               </button>
             </div>
             <ul class="listbox-list vm-avail-scripts" role="listbox" aria-label="Available scripts">
-              {% for f in automation_files %}
+              {% for f in scripts_files %}
                 <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
               {% endfor %}
             </ul>
@@ -120,7 +120,7 @@
             </ul>
           </div>
         </div>
-        {% if not automation_files %}
+        {% if not scripts_files %}
           <p class="form-hint">No automation files found. Add scripts via the Automation pane.</p>
         {% endif %}
         <input type="hidden" name="vm_automations[]" class="vm-automations-hidden" value="">
