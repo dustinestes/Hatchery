@@ -5,7 +5,40 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Settings</h1>
-  <p class="pane-subtitle">Application configuration — data directory path and Nest connection settings.</p>
+  <p class="pane-subtitle">Application configuration.</p>
 </div>
-<div class="stub">Settings content coming soon</div>
+
+{% if form_saved %}
+  <div class="alert alert-success">Settings saved.</div>
+{% endif %}
+
+{% if form_error %}
+  <div class="alert alert-error">{{ form_error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('settings_post') }}">
+
+  <section class="form-section">
+    <h2 class="form-section-title">Data Directory</h2>
+    <div class="form-grid form-grid-1">
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label" for="data-dir">Path <span class="required">*</span></label>
+          <span class="form-help-icon" data-tip="Root directory for all Hatchery user data — Clutch files, media, and automation scripts. Subdirectories are created automatically. Tilde (~) is expanded to your home directory.">i</span>
+        </div>
+        <input type="text" id="data-dir" name="data_dir" class="form-input"
+               value="{{ cfg.data_dir }}" required placeholder="e.g. /home/user/.local/share/hatchery">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="config-file">Config File</label>
+        <input type="text" id="config-file" class="form-input" value="{{ config_file }}" disabled>
+      </div>
+    </div>
+  </section>
+
+  <div class="action-bar">
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+
+</form>
 {% endblock %}
