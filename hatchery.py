@@ -204,9 +204,21 @@ def hatch_clutch_post():
     except Exception as exc:
         return _render_hatch_clutch_form(clutch_files, preselected=filename, form_error=str(exc))
 
+    passwords = {
+        vm.name: request.form.get(f"credentials[{vm.name}]") or None for vm in clutch_obj.vms
+    }
+    missing = _missing_passwords(clutch_obj.vms, passwords)
+    if missing:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=f"Password required for: {', '.join(missing)}",
+        )
+
     for vm in clutch_obj.vms:
         try:
-            _provider().create_vm(vm)
+            _provider().create_vm(vm, admin_password=passwords[vm.name])
             notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
             notif_lib.record("warning", str(exc).splitlines()[0])
@@ -240,6 +252,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
     result = []
@@ -256,6 +269,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
                 "os_config": os_config_list[i] if i < len(os_config_list) else "",
+                "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
                 "automations": [a.strip() for a in auto_raw.split(",") if a.strip()],
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
             }
@@ -274,6 +288,7 @@ def _vm_list_from_form(form):
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     os_config_list = form.getlist("vm_os_config[]")
+    admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
 
@@ -296,11 +311,19 @@ def _vm_list_from_form(form):
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
                 os_config=(os_config_list[i] or None) if i < len(os_config_list) else None,
+                admin_username=(admin_username_list[i] or None)
+                if i < len(admin_username_list)
+                else None,
                 automations=automations,
                 depends_on=depends_on,
             )
         )
     return vms
+
+
+def _missing_passwords(vms, passwords: dict) -> list[str]:
+    """Return names of VMs that have admin_username set but no password supplied."""
+    return [vm.name for vm in vms if vm.admin_username and not passwords.get(vm.name)]
 
 
 def _build_template_ctx():
@@ -361,16 +384,7 @@ def build_post():
     notif_lib.record("activity", f"Clutch '{saved}' created.")
 
     if action == "save_and_hatch":
-        for vm in c.vms:
-            try:
-                _provider().create_vm(vm)
-                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-            except PermissionError as exc:
-                notif_lib.record("warning", str(exc).splitlines()[0])
-                return _rerender(str(exc))
-            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-                return _rerender(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("hatch_clutch", clutch=saved))
 
     return redirect(url_for("build"))
 
@@ -456,16 +470,7 @@ def edit_post():
     notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
 
     if action == "save_and_hatch":
-        for vm in c.vms:
-            try:
-                _provider().create_vm(vm)
-                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-            except PermissionError as exc:
-                notif_lib.record("warning", str(exc).splitlines()[0])
-                return _rerender(str(exc))
-            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-                return _rerender(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("hatch_clutch", clutch=new_filename))
 
     return redirect(url_for("edit", clutch=new_filename))
 
@@ -520,6 +525,7 @@ def api_clutch_detail(filename):
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
                     "os_config": v.os_config or "",
+                    "admin_username": v.admin_username or "",
                     "automations": v.automations,
                     "depends_on": v.depends_on,
                 }

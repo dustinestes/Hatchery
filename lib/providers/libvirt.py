@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import getpass
 import os
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
+from lib import answerfile as answerfile_lib
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
 
@@ -138,31 +138,40 @@ class LibvirtProvider(BaseProvider):
 
     # ── VM creation ───────────────────────────────────────────────────────────
 
-    def create_vm(self, config: VMConfig) -> None:
+    def create_vm(self, config: VMConfig, admin_password: str | None = None) -> None:
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         virtio = (
             self._resolve_media(config.virtio_drivers, self.virtio_dir)
             if config.virtio_drivers
             else None
         )
-        os_config = self._resolve_automation(config.os_config) if config.os_config else None
 
         _check_media_accessible(os_media)
         if virtio:
             _check_media_accessible(virtio)
 
+        cmd = self._build_create_cmd(config, os_media, virtio)
         answer_img: Path | None = None
-        try:
-            cmd = self._build_create_cmd(config, os_media, virtio)
 
-            if os_config:
-                answer_img = self._create_answer_image(os_config)
+        try:
+            if config.admin_username and admin_password:
+                xml = answerfile_lib.render(
+                    config.os, config.name, config.admin_username, admin_password
+                )
+                answer_img = self._create_answer_image(xml, config.name)
+                cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
+            elif config.os_config:
+                os_config = self._resolve_automation(config.os_config)
+                answer_img = self._create_answer_image(os_config.read_text(), config.name)
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
             subprocess.run(cmd, check=True, env=_system_env())
-        finally:
+        except Exception:
+            # Clean up on failure only — on success the floppy must persist through
+            # Windows installation. destroy_vm handles final cleanup.
             if answer_img and answer_img.exists():
                 answer_img.unlink()
+            raise
 
     def _build_create_cmd(
         self,
@@ -200,24 +209,35 @@ class LibvirtProvider(BaseProvider):
 
         return cmd
 
-    def _create_answer_image(self, answer_file: Path) -> Path:  # pragma: no cover
-        """Wrap an answer file in a FAT image using virt-make-fs."""
-        with tempfile.TemporaryDirectory() as staging:
-            shutil.copy(answer_file, Path(staging) / "Autounattend.xml")
-            img = Path(tempfile.mktemp(suffix="-autounattend.img"))
+    def _floppy_path(self, vm_name: str) -> Path:
+        """Return the stable path for a VM's answer file floppy image."""
+        return Path(tempfile.gettempdir()) / f"{vm_name}-autounattend.img"
+
+    def _create_answer_image(self, xml_content: str, vm_name: str) -> Path:  # pragma: no cover
+        """Write xml_content into a FAT floppy image as Autounattend.xml.
+
+        Uses mtools (mformat + mcopy) — no root or kernel access required.
+        1.44 MB standard floppy: 2880 sectors × 512 bytes.
+        Image is written to a stable path so it persists through Windows installation.
+        """
+        img = self._floppy_path(vm_name)
+        xml_file = img.with_suffix(".xml")
+        try:
+            xml_file.write_text(xml_content, encoding="utf-8")
             subprocess.run(
-                [
-                    "virt-make-fs",
-                    "--type=fat",
-                    "--size=1M",
-                    "--format=raw",
-                    staging,
-                    str(img),
-                ],
+                ["dd", "if=/dev/zero", f"of={img}", "bs=512", "count=2880"],
                 check=True,
                 capture_output=True,
-                env=_system_env(),
             )
+            subprocess.run(["mformat", "-i", str(img), "::"], check=True, capture_output=True)
+            subprocess.run(
+                ["mcopy", "-i", str(img), str(xml_file), "::Autounattend.xml"],
+                check=True,
+                capture_output=True,
+            )
+        finally:
+            if xml_file.exists():
+                xml_file.unlink()
         return img
 
     # ── Power state ───────────────────────────────────────────────────────────
@@ -233,6 +253,9 @@ class LibvirtProvider(BaseProvider):
 
     def destroy_vm(self, name: str) -> None:
         subprocess.run(["virsh", "undefine", name, "--remove-all-storage"], check=True)
+        floppy = self._floppy_path(name)
+        if floppy.exists():
+            floppy.unlink()
 
     # ── Inventory ─────────────────────────────────────────────────────────────
 

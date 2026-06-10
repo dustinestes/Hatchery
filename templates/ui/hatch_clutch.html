@@ -53,6 +53,25 @@
     </div>
   </section>
 
+  <section class="form-section" id="clutch-credentials-section" {% if not clutch_obj or not clutch_obj.vms|selectattr('admin_username')|list %}hidden{% endif %}>
+    <h2 class="form-section-title">Credentials</h2>
+    <p class="form-hint" style="margin-bottom: 12px;">Passwords are not stored — provide them here to render the unattended install answer file at hatch time.</p>
+    <div id="clutch-credentials">
+      {% if clutch_obj %}
+        {% for vm in clutch_obj.vms %}
+          {% if vm.admin_username %}
+            <div class="form-grid form-grid-1" style="margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">{{ vm.name }} — password for <strong>{{ vm.admin_username }}</strong></label>
+                <input type="password" name="credentials[{{ vm.name }}]" class="form-input" autocomplete="new-password">
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </div>
+  </section>
+
   <div class="action-bar">
     <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancel</a>
     <button type="submit" class="btn btn-primary">Hatch</button>
@@ -88,14 +107,49 @@
     section.hidden = false;
   }
 
+  var credSection = document.getElementById('clutch-credentials-section');
+  var credContainer = document.getElementById('clutch-credentials');
+
+  function renderCredentials(vms) {
+    if (!credSection || !credContainer) return;
+    var needCreds = vms.filter(function (vm) { return vm.admin_username; });
+    if (!needCreds.length) { credSection.hidden = true; return; }
+    credContainer.innerHTML = '';
+    needCreds.forEach(function (vm) {
+      var wrap = document.createElement('div');
+      wrap.className = 'form-grid form-grid-1';
+      wrap.style.marginBottom = '12px';
+      var group = document.createElement('div');
+      group.className = 'form-group';
+      var label = document.createElement('label');
+      label.className = 'form-label';
+      label.innerHTML = vm.name + ' — password for <strong>' + vm.admin_username + '</strong>';
+      var input = document.createElement('input');
+      input.type = 'password';
+      input.name = 'credentials[' + vm.name + ']';
+      input.className = 'form-input';
+      input.autocomplete = 'new-password';
+      group.appendChild(label);
+      group.appendChild(input);
+      wrap.appendChild(group);
+      credContainer.appendChild(wrap);
+    });
+    credSection.hidden = false;
+  }
+
   select.addEventListener('change', function () {
     var filename = this.value;
-    if (!filename) { section.hidden = true; return; }
+    if (!filename) {
+      section.hidden = true;
+      if (credSection) credSection.hidden = true;
+      return;
+    }
     fetch('/api/clutch/' + encodeURIComponent(filename))
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.error) { section.hidden = true; return; }
         renderSummary(data);
+        renderCredentials(data.vms);
       })
       .catch(function () { section.hidden = true; });
   });
