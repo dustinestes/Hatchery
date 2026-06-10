@@ -204,10 +204,21 @@ def hatch_clutch_post():
     except Exception as exc:
         return _render_hatch_clutch_form(clutch_files, preselected=filename, form_error=str(exc))
 
+    passwords = {
+        vm.name: request.form.get(f"credentials[{vm.name}]") or None for vm in clutch_obj.vms
+    }
+    missing = _missing_passwords(clutch_obj.vms, passwords)
+    if missing:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=f"Password required for: {', '.join(missing)}",
+        )
+
     for vm in clutch_obj.vms:
         try:
-            pw = request.form.get(f"credentials[{vm.name}]") or None
-            _provider().create_vm(vm, admin_password=pw)
+            _provider().create_vm(vm, admin_password=passwords[vm.name])
             notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
             notif_lib.record("warning", str(exc).splitlines()[0])
@@ -310,14 +321,9 @@ def _vm_list_from_form(form):
     return vms
 
 
-def _passwords_from_form(form, vms) -> dict[str, str | None]:
-    """Return {vm_name: password} for the build/edit array-notation form fields.
-
-    Passwords are indexed by position (parallel to vm_name[]) and keyed by
-    the resolved VM name so callers can look up by name at hatch time.
-    """
-    raw = form.getlist("vm_admin_password[]")
-    return {vm.name: (raw[i] or None) if i < len(raw) else None for i, vm in enumerate(vms)}
+def _missing_passwords(vms, passwords: dict) -> list[str]:
+    """Return names of VMs that have admin_username set but no password supplied."""
+    return [vm.name for vm in vms if vm.admin_username and not passwords.get(vm.name)]
 
 
 def _build_template_ctx():
@@ -378,17 +384,7 @@ def build_post():
     notif_lib.record("activity", f"Clutch '{saved}' created.")
 
     if action == "save_and_hatch":
-        passwords = _passwords_from_form(request.form, c.vms)
-        for vm in c.vms:
-            try:
-                _provider().create_vm(vm, admin_password=passwords.get(vm.name))
-                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-            except PermissionError as exc:
-                notif_lib.record("warning", str(exc).splitlines()[0])
-                return _rerender(str(exc))
-            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-                return _rerender(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("hatch_clutch", clutch=saved))
 
     return redirect(url_for("build"))
 
@@ -474,17 +470,7 @@ def edit_post():
     notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
 
     if action == "save_and_hatch":
-        passwords = _passwords_from_form(request.form, c.vms)
-        for vm in c.vms:
-            try:
-                _provider().create_vm(vm, admin_password=passwords.get(vm.name))
-                notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
-            except PermissionError as exc:
-                notif_lib.record("warning", str(exc).splitlines()[0])
-                return _rerender(str(exc))
-            except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-                return _rerender(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("hatch_clutch", clutch=new_filename))
 
     return redirect(url_for("edit", clutch=new_filename))
 

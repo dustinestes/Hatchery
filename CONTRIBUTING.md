@@ -67,7 +67,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
-    libguestfs-tools swtpm swtpm-tools
+    swtpm swtpm-tools mtools
 ```
 
 **Run the app:**

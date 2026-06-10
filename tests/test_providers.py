@@ -278,7 +278,7 @@ class TestCreateVM:
         cmd = mock_run.call_args[0][0]
         assert any("floppy" in arg for arg in cmd)
 
-    def test_floppy_cleaned_up_on_success(self, tmp_path, provider):
+    def test_floppy_persists_on_success(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
         answer = provider.automation_dir / "win11.xml"
@@ -298,7 +298,7 @@ class TestCreateVM:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
                 provider.create_vm(vm)
-        assert not img_path.exists()
+        assert img_path.exists()
 
     def test_floppy_cleaned_up_on_failure(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
@@ -431,6 +431,18 @@ class TestPowerState:
         mock_run.assert_called_once_with(
             ["virsh", "undefine", "myvm", "--remove-all-storage"], check=True
         )
+
+    def test_destroy_vm_removes_floppy_if_present(self, tmp_path, provider, monkeypatch):
+        monkeypatch.setattr(provider, "_floppy_path", lambda name: tmp_path / f"{name}.img")
+        floppy = tmp_path / "myvm.img"
+        floppy.touch()
+        with patch("subprocess.run"):
+            provider.destroy_vm("myvm")
+        assert not floppy.exists()
+
+    def test_destroy_vm_noop_when_no_floppy(self, provider):
+        with patch("subprocess.run"):
+            provider.destroy_vm("myvm")  # no floppy file — should not raise
 
 
 # ── Inventory ─────────────────────────────────────────────────────────────────
