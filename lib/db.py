@@ -3,17 +3,22 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-_MAX_NOTIFICATIONS = 500
+_MAX_ALERTS = 500
+_MAX_ACTIVITY = 500
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS notifications (
+CREATE TABLE IF NOT EXISTS alerts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at  TEXT    NOT NULL,
-    tier        TEXT    NOT NULL,
     message     TEXT    NOT NULL,
     resolved    INTEGER NOT NULL DEFAULT 0,
-    resolved_at TEXT,
-    dismissed   INTEGER NOT NULL DEFAULT 0
+    resolved_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS activity (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT    NOT NULL,
+    message    TEXT    NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS clutch_instances (
@@ -21,12 +26,7 @@ CREATE TABLE IF NOT EXISTS clutch_instances (
 );
 """
 
-# Applied after schema creation so existing databases gain new columns without
-# data loss. Each statement is attempted once; OperationalError means the column
-# already exists and is silently skipped.
-_MIGRATIONS = [
-    "ALTER TABLE notifications ADD COLUMN resolved_at TEXT",
-]
+_MIGRATIONS: list[str] = []
 
 _db_path: Path | None = None
 
@@ -38,12 +38,12 @@ def init_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     try:
         conn.executescript(_SCHEMA)
-        for migration in _MIGRATIONS:
+        for migration in _MIGRATIONS:  # pragma: no cover
             try:
                 conn.execute(migration)
                 conn.commit()
             except sqlite3.OperationalError:
-                pass  # column already exists
+                pass
     finally:
         conn.close()
 
@@ -56,9 +56,15 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
-def trim_notifications(conn: sqlite3.Connection) -> None:
+def trim_alerts(conn: sqlite3.Connection) -> None:
     conn.execute(
-        "DELETE FROM notifications WHERE id NOT IN "
-        "(SELECT id FROM notifications ORDER BY id DESC LIMIT ?)",
-        (_MAX_NOTIFICATIONS,),
+        "DELETE FROM alerts WHERE id NOT IN (SELECT id FROM alerts ORDER BY id DESC LIMIT ?)",
+        (_MAX_ALERTS,),
+    )
+
+
+def trim_activity(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "DELETE FROM activity WHERE id NOT IN (SELECT id FROM activity ORDER BY id DESC LIMIT ?)",
+        (_MAX_ACTIVITY,),
     )

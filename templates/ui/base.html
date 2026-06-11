@@ -160,7 +160,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="footer-left">
-      <div class="nest-status" title="{% if nest_has_warnings %}{{ nest_warning_count }} unresolved warning{{ 's' if nest_warning_count != 1 else '' }} — see Notifications{% else %}All systems operational{% endif %}">
+      <div class="nest-status" title="{% if nest_has_warnings %}{{ nest_warning_count }} active alert{{ 's' if nest_warning_count != 1 else '' }} — see Notifications{% else %}All systems operational{% endif %}">
         <span class="nest-status-dot {% if nest_has_warnings %}nest-status-dot--red{% else %}nest-status-dot--green{% endif %}"></span>
         <span class="nest-status-label">Nest</span>
       </div>

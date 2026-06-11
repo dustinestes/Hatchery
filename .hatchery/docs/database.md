@@ -79,7 +79,8 @@ The file is not included in the Hatchery source repository.
 
 | Data | Table | Why here |
 |---|---|---|
-| Notification history | `notifications` | App-generated, timestamped, structured — needs filtering, trimming, and querying |
+| Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
+| Activity history | `activity` | App-generated, timestamped, immutable — audit trail of user actions and provisioning events |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |
 
 <br>

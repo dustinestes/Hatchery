@@ -629,7 +629,7 @@ class TestHatchClutchRoute:
         assert resp.status_code == 200
         assert "alert" in resp.data.decode()
 
-    def test_post_permission_error_records_warning(self, client, tmp_path, monkeypatch):
+    def test_post_permission_error_records_alert(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
         with patch("hatchery._provider") as mock_prov:
@@ -637,8 +637,8 @@ class TestHatchClutchRoute:
                 "cannot access: win11.iso"
             )
             client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
-        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
-        assert any("cannot access" in w["message"] for w in warnings)
+        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
+        assert any("cannot access" in a["message"] for a in alerts)
 
 
 class TestAPIClutchDetail:
@@ -784,18 +784,18 @@ class TestScanDir:
 
 
 class TestNestStatus:
-    def test_dot_green_when_no_warnings(self, client):
-        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
+    def test_dot_green_when_no_alerts(self, client):
+        with patch("lib.notifications.count_active_alerts", return_value=0):
             html = client.get("/").data.decode()
         assert "nest-status-dot--green" in html
 
-    def test_dot_red_when_has_warnings(self, client):
-        with patch("lib.notifications.count_unresolved_warnings", return_value=2):
+    def test_dot_red_when_has_alerts(self, client):
+        with patch("lib.notifications.count_active_alerts", return_value=2):
             html = client.get("/").data.decode()
         assert "nest-status-dot--red" in html
 
     def test_status_present_on_all_panes(self, client):
-        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
+        with patch("lib.notifications.count_active_alerts", return_value=0):
             for path in [
                 "/",
                 "/nests",
@@ -810,53 +810,53 @@ class TestNestStatus:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
 
-    def test_tooltip_all_ok_when_no_warnings(self, client):
-        with patch("lib.notifications.count_unresolved_warnings", return_value=0):
+    def test_tooltip_all_ok_when_no_alerts(self, client):
+        with patch("lib.notifications.count_active_alerts", return_value=0):
             html = client.get("/").data.decode()
         assert "All systems operational" in html
 
-    def test_tooltip_shows_warning_count(self, client):
-        with patch("lib.notifications.count_unresolved_warnings", return_value=3):
+    def test_tooltip_shows_alert_count(self, client):
+        with patch("lib.notifications.count_active_alerts", return_value=3):
             html = client.get("/").data.decode()
-        assert "3 unresolved warning" in html
+        assert "3 active alert" in html
 
 
 class TestRequirementsSync:
-    def test_records_warning_for_missing_tool(self):
+    def test_records_alert_for_missing_tool(self):
         with patch(
             "lib.requirements.check_all",
             return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
         ):
             app_module._sync_requirements()
-        warnings = [n for n in notif_lib.list_recent() if n["tier"] == "warning"]
-        assert any("virsh" in w["message"] for w in warnings)
+        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
+        assert any("virsh" in a["message"] for a in alerts)
 
-    def test_no_warnings_when_all_tools_present(self):
+    def test_no_alerts_when_all_tools_present(self):
         with patch(
             "lib.requirements.check_all",
             return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
         ):
             app_module._sync_requirements()
-        assert notif_lib.count_unresolved_warnings() == 0
+        assert notif_lib.count_active_alerts() == 0
 
-    def test_resolves_stale_warning_when_tool_now_present(self):
-        notif_lib.record("warning", "Missing requirement: 'virsh' is not installed — VM lifecycle")
-        assert notif_lib.count_unresolved_warnings() == 1
+    def test_resolves_stale_alert_when_tool_now_present(self):
+        notif_lib.record_alert("Missing requirement: 'virsh' is not installed — VM lifecycle")
+        assert notif_lib.count_active_alerts() == 1
         with patch(
             "lib.requirements.check_all",
             return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", True)],
         ):
             app_module._sync_requirements()
-        assert notif_lib.count_unresolved_warnings() == 0
+        assert notif_lib.count_active_alerts() == 0
 
-    def test_does_not_duplicate_warning_on_repeated_calls(self):
+    def test_does_not_duplicate_alert_on_repeated_calls(self):
         missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
         with patch("lib.requirements.check_all", return_value=missing):
             app_module._sync_requirements()
             app_module._sync_requirements()
             app_module._sync_requirements()
         warnings = [
-            n for n in notif_lib.list_recent() if n["tier"] == "warning" and n["resolved"] == 0
+            n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
         ]
         assert len(warnings) == 1
 
@@ -866,7 +866,7 @@ class TestNotificationsRoute:
         assert client.get("/notifications").status_code == 200
 
     def test_shows_recorded_item(self, client):
-        notif_lib.record("activity", "test activity message")
+        notif_lib.record_activity("test activity message")
         html = client.get("/notifications").data.decode()
         assert "test activity message" in html
 
@@ -874,10 +874,10 @@ class TestNotificationsRoute:
         html = client.get("/notifications").data.decode()
         assert "No notifications yet" in html
 
-    def test_shows_tier_badge(self, client):
-        notif_lib.record("warning", "a warning notification")
+    def test_shows_alert_tier_badge(self, client):
+        notif_lib.record_alert("an environment alert")
         html = client.get("/notifications").data.decode()
-        assert "notif-tier-badge--warning" in html
+        assert "notif-tier-badge--alert" in html
 
 
 class TestBackgroundThread:
@@ -924,31 +924,19 @@ class TestNotificationsAPI:
         data = client.get("/api/notifications").get_json()
         assert "items" in data
 
-    def test_has_unresolved_warning_count_key(self, client):
+    def test_has_active_alert_count_key(self, client):
         data = client.get("/api/notifications").get_json()
-        assert "unresolved_warning_count" in data
+        assert "active_alert_count" in data
 
     def test_items_contains_recorded_notification(self, client):
-        notif_lib.record("activity", "api test message")
+        notif_lib.record_activity("api test message")
         data = client.get("/api/notifications").get_json()
         assert any(item["message"] == "api test message" for item in data["items"])
 
-    def test_warning_count_reflects_unresolved(self, client):
-        notif_lib.record("warning", "Missing requirement: some tool")
+    def test_alert_count_reflects_active(self, client):
+        notif_lib.record_alert("Missing requirement: some tool")
         data = client.get("/api/notifications").get_json()
-        assert data["unresolved_warning_count"] >= 1
-
-    def test_dismiss_returns_ok(self, client):
-        nid = notif_lib.record("activity", "to be dismissed")
-        resp = client.post(f"/api/notifications/{nid}/dismiss")
-        assert resp.status_code == 200
-        assert resp.get_json() == {"ok": True}
-
-    def test_dismiss_marks_notification_dismissed(self, client):
-        nid = notif_lib.record("activity", "dismiss me")
-        client.post(f"/api/notifications/{nid}/dismiss")
-        row = next(r for r in notif_lib.list_recent() if r["id"] == nid)
-        assert row["dismissed"] == 1
+        assert data["active_alert_count"] >= 1
 
 
 class TestAPIRoutes:
