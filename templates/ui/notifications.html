@@ -5,12 +5,12 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Notifications</h1>
-  <p class="pane-subtitle">Activity log and system warnings.</p>
+  <p class="pane-subtitle">Activity log and environment alerts.</p>
 </div>
 
 <div class="notif-filters" role="group" aria-label="Filter notifications">
   <button class="notif-filter-btn active" data-filter="all">All</button>
-  <button class="notif-filter-btn" data-filter="warning">Warnings</button>
+  <button class="notif-filter-btn" data-filter="alert">Alerts</button>
   <button class="notif-filter-btn" data-filter="activity">Activity</button>
 </div>
 
@@ -31,15 +31,15 @@
       <td><span class="notif-tier-badge notif-tier-badge--{{ item.tier }}">{{ item.tier }}</span></td>
       <td class="notif-table-msg">{{ item.message }}</td>
       <td class="notif-table-status">
-        {% if item.resolved %}
-          <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
-          {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
-        {% elif item.dismissed %}
-          <span class="notif-status-badge notif-status-badge--dismissed">Dismissed</span>
-        {% elif item.tier == 'warning' %}
-          <span class="notif-status-badge notif-status-badge--active">Active</span>
+        {% if item.tier == 'alert' %}
+          {% if item.resolved %}
+            <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
+            {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
+          {% else %}
+            <span class="notif-status-badge notif-status-badge--active">Active</span>
+          {% endif %}
         {% else %}
-          <button class="btn-dismiss" data-id="{{ item.id }}" title="Dismiss">×</button>
+          —
         {% endif %}
       </td>
     </tr>

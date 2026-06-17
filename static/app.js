@@ -424,7 +424,7 @@ hatchery.vmRows = (function () {
     if (unread > 0 || unresolvedWarningCount > 0) {
       badge.textContent = unread > 9 ? '9+' : (unread || '');
       badge.style.display = 'flex';
-      badge.className = 'notif-badge' + (unresolvedWarningCount > 0 ? ' notif-badge--warning' : '');
+      badge.className = 'notif-badge' + (unresolvedWarningCount > 0 ? ' notif-badge--alert' : '');
     } else {
       badge.style.display = 'none';
     }
@@ -453,7 +453,7 @@ hatchery.vmRows = (function () {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var items = data.items || [];
-        var warnCount = data.unresolved_warning_count || 0;
+        var warnCount = data.active_alert_count || 0;
         var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
         items.forEach(function (n) {
           if (n.created_at > lastRead) showToast(n.message, n.tier);
@@ -491,24 +491,6 @@ hatchery.vmRows = (function () {
         row.style.display = (filter === 'all' || row.dataset.tier === filter) ? '' : 'none';
       });
     });
-  });
-
-  /* Notifications table — dismiss */
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('.btn-dismiss');
-    if (!btn) return;
-    var id = btn.dataset.id;
-    fetch('/api/notifications/' + id + '/dismiss', { method: 'POST' })
-      .then(function () {
-        var row = btn.closest('tr');
-        if (row) {
-          var cell = row.querySelector('.notif-table-status');
-          if (cell) {
-            cell.innerHTML = '<span class="notif-status-badge notif-status-badge--dismissed">Dismissed</span>';
-          }
-        }
-      })
-      .catch(function () {});
   });
 
   pollNotifications();

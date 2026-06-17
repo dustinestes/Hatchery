@@ -21,14 +21,14 @@ _REQ_WARNING_PREFIX = "Missing requirement:"
 
 
 def _sync_requirements() -> None:
-    """Re-evaluate host requirements and sync warning notifications."""
+    """Re-evaluate host requirements and sync alerts."""
     for req in req_lib.check_all():
         msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
         if not req.present:
-            if not notif_lib.has_active_warning(msg):
-                notif_lib.record("warning", msg)
+            if not notif_lib.has_active_alert(msg):
+                notif_lib.record_alert(msg)
         else:
-            notif_lib.resolve_by_message_prefix(msg)
+            notif_lib.resolve_alerts_by_prefix(msg)
 
 
 def _background_loop(stop_event: threading.Event) -> None:
@@ -53,10 +53,10 @@ _start_background_thread()
 
 @app.context_processor
 def inject_nest_status():
-    warning_count = notif_lib.count_unresolved_warnings()
+    alert_count = notif_lib.count_active_alerts()
     return {
-        "nest_has_warnings": warning_count > 0,
-        "nest_warning_count": warning_count,
+        "nest_has_warnings": alert_count > 0,
+        "nest_warning_count": alert_count,
     }
 
 
@@ -219,9 +219,9 @@ def hatch_clutch_post():
     for vm in clutch_obj.vms:
         try:
             _provider().create_vm(vm, admin_password=passwords[vm.name])
-            notif_lib.record("activity", f"VM '{vm.name}' is hatching.")
+            notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
-            notif_lib.record("warning", str(exc).splitlines()[0])
+            notif_lib.record_alert(str(exc).splitlines()[0])
             return _render_hatch_clutch_form(
                 clutch_files,
                 preselected=filename,
@@ -381,7 +381,7 @@ def build_post():
         return _rerender(str(exc))
 
     saved = filename if filename.endswith(".yaml") else f"{filename}.yaml"
-    notif_lib.record("activity", f"Clutch '{saved}' created.")
+    notif_lib.record_activity(f"Clutch '{saved}' created.")
 
     if action == "save_and_hatch":
         return redirect(url_for("hatch_clutch", clutch=saved))
@@ -467,7 +467,7 @@ def edit_post():
     except Exception as exc:
         return _rerender(str(exc))
 
-    notif_lib.record("activity", f"Clutch '{new_filename}' saved.")
+    notif_lib.record_activity(f"Clutch '{new_filename}' saved.")
 
     if action == "save_and_hatch":
         return redirect(url_for("hatch_clutch", clutch=new_filename))
@@ -542,7 +542,7 @@ def clutch_delete(filename):
     safe = Path(filename).name
     path = config.data_dir() / "clutches" / safe
     path.unlink(missing_ok=True)
-    notif_lib.record("activity", f"Clutch '{safe}' deleted.")
+    notif_lib.record_activity(f"Clutch '{safe}' deleted.")
     return redirect(url_for("clutches"))
 
 
@@ -551,15 +551,9 @@ def api_notifications():
     return jsonify(
         {
             "items": notif_lib.list_recent(10),
-            "unresolved_warning_count": notif_lib.count_unresolved_warnings(),
+            "active_alert_count": notif_lib.count_active_alerts(),
         }
     )
-
-
-@app.route("/api/notifications/<int:notification_id>/dismiss", methods=["POST"])
-def api_dismiss_notification(notification_id):
-    notif_lib.dismiss(notification_id)
-    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -16,7 +16,7 @@ class TestInitDb:
         db_module.init_db(path)
         assert path.exists()
 
-    def test_creates_notifications_table(self):
+    def test_creates_alerts_table(self):
         conn = db_module.get_connection()
         try:
             names = [
@@ -25,7 +25,20 @@ class TestInitDb:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 ).fetchall()
             ]
-            assert "notifications" in names
+            assert "alerts" in names
+        finally:
+            conn.close()
+
+    def test_creates_activity_table(self):
+        conn = db_module.get_connection()
+        try:
+            names = [
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            assert "activity" in names
         finally:
             conn.close()
 
@@ -48,46 +61,24 @@ class TestInitDb:
         db_module.init_db(path)
         assert path.exists()
 
-    def test_migration_adds_resolved_at_to_existing_db(self, tmp_path):
-        import sqlite3
-
-        path = tmp_path / "legacy.db"
-        conn = sqlite3.connect(str(path))
-        conn.execute(
-            "CREATE TABLE notifications ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "created_at TEXT NOT NULL, tier TEXT NOT NULL, "
-            "message TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, "
-            "dismissed INTEGER NOT NULL DEFAULT 0)"
-        )
-        conn.commit()
-        conn.close()
-        db_module.init_db(path)
-        conn = db_module.get_connection()
-        try:
-            cols = [r["name"] for r in conn.execute("PRAGMA table_info(notifications)").fetchall()]
-            assert "resolved_at" in cols
-        finally:
-            conn.close()
-
     def test_creates_parent_dirs(self, tmp_path):
         path = tmp_path / "deep" / "nested" / "hatchery.db"
         db_module.init_db(path)
         assert path.exists()
 
-    def test_notifications_columns(self):
+    def test_alerts_columns(self):
         conn = db_module.get_connection()
         try:
-            cols = [r["name"] for r in conn.execute("PRAGMA table_info(notifications)").fetchall()]
-            assert cols == [
-                "id",
-                "created_at",
-                "tier",
-                "message",
-                "resolved",
-                "resolved_at",
-                "dismissed",
-            ]
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()]
+            assert cols == ["id", "created_at", "message", "resolved", "resolved_at"]
+        finally:
+            conn.close()
+
+    def test_activity_columns(self):
+        conn = db_module.get_connection()
+        try:
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(activity)").fetchall()]
+            assert cols == ["id", "created_at", "message"]
         finally:
             conn.close()
 
@@ -109,51 +100,48 @@ class TestGetConnection:
         conn = db_module.get_connection()
         try:
             conn.execute(
-                "INSERT INTO notifications (created_at, tier, message) VALUES ('2024-01-01', 'activity', 'hello')"
+                "INSERT INTO activity (created_at, message) VALUES ('2024-01-01', 'hello')"
             )
             conn.commit()
-            row = conn.execute("SELECT * FROM notifications").fetchone()
-            assert row["tier"] == "activity"
+            row = conn.execute("SELECT * FROM activity").fetchone()
             assert row["message"] == "hello"
         finally:
             conn.close()
 
 
-class TestTrimNotifications:
+class TestTrimAlerts:
     def test_trims_beyond_cap(self, monkeypatch):
-        monkeypatch.setattr(db_module, "_MAX_NOTIFICATIONS", 5)
+        monkeypatch.setattr(db_module, "_MAX_ALERTS", 5)
         conn = db_module.get_connection()
         try:
             for i in range(10):
                 conn.execute(
-                    "INSERT INTO notifications (created_at, tier, message) VALUES (?, 'activity', ?)",
+                    "INSERT INTO alerts (created_at, message) VALUES (?, ?)",
                     (f"2024-01-{i + 1:02d}", f"msg {i}"),
                 )
             conn.commit()
-            db_module.trim_notifications(conn)
+            db_module.trim_alerts(conn)
             conn.commit()
-            count = conn.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+            count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
             assert count == 5
         finally:
             conn.close()
 
     def test_keeps_newest_rows(self, monkeypatch):
-        monkeypatch.setattr(db_module, "_MAX_NOTIFICATIONS", 3)
+        monkeypatch.setattr(db_module, "_MAX_ALERTS", 3)
         conn = db_module.get_connection()
         try:
             for i in range(5):
                 conn.execute(
-                    "INSERT INTO notifications (created_at, tier, message) VALUES (?, 'activity', ?)",
+                    "INSERT INTO alerts (created_at, message) VALUES (?, ?)",
                     (f"2024-01-{i + 1:02d}", f"msg {i}"),
                 )
             conn.commit()
-            db_module.trim_notifications(conn)
+            db_module.trim_alerts(conn)
             conn.commit()
             messages = [
                 r["message"]
-                for r in conn.execute(
-                    "SELECT message FROM notifications ORDER BY id DESC"
-                ).fetchall()
+                for r in conn.execute("SELECT message FROM alerts ORDER BY id DESC").fetchall()
             ]
             assert "msg 4" in messages
             assert "msg 0" not in messages
@@ -165,13 +153,69 @@ class TestTrimNotifications:
         try:
             for i in range(3):
                 conn.execute(
-                    "INSERT INTO notifications (created_at, tier, message) VALUES (?, 'activity', ?)",
+                    "INSERT INTO alerts (created_at, message) VALUES (?, ?)",
                     (f"2024-01-{i + 1:02d}", f"msg {i}"),
                 )
             conn.commit()
-            db_module.trim_notifications(conn)
+            db_module.trim_alerts(conn)
             conn.commit()
-            count = conn.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+            count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+            assert count == 3
+        finally:
+            conn.close()
+
+
+class TestTrimActivity:
+    def test_trims_beyond_cap(self, monkeypatch):
+        monkeypatch.setattr(db_module, "_MAX_ACTIVITY", 5)
+        conn = db_module.get_connection()
+        try:
+            for i in range(10):
+                conn.execute(
+                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
+                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
+                )
+            conn.commit()
+            db_module.trim_activity(conn)
+            conn.commit()
+            count = conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0]
+            assert count == 5
+        finally:
+            conn.close()
+
+    def test_keeps_newest_rows(self, monkeypatch):
+        monkeypatch.setattr(db_module, "_MAX_ACTIVITY", 3)
+        conn = db_module.get_connection()
+        try:
+            for i in range(5):
+                conn.execute(
+                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
+                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
+                )
+            conn.commit()
+            db_module.trim_activity(conn)
+            conn.commit()
+            messages = [
+                r["message"]
+                for r in conn.execute("SELECT message FROM activity ORDER BY id DESC").fetchall()
+            ]
+            assert "msg 4" in messages
+            assert "msg 0" not in messages
+        finally:
+            conn.close()
+
+    def test_no_trim_when_under_cap(self):
+        conn = db_module.get_connection()
+        try:
+            for i in range(3):
+                conn.execute(
+                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
+                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
+                )
+            conn.commit()
+            db_module.trim_activity(conn)
+            conn.commit()
+            count = conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0]
             assert count == 3
         finally:
             conn.close()
