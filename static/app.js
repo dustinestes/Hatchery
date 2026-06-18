@@ -460,7 +460,6 @@ hatchery.vmRows = (function () {
         });
         updateBadge(items, warnCount);
         populateTray(items);
-        localStorage.setItem(LAST_READ_KEY, new Date().toISOString());
       })
       .catch(function () {});
   }
@@ -472,6 +471,9 @@ hatchery.vmRows = (function () {
     bellBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       tray.classList.toggle('open');
+      if (tray.classList.contains('open')) {
+        localStorage.setItem(LAST_READ_KEY, new Date().toISOString());
+      }
     });
     document.addEventListener('click', function (e) {
       if (tray.classList.contains('open') && !tray.contains(e.target) && e.target !== bellBtn) {

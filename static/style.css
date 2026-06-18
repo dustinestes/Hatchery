@@ -1124,7 +1124,7 @@ body {
   line-height: 1;
 }
 
-.notif-badge--warning { background: #E53935; }
+.notif-badge--alert { background: #E53935; }
 
 .notif-tray {
   display: none;
@@ -1191,18 +1191,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.notif-tier-badge--warning {
-  background: color-mix(in srgb, #D97706 15%, var(--color-surface));
-  color: #D97706;
-}
-
-.notif-tier-badge--activity {
-  background: color-mix(in srgb, var(--gold) 15%, var(--color-surface));
-  color: var(--gold-dark);
+  color: var(--color-text-muted);
 }
 
 .notif-status-badge {
