@@ -6,7 +6,7 @@
 <h1>Notifications</h1>
 <br clear="both">
 
-How Hatchery surfaces environment alerts and activity events — tiers, lifecycle, UI components, and startup sync.
+How Hatchery surfaces environment alerts and activity events — tiers, lifecycle, UI components, and background sync.
 
 <br>
 
@@ -24,7 +24,7 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
   - [Alerts](#alerts)
   - [Activity](#activity)
   - [Status matrix](#status-matrix)
-- [Startup Sync](#startup-sync)
+- [Background Sync](#background-sync)
 - [Contributor Tooling](#contributor-tooling)
 
 ---
@@ -33,7 +33,7 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
 
 ## Overview
 
-Hatchery uses a lightweight notification system to communicate two categories of events: environment alerts (missing host requirements, degraded state) and activity events (VMs hatched, Clutch files exported). Both categories are served from the same `/api/notifications` endpoint and drive the same UI surfaces.
+Hatchery uses a lightweight notification system to communicate two categories of events: environment alerts (missing host requirements, invalid Clutch files) and activity events (VMs hatched, Clutch files exported). Both categories are served from the same `/api/notifications` endpoint and drive the same UI surfaces.
 
 Alerts are stored in the `alerts` table and activity in the `activity` table in `hatchery.db`. The browser polls `/api/notifications` on every page load and updates all UI surfaces — toast overlay, bell badge, tray dropdown, and the Notifications pane — without requiring a page refresh.
 
@@ -45,10 +45,10 @@ Alerts are stored in the `alerts` table and activity in the `activity` table in 
 
 | Tier | Meaning | Source | Resolution |
 |---|---|---|---|
-| `alert` | Environment is degraded — a required tool is missing or a host condition is unmet | Startup sync | Auto-resolved when the condition clears on next restart |
+| `alert` | Environment is degraded — a required tool is missing, or a Clutch file is invalid | Background sync (startup + periodic) | Auto-resolved when the condition clears on the next sync cycle |
 | `activity` | Something happened — a VM was hatched, a Clutch was exported | User action | Immutable; no lifecycle actions |
 
-**Alerts** are system-owned. They are recorded at startup, re-evaluated on every restart, and resolved automatically when the triggering condition is gone. An alert is active until the system resolves it — there is no user dismiss action.
+**Alerts** are system-owned. They are recorded at startup and re-evaluated on every background sync cycle, and resolved automatically when the triggering condition is gone. An alert is active until the system resolves it — there is no user dismiss action.
 
 **Activity** notifications are action-owned. Each user action that completes successfully (hatch, export, append) records an activity entry. These accumulate as an immutable audit trail; they have no lifecycle state and cannot be dismissed or resolved.
 
@@ -132,17 +132,26 @@ After every insert into either table, rows beyond the 500-row cap are trimmed. S
 
 ---
 
-## Startup Sync
+## Background Sync
 
-Every time Hatchery starts, it calls `_sync_requirements()` before serving any requests. This function:
+Hatchery runs two sync functions at startup and then on every background cycle (controlled by the **Background Validation Interval** setting, default 60 seconds):
 
-1. Resolves all existing active alerts whose message starts with `"Missing requirement:"` — clearing any stale state from a previous run.
-2. Checks which required host tools are currently missing via `lib.requirements.check_all()`.
-3. Records a fresh `alert` for each missing tool.
+### Requirements sync (`_sync_requirements`)
 
-The result: the alert state in the database always reflects the current host condition as of the last startup. If a tool was missing in a prior run and is now installed, the old alert is resolved and no new one is recorded. If a new tool is missing, a fresh alert appears.
+1. Checks which required host tools are currently present via `lib.requirements.check_all()`.
+2. For each missing tool, records an alert prefixed with `"Missing requirement:"` if one is not already active.
+3. For each present tool, resolves any active alert with that same prefix.
 
-Requirements are not re-checked on every request — only at startup. Restarting Hatchery after installing missing tools clears the alerts.
+### Clutch file sync (`_sync_clutches`)
+
+1. Iterates every `.yaml` file in the clutches directory.
+2. For each file, runs full schema and dependency validation via `clutch_lib.load()`.
+3. On failure, records an alert prefixed with `"Invalid Clutch file: '<filename>'"` if one is not already active.
+4. On success, resolves any active alert for that file.
+
+Alerts for a deleted Clutch file are resolved immediately at delete time — not waiting for the next background cycle.
+
+The result: alert state in the database always reflects the current environment. If a missing tool is installed or a broken Clutch file is fixed, the alert is resolved on the next sync cycle without requiring a restart.
 
 <br>
 

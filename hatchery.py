@@ -18,6 +18,7 @@ app = Flask(__name__, template_folder="templates/ui")
 app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-production")
 
 _REQ_WARNING_PREFIX = "Missing requirement:"
+_CLUTCH_ALERT_PREFIX = "Invalid Clutch file:"
 
 
 def _sync_requirements() -> None:
@@ -31,9 +32,26 @@ def _sync_requirements() -> None:
             notif_lib.resolve_alerts_by_prefix(msg)
 
 
+def _sync_clutches() -> None:
+    """Validate all Clutch files and sync alerts for any that fail."""
+    clutches_dir = config.data_dir() / "clutches"
+    if not clutches_dir.exists():
+        return
+    for path in sorted(clutches_dir.glob("*.yaml")):
+        prefix = f"{_CLUTCH_ALERT_PREFIX} '{path.name}'"
+        try:
+            clutch_lib.load(path)
+            notif_lib.resolve_alerts_by_prefix(prefix)
+        except Exception as exc:
+            msg = f"{prefix} — {exc}"
+            if not notif_lib.has_active_alert(msg):
+                notif_lib.record_alert(msg)
+
+
 def _background_loop(stop_event: threading.Event) -> None:
     while not stop_event.wait(config.bg_interval()):
         _sync_requirements()
+        _sync_clutches()
 
 
 def _start_background_thread() -> threading.Event:
@@ -48,6 +66,7 @@ config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
 _sync_requirements()
+_sync_clutches()
 _start_background_thread()
 
 
@@ -579,6 +598,7 @@ def clutch_delete(filename):
     safe = Path(filename).name
     path = config.data_dir() / "clutches" / safe
     path.unlink(missing_ok=True)
+    notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{safe}'")
     notif_lib.record_activity(f"Clutch '{safe}' deleted.")
     return redirect(url_for("clutches"))
 
