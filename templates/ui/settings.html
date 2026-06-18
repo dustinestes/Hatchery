@@ -36,6 +36,20 @@
     </div>
   </section>
 
+  <section class="form-section">
+    <h2 class="form-section-title">Background Validation</h2>
+    <div class="form-grid form-grid-1">
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label" for="bg-interval">Interval (seconds) <span class="required">*</span></label>
+          <span class="form-help-icon" data-tip="How often Hatchery re-evaluates host requirements and updates alerts. Minimum 10 seconds.">i</span>
+        </div>
+        <input type="number" id="bg-interval" name="bg_interval" class="form-input"
+               value="{{ cfg.bg_interval }}" required min="10" placeholder="60">
+      </div>
+    </div>
+  </section>
+
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
   </div>
