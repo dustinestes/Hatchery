@@ -102,6 +102,39 @@ def _detect_cycle(graph: dict[str, list[str]]) -> list[str] | None:
     return None
 
 
+def load_raw(path: str | Path) -> dict:
+    """Load a Clutch YAML without cross-VM validation.
+
+    Parses individual VMConfig fields but skips Clutch-level checks (duplicate names,
+    dependency references, cycle detection). Returns a plain dict with 'name',
+    'description', and 'vms' keys. Use this to recover data from a clutch that fails
+    full validation so it can still be displayed for editing.
+
+    Raises FileNotFoundError or ValueError for unrecoverable parse failures.
+    """
+    path = Path(path)
+    try:
+        with open(path) as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Clutch file not found: {path}")
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Invalid YAML in '{path.name}': {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(f"'{path.name}' must be a YAML mapping, not {type(data).__name__}")
+
+    vms = []
+    for vm_data in data.get("vms") or []:
+        try:
+            vm = VMConfig.model_validate(vm_data)
+            vms.append(vm.model_dump(mode="json", exclude_none=True))
+        except ValidationError:
+            pass
+
+    return {"name": data.get("name", ""), "description": data.get("description"), "vms": vms}
+
+
 def load(path: str | Path) -> Clutch:
     """Load and validate a Clutch file, returning a Clutch object.
 
