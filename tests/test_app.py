@@ -114,14 +114,14 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        resp = client.post("/settings", data={"data_dir": str(tmp_path)})
+        resp = client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
         assert resp.status_code == 302
         assert "saved=1" in resp.headers["Location"]
         assert saved["data_dir"] == str(tmp_path)
 
     def test_post_empty_path_shows_error(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
-        resp = client.post("/settings", data={"data_dir": ""})
+        resp = client.post("/settings", data={"data_dir": "", "bg_interval": "60"})
         assert resp.status_code == 200
         assert "required" in resp.data.decode().lower()
 
@@ -130,7 +130,7 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        client.post("/settings", data={"data_dir": "~/hatchery/data"})
+        client.post("/settings", data={"data_dir": "~/hatchery/data", "bg_interval": "60"})
         assert not saved["data_dir"].startswith("~")
 
     def test_get_saved_param_shows_success_banner(self, client):
@@ -142,8 +142,33 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: None)
         monkeypatch.setattr(cfg, "init_data_dir", lambda: called.append(True))
-        client.post("/settings", data={"data_dir": str(tmp_path)})
+        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
         assert called
+
+    def test_get_shows_current_bg_interval(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/some/path", "bg_interval": 120})
+        html = client.get("/settings").data.decode()
+        assert "120" in html
+
+    def test_post_saves_bg_interval(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "120"})
+        assert saved["bg_interval"] == 120
+
+    def test_post_bg_interval_below_minimum_shows_error(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
+        resp = client.post("/settings", data={"data_dir": "/some/path", "bg_interval": "5"})
+        assert resp.status_code == 200
+        assert "10" in resp.data.decode()
+
+    def test_post_bg_interval_non_numeric_shows_error(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
+        resp = client.post("/settings", data={"data_dir": "/some/path", "bg_interval": "abc"})
+        assert resp.status_code == 200
+        assert "interval" in resp.data.decode().lower()
 
 
 class TestBuildRoute:
