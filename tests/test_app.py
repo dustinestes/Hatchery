@@ -544,6 +544,26 @@ class TestEditRoute:
         assert "edit-form" in html
         assert "Circular dependency" in html
 
+    def test_post_save_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some validation error")
+        assert notif_lib.count_active_alerts() == 1
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        client.post("/edit", data=form)
+        assert notif_lib.count_active_alerts() == 0
+
 
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     clutches_dir = tmp_path / "clutches"
@@ -797,6 +817,14 @@ class TestDeleteClutch:
         assert resp.status_code == 404
         assert (tmp_path / "clutches" / "my-lab.yaml").exists()
 
+    def test_delete_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some error")
+        assert notif_lib.count_active_alerts() == 1
+        client.post("/clutch/my-lab.yaml/delete")
+        assert notif_lib.count_active_alerts() == 0
+
     def test_clutches_page_uses_modal_not_confirm(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
@@ -921,6 +949,71 @@ class TestRequirementsSync:
         assert len(warnings) == 1
 
 
+class TestClutchesSync:
+    def test_records_alert_for_invalid_clutch(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "bad.yaml").write_text(
+            "name: cycle\nvms:\n"
+            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-b]}\n"
+            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-a]}\n"
+        )
+        app_module._sync_clutches()
+        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        assert any("bad.yaml" in a["message"] for a in alerts)
+
+    def test_alert_message_strips_redundant_file_context(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "bad.yaml").write_text(
+            "name: cycle\nvms:\n"
+            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-b]}\n"
+            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-a]}\n"
+        )
+        app_module._sync_clutches()
+        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        msg = next(a["message"] for a in alerts if "bad.yaml" in a["message"])
+        assert "Circular dependency" in msg
+        assert msg.count("bad.yaml") == 1
+        assert "Value error" not in msg
+
+    def test_no_alert_for_valid_clutch(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        app_module._sync_clutches()
+        assert notif_lib.count_active_alerts() == 0
+
+    def test_resolves_stale_alert_when_clutch_fixed(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some old error")
+        assert notif_lib.count_active_alerts() == 1
+        _make_clutch(tmp_path)
+        app_module._sync_clutches()
+        assert notif_lib.count_active_alerts() == 0
+
+    def test_does_not_duplicate_alert_on_repeated_calls(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "bad.yaml").write_text("not: valid: clutch: [")
+        app_module._sync_clutches()
+        app_module._sync_clutches()
+        app_module._sync_clutches()
+        active = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        assert len(active) == 1
+
+    def test_noop_when_clutches_dir_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        app_module._sync_clutches()
+        assert notif_lib.count_active_alerts() == 0
+
+
 class TestNotificationsRoute:
     def test_returns_200(self, client):
         assert client.get("/notifications").status_code == 200
@@ -944,23 +1037,35 @@ class TestBackgroundThread:
     def test_loop_calls_sync_on_timeout(self):
         stop = MagicMock()
         stop.wait.side_effect = [False, True]
-        with patch.object(app_module, "_sync_requirements") as mock_sync:
+        with (
+            patch.object(app_module, "_sync_requirements") as mock_req,
+            patch.object(app_module, "_sync_clutches") as mock_clutch,
+        ):
             app_module._background_loop(stop)
-        mock_sync.assert_called_once()
+        mock_req.assert_called_once()
+        mock_clutch.assert_called_once()
 
     def test_loop_calls_sync_multiple_ticks(self):
         stop = MagicMock()
         stop.wait.side_effect = [False, False, False, True]
-        with patch.object(app_module, "_sync_requirements") as mock_sync:
+        with (
+            patch.object(app_module, "_sync_requirements") as mock_req,
+            patch.object(app_module, "_sync_clutches") as mock_clutch,
+        ):
             app_module._background_loop(stop)
-        assert mock_sync.call_count == 3
+        assert mock_req.call_count == 3
+        assert mock_clutch.call_count == 3
 
     def test_loop_exits_without_sync_when_stopped_immediately(self):
         stop = MagicMock()
         stop.wait.return_value = True
-        with patch.object(app_module, "_sync_requirements") as mock_sync:
+        with (
+            patch.object(app_module, "_sync_requirements") as mock_req,
+            patch.object(app_module, "_sync_clutches") as mock_clutch,
+        ):
             app_module._background_loop(stop)
-        mock_sync.assert_not_called()
+        mock_req.assert_not_called()
+        mock_clutch.assert_not_called()
 
     def test_start_background_thread_spawns_daemon_thread(self):
         with patch("threading.Thread") as mock_thread_cls:
