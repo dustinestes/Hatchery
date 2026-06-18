@@ -544,6 +544,26 @@ class TestEditRoute:
         assert "edit-form" in html
         assert "Circular dependency" in html
 
+    def test_post_save_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some validation error")
+        assert notif_lib.count_active_alerts() == 1
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "My Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "win11",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_depends_on[]": "",
+        }
+        client.post("/edit", data=form)
+        assert notif_lib.count_active_alerts() == 0
+
 
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     clutches_dir = tmp_path / "clutches"

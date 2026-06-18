@@ -531,6 +531,9 @@ def edit_post():
     except Exception as exc:
         return _rerender(str(exc))
 
+    notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{old_filename}'")
+    if new_filename != old_filename:
+        notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{new_filename}'")
     notif_lib.record_activity(f"Clutch '{new_filename}' saved.")
 
     if action == "save_and_hatch":
