@@ -32,6 +32,20 @@ def _sync_requirements() -> None:
             notif_lib.resolve_alerts_by_prefix(msg)
 
 
+def _clutch_error_detail(filename: str, error: str) -> str:
+    """Strip redundant file context and Pydantic noise from a clutch load error."""
+    file_header = f"Invalid Clutch file '{filename}':\n"
+    if error.startswith(file_header):
+        lines = error[len(file_header) :].splitlines()
+        parts = [
+            line.strip().removeprefix("clutch: ").removeprefix("Value error, ")
+            for line in lines
+            if line.strip()
+        ]
+        return "; ".join(parts)
+    return error
+
+
 def _sync_clutches() -> None:
     """Validate all Clutch files and sync alerts for any that fail."""
     clutches_dir = config.data_dir() / "clutches"
@@ -43,7 +57,7 @@ def _sync_clutches() -> None:
             clutch_lib.load(path)
             notif_lib.resolve_alerts_by_prefix(prefix)
         except Exception as exc:
-            msg = f"{prefix} — {exc}"
+            msg = f"{prefix} — {_clutch_error_detail(path.name, str(exc))}"
             if not notif_lib.has_active_alert(msg):
                 notif_lib.record_alert(msg)
 

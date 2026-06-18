@@ -945,6 +945,24 @@ class TestClutchesSync:
         alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
         assert any("bad.yaml" in a["message"] for a in alerts)
 
+    def test_alert_message_strips_redundant_file_context(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "bad.yaml").write_text(
+            "name: cycle\nvms:\n"
+            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-b]}\n"
+            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-a]}\n"
+        )
+        app_module._sync_clutches()
+        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        msg = next(a["message"] for a in alerts if "bad.yaml" in a["message"])
+        assert "Circular dependency" in msg
+        assert msg.count("bad.yaml") == 1
+        assert "Value error" not in msg
+
     def test_no_alert_for_valid_clutch(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
