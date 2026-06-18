@@ -394,18 +394,32 @@ def build_post():
 
 @app.route("/edit", methods=["GET"])
 def edit():
+    from pathlib import Path as _Path
+
     filename = request.args.get("clutch", "").strip()
     if not filename:
         return redirect(url_for("clutches"))
+
+    form_error = None
+    form_name = ""
     try:
         clutch_obj = _load_clutch(filename)
-    except Exception:
+        form_name = clutch_obj.name
+    except FileNotFoundError:
         return redirect(url_for("clutches"))
+    except Exception as exc:
+        try:
+            raw = clutch_lib.load_raw(config.data_dir() / "clutches" / _Path(filename).name)
+            form_name = raw["name"]
+            form_error = str(exc)
+        except Exception:
+            return redirect(url_for("clutches"))
+
     current_stem = filename[:-5] if filename.endswith(".yaml") else filename
     return render_template(
         "edit.html",
-        form_error=None,
-        form_name=clutch_obj.name,
+        form_error=form_error,
+        form_name=form_name,
         form_filename=current_stem,
         current_filename=filename,
         **_build_template_ctx(),
@@ -505,12 +519,18 @@ def api_clutches():
 
 @app.route("/api/clutch/<filename>")
 def api_clutch_detail(filename):
+    from pathlib import Path as _Path
+
     try:
         c = _load_clutch(filename)
     except FileNotFoundError:
         return jsonify({"error": "not found"}), 404
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 400
+        try:
+            raw = clutch_lib.load_raw(config.data_dir() / "clutches" / _Path(filename).name)
+            return jsonify({**raw, "validation_error": str(exc)})
+        except Exception:
+            return jsonify({"error": str(exc)}), 400
     return jsonify(
         {
             "name": c.name,

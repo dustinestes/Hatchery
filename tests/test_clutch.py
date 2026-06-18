@@ -299,6 +299,49 @@ class TestCrossVMValidation:
         assert len(result.vms) == 3
 
 
+class TestLoadRaw:
+    CIRCULAR = textwrap.dedent("""\
+        name: cycle-lab
+        vms:
+          - name: vm-a
+            os: win11
+            vcpus: 2
+            ram_gb: 4
+            disk_gb: 40
+            os_media: win11.iso
+            depends_on: [vm-b]
+          - name: vm-b
+            os: win11
+            vcpus: 2
+            ram_gb: 4
+            disk_gb: 40
+            os_media: win11.iso
+            depends_on: [vm-a]
+    """)
+
+    def test_returns_vms_despite_cycle(self, tmp_path):
+        result = clutch.load_raw(write_clutch(tmp_path, self.CIRCULAR))
+        assert len(result["vms"]) == 2
+
+    def test_preserves_depends_on(self, tmp_path):
+        result = clutch.load_raw(write_clutch(tmp_path, self.CIRCULAR))
+        vm_a = next(v for v in result["vms"] if v["name"] == "vm-a")
+        assert vm_a["depends_on"] == ["vm-b"]
+
+    def test_preserves_clutch_name(self, tmp_path):
+        result = clutch.load_raw(write_clutch(tmp_path, self.CIRCULAR))
+        assert result["name"] == "cycle-lab"
+
+    def test_file_not_found_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            clutch.load_raw(tmp_path / "missing.yaml")
+
+    def test_valid_clutch_also_works(self, tmp_path):
+        result = clutch.load_raw(write_clutch(tmp_path, MINIMAL_VM))
+        assert result["name"] == "test-lab"
+        assert len(result["vms"]) == 1
+
+
 class TestFileErrors:
     def test_file_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="not found"):

@@ -502,6 +502,23 @@ class TestEditRoute:
         assert "hatch-clutch" in resp.headers["Location"]
         assert "my-lab.yaml" in resp.headers["Location"]
 
+    def test_get_circular_dependency_renders_form_with_error(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "cycle.yaml").write_text(
+            "name: cycle-lab\nvms:\n"
+            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-b]}\n"
+            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-a]}\n"
+        )
+        resp = client.get("/edit?clutch=cycle.yaml")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "edit-form" in html
+        assert "Circular dependency" in html
+
 
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     clutches_dir = tmp_path / "clutches"
@@ -707,6 +724,24 @@ class TestAPIClutchDetail:
         (tmp_path / "clutches" / "bad.yaml").write_text("not: valid: clutch: yaml: [")
         resp = client.get("/api/clutch/bad.yaml")
         assert resp.status_code == 400
+
+    def test_circular_dependency_returns_200_with_vms(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        (clutches_dir / "cycle.yaml").write_text(
+            "name: cycle-lab\nvms:\n"
+            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-b]}\n"
+            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            " os_media: win11.iso, depends_on: [vm-a]}\n"
+        )
+        resp = client.get("/api/clutch/cycle.yaml")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["vms"]) == 2
+        assert "validation_error" in data
+        assert "Circular dependency" in data["validation_error"]
 
 
 class TestDeleteClutch:
