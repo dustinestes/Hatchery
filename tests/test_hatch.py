@@ -157,6 +157,80 @@ class TestSetVmStatus:
         assert s["completed_at"] is None
 
 
+# ── set_vm_uuid ───────────────────────────────────────────────────────────────
+
+
+class TestSetVmUuid:
+    def _setup(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        return sid
+
+    def _get_vm(self, sid):
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        return next(v for v in s["vms"] if v["vm_name"] == "dc01")
+
+    def test_stores_uuid(self):
+        sid = self._setup()
+        hatch_lib.set_vm_uuid(sid, "dc01", "aabbccdd-1234-5678-abcd-000000000001")
+        vm = self._get_vm(sid)
+        assert vm["libvirt_uuid"] == "aabbccdd-1234-5678-abcd-000000000001"
+
+    def test_uuid_is_none_before_set(self):
+        sid = self._setup()
+        vm = self._get_vm(sid)
+        assert vm["libvirt_uuid"] is None
+
+    def test_overwrites_existing_uuid(self):
+        sid = self._setup()
+        hatch_lib.set_vm_uuid(sid, "dc01", "aaaa-old")
+        hatch_lib.set_vm_uuid(sid, "dc01", "bbbb-new")
+        vm = self._get_vm(sid)
+        assert vm["libvirt_uuid"] == "bbbb-new"
+
+    def test_noop_when_vm_not_found(self):
+        sid = self._setup()
+        hatch_lib.set_vm_uuid(sid, "ghost", "some-uuid")
+        vm = self._get_vm(sid)
+        assert vm["libvirt_uuid"] is None
+
+
+# ── update_vm_name ────────────────────────────────────────────────────────────
+
+
+class TestUpdateVmName:
+    def _setup(self, name="dc01"):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, name)
+        return sid
+
+    def test_updates_name(self):
+        sid = self._setup("dc01")
+        hatch_lib.update_vm_name(sid, "dc01", "dc01-renamed")
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        names = [v["vm_name"] for v in s["vms"]]
+        assert "dc01-renamed" in names
+        assert "dc01" not in names
+
+    def test_noop_when_old_name_not_found(self):
+        sid = self._setup("dc01")
+        hatch_lib.update_vm_name(sid, "ghost", "newname")
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert s["vms"][0]["vm_name"] == "dc01"
+
+    def test_preserves_status_after_rename(self):
+        sid = self._setup("dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        hatch_lib.update_vm_name(sid, "dc01", "dc01-renamed")
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        vm = next(v for v in s["vms"] if v["vm_name"] == "dc01-renamed")
+        assert vm["status"] == "hatching"
+
+
 # ── _compute_session_status ───────────────────────────────────────────────────
 
 

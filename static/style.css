@@ -1506,10 +1506,23 @@ body {
   padding: 4px 0;
 }
 
+.session-vm-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+
 .session-vm-name {
   font-family: var(--font-heading);
   font-weight: 500;
-  min-width: 120px;
+}
+
+.session-vm-uuid {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
 }
 
 .session-vm-error {

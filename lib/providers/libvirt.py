@@ -325,6 +325,22 @@ class LibvirtProvider(BaseProvider):
                 return parts[3].split("/")[0]
         return None
 
+    def get_vm_uuid(self, name: str) -> str | None:
+        """Return the libvirt UUID of a VM, or None if the VM does not exist."""
+        result = subprocess.run(["virsh", "domuuid", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            return None
+        uuid = result.stdout.strip()
+        return uuid if uuid else None
+
+    def get_vm_name_by_uuid(self, uuid: str) -> str | None:
+        """Return the current name of a VM by UUID, or None if not found."""
+        result = subprocess.run(["virsh", "domname", uuid], capture_output=True, text=True)
+        if result.returncode != 0:
+            return None
+        name = result.stdout.strip()
+        return name if name else None
+
     # ── Session metadata ──────────────────────────────────────────────────────
 
     _METADATA_URI = "https://hatchery.io/metadata"

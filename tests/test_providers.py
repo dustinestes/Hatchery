@@ -598,6 +598,69 @@ class TestGetVmSessionTag:
         assert tag is None
 
 
+# ── VM UUID ───────────────────────────────────────────────────────────────────
+
+
+class TestGetVmUuid:
+    _UUID = "aabbccdd-1234-5678-abcd-000000000001"
+
+    def test_returns_uuid_string(self, provider):
+        result = MagicMock(returncode=0, stdout=f"{self._UUID}\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_uuid("myvm") == self._UUID
+
+    def test_returns_none_on_nonzero_exit(self, provider):
+        result = MagicMock(returncode=1, stdout="error: failed to get domain 'myvm'\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_uuid("myvm") is None
+
+    def test_returns_none_on_empty_output(self, provider):
+        result = MagicMock(returncode=0, stdout="")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_uuid("myvm") is None
+
+    def test_strips_trailing_newline(self, provider):
+        result = MagicMock(returncode=0, stdout=f"{self._UUID}\n\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_uuid("myvm") == self._UUID
+
+    def test_calls_virsh_domuuid(self, provider):
+        result = MagicMock(returncode=0, stdout=f"{self._UUID}\n")
+        with patch("subprocess.run", return_value=result) as mock_run:
+            provider.get_vm_uuid("myvm")
+        assert mock_run.call_args[0][0] == ["virsh", "domuuid", "myvm"]
+
+
+class TestGetVmNameByUuid:
+    _UUID = "aabbccdd-1234-5678-abcd-000000000001"
+
+    def test_returns_vm_name(self, provider):
+        result = MagicMock(returncode=0, stdout="dc01\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_name_by_uuid(self._UUID) == "dc01"
+
+    def test_returns_none_on_nonzero_exit(self, provider):
+        result = MagicMock(returncode=1, stdout="error: failed to get domain\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_name_by_uuid(self._UUID) is None
+
+    def test_returns_none_on_empty_output(self, provider):
+        result = MagicMock(returncode=0, stdout="")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_name_by_uuid(self._UUID) is None
+
+    def test_strips_trailing_newline(self, provider):
+        result = MagicMock(returncode=0, stdout="dc01\n")
+        with patch("subprocess.run", return_value=result):
+            assert provider.get_vm_name_by_uuid(self._UUID) == "dc01"
+
+    def test_calls_virsh_domname(self, provider):
+        result = MagicMock(returncode=0, stdout="dc01\n")
+        with patch("subprocess.run", return_value=result) as mock_run:
+            provider.get_vm_name_by_uuid(self._UUID)
+        assert mock_run.call_args[0][0] == ["virsh", "domname", self._UUID]
+
+
 # ── Snapshots ─────────────────────────────────────────────────────────────────
 
 

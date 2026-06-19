@@ -73,30 +73,42 @@ def _check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
 
 
 def _sync_hatch_status() -> None:
-    """Check all hatching VMs: mark fledged if WinRM responds, culled if VM is gone."""
+    """Monitor hatching and fledged VMs: advance to fledged on WinRM, cull if gone."""
     sessions = hatch_lib.list_sessions()
-    hatching = [
-        (s["id"], v["vm_name"]) for s in sessions for v in s["vms"] if v["status"] == "hatching"
+    monitored = [
+        (s["id"], v["vm_name"], v.get("libvirt_uuid"), v["status"])
+        for s in sessions
+        for v in s["vms"]
+        if v["status"] in ("hatching", "fledged")
     ]
-    if not hatching:
+    if not monitored:
         return
 
     provider = _provider()
-    existing = {vm["name"] for vm in provider.list_vms()}
 
-    for session_id, vm_name in hatching:
-        if vm_name not in existing:
+    for session_id, vm_name, libvirt_uuid, vm_status in monitored:
+        if not libvirt_uuid:
+            # UUID not yet stored — cannot determine if VM still exists; skip until next cycle
+            continue
+
+        current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
+        if current_name is None:
             hatch_lib.set_vm_status(session_id, vm_name, "culled")
             notif_lib.record_activity(f"VM '{vm_name}' was removed from the host.")
             continue
 
-        ip = provider.get_vm_ip(vm_name)
-        if not ip:
-            continue
+        if current_name != vm_name:
+            hatch_lib.update_vm_name(session_id, vm_name, current_name)
+            notif_lib.record_activity(f"VM '{vm_name}' was renamed to '{current_name}'.")
+            vm_name = current_name
 
-        if _check_winrm(ip):
-            hatch_lib.set_vm_status(session_id, vm_name, "fledged")
-            notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
+        if vm_status == "hatching":
+            ip = provider.get_vm_ip(vm_name)
+            if not ip:
+                continue
+            if _check_winrm(ip):
+                hatch_lib.set_vm_status(session_id, vm_name, "fledged")
+                notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
 
 
 def _background_loop(stop_event: threading.Event) -> None:
@@ -114,11 +126,21 @@ def _start_background_thread() -> threading.Event:
     return stop
 
 
+def _provider() -> LibvirtProvider:
+    data = config.data_dir()
+    return LibvirtProvider(
+        iso_dir=data / "media" / "iso",
+        virtio_dir=data / "media" / "virtio",
+        automation_dir=data / "automation" / "os_config",
+    )
+
+
 config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
 _sync_requirements()
 _sync_clutches()
+_sync_hatch_status()
 _start_background_thread()
 
 
@@ -129,15 +151,6 @@ def inject_nest_status():
         "nest_has_warnings": alert_count > 0,
         "nest_warning_count": alert_count,
     }
-
-
-def _provider() -> LibvirtProvider:
-    data = config.data_dir()
-    return LibvirtProvider(
-        iso_dir=data / "media" / "iso",
-        virtio_dir=data / "media" / "virtio",
-        automation_dir=data / "automation" / "os_config",
-    )
 
 
 def _scan_dir(subdir: str, extensions: list[str] | None = None) -> list[str]:
@@ -253,6 +266,12 @@ def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
             except Exception:
                 pass  # best-effort: metadata tagging does not block hatching
+            try:
+                uuid = provider.get_vm_uuid(vm.name)
+                if uuid:
+                    hatch_lib.set_vm_uuid(session_id, vm.name, uuid)
+            except Exception:
+                pass  # best-effort: UUID storage does not block hatching
             notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
             notif_lib.record_alert(str(exc).splitlines()[0])

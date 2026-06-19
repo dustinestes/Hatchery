@@ -35,13 +35,14 @@ CREATE TABLE IF NOT EXISTS hatch_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS hatch_vm_status (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL REFERENCES hatch_sessions(id),
-    vm_name    TEXT NOT NULL,
-    status     TEXT NOT NULL DEFAULT 'pending',
-    started_at TEXT,
-    fledged_at TEXT,
-    error      TEXT,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id    TEXT NOT NULL REFERENCES hatch_sessions(id),
+    vm_name       TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    libvirt_uuid  TEXT,
+    started_at    TEXT,
+    fledged_at    TEXT,
+    error         TEXT,
     UNIQUE(session_id, vm_name)
 );
 """

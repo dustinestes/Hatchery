@@ -825,6 +825,31 @@ class TestRunHatchSession:
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "hatching"
 
+    def test_stores_uuid_after_create(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            mock_prov.return_value.get_vm_uuid.return_value = "test-uuid-1234"
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        vm_row = next(v for v in s["vms"] if v["vm_name"] == "dc01")
+        assert vm_row["libvirt_uuid"] == "test-uuid-1234"
+
+    def test_uuid_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        assert self._get_vm(sid)["status"] == "hatching"
+
 
 class TestCheckWinrm:
     def test_returns_true_when_connection_succeeds(self, monkeypatch):
@@ -854,12 +879,16 @@ class TestCheckWinrm:
 
 
 class TestSyncHatchStatus:
-    def _setup_hatching(self, tmp_path):
+    _UUID = "aabbccdd-1234-5678-abcd-000000000001"
+
+    def _setup_hatching(self, tmp_path, with_uuid=True):
         import lib.hatch as hatch_lib
 
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        if with_uuid:
+            hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
         return sid
 
     def test_marks_fledged_when_winrm_responds(self, tmp_path, monkeypatch):
@@ -868,7 +897,7 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
                 app_module._sync_hatch_status()
@@ -880,7 +909,7 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
                 app_module._sync_hatch_status()
@@ -893,7 +922,7 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = None
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
@@ -906,7 +935,7 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=False):
                 app_module._sync_hatch_status()
@@ -914,13 +943,13 @@ class TestSyncHatchStatus:
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
 
-    def test_marks_culled_when_vm_gone_from_host(self, tmp_path, monkeypatch):
+    def test_marks_culled_when_uuid_not_found_on_host(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = []  # dc01 not on host
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -930,16 +959,81 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.list_vms.return_value = []
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
             app_module._sync_hatch_status()
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("removed" in a["message"] for a in activity)
 
-    def test_skips_when_no_hatching_vms(self, tmp_path, monkeypatch):
+    def test_skips_vm_when_no_uuid_stored(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path, with_uuid=False)
+        with patch("hatchery._provider") as mock_prov:
+            app_module._sync_hatch_status()
+        mock_prov.return_value.get_vm_name_by_uuid.assert_not_called()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+
+    def test_skips_when_no_monitored_vms(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         with patch("hatchery._provider") as mock_prov:
             app_module._sync_hatch_status()
         mock_prov.assert_not_called()
+
+    def test_marks_culled_when_fledged_vm_gone(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+        hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "culled"
+
+    def test_fledged_vm_not_rechecked_for_winrm(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+        hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            app_module._sync_hatch_status()
+        mock_prov.return_value.get_vm_ip.assert_not_called()
+
+    def test_updates_name_when_vm_renamed(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01-renamed"
+            mock_prov.return_value.get_vm_ip.return_value = None
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        names = [v["vm_name"] for v in s["vms"]]
+        assert "dc01-renamed" in names
+        assert "dc01" not in names
+
+    def test_records_activity_when_renamed(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01-renamed"
+            mock_prov.return_value.get_vm_ip.return_value = None
+            app_module._sync_hatch_status()
+        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
+        assert any("renamed" in a["message"] for a in activity)
 
 
 class TestApiSessions:
