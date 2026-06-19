@@ -77,6 +77,32 @@ def set_vm_status(session_id: str, vm_name: str, status: str, error: str | None 
         conn.close()
 
 
+def set_vm_uuid(session_id: str, vm_name: str, libvirt_uuid: str) -> None:
+    """Store the hypervisor UUID for a VM — used as the authoritative identity for culled detection."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "UPDATE hatch_vm_status SET libvirt_uuid=? WHERE session_id=? AND vm_name=?",
+            (libvirt_uuid, session_id, vm_name),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_vm_name(session_id: str, old_name: str, new_name: str) -> None:
+    """Update a VM's stored name — called when a rename is detected via UUID lookup."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "UPDATE hatch_vm_status SET vm_name=? WHERE session_id=? AND vm_name=?",
+            (new_name, session_id, old_name),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _compute_session_status(vms: list[dict]) -> str:
     if not vms:
         return "unknown"
@@ -104,7 +130,7 @@ def list_sessions(nest: str = "local") -> list[dict]:
         result = []
         for s in sessions:
             vms = conn.execute(
-                """SELECT vm_name, status, started_at, fledged_at, error
+                """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error
                    FROM hatch_vm_status WHERE session_id=? ORDER BY id""",
                 (s["id"],),
             ).fetchall()

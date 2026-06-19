@@ -77,9 +77,15 @@
     const errorHtml = vm.error
       ? `<span class="session-vm-error" title="${escHtml(vm.error)}">${escHtml(vm.error)}</span>`
       : '';
+    const uuidHtml = vm.libvirt_uuid
+      ? `<span class="session-vm-uuid">${escHtml(vm.libvirt_uuid)}</span>`
+      : '';
     return `
       <div class="session-vm-row">
-        <span class="session-vm-name">${escHtml(vm.vm_name)}</span>
+        <div class="session-vm-identity">
+          <span class="session-vm-name">${escHtml(vm.vm_name)}</span>
+          ${uuidHtml}
+        </div>
         <span class="hatch-status-badge hatch-status-badge--${escHtml(vm.status)}">${VM_STATUS_LABEL[vm.status] || escHtml(vm.status)}</span>
         ${errorHtml}
       </div>`;

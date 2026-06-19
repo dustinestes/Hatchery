@@ -134,6 +134,7 @@ class TestInitDb:
                 "session_id",
                 "vm_name",
                 "status",
+                "libvirt_uuid",
                 "started_at",
                 "fledged_at",
                 "error",

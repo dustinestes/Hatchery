@@ -4,6 +4,7 @@ import getpass
 import os
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from lib import answerfile as answerfile_lib
@@ -306,6 +307,97 @@ class LibvirtProvider(BaseProvider):
             ["virsh", "snapshot-delete", name, label],
             check=True,
         )
+
+    # ── Fledged detection ─────────────────────────────────────────────────────
+
+    def get_vm_ip(self, name: str) -> str | None:
+        """Return the first IPv4 address assigned to a VM, or None if not yet available."""
+        result = subprocess.run(
+            ["virsh", "domifaddr", name],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4 and parts[2] == "ipv4":
+                return parts[3].split("/")[0]
+        return None
+
+    def get_vm_uuid(self, name: str) -> str | None:
+        """Return the libvirt UUID of a VM, or None if the VM does not exist."""
+        result = subprocess.run(["virsh", "domuuid", name], capture_output=True, text=True)
+        if result.returncode != 0:
+            return None
+        uuid = result.stdout.strip()
+        return uuid if uuid else None
+
+    def get_vm_name_by_uuid(self, uuid: str) -> str | None:
+        """Return the current name of a VM by UUID, or None if not found."""
+        result = subprocess.run(["virsh", "domname", uuid], capture_output=True, text=True)
+        if result.returncode != 0:
+            return None
+        name = result.stdout.strip()
+        return name if name else None
+
+    # ── Session metadata ──────────────────────────────────────────────────────
+
+    _METADATA_URI = "https://hatchery.io/metadata"
+    _METADATA_KEY = "hatchery"
+
+    def tag_vm_session(self, vm_name: str, session_id: str, clutch_file: str) -> None:
+        """Attach hatch session metadata to a VM so associations survive DB loss."""
+        xml = (
+            f"<hatchery>"
+            f"<session_id>{session_id}</session_id>"
+            f"<clutch_file>{clutch_file}</clutch_file>"
+            f"</hatchery>"
+        )
+        subprocess.run(
+            [
+                "virsh",
+                "metadata",
+                vm_name,
+                "--uri",
+                self._METADATA_URI,
+                "--key",
+                self._METADATA_KEY,
+                "--set",
+                xml,
+                "--live",
+                "--config",
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    def get_vm_session_tag(self, vm_name: str) -> dict | None:
+        """Return the hatch session metadata dict for a VM, or None if untagged."""
+        result = subprocess.run(
+            [
+                "virsh",
+                "metadata",
+                vm_name,
+                "--uri",
+                self._METADATA_URI,
+                "--key",
+                self._METADATA_KEY,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+        try:
+            root = ET.fromstring(result.stdout.strip())
+            sid = root.findtext("session_id")
+            cf = root.findtext("clutch_file")
+            if sid and cf:
+                return {"session_id": sid, "clutch_file": cf}
+        except ET.ParseError:
+            pass
+        return None
 
     # ── Path resolution ───────────────────────────────────────────────────────
 
