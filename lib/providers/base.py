@@ -51,3 +51,7 @@ class BaseProvider(ABC):
     @abstractmethod
     def delete_snapshot(self, name: str, label: str) -> None:
         """Delete a frozen state."""
+
+    @abstractmethod
+    def get_vm_ip(self, name: str) -> str | None:
+        """Return the first IPv4 address of a running VM, or None if unavailable."""

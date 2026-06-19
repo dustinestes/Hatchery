@@ -704,7 +704,7 @@ class TestRunHatchSession:
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         mock_prov.return_value.create_vm.assert_called_once()
 
     def test_passes_password_to_create_vm(self, tmp_path, monkeypatch):
@@ -721,7 +721,7 @@ class TestRunHatchSession:
         )
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            app_module._run_hatch_session(sid, [vm], {"dc01": "s3cr3t"})
+            app_module._run_hatch_session(sid, [vm], {"dc01": "s3cr3t"}, "lab.yaml")
         _, kwargs = mock_prov.return_value.create_vm.call_args
         assert kwargs.get("admin_password") == "s3cr3t"
 
@@ -740,7 +740,7 @@ class TestRunHatchSession:
 
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = fake_create_vm
-            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert observed == ["hatching"]
 
     def test_marks_vm_failed_on_error(self, tmp_path, monkeypatch):
@@ -749,7 +749,7 @@ class TestRunHatchSession:
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
-            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "failed"
         assert "no egg" in self._get_vm(sid)["error"]
 
@@ -761,7 +761,7 @@ class TestRunHatchSession:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
             )
-            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
         assert any("cannot access" in a["message"] for a in alerts)
 
@@ -771,7 +771,7 @@ class TestRunHatchSession:
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("dc01" in a["message"] for a in activity)
 
@@ -796,7 +796,7 @@ class TestRunHatchSession:
 
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = fake_create
-            app_module._run_hatch_session(sid, vms, {"dc01": None, "ws01": None})
+            app_module._run_hatch_session(sid, vms, {"dc01": None, "ws01": None}, "lab.yaml")
 
         assert call_count == 2
         sessions = hatch_lib.list_sessions()
@@ -804,6 +804,142 @@ class TestRunHatchSession:
         statuses = {v["vm_name"]: v["status"] for v in s["vms"]}
         assert statuses["dc01"] == "failed"
         assert statuses["ws01"] == "hatching"
+
+    def test_tags_vm_session_metadata_on_success(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            mock_prov.return_value.tag_vm_session = MagicMock()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        mock_prov.return_value.tag_vm_session.assert_called_once_with("dc01", sid, "lab.yaml")
+
+    def test_tag_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            mock_prov.return_value.tag_vm_session.side_effect = RuntimeError("virsh failed")
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        assert self._get_vm(sid)["status"] == "hatching"
+
+
+class TestCheckWinrm:
+    def test_returns_true_when_connection_succeeds(self, monkeypatch):
+        mock_sock = MagicMock()
+        mock_sock.__enter__ = MagicMock(return_value=mock_sock)
+        mock_sock.__exit__ = MagicMock(return_value=False)
+        with patch("socket.create_connection", return_value=mock_sock):
+            assert app_module._check_winrm("192.168.1.1") is True
+
+    def test_returns_false_on_connection_refused(self):
+        with patch("socket.create_connection", side_effect=OSError("refused")):
+            assert app_module._check_winrm("192.168.1.1") is False
+
+    def test_returns_false_on_timeout(self):
+        with patch("socket.create_connection", side_effect=TimeoutError()):
+            assert app_module._check_winrm("192.168.1.1") is False
+
+    def test_uses_port_5985_by_default(self):
+        with patch("socket.create_connection", side_effect=OSError) as mock_conn:
+            app_module._check_winrm("10.0.0.1")
+        assert mock_conn.call_args[0][0] == ("10.0.0.1", 5985)
+
+    def test_custom_port(self):
+        with patch("socket.create_connection", side_effect=OSError) as mock_conn:
+            app_module._check_winrm("10.0.0.1", port=5986)
+        assert mock_conn.call_args[0][0] == ("10.0.0.1", 5986)
+
+
+class TestSyncHatchStatus:
+    def _setup_hatching(self, tmp_path):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        return sid
+
+    def test_marks_fledged_when_winrm_responds(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=True):
+                app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "fledged"
+
+    def test_records_activity_when_fledged(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=True):
+                app_module._sync_hatch_status()
+        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
+        assert any("fledged" in a["message"] for a in activity)
+
+    def test_no_change_when_no_ip_yet(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_ip.return_value = None
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+
+    def test_no_change_when_winrm_not_responding(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = [{"name": "dc01"}]
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=False):
+                app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+
+    def test_marks_culled_when_vm_gone_from_host(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = []  # dc01 not on host
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "culled"
+
+    def test_records_activity_when_culled(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.list_vms.return_value = []
+            app_module._sync_hatch_status()
+        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
+        assert any("removed" in a["message"] for a in activity)
+
+    def test_skips_when_no_hatching_vms(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            app_module._sync_hatch_status()
+        mock_prov.assert_not_called()
 
 
 class TestApiSessions:
@@ -1177,10 +1313,12 @@ class TestBackgroundThread:
         with (
             patch.object(app_module, "_sync_requirements") as mock_req,
             patch.object(app_module, "_sync_clutches") as mock_clutch,
+            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
         ):
             app_module._background_loop(stop)
         mock_req.assert_called_once()
         mock_clutch.assert_called_once()
+        mock_hatch.assert_called_once()
 
     def test_loop_calls_sync_multiple_ticks(self):
         stop = MagicMock()
@@ -1188,10 +1326,12 @@ class TestBackgroundThread:
         with (
             patch.object(app_module, "_sync_requirements") as mock_req,
             patch.object(app_module, "_sync_clutches") as mock_clutch,
+            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
         ):
             app_module._background_loop(stop)
         assert mock_req.call_count == 3
         assert mock_clutch.call_count == 3
+        assert mock_hatch.call_count == 3
 
     def test_loop_exits_without_sync_when_stopped_immediately(self):
         stop = MagicMock()
@@ -1199,10 +1339,12 @@ class TestBackgroundThread:
         with (
             patch.object(app_module, "_sync_requirements") as mock_req,
             patch.object(app_module, "_sync_clutches") as mock_clutch,
+            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
         ):
             app_module._background_loop(stop)
         mock_req.assert_not_called()
         mock_clutch.assert_not_called()
+        mock_hatch.assert_not_called()
 
     def test_start_background_thread_spawns_daemon_thread(self):
         with patch("threading.Thread") as mock_thread_cls:

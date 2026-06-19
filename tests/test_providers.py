@@ -471,6 +471,133 @@ class TestInventory:
         assert status == "shut off"
 
 
+# ── Fledged detection ─────────────────────────────────────────────────────────
+
+
+class TestGetVmIp:
+    def test_returns_ipv4_address(self, provider):
+        output = (
+            " Name       MAC address          Protocol     Address\n"
+            "-------------------------------------------------------------------------------\n"
+            " vnet1      52:54:00:7b:b8:c7    ipv4         192.168.122.40/24\n"
+        )
+        result = MagicMock(returncode=0, stdout=output)
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip == "192.168.122.40"
+
+    def test_returns_none_when_no_ip_yet(self, provider):
+        output = (
+            " Name       MAC address          Protocol     Address\n"
+            "-------------------------------------------------------------------------------\n"
+        )
+        result = MagicMock(returncode=0, stdout=output)
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip is None
+
+    def test_returns_none_on_nonzero_exit(self, provider):
+        result = MagicMock(returncode=1, stdout="")
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip is None
+
+    def test_strips_prefix_length(self, provider):
+        output = (
+            " Name       MAC address          Protocol     Address\n"
+            "-------------------------------------------------------------------------------\n"
+            " vnet0      52:54:00:00:00:01    ipv4         10.0.0.5/16\n"
+        )
+        result = MagicMock(returncode=0, stdout=output)
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip == "10.0.0.5"
+
+    def test_uses_first_ipv4_when_multiple(self, provider):
+        output = (
+            " Name       MAC address          Protocol     Address\n"
+            "-------------------------------------------------------------------------------\n"
+            " vnet0      52:54:00:00:00:01    ipv4         10.0.0.5/16\n"
+            " vnet0      52:54:00:00:00:01    ipv4         10.0.0.6/16\n"
+        )
+        result = MagicMock(returncode=0, stdout=output)
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip == "10.0.0.5"
+
+    def test_ignores_ipv6_lines(self, provider):
+        output = (
+            " Name       MAC address          Protocol     Address\n"
+            "-------------------------------------------------------------------------------\n"
+            " vnet0      52:54:00:00:00:01    ipv6         fe80::1/64\n"
+        )
+        result = MagicMock(returncode=0, stdout=output)
+        with patch("subprocess.run", return_value=result):
+            ip = provider.get_vm_ip("myvm")
+        assert ip is None
+
+
+# ── Session metadata ───────────────────────────────────────────────────────────
+
+
+class TestTagVmSession:
+    def test_calls_virsh_metadata_set(self, provider):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.tag_vm_session("myvm", "sess-uuid", "lab.yaml")
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "virsh"
+        assert cmd[1] == "metadata"
+        assert cmd[2] == "myvm"
+        assert "--set" in cmd
+        assert "--live" in cmd
+        assert "--config" in cmd
+
+    def test_set_payload_contains_session_id(self, provider):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.tag_vm_session("myvm", "sess-uuid", "lab.yaml")
+        cmd = mock_run.call_args[0][0]
+        set_value = cmd[cmd.index("--set") + 1]
+        assert "sess-uuid" in set_value
+
+    def test_set_payload_contains_clutch_file(self, provider):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.tag_vm_session("myvm", "sess-uuid", "lab.yaml")
+        cmd = mock_run.call_args[0][0]
+        set_value = cmd[cmd.index("--set") + 1]
+        assert "lab.yaml" in set_value
+
+
+class TestGetVmSessionTag:
+    _XML = "<hatchery><session_id>s1</session_id><clutch_file>lab.yaml</clutch_file></hatchery>"
+
+    def test_returns_session_and_clutch_file(self, provider):
+        result = MagicMock(returncode=0, stdout=self._XML)
+        with patch("subprocess.run", return_value=result):
+            tag = provider.get_vm_session_tag("myvm")
+        assert tag == {"session_id": "s1", "clutch_file": "lab.yaml"}
+
+    def test_returns_none_when_no_metadata(self, provider):
+        result = MagicMock(returncode=1, stdout="")
+        with patch("subprocess.run", return_value=result):
+            tag = provider.get_vm_session_tag("myvm")
+        assert tag is None
+
+    def test_returns_none_on_invalid_xml(self, provider):
+        result = MagicMock(returncode=0, stdout="not xml")
+        with patch("subprocess.run", return_value=result):
+            tag = provider.get_vm_session_tag("myvm")
+        assert tag is None
+
+    def test_returns_none_when_fields_missing(self, provider):
+        result = MagicMock(returncode=0, stdout="<hatchery></hatchery>")
+        with patch("subprocess.run", return_value=result):
+            tag = provider.get_vm_session_tag("myvm")
+        assert tag is None
+
+
 # ── Snapshots ─────────────────────────────────────────────────────────────────
 
 
