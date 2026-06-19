@@ -5,7 +5,184 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Nests</h1>
-  <p class="pane-subtitle">View and manage Nest host endpoints. Local in v1; remote Hyper-V support in v2.</p>
+  <p class="pane-subtitle">View and manage Nest host endpoints and their hatched environments.</p>
 </div>
-<div class="stub">Nests content coming soon</div>
+
+<div class="nests-layout">
+
+  <!-- Left: nest navigator -->
+  <nav class="nests-nav" aria-label="Nests">
+    <div class="nests-nav-item active" data-nest="local">
+      <span class="nest-status-dot nest-status-dot--green"></span>
+      <span class="nests-nav-label">local</span>
+    </div>
+  </nav>
+
+  <!-- Right: session list for the selected nest -->
+  <div class="nests-content" id="nests-content">
+    <div class="nests-content-header">
+      <span class="nests-content-title">local</span>
+      <span class="nests-refresh-label" id="nests-refresh-label"></span>
+    </div>
+
+    <div id="sessions-list" class="sessions-list">
+      <div class="sessions-empty" id="sessions-empty" style="display:none">
+        No hatch sessions yet. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const sessionsList = document.getElementById('sessions-list');
+  const emptyMsg     = document.getElementById('sessions-empty');
+  const refreshLabel = document.getElementById('nests-refresh-label');
+
+  const SESSION_STATUS_LABEL = {
+    in_progress: 'In Progress',
+    completed:   'Completed',
+    failed:      'Failed',
+    degraded:    'Degraded',
+    unknown:     'Unknown',
+  };
+
+  const VM_STATUS_LABEL = {
+    pending:  'Pending',
+    hatching: 'Hatching',
+    fledged:  'Fledged',
+    failed:   'Failed',
+    blocked:  'Blocked',
+    culled:   'Culled',
+  };
+
+  function escHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function renderVmRow(vm) {
+    const errorHtml = vm.error
+      ? `<span class="session-vm-error" title="${escHtml(vm.error)}">${escHtml(vm.error)}</span>`
+      : '';
+    return `
+      <div class="session-vm-row">
+        <span class="session-vm-name">${escHtml(vm.vm_name)}</span>
+        <span class="hatch-status-badge hatch-status-badge--${escHtml(vm.status)}">${VM_STATUS_LABEL[vm.status] || escHtml(vm.status)}</span>
+        ${errorHtml}
+      </div>`;
+  }
+
+  function renderSession(s, forceOpen) {
+    const bodyId   = `body-${escHtml(s.id)}`;
+    const isOpen   = forceOpen || s.status === 'in_progress';
+    const expanded = isOpen ? 'true' : 'false';
+    const hidden   = isOpen ? '' : 'hidden';
+    const completedHtml = s.completed_at
+      ? `<div class="session-completed">Completed ${fmtTime(s.completed_at)}</div>`
+      : '';
+    return `
+      <div class="session-row" id="session-${escHtml(s.id)}">
+        <div class="session-row-header">
+          <button class="session-row-toggle" aria-expanded="${expanded}" aria-controls="${bodyId}">
+            <svg class="session-row-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="session-row-clutch">${escHtml(s.clutch_name)}</span>
+            <span class="session-row-file">${escHtml(s.clutch_file)}</span>
+          </button>
+          <span class="hatch-status-badge hatch-status-badge--${escHtml(s.status)}">${SESSION_STATUS_LABEL[s.status] || escHtml(s.status)}</span>
+          <span class="session-row-time">${fmtTime(s.hatched_at)}</span>
+        </div>
+        <div class="session-row-body" id="${bodyId}" ${hidden}>
+          <div class="session-vms">${s.vms.map(renderVmRow).join('')}</div>
+          ${completedHtml}
+        </div>
+      </div>`;
+  }
+
+  function getExpandedIds() {
+    const ids = new Set();
+    document.querySelectorAll('.session-row-toggle[aria-expanded="true"]').forEach(btn => {
+      const row = btn.closest('.session-row');
+      if (row) ids.add(row.id.replace('session-', ''));
+    });
+    return ids;
+  }
+
+  function bindToggle(row) {
+    const btn = row.querySelector('.session-row-toggle');
+    if (!btn) return;
+    const bodyId = btn.getAttribute('aria-controls');
+    const body = bodyId ? document.getElementById(bodyId) : null;
+    if (!body) return;
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!open));
+      open ? body.setAttribute('hidden', '') : body.removeAttribute('hidden');
+    });
+  }
+
+  function render(sessions) {
+    const expandedIds = getExpandedIds();
+
+    if (!sessions.length) {
+      sessionsList.querySelectorAll('.session-row').forEach(r => r.remove());
+      emptyMsg.style.display = '';
+      return;
+    }
+    emptyMsg.style.display = 'none';
+
+    const incomingIds = new Set(sessions.map(s => s.id));
+    sessionsList.querySelectorAll('.session-row').forEach(el => {
+      const id = el.id.replace('session-', '');
+      if (!incomingIds.has(id)) el.remove();
+    });
+
+    sessions.forEach(s => {
+      const forceOpen = expandedIds.has(s.id);
+      const existing = document.getElementById(`session-${s.id}`);
+      const wasOpen = existing
+        ? existing.querySelector('.session-row-toggle')?.getAttribute('aria-expanded') === 'true'
+        : forceOpen || s.status === 'in_progress';
+
+      const tmp = document.createElement('div');
+      tmp.innerHTML = renderSession(s, wasOpen);
+      const newRow = tmp.firstElementChild;
+
+      if (existing) {
+        existing.replaceWith(newRow);
+      } else {
+        sessionsList.appendChild(newRow);
+      }
+      bindToggle(newRow);
+    });
+  }
+
+  function poll() {
+    fetch('/api/sessions')
+      .then(r => r.json())
+      .then(sessions => {
+        render(sessions);
+        refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      })
+      .catch(() => { refreshLabel.textContent = 'Update failed'; });
+  }
+
+  poll();
+  setInterval(poll, 5000);
+})();
+</script>
 {% endblock %}
