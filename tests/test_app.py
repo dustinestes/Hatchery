@@ -645,22 +645,71 @@ class TestHatchClutchRoute:
         assert "Password required" in resp.data.decode()
         mock_prov.return_value.create_vm.assert_not_called()
 
-    def test_post_hatches_all_vms_and_redirects(self, client, tmp_path, monkeypatch):
+    def test_post_creates_session_and_redirects_to_nests(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.create_vm = MagicMock()
+        with patch("hatchery._run_hatch_session"):
             resp = client.post(
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/")
+        assert resp.headers["Location"].endswith("/nests")
+
+    def test_post_creates_session_with_vms_pending(self, client, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
+        with patch("hatchery._run_hatch_session"):
+            client.post(
+                "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
+            )
+        sessions = hatch_lib.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0]["clutch_file"] == "my-lab.yaml"
+        assert sessions[0]["vms"][0]["vm_name"] == "dc01"
+        assert sessions[0]["vms"][0]["status"] == "pending"
+
+    def test_post_redirects_even_when_provider_would_fail(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        with patch("hatchery._run_hatch_session"):
+            resp = client.post(
+                "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
+            )
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/nests")
+
+
+class TestRunHatchSession:
+    """Tests for the _run_hatch_session background orchestration function."""
+
+    def _setup_session(self, tmp_path, vm_name="dc01"):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, vm_name)
+        return sid
+
+    def _get_vm(self, sid, vm_name="dc01"):
+        import lib.hatch as hatch_lib
+
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        return next(v for v in s["vms"] if v["vm_name"] == vm_name)
+
+    def test_calls_create_vm_for_each_vm(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None})
         mock_prov.return_value.create_vm.assert_called_once()
 
-    def test_post_passes_password_to_create_vm(self, client, tmp_path, monkeypatch):
+    def test_passes_password_to_create_vm(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        clutches_dir = tmp_path / "clutches"
-        clutches_dir.mkdir()
+        sid = self._setup_session(tmp_path)
         vm = VMConfig(
             name="dc01",
             os="win11",
@@ -670,37 +719,125 @@ class TestHatchClutchRoute:
             os_media="win11.iso",
             admin_username="alice",
         )
-        c = Clutch(name="my-lab", vms=[vm])
-        clutch_lib.export(c, "my-lab", clutches_dir)
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            client.post(
-                "/hatch-clutch",
-                data={"clutch_file": "my-lab.yaml", "credentials[dc01]": "s3cr3t"},
-                follow_redirects=False,
-            )
+            app_module._run_hatch_session(sid, [vm], {"dc01": "s3cr3t"})
         _, kwargs = mock_prov.return_value.create_vm.call_args
         assert kwargs.get("admin_password") == "s3cr3t"
 
-    def test_post_provider_error_rerenders_form(self, client, tmp_path, monkeypatch):
+    def test_marks_vm_hatching_before_create(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        _make_clutch(tmp_path)
+        import lib.hatch as hatch_lib
+
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        observed = []
+
+        def fake_create_vm(vm_cfg, admin_password=None):
+            sessions = hatch_lib.list_sessions()
+            s = next(s for s in sessions if s["id"] == sid)
+            observed.append(next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01"))
+
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = fake_create_vm
+            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+        assert observed == ["hatching"]
+
+    def test_marks_vm_failed_on_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
-            resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
-        assert resp.status_code == 200
-        assert "alert" in resp.data.decode()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+        assert self._get_vm(sid)["status"] == "failed"
+        assert "no egg" in self._get_vm(sid)["error"]
 
-    def test_post_permission_error_records_alert(self, client, tmp_path, monkeypatch):
+    def test_permission_error_records_alert(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        _make_clutch(tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
             )
-            client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+            app_module._run_hatch_session(sid, [vm], {"dc01": None})
         alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
         assert any("cannot access" in a["message"] for a in alerts)
+
+    def test_records_activity_on_success(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm = MagicMock()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None})
+        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
+        assert any("dc01" in a["message"] for a in activity)
+
+    def test_continues_after_one_vm_fails(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
+        vms = [
+            VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
+            VMConfig(name="ws01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
+        ]
+        call_count = 0
+
+        def fake_create(vm_cfg, admin_password=None):
+            nonlocal call_count
+            call_count += 1
+            if vm_cfg.name == "dc01":
+                raise FileNotFoundError("dc01 failed")
+
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.create_vm.side_effect = fake_create
+            app_module._run_hatch_session(sid, vms, {"dc01": None, "ws01": None})
+
+        assert call_count == 2
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        statuses = {v["vm_name"]: v["status"] for v in s["vms"]}
+        assert statuses["dc01"] == "failed"
+        assert statuses["ws01"] == "hatching"
+
+
+class TestApiSessions:
+    def test_returns_empty_list_initially(self, client):
+        data = client.get("/api/sessions").get_json()
+        assert data == []
+
+    def test_returns_200(self, client):
+        assert client.get("/api/sessions").status_code == 200
+
+    def test_returns_sessions_after_hatch(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab")
+        with patch("hatchery._run_hatch_session"):
+            client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        data = client.get("/api/sessions").get_json()
+        assert len(data) == 1
+        assert data[0]["clutch_file"] == "my-lab.yaml"
+
+    def test_session_includes_vms(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
+        with patch("hatchery._run_hatch_session"):
+            client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        data = client.get("/api/sessions").get_json()
+        assert data[0]["vms"][0]["vm_name"] == "dc01"
+
+    def test_session_includes_status(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        with patch("hatchery._run_hatch_session"):
+            client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        data = client.get("/api/sessions").get_json()
+        assert "status" in data[0]
 
 
 class TestAPIClutchDetail:

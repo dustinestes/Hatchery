@@ -1,6 +1,5 @@
 import atexit
 import os
-import subprocess
 import threading
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
@@ -8,6 +7,7 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 from lib import config
 from lib import db
 from lib import clutch as clutch_lib
+from lib import hatch as hatch_lib
 from lib import notifications as notif_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -201,6 +201,24 @@ def notifications_pane():
     return render_template("notifications.html", active_pane="notifications", items=items)
 
 
+# ── Hatch orchestration ───────────────────────────────────────────────────────
+
+
+def _run_hatch_session(session_id: str, vms: list, passwords: dict) -> None:
+    """Background thread: create each VM sequentially and track state in DB."""
+    provider = _provider()
+    for vm in vms:
+        try:
+            hatch_lib.set_vm_status(session_id, vm.name, "hatching")
+            provider.create_vm(vm, admin_password=passwords[vm.name])
+            notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
+        except PermissionError as exc:
+            notif_lib.record_alert(str(exc).splitlines()[0])
+            hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
+        except Exception as exc:
+            hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
+
+
 # ── Hatch Clutch ─────────────────────────────────────────────────────────────
 
 
@@ -266,27 +284,18 @@ def hatch_clutch_post():
             form_error=f"Password required for: {', '.join(missing)}",
         )
 
+    session_id = hatch_lib.create_session(filename, clutch_obj.name)
     for vm in clutch_obj.vms:
-        try:
-            _provider().create_vm(vm, admin_password=passwords[vm.name])
-            notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
-        except PermissionError as exc:
-            notif_lib.record_alert(str(exc).splitlines()[0])
-            return _render_hatch_clutch_form(
-                clutch_files,
-                preselected=filename,
-                clutch_obj=clutch_obj,
-                form_error=str(exc),
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-            return _render_hatch_clutch_form(
-                clutch_files,
-                preselected=filename,
-                clutch_obj=clutch_obj,
-                form_error=str(exc),
-            )
+        hatch_lib.add_vm(session_id, vm.name)
 
-    return redirect(url_for("dashboard"))
+    t = threading.Thread(
+        target=_run_hatch_session,
+        args=(session_id, clutch_obj.vms, passwords),
+        daemon=True,
+    )
+    t.start()
+
+    return redirect(url_for("nests"))
 
 
 # ── Clutch builder ───────────────────────────────────────────────────────────
@@ -618,6 +627,11 @@ def clutch_delete(filename):
     notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{safe}'")
     notif_lib.record_activity(f"Clutch '{safe}' deleted.")
     return redirect(url_for("clutches"))
+
+
+@app.route("/api/sessions")
+def api_sessions():
+    return jsonify(hatch_lib.list_sessions())
 
 
 @app.route("/api/notifications")

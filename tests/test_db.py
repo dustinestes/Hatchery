@@ -82,6 +82,65 @@ class TestInitDb:
         finally:
             conn.close()
 
+    def test_creates_hatch_sessions_table(self):
+        conn = db_module.get_connection()
+        try:
+            names = [
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            assert "hatch_sessions" in names
+        finally:
+            conn.close()
+
+    def test_creates_hatch_vm_status_table(self):
+        conn = db_module.get_connection()
+        try:
+            names = [
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            assert "hatch_vm_status" in names
+        finally:
+            conn.close()
+
+    def test_hatch_sessions_columns(self):
+        conn = db_module.get_connection()
+        try:
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(hatch_sessions)").fetchall()]
+            assert cols == [
+                "id",
+                "nest",
+                "clutch_file",
+                "clutch_name",
+                "hatched_at",
+                "completed_at",
+            ]
+        finally:
+            conn.close()
+
+    def test_hatch_vm_status_columns(self):
+        conn = db_module.get_connection()
+        try:
+            cols = [
+                r["name"] for r in conn.execute("PRAGMA table_info(hatch_vm_status)").fetchall()
+            ]
+            assert cols == [
+                "id",
+                "session_id",
+                "vm_name",
+                "status",
+                "started_at",
+                "fledged_at",
+                "error",
+            ]
+        finally:
+            conn.close()
+
 
 class TestGetConnection:
     def test_raises_when_not_initialized(self, monkeypatch):

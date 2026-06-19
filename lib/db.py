@@ -24,6 +24,26 @@ CREATE TABLE IF NOT EXISTS activity (
 CREATE TABLE IF NOT EXISTS clutch_instances (
     id INTEGER PRIMARY KEY AUTOINCREMENT
 );
+
+CREATE TABLE IF NOT EXISTS hatch_sessions (
+    id           TEXT PRIMARY KEY,
+    nest         TEXT NOT NULL DEFAULT 'local',
+    clutch_file  TEXT NOT NULL,
+    clutch_name  TEXT NOT NULL,
+    hatched_at   TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS hatch_vm_status (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES hatch_sessions(id),
+    vm_name    TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    started_at TEXT,
+    fledged_at TEXT,
+    error      TEXT,
+    UNIQUE(session_id, vm_name)
+);
 """
 
 _MIGRATIONS: list[str] = []
