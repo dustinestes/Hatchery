@@ -63,3 +63,17 @@ class BaseProvider(ABC):
     @abstractmethod
     def get_vm_name_by_uuid(self, uuid: str) -> str | None:
         """Return the current name of a VM identified by UUID, or None if not found."""
+
+    @abstractmethod
+    def send_key(self, name: str, key: str) -> None:
+        """Send a key press to a VM's console (e.g. KEY_ENTER to dismiss boot prompt)."""
+
+    @abstractmethod
+    def set_poweroff_action(self, name: str, action: str) -> None:
+        """Set the on_poweroff lifecycle action on the live running domain.
+
+        Windows OOBE issues an ACPI power-off (not reboot) at the end of setup.
+        Patching only the live domain means the persistent config retains the default
+        on_poweroff=destroy, so after the OOBE-triggered restart normal shutdown
+        behaviour is restored automatically with no cleanup step needed.
+        """

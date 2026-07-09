@@ -598,6 +598,28 @@ class TestGetVmSessionTag:
         assert tag is None
 
 
+# ── send_key ──────────────────────────────────────────────────────────────────
+
+
+class TestSendKey:
+    def test_calls_virsh_send_key(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.send_key("myvm", "KEY_ENTER")
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["virsh", "send-key", "myvm", "KEY_ENTER"]
+
+    def test_passes_arbitrary_key(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.send_key("myvm", "KEY_SPACE")
+        cmd = mock_run.call_args[0][0]
+        assert "KEY_SPACE" in cmd
+
+    def test_raises_on_failure(self, provider):
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "virsh")):
+            with pytest.raises(subprocess.CalledProcessError):
+                provider.send_key("myvm", "KEY_ENTER")
+
+
 # ── VM UUID ───────────────────────────────────────────────────────────────────
 
 
@@ -659,6 +681,32 @@ class TestGetVmNameByUuid:
         with patch("subprocess.run", return_value=result) as mock_run:
             provider.get_vm_name_by_uuid(self._UUID)
         assert mock_run.call_args[0][0] == ["virsh", "domname", self._UUID]
+
+
+# ── Poweroff action ───────────────────────────────────────────────────────────
+
+
+class TestSetPoweroffAction:
+    def test_calls_set_lifecycle_action_live(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.set_poweroff_action("myvm", "restart")
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["virsh", "set-lifecycle-action", "myvm", "poweroff", "restart", "--live"]
+
+    def test_passes_destroy_action(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.set_poweroff_action("myvm", "destroy")
+        assert "destroy" in mock_run.call_args[0][0]
+
+    def test_does_not_pass_config_flag(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.set_poweroff_action("myvm", "restart")
+        assert "--config" not in mock_run.call_args[0][0]
+
+    def test_raises_on_virsh_failure(self, provider):
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "virsh")):
+            with pytest.raises(subprocess.CalledProcessError):
+                provider.set_poweroff_action("myvm", "restart")
 
 
 # ── Snapshots ─────────────────────────────────────────────────────────────────

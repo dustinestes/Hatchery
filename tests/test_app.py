@@ -684,6 +684,11 @@ class TestHatchClutchRoute:
 class TestRunHatchSession:
     """Tests for the _run_hatch_session background orchestration function."""
 
+    @pytest.fixture(autouse=True)
+    def no_side_effects(self):
+        with patch("hatchery.time.sleep"), patch("hatchery._send_boot_key"):
+            yield
+
     def _setup_session(self, tmp_path, vm_name="dc01"):
         import lib.hatch as hatch_lib
 
@@ -805,6 +810,45 @@ class TestRunHatchSession:
         assert statuses["dc01"] == "failed"
         assert statuses["ws01"] == "hatching"
 
+    def test_boot_key_started_in_background_thread(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        with (
+            patch("hatchery._provider") as mock_prov,
+            patch("hatchery.threading.Thread") as mock_thread_cls,
+        ):
+            mock_thread = MagicMock()
+            mock_thread_cls.return_value = mock_thread
+            mock_prov.return_value.create_vm = MagicMock()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        boot_calls = [
+            c
+            for c in mock_thread_cls.call_args_list
+            if c.kwargs.get("target") is app_module._send_boot_key
+        ]
+        assert len(boot_calls) == 1
+        assert boot_calls[0].kwargs["args"] == (mock_prov.return_value, "dc01")
+        mock_thread.start.assert_called_once()
+
+    def test_boot_key_thread_started_before_create_vm(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        call_order = []
+        with (
+            patch("hatchery._provider") as mock_prov,
+            patch("hatchery.threading.Thread") as mock_thread_cls,
+        ):
+            mock_thread = MagicMock()
+            mock_thread_cls.return_value = mock_thread
+            mock_thread.start.side_effect = lambda: call_order.append("thread_start")
+            mock_prov.return_value.create_vm.side_effect = lambda *a, **kw: call_order.append(
+                "create_vm"
+            )
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        assert call_order.index("thread_start") < call_order.index("create_vm")
+
     def test_tags_vm_session_metadata_on_success(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
@@ -849,6 +893,61 @@ class TestRunHatchSession:
             mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "hatching"
+
+
+class TestSendBootKey:
+    @pytest.fixture(autouse=True)
+    def no_sleep(self):
+        with patch("hatchery.time.sleep"):
+            yield
+
+    def test_polls_until_vm_running(self):
+        provider = MagicMock()
+        provider.get_status.side_effect = ["shut off", "shut off", "running"]
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.get_status.call_count == 3
+
+    def test_sends_burst_of_keypresses(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "running"
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.send_key.call_count == app_module._BOOT_KEY_BURST_ATTEMPTS
+
+    def test_all_keypresses_are_enter(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "running"
+        app_module._send_boot_key(provider, "myvm")
+        for call in provider.send_key.call_args_list:
+            assert call == call.__class__(provider, "myvm", "KEY_ENTER") or call.args == (
+                "myvm",
+                "KEY_ENTER",
+            )
+
+    def test_stops_burst_on_send_key_failure(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "running"
+        provider.send_key.side_effect = RuntimeError("virsh failed")
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.send_key.call_count == 1
+
+    def test_handles_get_status_exception(self):
+        provider = MagicMock()
+        provider.get_status.side_effect = [RuntimeError("virsh error"), "running"]
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.get_status.call_count == 2
+
+    def test_gives_up_polling_after_max_attempts(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "shut off"
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.get_status.call_count == app_module._BOOT_KEY_POLL_ATTEMPTS
+        assert provider.send_key.call_count == app_module._BOOT_KEY_BURST_ATTEMPTS
+
+    def test_still_sends_keys_if_vm_never_reached_running(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "shut off"
+        app_module._send_boot_key(provider, "myvm")
+        assert provider.send_key.call_count == app_module._BOOT_KEY_BURST_ATTEMPTS
 
 
 class TestCheckWinrm:
@@ -915,6 +1014,52 @@ class TestSyncHatchStatus:
                 app_module._sync_hatch_status()
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("fledged" in a["message"] for a in activity)
+
+    def test_starts_vm_when_shut_off_during_hatching(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_status.return_value = "shut off"
+            app_module._sync_hatch_status()
+        mock_prov.return_value.start_vm.assert_called_once_with("dc01")
+
+    def test_does_not_check_winrm_when_shut_off(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov, patch("hatchery._check_winrm") as mock_winrm:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_status.return_value = "shut off"
+            app_module._sync_hatch_status()
+        mock_winrm.assert_not_called()
+
+    def test_start_failure_does_not_mark_failed(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_status.return_value = "shut off"
+            mock_prov.return_value.start_vm.side_effect = RuntimeError("virsh failed")
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+
+    def test_does_not_start_fledged_vm_when_shut_off(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+        hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_status.return_value = "shut off"
+            app_module._sync_hatch_status()
+        mock_prov.return_value.start_vm.assert_not_called()
 
     def test_no_change_when_no_ip_yet(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
