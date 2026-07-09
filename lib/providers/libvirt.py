@@ -341,6 +341,24 @@ class LibvirtProvider(BaseProvider):
         name = result.stdout.strip()
         return name if name else None
 
+    def send_key(self, name: str, key: str) -> None:
+        """Send a key press to a VM's console."""
+        subprocess.run(["virsh", "send-key", name, key], check=True, capture_output=True)
+
+    def set_poweroff_action(self, name: str, action: str) -> None:
+        """Set on_poweroff on the live running domain only (not the persistent config).
+
+        We only need to patch the live domain so that the OOBE power-off restarts the
+        VM instead of stopping it. The persistent config retains on_poweroff=destroy,
+        so after the OOBE-triggered restart the VM automatically reverts to correct
+        shutdown behaviour with no cleanup step required.
+        """
+        subprocess.run(
+            ["virsh", "set-lifecycle-action", name, "poweroff", action, "--live"],
+            check=True,
+            capture_output=True,
+        )
+
     # ── Session metadata ──────────────────────────────────────────────────────
 
     _METADATA_URI = "https://hatchery.io/metadata"

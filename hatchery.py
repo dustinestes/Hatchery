@@ -2,6 +2,7 @@ import atexit
 import os
 import socket
 import threading
+import time
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -103,7 +104,23 @@ def _sync_hatch_status() -> None:
             vm_name = current_name
 
         if vm_status == "hatching":
-            ip = provider.get_vm_ip(vm_name)
+            # Windows installation sends ACPI power-off at several points (e.g. end of
+            # OOBE). Restart the VM so installation continues to the desktop and WinRM.
+            # Scoped to hatching only — fledged VMs are left to the user. Post-install
+            # script reboots arrive as on_reboot events (not power-off), so they never
+            # leave the VM in "shut off" and this branch does not interfere with them.
+            try:
+                is_shut_off = provider.get_status(current_name) == "shut off"
+            except Exception:
+                is_shut_off = False
+            if is_shut_off:
+                try:
+                    provider.start_vm(current_name)
+                except Exception:
+                    pass  # best-effort: if restart fails, retry next cycle
+                continue  # wait for VM to boot before checking WinRM
+
+            ip = provider.get_vm_ip(current_name)
             if not ip:
                 continue
             if _check_winrm(ip):
@@ -255,12 +272,41 @@ def notifications_pane():
 # ── Hatch orchestration ───────────────────────────────────────────────────────
 
 
+_BOOT_KEY_POLL_ATTEMPTS = 30  # poll up to 30s (1s intervals) for VM to reach running state
+_BOOT_KEY_BURST_ATTEMPTS = 10  # send key 10 times (0.5s intervals) = 5s burst
+
+
+def _send_boot_key(provider, name: str) -> None:
+    """Wait for VM to reach running state then send KEY_ENTER repeatedly to hit the boot prompt."""
+    for _ in range(_BOOT_KEY_POLL_ATTEMPTS):
+        try:
+            if provider.get_status(name) == "running":
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+    for _ in range(_BOOT_KEY_BURST_ATTEMPTS):
+        try:
+            provider.send_key(name, "KEY_ENTER")
+        except Exception:
+            break
+        time.sleep(0.5)
+
+
 def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file: str) -> None:
     """Background thread: create each VM sequentially and track state in DB."""
     provider = _provider()
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
+            # Start boot key sender before create_vm so it can begin polling immediately.
+            # virt-install takes a few seconds; starting concurrently maximises the chance
+            # of hitting the BIOS "press any key" window which opens during that time.
+            threading.Thread(
+                target=_send_boot_key,
+                args=(provider, vm.name),
+                daemon=True,
+            ).start()
             provider.create_vm(vm, admin_password=passwords[vm.name])
             try:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
