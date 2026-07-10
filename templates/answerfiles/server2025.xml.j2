@@ -155,6 +155,16 @@
           <CommandLine>powershell.exe -Command "Start-Service -Name sshd"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>8</Order>
+          <CommandLine>powershell.exe -Command "New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>9</Order>
+          <CommandLine>powershell.exe -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
       </FirstLogonCommands>
     </component>
     <component name="Microsoft-Windows-International-Core"
