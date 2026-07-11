@@ -119,6 +119,7 @@ class TestInitDb:
                 "clutch_name",
                 "hatched_at",
                 "completed_at",
+                "archived_at",
             ]
         finally:
             conn.close()

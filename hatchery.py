@@ -64,6 +64,15 @@ def _sync_clutches() -> None:
                 notif_lib.record_alert(msg)
 
 
+def _session_outcome_summary(vms: list[dict]) -> str:
+    """Build a human-readable outcome string from a list of VM status dicts."""
+    counts: dict[str, int] = {}
+    for v in vms:
+        counts[v["status"]] = counts.get(v["status"], 0) + 1
+    parts = [f"{n} {s}" for s, n in counts.items() if n]
+    return ", ".join(parts) if parts else "no VMs"
+
+
 def _check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
     """Return True if a TCP connection to the WinRM port succeeds."""
     try:
@@ -96,6 +105,12 @@ def _sync_hatch_status() -> None:
         if current_name is None:
             hatch_lib.set_vm_status(session_id, vm_name, "culled")
             notif_lib.record_activity(f"VM '{vm_name}' was removed from the host.")
+            archived = hatch_lib.archive_if_terminal(session_id)
+            if archived:
+                summary = _session_outcome_summary(archived["vms"])
+                notif_lib.record_activity(
+                    f"Hatch session '{archived['clutch_name']}' archived — {summary}."
+                )
             continue
 
         if current_name != vm_name:
@@ -739,6 +754,12 @@ def clutch_delete(filename):
 @app.route("/api/sessions")
 def api_sessions():
     return jsonify(hatch_lib.list_sessions())
+
+
+@app.route("/api/sessions/<session_id>/dismiss", methods=["POST"])
+def api_dismiss_session(session_id):
+    hatch_lib.archive_session(session_id)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/notifications")
