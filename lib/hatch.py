@@ -118,13 +118,62 @@ def _compute_session_status(vms: list[dict]) -> str:
     return "unknown"
 
 
+def archive_session(session_id: str) -> None:
+    """Archive (dismiss) a session — removes it from the active Nests view."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "UPDATE hatch_sessions SET archived_at=? WHERE id=?",
+            (_now(), session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def archive_if_terminal(session_id: str) -> dict | None:
+    """Archive the session if all VMs are in a terminal state (degraded or failed).
+
+    Returns a summary dict with clutch_name, status, and vm counts if the session
+    was archived this call; returns None if it was already archived or not terminal.
+    """
+    conn = db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT clutch_name, archived_at FROM hatch_sessions WHERE id=?",
+            (session_id,),
+        ).fetchone()
+        if row is None or row["archived_at"] is not None:
+            return None
+
+        vms = conn.execute(
+            "SELECT vm_name, status FROM hatch_vm_status WHERE session_id=?",
+            (session_id,),
+        ).fetchall()
+        vm_dicts = [dict(v) for v in vms]
+        status = _compute_session_status(vm_dicts)
+
+        if status not in ("degraded", "failed"):
+            return None
+
+        conn.execute(
+            "UPDATE hatch_sessions SET archived_at=? WHERE id=?",
+            (_now(), session_id),
+        )
+        conn.commit()
+        return {"clutch_name": row["clutch_name"], "status": status, "vms": vm_dicts}
+    finally:
+        conn.close()
+
+
 def list_sessions(nest: str = "local") -> list[dict]:
-    """Return all sessions for a nest, each with its VMs and computed status."""
+    """Return active (non-archived) sessions for a nest, each with its VMs and computed status."""
     conn = db.get_connection()
     try:
         sessions = conn.execute(
             """SELECT id, nest, clutch_file, clutch_name, hatched_at, completed_at
-               FROM hatch_sessions WHERE nest=? ORDER BY hatched_at DESC, rowid DESC""",
+               FROM hatch_sessions WHERE nest=? AND archived_at IS NULL
+               ORDER BY hatched_at DESC, rowid DESC""",
             (nest,),
         ).fetchall()
         result = []

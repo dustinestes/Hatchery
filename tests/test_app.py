@@ -1092,9 +1092,22 @@ class TestSyncHatchStatus:
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        sid = self._setup_hatching(tmp_path)
+        # Two VMs — ws01 stays hatching so the session is not auto-archived,
+        # letting us assert that dc01's status was set to culled.
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        hatch_lib.set_vm_status(sid, "ws01", "hatching")
+        ws_uuid = "bbbbccdd-1234-5678-abcd-000000000002"
+        hatch_lib.set_vm_uuid(sid, "ws01", ws_uuid)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            mock_prov.return_value.get_vm_name_by_uuid.side_effect = lambda uuid: (
+                None if uuid == self._UUID else "ws01"
+            )
+            mock_prov.return_value.get_status.return_value = "running"
+            mock_prov.return_value.get_vm_ip.return_value = None
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -1131,12 +1144,22 @@ class TestSyncHatchStatus:
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        # Two VMs — ws01 stays hatching (→ in_progress) so the session is not
+        # auto-archived, letting us assert that dc01's status was set to culled.
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
         hatch_lib.set_vm_status(sid, "dc01", "fledged")
         hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        ws_uuid = "bbbbccdd-1234-5678-abcd-000000000002"
+        hatch_lib.set_vm_status(sid, "ws01", "hatching")
+        hatch_lib.set_vm_uuid(sid, "ws01", ws_uuid)
         with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            mock_prov.return_value.get_vm_name_by_uuid.side_effect = lambda uuid: (
+                None if uuid == self._UUID else "ws01"
+            )
+            mock_prov.return_value.get_status.return_value = "running"
+            mock_prov.return_value.get_vm_ip.return_value = None
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -1179,6 +1202,70 @@ class TestSyncHatchStatus:
             app_module._sync_hatch_status()
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("renamed" in a["message"] for a in activity)
+
+    def test_auto_archives_session_when_last_vm_culled(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            app_module._sync_hatch_status()
+        assert hatch_lib.list_sessions() == []
+
+    def test_records_archive_activity_with_summary(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            app_module._sync_hatch_status()
+        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
+        assert any("archived" in a["message"] for a in activity)
+
+    def test_does_not_archive_when_other_vms_still_hatching(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        hatch_lib.set_vm_status(sid, "ws01", "hatching")
+        hatch_lib.set_vm_uuid(sid, "ws01", "bbbbccdd-1234-5678-abcd-000000000002")
+        with patch("hatchery._provider") as mock_prov:
+            # dc01 is culled, ws01 is still running
+            mock_prov.return_value.get_vm_name_by_uuid.side_effect = lambda uuid: (
+                None if uuid == self._UUID else "ws01"
+            )
+            mock_prov.return_value.get_status.return_value = "running"
+            mock_prov.return_value.get_vm_ip.return_value = None
+            app_module._sync_hatch_status()
+        assert len(hatch_lib.list_sessions()) == 1
+
+
+class TestApiDismissSession:
+    def test_dismiss_archives_session(self, client, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        resp = client.post(f"/api/sessions/{sid}/dismiss")
+        assert resp.status_code == 200
+        assert hatch_lib.list_sessions() == []
+
+    def test_dismiss_returns_ok(self, client, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        resp = client.post(f"/api/sessions/{sid}/dismiss")
+        assert resp.get_json() == {"ok": True}
+
+    def test_dismiss_nonexistent_session_is_silent(self, client):
+        resp = client.post("/api/sessions/does-not-exist/dismiss")
+        assert resp.status_code == 200
 
 
 class TestApiSessions:

@@ -310,3 +310,114 @@ class TestListSessions:
         hatch_lib.set_vm_status(sid, "dc01", "fledged")
         sessions = hatch_lib.list_sessions()
         assert sessions[0]["status"] == "completed"
+
+    def test_excludes_archived_sessions(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.archive_session(sid)
+        assert hatch_lib.list_sessions() == []
+
+    def test_non_archived_sessions_still_appear(self):
+        sid1 = hatch_lib.create_session("a.yaml", "A")
+        sid2 = hatch_lib.create_session("b.yaml", "B")
+        hatch_lib.archive_session(sid1)
+        sessions = hatch_lib.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0]["id"] == sid2
+
+
+# ── archive_session ───────────────────────────────────────────────────────────
+
+
+class TestArchiveSession:
+    def test_removes_session_from_list(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.archive_session(sid)
+        assert all(s["id"] != sid for s in hatch_lib.list_sessions())
+
+    def test_idempotent(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.archive_session(sid)
+        hatch_lib.archive_session(sid)  # should not raise
+        assert hatch_lib.list_sessions() == []
+
+    def test_only_archives_target_session(self):
+        sid1 = hatch_lib.create_session("a.yaml", "A")
+        sid2 = hatch_lib.create_session("b.yaml", "B")
+        hatch_lib.archive_session(sid1)
+        sessions = hatch_lib.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0]["id"] == sid2
+
+
+# ── archive_if_terminal ───────────────────────────────────────────────────────
+
+
+class TestArchiveIfTerminal:
+    def _degraded_session(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "culled")
+        return sid
+
+    def _failed_session(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "failed")
+        return sid
+
+    def _completed_session(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+        return sid
+
+    def test_archives_degraded_session(self):
+        sid = self._degraded_session()
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is not None
+        assert hatch_lib.list_sessions() == []
+
+    def test_archives_failed_session(self):
+        sid = self._failed_session()
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is not None
+        assert hatch_lib.list_sessions() == []
+
+    def test_does_not_archive_completed_session(self):
+        sid = self._completed_session()
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is None
+        assert len(hatch_lib.list_sessions()) == 1
+
+    def test_does_not_archive_in_progress_session(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is None
+        assert len(hatch_lib.list_sessions()) == 1
+
+    def test_returns_clutch_name_and_vms(self):
+        sid = self._degraded_session()
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result["clutch_name"] == "Lab"
+        assert any(v["vm_name"] == "dc01" for v in result["vms"])
+
+    def test_returns_none_if_already_archived(self):
+        sid = self._degraded_session()
+        hatch_lib.archive_session(sid)
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is None
+
+    def test_returns_none_for_unknown_session(self):
+        result = hatch_lib.archive_if_terminal("nonexistent-id")
+        assert result is None
+
+    def test_mixed_fledged_culled_is_archived(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+        hatch_lib.set_vm_status(sid, "ws01", "culled")
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is not None

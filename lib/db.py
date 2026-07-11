@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS hatch_sessions (
     clutch_file  TEXT NOT NULL,
     clutch_name  TEXT NOT NULL,
     hatched_at   TEXT NOT NULL,
-    completed_at TEXT
+    completed_at TEXT,
+    archived_at  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS hatch_vm_status (
@@ -47,7 +48,9 @@ CREATE TABLE IF NOT EXISTS hatch_vm_status (
 );
 """
 
-_MIGRATIONS: list[str] = []
+_MIGRATIONS: list[str] = [
+    "ALTER TABLE hatch_sessions ADD COLUMN archived_at TEXT",
+]
 
 _db_path: Path | None = None
 

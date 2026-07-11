@@ -91,6 +91,14 @@
       </div>`;
   }
 
+  const DISMISSIBLE_STATUSES = new Set(['completed', 'degraded', 'failed']);
+
+  function dismiss(sessionId, rowEl) {
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/dismiss`, { method: 'POST' })
+      .then(r => r.ok ? rowEl.remove() : Promise.reject())
+      .catch(() => {});
+  }
+
   function renderSession(s, forceOpen) {
     const bodyId   = `body-${escHtml(s.id)}`;
     const isOpen   = forceOpen || s.status === 'in_progress';
@@ -98,6 +106,9 @@
     const hidden   = isOpen ? '' : 'hidden';
     const completedHtml = s.completed_at
       ? `<div class="session-completed">Completed ${fmtTime(s.completed_at)}</div>`
+      : '';
+    const dismissHtml = DISMISSIBLE_STATUSES.has(s.status)
+      ? `<button class="btn btn-secondary btn-sm session-dismiss-btn" data-session-id="${escHtml(s.id)}" title="Dismiss session">Dismiss</button>`
       : '';
     return `
       <div class="session-row" id="session-${escHtml(s.id)}">
@@ -111,6 +122,7 @@
           </button>
           <span class="hatch-status-badge hatch-status-badge--${escHtml(s.status)}">${SESSION_STATUS_LABEL[s.status] || escHtml(s.status)}</span>
           <span class="session-row-time">${fmtTime(s.hatched_at)}</span>
+          ${dismissHtml}
         </div>
         <div class="session-row-body" id="${bodyId}" ${hidden}>
           <div class="session-vms">${s.vms.map(renderVmRow).join('')}</div>
@@ -174,6 +186,9 @@
         sessionsList.appendChild(newRow);
       }
       bindToggle(newRow);
+      newRow.querySelectorAll('.session-dismiss-btn').forEach(btn => {
+        btn.addEventListener('click', () => dismiss(btn.dataset.sessionId, newRow));
+      });
     });
   }
 
