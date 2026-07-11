@@ -1734,3 +1734,165 @@ class TestAPIRoutes:
         resp = client.get("/api/clutches")
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
+
+
+# ── settings show_passwords ───────────────────────────────────────────────────
+
+
+class TestSettingsShowPasswords:
+    def test_post_saves_show_passwords_true_when_checked(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        client.post(
+            "/settings",
+            data={"data_dir": str(tmp_path), "bg_interval": "60", "show_passwords": "on"},
+        )
+        assert saved["show_passwords"] is True
+
+    def test_post_saves_show_passwords_false_when_unchecked(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
+        assert saved["show_passwords"] is False
+
+    def test_get_shows_show_passwords_checkbox(self, client):
+        html = client.get("/settings").data.decode()
+        assert "show_passwords" in html
+
+    def test_get_checkbox_checked_when_setting_true(self, client, monkeypatch):
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": "/some/path", "bg_interval": 60, "show_passwords": True},
+        )
+        html = client.get("/settings").data.decode()
+        assert 'name="show_passwords"' in html
+        assert "checked" in html
+
+
+# ── api_nest_vms ──────────────────────────────────────────────────────────────
+
+
+class TestApiNestVms:
+    def _mock_provider(self, vms=None, ip=None, tag=None):
+        mock = MagicMock()
+        mock.list_vms.return_value = vms or []
+        mock.get_vm_ip.return_value = ip
+        mock.get_vm_session_tag.return_value = tag
+        return mock
+
+    def test_returns_200_with_empty_list(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider()
+            resp = client.get("/api/nests/local/vms")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_returns_vm_name_and_status(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}]
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["name"] == "dc01"
+        assert data[0]["status"] == "running"
+
+    def test_includes_ip_when_available(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                ip="192.168.122.10",
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["ip"] == "192.168.122.10"
+
+    def test_ip_is_none_when_unavailable(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "shut off"}], ip=None
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["ip"] is None
+
+    def test_includes_session_and_clutch_from_tag(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": "abc-123", "clutch_file": "lab.yaml"},
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["session_id"] == "abc-123"
+        assert data[0]["clutch_file"] == "lab.yaml"
+
+    def test_session_and_clutch_null_when_untagged(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}], tag=None
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["session_id"] is None
+        assert data[0]["clutch_file"] is None
+
+    def test_includes_db_credentials_when_tagged(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="alice", admin_password="s3cr3t")
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            with patch.object(cfg, "show_passwords", return_value=True):
+                resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["admin_username"] == "alice"
+        assert data[0]["admin_password"] == "s3cr3t"
+
+    def test_password_hidden_when_show_passwords_false(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="alice", admin_password="s3cr3t")
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            with patch.object(cfg, "show_passwords", return_value=False):
+                resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["admin_username"] == "alice"
+        assert data[0]["admin_password"] is None
+
+    def test_ip_exception_does_not_crash(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(vms=[{"name": "dc01", "status": "running"}])
+            prov.get_vm_ip.side_effect = Exception("network error")
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        assert resp.status_code == 200
+        assert resp.get_json()[0]["ip"] is None
+
+    def test_tag_exception_does_not_crash(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(vms=[{"name": "dc01", "status": "running"}])
+            prov.get_vm_session_tag.side_effect = Exception("metadata error")
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        assert resp.status_code == 200
+        assert resp.get_json()[0]["session_id"] is None

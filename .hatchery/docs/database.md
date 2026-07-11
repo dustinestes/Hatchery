@@ -81,7 +81,11 @@ The file is not included in the Hatchery source repository.
 |---|---|---|
 | Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
 | Activity history | `activity` | App-generated, timestamped, immutable — audit trail of user actions and provisioning events |
+| Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps |
+| VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH — see note below |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |
+
+> **Note on credential storage:** `admin_username` and `admin_password` are stored in plaintext in `hatch_vm_status`. This is required — post-install automation needs them to authenticate to the VM after it fledges. Credentials are protected only by host filesystem permissions. For mitigation options and the v2 hardening roadmap, see [`schema/database.md — Credential storage`](schema/database.md#credential-storage).
 
 <br>
 

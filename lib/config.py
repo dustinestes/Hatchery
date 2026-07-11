@@ -30,6 +30,7 @@ DEFAULT_DATA_DIR: Path = _default_data_dir()
 _DEFAULTS: dict = {
     "data_dir": str(DEFAULT_DATA_DIR),
     "bg_interval": 60,
+    "show_passwords": False,
 }
 _config: dict = {}
 
@@ -69,6 +70,11 @@ def data_dir() -> Path:
 def bg_interval() -> int:
     """Return the background re-evaluation interval in seconds."""
     return int(get()["bg_interval"])
+
+
+def show_passwords() -> bool:
+    """Return whether admin passwords should be displayed in the VM inventory."""
+    return bool(get().get("show_passwords", False))
 
 
 def init_data_dir() -> None:

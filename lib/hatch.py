@@ -26,13 +26,20 @@ def create_session(clutch_file: str, clutch_name: str, nest: str = "local") -> s
     return session_id
 
 
-def add_vm(session_id: str, vm_name: str) -> None:
-    """Add a VM to a session in pending state."""
+def add_vm(
+    session_id: str,
+    vm_name: str,
+    admin_username: str | None = None,
+    admin_password: str | None = None,
+) -> None:
+    """Add a VM to a session in pending state, storing credentials for post-install automation."""
     conn = db.get_connection()
     try:
         conn.execute(
-            "INSERT INTO hatch_vm_status (session_id, vm_name, status) VALUES (?, ?, 'pending')",
-            (session_id, vm_name),
+            """INSERT INTO hatch_vm_status
+               (session_id, vm_name, status, admin_username, admin_password)
+               VALUES (?, ?, 'pending', ?, ?)""",
+            (session_id, vm_name, admin_username, admin_password),
         )
         conn.commit()
     finally:
@@ -99,6 +106,20 @@ def update_vm_name(session_id: str, old_name: str, new_name: str) -> None:
             (new_name, session_id, old_name),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def get_vm_record(session_id: str, vm_name: str) -> dict | None:
+    """Return the DB record for a specific VM in a session, or None if not found."""
+    conn = db.get_connection()
+    try:
+        row = conn.execute(
+            """SELECT vm_name, status, started_at, fledged_at, admin_username, admin_password
+               FROM hatch_vm_status WHERE session_id=? AND vm_name=?""",
+            (session_id, vm_name),
+        ).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 

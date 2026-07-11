@@ -16,10 +16,13 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
 - [Tables](#tables)
   - [alerts](#alerts)
   - [activity](#activity)
+  - [hatch\_sessions](#hatch_sessions)
+  - [hatch\_vm\_status](#hatch_vm_status)
   - [clutch\_instances](#clutch_instances)
 - [Maintenance](#maintenance)
   - [Row cap](#row-cap)
   - [Migrations](#migrations)
+- [Credential storage](#credential-storage)
 
 ---
 
@@ -58,6 +61,49 @@ Immutable audit trail of user actions and provisioning events (e.g. "VM hatching
 #### Managed by
 
 `lib/notifications.py` — `record_activity()`
+
+<br>
+
+### hatch_sessions
+
+One row per Clutch hatch initiated by the user. Groups the VMs hatched together and tracks the session lifecycle. Sessions are archived (not deleted) when they reach a terminal state.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `TEXT` | `PRIMARY KEY` | UUID v4 assigned at session creation |
+| `nest` | `TEXT` | `NOT NULL DEFAULT 'local'` | Nest identifier; `'local'` for the host running Hatchery |
+| `clutch_file` | `TEXT` | `NOT NULL` | Filename of the Clutch that was hatched |
+| `clutch_name` | `TEXT` | `NOT NULL` | Human-readable name from the Clutch definition |
+| `hatched_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) when the session was initiated |
+| `completed_at` | `TEXT` | | Set when all VMs in the session reach `fledged`; `NULL` otherwise |
+| `archived_at` | `TEXT` | | Set when the session is auto-archived or manually dismissed; archived sessions are excluded from the active Nests view |
+
+#### Managed by
+
+`lib/hatch.py` — `create_session()`, `list_sessions()`, `archive_session()`, `archive_if_terminal()`
+
+<br>
+
+### hatch_vm_status
+
+One row per VM per hatch session. Tracks the provisioning lifecycle of each VM and stores the credentials needed for post-install automation. See [Credential storage](#credential-storage).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
+| `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
+| `vm_name` | `TEXT` | `NOT NULL` | VM name as known to the hypervisor; updated if renamed |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `hatching` → `fledged` or `failed`; may transition to `culled` if the VM is removed from the host |
+| `libvirt_uuid` | `TEXT` | | Hypervisor UUID assigned at creation; authoritative identity for rename and cull detection |
+| `started_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `hatching` |
+| `fledged_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `fledged` |
+| `admin_username` | `TEXT` | | Admin account username configured in the answer file; stored for post-install automation and Nests inventory display |
+| `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation — see [Credential storage](#credential-storage) |
+| `error` | `TEXT` | | Error message if the VM failed to hatch; `NULL` on success |
+
+#### Managed by
+
+`lib/hatch.py` — `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `update_vm_name()`, `get_vm_record()`
 
 <br>
 
@@ -100,6 +146,41 @@ When a future change requires adding or modifying columns, the approach will be:
 3. Bump the version after each migration
 
 No migration infrastructure is needed yet. This is the documented plan for when it becomes necessary.
+
+<br>
+
+---
+
+## Credential storage
+
+Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** — post-install automation (issue [#77](https://github.com/dustinestes/Hatchery/issues/77)) requires them to authenticate over WinRM or SSH after a VM fledges in order to run provisioning scripts. Re-entering credentials at that point would break the zero-manual-steps automation goal.
+
+### What is stored and where
+
+Credentials are written to `hatch_vm_status` at hatch time and persist for the lifetime of the session record. They are stored as **plaintext** in the SQLite database at:
+
+```
+~/.local/share/hatchery/hatchery.db
+```
+
+The database is protected only by host filesystem permissions. It is not encrypted.
+
+### Display in the UI
+
+Displaying passwords in the Nests VM inventory is **opt-in** via the **Show admin passwords** setting (default: off). When off, the password column renders as `••••••••`. Usernames are always visible.
+
+### Mitigation options
+
+Users who want to limit credential exposure after provisioning can add a final automation script that:
+
+- Changes the admin username and/or password after provisioning completes
+- Pushes the new credentials into their own secrets management system (HashiCorp Vault, 1Password, etc.)
+
+This is the recommended approach for environments where VMs outlive their initial setup or store sensitive data.
+
+### Future hardening
+
+See issue [#110](https://github.com/dustinestes/Hatchery/issues/110) for the v2 roadmap: encrypted credential storage at rest, or an authentication layer that restricts browser access to the tool.
 
 <br>
 

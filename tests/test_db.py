@@ -138,6 +138,8 @@ class TestInitDb:
                 "libvirt_uuid",
                 "started_at",
                 "fledged_at",
+                "admin_username",
+                "admin_password",
                 "error",
             ]
         finally:
