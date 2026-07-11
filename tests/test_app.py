@@ -294,7 +294,7 @@ class TestBuildRoute:
         form = {**VALID_BUILD_FORM, "vm_automations[]": "setup.ps1,configure.ps1"}
         client.post("/build", data=form)
         c = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
-        assert c.vms[0].automations == ["setup.ps1", "configure.ps1"]
+        assert [s.name for s in c.vms[0].automations] == ["setup.ps1", "configure.ps1"]
 
     def test_build_post_admin_username_saved_to_clutch(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1896,3 +1896,266 @@ class TestApiNestVms:
             resp = client.get("/api/nests/local/vms")
         assert resp.status_code == 200
         assert resp.get_json()[0]["session_id"] is None
+
+    def test_scripts_included_when_tagged(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+
+        class _S:
+            def __init__(self, name):
+                self.name = name
+                self.reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["scripts"][0]["script_name"] == "setup.ps1"
+
+    def test_scripts_empty_when_untagged(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}], tag=None
+            )
+            resp = client.get("/api/nests/local/vms")
+        assert resp.get_json()[0]["scripts"] == []
+
+
+# ── api_retry_vm ──────────────────────────────────────────────────────────────
+
+
+class TestApiRetryVm:
+    def _setup_failed_vm(self, tmp_path):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="admin", admin_password="pass")
+
+        class _S:
+            def __init__(self, name):
+                self.name = name
+                self.reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
+        hatch_lib.set_vm_status(sid, "dc01", "failed")
+        return sid
+
+    def test_returns_404_for_unknown_vm(self, client):
+        resp = client.post("/api/sessions/no-such/vms/dc01/retry")
+        assert resp.status_code == 404
+
+    def test_returns_409_when_vm_not_failed(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
+        assert resp.status_code == 409
+
+    def test_resets_scripts_and_sets_provisioning(self, client, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        sid = self._setup_failed_vm(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_ip.return_value = None
+            resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
+        assert resp.status_code == 200
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert rec["status"] == "provisioning"
+        scripts = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert scripts[0]["status"] == "pending"
+
+    def test_spawns_thread_when_winrm_reachable(self, client, tmp_path):
+        sid = self._setup_failed_vm(tmp_path)
+        spawned = []
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.1.10"
+            with patch("hatchery._check_winrm", return_value=True):
+                with patch(
+                    "hatchery._spawn_provision_thread",
+                    side_effect=lambda *a, **kw: spawned.append(a),
+                ):
+                    resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
+        assert resp.status_code == 200
+        assert resp.get_json()["queued"] is True
+        assert len(spawned) == 1
+
+    def test_queued_false_when_vm_unreachable(self, client, tmp_path):
+        sid = self._setup_failed_vm(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_ip.return_value = None
+            resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
+        assert resp.get_json()["queued"] is False
+
+
+# ── _provision_vm_thread ──────────────────────────────────────────────────────
+
+
+class TestProvisionVmThread:
+    def _setup(self, tmp_path):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="admin", admin_password="pass")
+        return sid
+
+    def _script(self, tmp_path, name="setup.ps1"):
+        (tmp_path / "automation" / "scripts").mkdir(parents=True, exist_ok=True)
+        p = tmp_path / "automation" / "scripts" / name
+        p.write_text("echo hi")
+        return name
+
+    def test_sets_fledged_on_all_success(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
+        assert hatch_lib.get_vm_scripts(sid, "dc01")[0]["status"] == "succeeded"
+
+    def test_sets_failed_on_nonzero_exit(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery.provision_lib.run_script", return_value=(1, "error")):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
+        assert hatch_lib.get_vm_scripts(sid, "dc01")[0]["status"] == "failed"
+
+    def test_skips_remaining_scripts_on_failure(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        self._script(tmp_path, "a.ps1")
+        self._script(tmp_path, "b.ps1")
+
+        class _A:
+            name = "a.ps1"
+            reboot_after = False
+
+        class _B:
+            name = "b.ps1"
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_A(), _B()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery.provision_lib.run_script", return_value=(1, "fail")):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        scripts = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert scripts[0]["status"] == "failed"
+        assert scripts[1]["status"] == "skipped"
+
+    def test_skips_already_succeeded_scripts(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        self._script(tmp_path, "a.ps1")
+        self._script(tmp_path, "b.ps1")
+
+        class _A:
+            name = "a.ps1"
+            reboot_after = False
+
+        class _B:
+            name = "b.ps1"
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_A(), _B()])
+        hatch_lib.set_script_status(sid, "dc01", 0, "succeeded", exit_code=0, output="")
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        call_count = []
+        with patch(
+            "hatchery.provision_lib.run_script",
+            side_effect=lambda *a, **kw: call_count.append(1) or (0, "ok"),
+        ):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert len(call_count) == 1  # only b.ps1 ran
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
+
+    def test_sets_failed_on_run_script_exception(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery.provision_lib.run_script", side_effect=ConnectionError("refused")):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
+        assert hatch_lib.get_vm_scripts(sid, "dc01")[0]["exit_code"] == -1
+
+    def test_removes_from_provisioning_set_on_completion(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+        app_module._provisioning.add((sid, "dc01"))
+
+        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("hatchery._provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert (sid, "dc01") not in app_module._provisioning

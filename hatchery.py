@@ -11,10 +11,16 @@ from lib import db
 from lib import clutch as clutch_lib
 from lib import hatch as hatch_lib
 from lib import notifications as notif_lib
+from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
+
+# Tracks (session_id, vm_name) pairs currently being provisioned so the sync
+# loop does not spawn duplicate threads.
+_provisioning: set[tuple[str, str]] = set()
+_provisioning_lock = threading.Lock()
 
 app = Flask(__name__, template_folder="templates/ui")
 app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-production")
@@ -82,14 +88,130 @@ def _check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
         return False
 
 
+def _provision_vm_thread(
+    session_id: str,
+    vm_name: str,
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+) -> None:
+    """Run pending automation scripts for a VM sequentially, updating DB state per script."""
+    try:
+        provider = _provider()
+        scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
+        data_dir = config.data_dir()
+
+        for script in scripts:
+            if script["status"] == "succeeded":
+                continue
+
+            hatch_lib.set_script_status(session_id, vm_name, script["run_order"], "running")
+            script_path = data_dir / "automation" / "scripts" / script["script_name"]
+
+            try:
+                exit_code, output = provision_lib.run_script(
+                    ip, admin_username, admin_password, script_path
+                )
+            except Exception as exc:
+                hatch_lib.set_script_status(
+                    session_id,
+                    vm_name,
+                    script["run_order"],
+                    "failed",
+                    exit_code=-1,
+                    output=str(exc),
+                )
+                _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
+                hatch_lib.set_vm_status(session_id, vm_name, "failed")
+                notif_lib.record_activity(
+                    f"VM '{vm_name}' provisioning failed: could not run '{script['script_name']}'."
+                )
+                return
+
+            if exit_code != 0:
+                hatch_lib.set_script_status(
+                    session_id,
+                    vm_name,
+                    script["run_order"],
+                    "failed",
+                    exit_code=exit_code,
+                    output=output,
+                )
+                _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
+                hatch_lib.set_vm_status(session_id, vm_name, "failed")
+                notif_lib.record_activity(
+                    f"VM '{vm_name}' provisioning failed on '{script['script_name']}' (exit {exit_code})."
+                )
+                return
+
+            hatch_lib.set_script_status(
+                session_id,
+                vm_name,
+                script["run_order"],
+                "succeeded",
+                exit_code=exit_code,
+                output=output,
+            )
+
+            if script["reboot_after"]:
+                provision_lib.shutdown_guest(ip, admin_username, admin_password)
+                # Wait for shut off
+                for _ in range(60):
+                    time.sleep(5)
+                    try:
+                        if provider.get_status(vm_name) == "shut off":
+                            break
+                    except Exception:
+                        pass
+                try:
+                    provider.start_vm(vm_name)
+                except Exception:
+                    pass
+                # Wait for WinRM to come back
+                for _ in range(120):
+                    time.sleep(5)
+                    if _check_winrm(ip):
+                        break
+
+        hatch_lib.set_vm_status(session_id, vm_name, "fledged")
+        notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
+
+    finally:
+        with _provisioning_lock:
+            _provisioning.discard((session_id, vm_name))
+
+
+def _mark_remaining_skipped(
+    session_id: str, vm_name: str, scripts: list[dict], failed_order: int
+) -> None:
+    for s in scripts:
+        if s["run_order"] > failed_order and s["status"] == "pending":
+            hatch_lib.set_script_status(session_id, vm_name, s["run_order"], "skipped")
+
+
+def _spawn_provision_thread(
+    session_id: str, vm_name: str, ip: str, admin_username: str, admin_password: str
+) -> None:
+    with _provisioning_lock:
+        if (session_id, vm_name) in _provisioning:
+            return
+        _provisioning.add((session_id, vm_name))
+    t = threading.Thread(
+        target=_provision_vm_thread,
+        args=(session_id, vm_name, ip, admin_username, admin_password),
+        daemon=True,
+    )
+    t.start()
+
+
 def _sync_hatch_status() -> None:
-    """Monitor hatching and fledged VMs: advance to fledged on WinRM, cull if gone."""
+    """Monitor active VMs: advance through hatching→provisioning→fledged, cull if gone."""
     sessions = hatch_lib.list_sessions()
     monitored = [
         (s["id"], v["vm_name"], v.get("libvirt_uuid"), v["status"])
         for s in sessions
         for v in s["vms"]
-        if v["status"] in ("hatching", "fledged")
+        if v["status"] in ("hatching", "provisioning", "fledged")
     ]
     if not monitored:
         return
@@ -98,7 +220,6 @@ def _sync_hatch_status() -> None:
 
     for session_id, vm_name, libvirt_uuid, vm_status in monitored:
         if not libvirt_uuid:
-            # UUID not yet stored — cannot determine if VM still exists; skip until next cycle
             continue
 
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
@@ -132,15 +253,47 @@ def _sync_hatch_status() -> None:
                 try:
                     provider.start_vm(current_name)
                 except Exception:
-                    pass  # best-effort: if restart fails, retry next cycle
-                continue  # wait for VM to boot before checking WinRM
+                    pass
+                continue
 
             ip = provider.get_vm_ip(current_name)
             if not ip:
                 continue
-            if _check_winrm(ip):
+            if not _check_winrm(ip):
+                continue
+
+            db_record = hatch_lib.get_vm_record(session_id, vm_name)
+            scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
+            if scripts:
+                hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
+                notif_lib.record_activity(f"VM '{vm_name}' is provisioning.")
+                _spawn_provision_thread(
+                    session_id,
+                    vm_name,
+                    ip,
+                    (db_record or {}).get("admin_username") or "",
+                    (db_record or {}).get("admin_password") or "",
+                )
+            else:
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
                 notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
+
+        elif vm_status == "provisioning":
+            # Re-spawn provision thread if app restarted mid-provisioning.
+            with _provisioning_lock:
+                already_running = (session_id, vm_name) in _provisioning
+            if not already_running:
+                ip = provider.get_vm_ip(current_name)
+                if ip and _check_winrm(ip):
+                    db_record = hatch_lib.get_vm_record(session_id, vm_name)
+                    hatch_lib.reset_scripts_for_retry(session_id, vm_name)
+                    _spawn_provision_thread(
+                        session_id,
+                        vm_name,
+                        ip,
+                        (db_record or {}).get("admin_username") or "",
+                        (db_record or {}).get("admin_password") or "",
+                    )
 
 
 def _background_loop(stop_event: threading.Event) -> None:
@@ -415,6 +568,7 @@ def hatch_clutch_post():
             admin_username=vm.admin_username or None,
             admin_password=passwords.get(vm.name),
         )
+        hatch_lib.add_vm_scripts(session_id, vm.name, vm.automations)
 
     t = threading.Thread(
         target=_run_hatch_session,
@@ -736,7 +890,7 @@ def api_clutch_detail(filename):
                     "virtio_drivers": v.virtio_drivers or "",
                     "os_config": v.os_config or "",
                     "admin_username": v.admin_username or "",
-                    "automations": v.automations,
+                    "automations": [s.name for s in v.automations],
                     "depends_on": v.depends_on,
                 }
                 for v in c.vms
@@ -797,6 +951,9 @@ def api_nest_vms(nest: str):
                 record["admin_username"] = db_row.get("admin_username")
                 if show_pw:
                     record["admin_password"] = db_row.get("admin_password")
+            record["scripts"] = hatch_lib.get_vm_scripts(tag["session_id"], name)
+        else:
+            record["scripts"] = []
 
         result.append(record)
 
@@ -812,6 +969,39 @@ def api_sessions():
 def api_dismiss_session(session_id):
     hatch_lib.archive_session(session_id)
     return jsonify({"ok": True})
+
+
+@app.route("/api/sessions/<session_id>/vms/<vm_name>/retry", methods=["POST"])
+def api_retry_vm(session_id, vm_name):
+    """Retry provisioning for a failed VM — re-runs only failed/skipped scripts."""
+    db_record = hatch_lib.get_vm_record(session_id, vm_name)
+    if db_record is None:
+        return jsonify({"error": "VM not found"}), 404
+    if db_record["status"] != "failed":
+        return jsonify({"error": "VM is not in a failed state"}), 409
+
+    hatch_lib.reset_scripts_for_retry(session_id, vm_name)
+    hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
+
+    provider = _provider()
+    try:
+        ip = provider.get_vm_ip(vm_name)
+    except Exception:
+        ip = None
+
+    if ip and _check_winrm(ip):
+        _spawn_provision_thread(
+            session_id,
+            vm_name,
+            ip,
+            db_record.get("admin_username") or "",
+            db_record.get("admin_password") or "",
+        )
+        return jsonify({"ok": True, "queued": True})
+
+    return jsonify(
+        {"ok": True, "queued": False, "message": "VM unreachable — will retry on next sync"}
+    )
 
 
 @app.route("/api/notifications")

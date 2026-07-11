@@ -51,6 +51,22 @@
     'pmsuspended': 'Suspended (PM)',
   };
 
+  const SCRIPT_STATUS_LABEL = {
+    'pending':   'Pending',
+    'running':   'Running',
+    'succeeded': 'Succeeded',
+    'failed':    'Failed',
+    'skipped':   'Skipped',
+  };
+
+  const SCRIPT_STATUS_CLASS = {
+    'pending':   'script-status--pending',
+    'running':   'script-status--running',
+    'succeeded': 'script-status--succeeded',
+    'failed':    'script-status--failed',
+    'skipped':   'script-status--skipped',
+  };
+
   function escHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
@@ -90,6 +106,41 @@
       </span>`;
   }
 
+  function renderScripts(vm) {
+    if (!vm.scripts || !vm.scripts.length) return '';
+    const rows = vm.scripts.map(s => {
+      const cls = SCRIPT_STATUS_CLASS[s.status] || '';
+      const lbl = SCRIPT_STATUS_LABEL[s.status] || escHtml(s.status);
+      const exitCode = s.exit_code !== null && s.exit_code !== undefined
+        ? `<span class="script-exit-code">exit ${s.exit_code}</span>` : '';
+      const output = s.output
+        ? `<details class="script-output"><summary>Output</summary><pre>${escHtml(s.output)}</pre></details>`
+        : '';
+      return `<div class="script-row">
+        <span class="script-name">${escHtml(s.script_name)}</span>
+        <span class="script-status ${cls}">${lbl}</span>
+        ${exitCode}
+        ${output}
+      </div>`;
+    }).join('');
+
+    const canRetry = vm.session_id && vm.scripts.some(s => s.status === 'failed');
+    const retryBtn = canRetry
+      ? `<button class="btn btn-sm vm-retry-btn"
+           data-session="${escHtml(vm.session_id)}" data-vm="${escHtml(vm.name)}">
+           Retry
+         </button>`
+      : '';
+
+    return `<div class="vm-scripts">
+      <div class="vm-scripts-header">
+        <span class="vm-scripts-title">Scripts</span>
+        ${retryBtn}
+      </div>
+      ${rows}
+    </div>`;
+  }
+
   function renderVm(vm) {
     const sc = statusClass(vm.status);
     const label = VM_STATUS_LABEL[vm.status] || escHtml(vm.status);
@@ -121,6 +172,7 @@
             <span class="vm-field-value">${renderPasswordCell(vm)}</span>
           </div>
         </div>
+        ${renderScripts(vm)}
       </div>`;
   }
 
@@ -161,6 +213,21 @@
       })
       .catch(() => { refreshLabel.textContent = 'Update failed'; });
   }
+
+  vmList.addEventListener('click', function (e) {
+    const btn = e.target.closest('.vm-retry-btn');
+    if (!btn) return;
+    const sessionId = btn.dataset.session;
+    const vmName = btn.dataset.vm;
+    btn.disabled = true;
+    btn.textContent = 'Retrying…';
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/vms/${encodeURIComponent(vmName)}/retry`, {
+      method: 'POST',
+    }).then(() => poll()).catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    });
+  });
 
   poll();
   setInterval(poll, 5000);

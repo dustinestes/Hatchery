@@ -48,6 +48,21 @@ CREATE TABLE IF NOT EXISTS hatch_vm_status (
     error          TEXT,
     UNIQUE(session_id, vm_name)
 );
+
+CREATE TABLE IF NOT EXISTS hatch_vm_scripts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   TEXT    NOT NULL REFERENCES hatch_sessions(id),
+    vm_name      TEXT    NOT NULL,
+    script_name  TEXT    NOT NULL,
+    run_order    INTEGER NOT NULL,
+    reboot_after INTEGER NOT NULL DEFAULT 0,
+    status       TEXT    NOT NULL DEFAULT 'pending',
+    exit_code    INTEGER,
+    output       TEXT,
+    started_at   TEXT,
+    completed_at TEXT,
+    UNIQUE(session_id, vm_name, run_order)
+);
 """
 
 _MIGRATIONS: list[str] = [
