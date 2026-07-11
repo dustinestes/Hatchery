@@ -272,6 +272,7 @@ def settings_post():
         **config.get(),
         "data_dir": str(Path(data_dir_raw).expanduser()),
         "bg_interval": bg_interval,
+        "show_passwords": "show_passwords" in request.form,
     }
     config.save(new_cfg)
     config.init_data_dir()
@@ -408,7 +409,12 @@ def hatch_clutch_post():
 
     session_id = hatch_lib.create_session(filename, clutch_obj.name)
     for vm in clutch_obj.vms:
-        hatch_lib.add_vm(session_id, vm.name)
+        hatch_lib.add_vm(
+            session_id,
+            vm.name,
+            admin_username=vm.admin_username or None,
+            admin_password=passwords.get(vm.name),
+        )
 
     t = threading.Thread(
         target=_run_hatch_session,
@@ -749,6 +755,52 @@ def clutch_delete(filename):
     notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{safe}'")
     notif_lib.record_activity(f"Clutch '{safe}' deleted.")
     return redirect(url_for("clutches"))
+
+
+@app.route("/api/nests/<nest>/vms")
+def api_nest_vms(nest: str):
+    """Return the enriched VM inventory for a nest: provider data + metadata + DB records."""
+    provider = _provider()
+    show_pw = config.show_passwords()
+
+    vms = provider.list_vms()
+    result = []
+    for vm in vms:
+        name = vm["name"]
+        record: dict = {
+            "name": name,
+            "status": vm["status"],
+            "ip": None,
+            "clutch_file": None,
+            "session_id": None,
+            "started_at": None,
+            "admin_username": None,
+            "admin_password": None,
+        }
+
+        try:
+            record["ip"] = provider.get_vm_ip(name)
+        except Exception:
+            pass
+
+        try:
+            tag = provider.get_vm_session_tag(name)
+        except Exception:
+            tag = None
+
+        if tag:
+            record["session_id"] = tag["session_id"]
+            record["clutch_file"] = tag["clutch_file"]
+            db_row = hatch_lib.get_vm_record(tag["session_id"], name)
+            if db_row:
+                record["started_at"] = db_row.get("started_at")
+                record["admin_username"] = db_row.get("admin_username")
+                if show_pw:
+                    record["admin_password"] = db_row.get("admin_password")
+
+        result.append(record)
+
+    return jsonify(result)
 
 
 @app.route("/api/sessions")

@@ -50,6 +50,23 @@
     </div>
   </section>
 
+  <section class="form-section">
+    <h2 class="form-section-title">Security</h2>
+    <div class="form-grid form-grid-1">
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label" for="show-passwords">Show admin passwords in VM inventory</label>
+          <span class="form-help-icon" data-tip="When enabled, admin passwords are displayed in the Nests VM inventory. Passwords are always stored in the database — this setting controls visibility only. Recommended for dev environments with throwaway VMs. See documentation for credential rotation options.">i</span>
+        </div>
+        <label class="form-toggle">
+          <input type="checkbox" id="show-passwords" name="show_passwords"
+                 {% if cfg.show_passwords %}checked{% endif %}>
+          <span class="form-toggle-label">Display passwords in the Nests panel</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
   </div>

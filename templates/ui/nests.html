@@ -5,7 +5,7 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Nests</h1>
-  <p class="pane-subtitle">View and manage Nest host endpoints and their hatched environments.</p>
+  <p class="pane-subtitle">Real-time inventory of VMs on each Nest host.</p>
 </div>
 
 <div class="nests-layout">
@@ -18,16 +18,16 @@
     </div>
   </nav>
 
-  <!-- Right: session list for the selected nest -->
+  <!-- Right: VM inventory for the selected nest -->
   <div class="nests-content" id="nests-content">
     <div class="nests-content-header">
       <span class="nests-content-title">local</span>
       <span class="nests-refresh-label" id="nests-refresh-label"></span>
     </div>
 
-    <div id="sessions-list" class="sessions-list">
-      <div class="sessions-empty" id="sessions-empty" style="display:none">
-        No hatch sessions yet. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
+    <div id="vm-list" class="vm-inventory">
+      <div class="vm-inventory-empty" id="vm-empty" style="display:none">
+        No VMs found on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
       </div>
     </div>
   </div>
@@ -38,25 +38,17 @@
 {% block scripts %}
 <script>
 (function () {
-  const sessionsList = document.getElementById('sessions-list');
-  const emptyMsg     = document.getElementById('sessions-empty');
+  const vmList      = document.getElementById('vm-list');
+  const emptyMsg    = document.getElementById('vm-empty');
   const refreshLabel = document.getElementById('nests-refresh-label');
 
-  const SESSION_STATUS_LABEL = {
-    in_progress: 'In Progress',
-    completed:   'Completed',
-    failed:      'Failed',
-    degraded:    'Degraded',
-    unknown:     'Unknown',
-  };
-
   const VM_STATUS_LABEL = {
-    pending:  'Pending',
-    hatching: 'Hatching',
-    fledged:  'Fledged',
-    failed:   'Failed',
-    blocked:  'Blocked',
-    culled:   'Culled',
+    'running':     'Running',
+    'shut off':    'Shut Off',
+    'paused':      'Paused',
+    'suspended':   'Suspended',
+    'crashed':     'Crashed',
+    'pmsuspended': 'Suspended (PM)',
   };
 
   function escHtml(str) {
@@ -73,130 +65,98 @@
     });
   }
 
-  function renderVmRow(vm) {
-    const errorHtml = vm.error
-      ? `<span class="session-vm-error" title="${escHtml(vm.error)}">${escHtml(vm.error)}</span>`
-      : '';
-    const uuidHtml = vm.libvirt_uuid
-      ? `<span class="session-vm-uuid">${escHtml(vm.libvirt_uuid)}</span>`
-      : '';
+  function statusClass(status) {
+    if (status === 'running') return 'running';
+    if (status === 'shut off') return 'shut-off';
+    if (status === 'paused' || status === 'suspended' || status === 'pmsuspended') return 'paused';
+    return 'unknown';
+  }
+
+  function renderPasswordCell(vm) {
+    if (vm.admin_password === null || vm.admin_password === undefined) {
+      return vm.admin_username
+        ? `<span class="vm-field-muted">hidden — enable in Settings</span>`
+        : '—';
+    }
+    const id = `pw-${escHtml(vm.name)}`;
     return `
-      <div class="session-vm-row">
-        <div class="session-vm-identity">
-          <span class="session-vm-name">${escHtml(vm.vm_name)}</span>
-          ${uuidHtml}
+      <span class="vm-password-wrap">
+        <input type="password" id="${id}" class="vm-password-field" value="${escHtml(vm.admin_password)}" readonly>
+        <button class="vm-password-toggle" aria-label="Show password" onclick="
+          var f=this.previousElementSibling;
+          f.type=f.type==='password'?'text':'password';
+          this.textContent=f.type==='password'?'Show':'Hide';
+        ">Show</button>
+      </span>`;
+  }
+
+  function renderVm(vm) {
+    const sc = statusClass(vm.status);
+    const label = VM_STATUS_LABEL[vm.status] || escHtml(vm.status);
+    return `
+      <div class="vm-row">
+        <div class="vm-row-header">
+          <span class="vm-name">${escHtml(vm.name)}</span>
+          <span class="hatch-status-badge hatch-status-badge--vm-${sc}">${label}</span>
         </div>
-        <span class="hatch-status-badge hatch-status-badge--${escHtml(vm.status)}">${VM_STATUS_LABEL[vm.status] || escHtml(vm.status)}</span>
-        ${errorHtml}
+        <div class="vm-row-fields">
+          <div class="vm-field">
+            <span class="vm-field-label">IP Address</span>
+            <span class="vm-field-value">${vm.ip ? escHtml(vm.ip) : '<span class="vm-field-muted">—</span>'}</span>
+          </div>
+          <div class="vm-field">
+            <span class="vm-field-label">Clutch</span>
+            <span class="vm-field-value">${vm.clutch_file ? escHtml(vm.clutch_file) : '<span class="vm-field-muted">—</span>'}</span>
+          </div>
+          <div class="vm-field">
+            <span class="vm-field-label">Hatched</span>
+            <span class="vm-field-value">${fmtTime(vm.started_at)}</span>
+          </div>
+          <div class="vm-field">
+            <span class="vm-field-label">Username</span>
+            <span class="vm-field-value">${vm.admin_username ? escHtml(vm.admin_username) : '<span class="vm-field-muted">—</span>'}</span>
+          </div>
+          <div class="vm-field">
+            <span class="vm-field-label">Password</span>
+            <span class="vm-field-value">${renderPasswordCell(vm)}</span>
+          </div>
+        </div>
       </div>`;
   }
 
-  const DISMISSIBLE_STATUSES = new Set(['completed', 'degraded', 'failed']);
-
-  function dismiss(sessionId, rowEl) {
-    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/dismiss`, { method: 'POST' })
-      .then(r => r.ok ? rowEl.remove() : Promise.reject())
-      .catch(() => {});
-  }
-
-  function renderSession(s, forceOpen) {
-    const bodyId   = `body-${escHtml(s.id)}`;
-    const isOpen   = forceOpen || s.status === 'in_progress';
-    const expanded = isOpen ? 'true' : 'false';
-    const hidden   = isOpen ? '' : 'hidden';
-    const completedHtml = s.completed_at
-      ? `<div class="session-completed">Completed ${fmtTime(s.completed_at)}</div>`
-      : '';
-    const dismissHtml = DISMISSIBLE_STATUSES.has(s.status)
-      ? `<button class="btn btn-secondary btn-sm session-dismiss-btn" data-session-id="${escHtml(s.id)}" title="Dismiss session">Dismiss</button>`
-      : '';
-    return `
-      <div class="session-row" id="session-${escHtml(s.id)}">
-        <div class="session-row-header">
-          <button class="session-row-toggle" aria-expanded="${expanded}" aria-controls="${bodyId}">
-            <svg class="session-row-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            <span class="session-row-clutch">${escHtml(s.clutch_name)}</span>
-            <span class="session-row-file">${escHtml(s.clutch_file)}</span>
-          </button>
-          <span class="hatch-status-badge hatch-status-badge--${escHtml(s.status)}">${SESSION_STATUS_LABEL[s.status] || escHtml(s.status)}</span>
-          <span class="session-row-time">${fmtTime(s.hatched_at)}</span>
-          ${dismissHtml}
-        </div>
-        <div class="session-row-body" id="${bodyId}" ${hidden}>
-          <div class="session-vms">${s.vms.map(renderVmRow).join('')}</div>
-          ${completedHtml}
-        </div>
-      </div>`;
-  }
-
-  function getExpandedIds() {
-    const ids = new Set();
-    document.querySelectorAll('.session-row-toggle[aria-expanded="true"]').forEach(btn => {
-      const row = btn.closest('.session-row');
-      if (row) ids.add(row.id.replace('session-', ''));
-    });
-    return ids;
-  }
-
-  function bindToggle(row) {
-    const btn = row.querySelector('.session-row-toggle');
-    if (!btn) return;
-    const bodyId = btn.getAttribute('aria-controls');
-    const body = bodyId ? document.getElementById(bodyId) : null;
-    if (!body) return;
-    btn.addEventListener('click', () => {
-      const open = btn.getAttribute('aria-expanded') === 'true';
-      btn.setAttribute('aria-expanded', String(!open));
-      open ? body.setAttribute('hidden', '') : body.removeAttribute('hidden');
-    });
-  }
-
-  function render(sessions) {
-    const expandedIds = getExpandedIds();
-
-    if (!sessions.length) {
-      sessionsList.querySelectorAll('.session-row').forEach(r => r.remove());
+  function render(vms) {
+    if (!vms.length) {
+      vmList.querySelectorAll('.vm-row').forEach(r => r.remove());
       emptyMsg.style.display = '';
       return;
     }
     emptyMsg.style.display = 'none';
 
-    const incomingIds = new Set(sessions.map(s => s.id));
-    sessionsList.querySelectorAll('.session-row').forEach(el => {
-      const id = el.id.replace('session-', '');
-      if (!incomingIds.has(id)) el.remove();
+    const incoming = new Set(vms.map(v => v.name));
+    vmList.querySelectorAll('.vm-row').forEach(el => {
+      if (!incoming.has(el.dataset.vmName)) el.remove();
     });
 
-    sessions.forEach(s => {
-      const forceOpen = expandedIds.has(s.id);
-      const existing = document.getElementById(`session-${s.id}`);
-      const wasOpen = existing
-        ? existing.querySelector('.session-row-toggle')?.getAttribute('aria-expanded') === 'true'
-        : forceOpen || s.status === 'in_progress';
-
+    vms.forEach(vm => {
+      const existing = vmList.querySelector(`.vm-row[data-vm-name="${CSS.escape(vm.name)}"]`);
       const tmp = document.createElement('div');
-      tmp.innerHTML = renderSession(s, wasOpen);
+      tmp.innerHTML = renderVm(vm).trim();
       const newRow = tmp.firstElementChild;
+      newRow.dataset.vmName = vm.name;
 
       if (existing) {
         existing.replaceWith(newRow);
       } else {
-        sessionsList.appendChild(newRow);
+        vmList.appendChild(newRow);
       }
-      bindToggle(newRow);
-      newRow.querySelectorAll('.session-dismiss-btn').forEach(btn => {
-        btn.addEventListener('click', () => dismiss(btn.dataset.sessionId, newRow));
-      });
     });
   }
 
   function poll() {
-    fetch('/api/sessions')
+    fetch('/api/nests/local/vms')
       .then(r => r.json())
-      .then(sessions => {
-        render(sessions);
+      .then(vms => {
+        render(vms);
         refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       })
       .catch(() => { refreshLabel.textContent = 'Update failed'; });

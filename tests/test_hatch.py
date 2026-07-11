@@ -421,3 +421,60 @@ class TestArchiveIfTerminal:
         hatch_lib.set_vm_status(sid, "ws01", "culled")
         result = hatch_lib.archive_if_terminal(sid)
         assert result is not None
+
+
+# ── add_vm credentials ────────────────────────────────────────────────────────
+
+
+class TestAddVmCredentials:
+    def test_stores_admin_username(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="alice")
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert rec is not None
+        assert rec["admin_username"] == "alice"
+
+    def test_stores_admin_password(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_password="s3cr3t")
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert rec is not None
+        assert rec["admin_password"] == "s3cr3t"
+
+    def test_credentials_default_to_none(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert rec is not None
+        assert rec["admin_username"] is None
+        assert rec["admin_password"] is None
+
+
+# ── get_vm_record ─────────────────────────────────────────────────────────────
+
+
+class TestGetVmRecord:
+    def test_returns_none_for_unknown_vm(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        assert hatch_lib.get_vm_record(sid, "missing") is None
+
+    def test_returns_none_for_unknown_session(self):
+        assert hatch_lib.get_vm_record("no-such-session", "dc01") is None
+
+    def test_returns_record_with_expected_fields(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", admin_username="admin", admin_password="pass")
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert rec is not None
+        assert rec["vm_name"] == "dc01"
+        assert rec["status"] == "pending"
+        assert rec["admin_username"] == "admin"
+        assert rec["admin_password"] == "pass"
+        assert "started_at" in rec
+        assert "fledged_at" in rec
+
+    def test_returns_dict_not_row(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        rec = hatch_lib.get_vm_record(sid, "dc01")
+        assert isinstance(rec, dict)

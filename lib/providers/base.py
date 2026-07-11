@@ -69,6 +69,13 @@ class BaseProvider(ABC):
         """Send a key press to a VM's console (e.g. KEY_ENTER to dismiss boot prompt)."""
 
     @abstractmethod
+    def get_vm_session_tag(self, name: str) -> dict | None:
+        """Return the Hatchery session metadata for a VM, or None if untagged.
+
+        Returns a dict with 'session_id' and 'clutch_file' keys when present.
+        """
+
+    @abstractmethod
     def set_poweroff_action(self, name: str, action: str) -> None:
         """Set the on_poweroff lifecycle action on the live running domain.
 
