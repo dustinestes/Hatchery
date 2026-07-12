@@ -478,3 +478,204 @@ class TestGetVmRecord:
         hatch_lib.add_vm(sid, "dc01")
         rec = hatch_lib.get_vm_record(sid, "dc01")
         assert isinstance(rec, dict)
+
+
+# ── add_vm_scripts ────────────────────────────────────────────────────────────
+
+
+class _Script:
+    """Minimal stand-in for AutomationScript in tests."""
+
+    def __init__(self, name, reboot_after=False):
+        self.name = name
+        self.reboot_after = reboot_after
+
+
+class TestAddVmScripts:
+    def test_inserts_pending_rows(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1"), _Script("b.ps1")])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert len(rows) == 2
+        assert all(r["status"] == "pending" for r in rows)
+
+    def test_run_order_matches_list_position(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1"), _Script("b.ps1")])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[0]["run_order"] == 0
+        assert rows[1]["run_order"] == 1
+
+    def test_stores_reboot_after(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1", reboot_after=True)])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[0]["reboot_after"] == 1
+
+    def test_noop_for_empty_list(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [])
+        assert hatch_lib.get_vm_scripts(sid, "dc01") == []
+
+    def test_stores_script_name(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("setup.ps1")])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[0]["script_name"] == "setup.ps1"
+
+
+# ── get_vm_scripts ────────────────────────────────────────────────────────────
+
+
+class TestGetVmScripts:
+    def test_returns_empty_for_unknown_vm(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        assert hatch_lib.get_vm_scripts(sid, "missing") == []
+
+    def test_ordered_by_run_order(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("z.ps1"), _Script("a.ps1")])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[0]["script_name"] == "z.ps1"
+        assert rows[1]["script_name"] == "a.ps1"
+
+    def test_returns_dicts(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1")])
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert isinstance(rows[0], dict)
+
+    def test_expected_fields_present(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1")])
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[0]
+        for field in (
+            "script_name",
+            "run_order",
+            "reboot_after",
+            "status",
+            "exit_code",
+            "output",
+            "started_at",
+            "completed_at",
+        ):
+            assert field in row
+
+
+# ── set_script_status ─────────────────────────────────────────────────────────
+
+
+class TestSetScriptStatus:
+    def _setup(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1"), _Script("b.ps1")])
+        return sid
+
+    def test_running_sets_started_at(self):
+        sid = self._setup()
+        hatch_lib.set_script_status(sid, "dc01", 0, "running")
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[0]
+        assert row["status"] == "running"
+        assert row["started_at"] is not None
+
+    def test_succeeded_sets_completed_at_and_exit_code(self):
+        sid = self._setup()
+        hatch_lib.set_script_status(sid, "dc01", 0, "succeeded", exit_code=0, output="ok")
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[0]
+        assert row["status"] == "succeeded"
+        assert row["exit_code"] == 0
+        assert row["output"] == "ok"
+        assert row["completed_at"] is not None
+
+    def test_failed_stores_exit_code_and_output(self):
+        sid = self._setup()
+        hatch_lib.set_script_status(sid, "dc01", 0, "failed", exit_code=1, output="error")
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[0]
+        assert row["status"] == "failed"
+        assert row["exit_code"] == 1
+        assert row["output"] == "error"
+
+    def test_skipped_sets_completed_at(self):
+        sid = self._setup()
+        hatch_lib.set_script_status(sid, "dc01", 1, "skipped")
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[1]
+        assert row["status"] == "skipped"
+        assert row["completed_at"] is not None
+
+    def test_only_updates_target_run_order(self):
+        sid = self._setup()
+        hatch_lib.set_script_status(sid, "dc01", 0, "succeeded", exit_code=0)
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[1]["status"] == "pending"
+
+
+# ── reset_scripts_for_retry ───────────────────────────────────────────────────
+
+
+class TestResetScriptsForRetry:
+    def test_resets_failed_to_pending(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1")])
+        hatch_lib.set_script_status(sid, "dc01", 0, "failed", exit_code=1, output="err")
+        hatch_lib.reset_scripts_for_retry(sid, "dc01")
+        row = hatch_lib.get_vm_scripts(sid, "dc01")[0]
+        assert row["status"] == "pending"
+        assert row["exit_code"] is None
+        assert row["output"] is None
+
+    def test_resets_skipped_to_pending(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1"), _Script("b.ps1")])
+        hatch_lib.set_script_status(sid, "dc01", 0, "failed", exit_code=1)
+        hatch_lib.set_script_status(sid, "dc01", 1, "skipped")
+        hatch_lib.reset_scripts_for_retry(sid, "dc01")
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert all(r["status"] == "pending" for r in rows)
+
+    def test_preserves_succeeded_scripts(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1"), _Script("b.ps1")])
+        hatch_lib.set_script_status(sid, "dc01", 0, "succeeded", exit_code=0)
+        hatch_lib.set_script_status(sid, "dc01", 1, "failed", exit_code=1)
+        hatch_lib.reset_scripts_for_retry(sid, "dc01")
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert rows[0]["status"] == "succeeded"
+        assert rows[1]["status"] == "pending"
+
+
+# ── update_vm_name syncs scripts ──────────────────────────────────────────────
+
+
+class TestUpdateVmNameSyncsScripts:
+    def test_scripts_follow_renamed_vm(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("setup.ps1")])
+        hatch_lib.update_vm_name(sid, "dc01", "dc01-renamed")
+        assert hatch_lib.get_vm_scripts(sid, "dc01") == []
+        assert len(hatch_lib.get_vm_scripts(sid, "dc01-renamed")) == 1
+
+
+# ── provisioning status in session compute ────────────────────────────────────
+
+
+class TestComputeSessionStatusProvisioning:
+    def test_provisioning_vm_means_in_progress(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert s["status"] == "in_progress"

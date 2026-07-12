@@ -98,11 +98,18 @@ def set_vm_uuid(session_id: str, vm_name: str, libvirt_uuid: str) -> None:
 
 
 def update_vm_name(session_id: str, old_name: str, new_name: str) -> None:
-    """Update a VM's stored name — called when a rename is detected via UUID lookup."""
+    """Update a VM's stored name — called when a rename is detected via UUID lookup.
+
+    Keeps hatch_vm_scripts in sync so (session_id, vm_name) remains a consistent key.
+    """
     conn = db.get_connection()
     try:
         conn.execute(
             "UPDATE hatch_vm_status SET vm_name=? WHERE session_id=? AND vm_name=?",
+            (new_name, session_id, old_name),
+        )
+        conn.execute(
+            "UPDATE hatch_vm_scripts SET vm_name=? WHERE session_id=? AND vm_name=?",
             (new_name, session_id, old_name),
         )
         conn.commit()
@@ -128,7 +135,7 @@ def _compute_session_status(vms: list[dict]) -> str:
     if not vms:
         return "unknown"
     statuses = {v["status"] for v in vms}
-    if "pending" in statuses or "hatching" in statuses:
+    if "pending" in statuses or "hatching" in statuses or "provisioning" in statuses:
         return "in_progress"
     if "failed" in statuses or "blocked" in statuses:
         return "failed"
@@ -183,6 +190,96 @@ def archive_if_terminal(session_id: str) -> dict | None:
         )
         conn.commit()
         return {"clutch_name": row["clutch_name"], "status": status, "vms": vm_dicts}
+    finally:
+        conn.close()
+
+
+def add_vm_scripts(session_id: str, vm_name: str, scripts: list) -> None:
+    """Record the declared automation scripts for a VM at hatch time.
+
+    Each AutomationScript is stored as a pending row in run_order. Inserted before the VM
+    is created so the Nests panel can show the full script list immediately after hatching.
+    """
+    if not scripts:
+        return
+    conn = db.get_connection()
+    try:
+        for i, script in enumerate(scripts):
+            conn.execute(
+                """INSERT INTO hatch_vm_scripts
+                   (session_id, vm_name, script_name, run_order, reboot_after, status)
+                   VALUES (?, ?, ?, ?, ?, 'pending')""",
+                (session_id, vm_name, script.name, i, int(script.reboot_after)),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_vm_scripts(session_id: str, vm_name: str) -> list[dict]:
+    """Return all script rows for a VM in run_order, newest-first within the session."""
+    conn = db.get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT script_name, run_order, reboot_after, status, exit_code, output,
+                      started_at, completed_at
+               FROM hatch_vm_scripts WHERE session_id=? AND vm_name=?
+               ORDER BY run_order""",
+            (session_id, vm_name),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def set_script_status(
+    session_id: str,
+    vm_name: str,
+    run_order: int,
+    status: str,
+    exit_code: int | None = None,
+    output: str | None = None,
+) -> None:
+    """Update a single script row's status, exit code, output, and timestamps."""
+    now = _now()
+    conn = db.get_connection()
+    try:
+        if status == "running":
+            conn.execute(
+                """UPDATE hatch_vm_scripts SET status=?, started_at=?
+                   WHERE session_id=? AND vm_name=? AND run_order=?""",
+                (status, now, session_id, vm_name, run_order),
+            )
+        elif status in ("succeeded", "failed", "skipped"):
+            conn.execute(
+                """UPDATE hatch_vm_scripts
+                   SET status=?, exit_code=?, output=?, completed_at=?
+                   WHERE session_id=? AND vm_name=? AND run_order=?""",
+                (status, exit_code, output, now, session_id, vm_name, run_order),
+            )
+        else:
+            conn.execute(
+                """UPDATE hatch_vm_scripts SET status=?
+                   WHERE session_id=? AND vm_name=? AND run_order=?""",
+                (status, session_id, vm_name, run_order),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def reset_scripts_for_retry(session_id: str, vm_name: str) -> None:
+    """Reset all non-succeeded scripts to pending so the provision thread can re-run them."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            """UPDATE hatch_vm_scripts
+               SET status='pending', exit_code=NULL, output=NULL,
+                   started_at=NULL, completed_at=NULL
+               WHERE session_id=? AND vm_name=? AND status IN ('failed', 'skipped', 'pending', 'running')""",
+            (session_id, vm_name),
+        )
+        conn.commit()
     finally:
         conn.close()
 

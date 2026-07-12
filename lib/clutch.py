@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
@@ -14,6 +15,19 @@ class GuestOS(str, Enum):
     SERVER2025 = "server2025"
 
 
+class AutomationScript(BaseModel):
+    """A post-boot script entry. Accepts a plain string (name only) or a mapping."""
+
+    name: str
+    reboot_after: bool = False
+
+    @classmethod
+    def coerce(cls, v: Any) -> "AutomationScript":
+        if isinstance(v, str):
+            return cls(name=v)
+        return cls.model_validate(v)
+
+
 class VMConfig(BaseModel):
     name: str
     os: GuestOS
@@ -24,8 +38,16 @@ class VMConfig(BaseModel):
     virtio_drivers: str | None = None
     os_config: str | None = None
     admin_username: str | None = None
-    automations: list[str] = []
+    automations: list[AutomationScript] = []
+    parallel: bool = False
     depends_on: list[str] = []
+
+    @field_validator("automations", mode="before")
+    @classmethod
+    def coerce_automations(cls, v: Any) -> list[AutomationScript]:
+        if not isinstance(v, list):
+            return []
+        return [AutomationScript.coerce(item) for item in v]
 
     @field_validator("vcpus")
     @classmethod
@@ -204,6 +226,15 @@ def append_vm(config: VMConfig, path: str | Path) -> Clutch:
 def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = clutch_obj.model_dump(mode="json", exclude_none=True)
+    for vm in data.get("vms", []):
+        # Compact automations: plain string when reboot_after is False
+        if "automations" in vm:
+            vm["automations"] = [
+                s["name"] if not s.get("reboot_after") else s for s in vm["automations"]
+            ]
+        # Omit parallel when False (default)
+        if not vm.get("parallel"):
+            vm.pop("parallel", None)
     with open(path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 

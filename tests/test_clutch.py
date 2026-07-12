@@ -3,7 +3,7 @@ import textwrap
 import pytest
 
 import lib.clutch as clutch
-from lib.clutch import Clutch, GuestOS, VMConfig
+from lib.clutch import AutomationScript, Clutch, GuestOS, VMConfig
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -81,7 +81,11 @@ class TestValidSingleVM:
         vm = result.vms[0]
         assert vm.virtio_drivers == "virtio-win.iso"
         assert vm.os_config == "win11-unattend.xml.j2"
-        assert vm.automations == ["install-chocolatey.ps1", "install-dev-tools.ps1"]
+        assert [s.name for s in vm.automations] == [
+            "install-chocolatey.ps1",
+            "install-dev-tools.ps1",
+        ]
+        assert all(not s.reboot_after for s in vm.automations)
         assert result.description == "Full example"
 
     def test_all_os_types_accepted(self, tmp_path):
@@ -462,3 +466,116 @@ class TestAppendVM:
         vm = VMConfig(name="vm1", os="win10", vcpus=1, ram_gb=2, disk_gb=20, os_media="win10.iso")
         with pytest.raises(FileNotFoundError):
             clutch.append_vm(vm, tmp_path / "missing.yaml")
+
+
+# ── AutomationScript ──────────────────────────────────────────────────────────
+
+
+class TestAutomationScript:
+    def test_coerce_from_string(self):
+        s = AutomationScript.coerce("setup.ps1")
+        assert s.name == "setup.ps1"
+        assert s.reboot_after is False
+
+    def test_coerce_from_dict(self):
+        s = AutomationScript.coerce({"name": "setup.ps1", "reboot_after": True})
+        assert s.name == "setup.ps1"
+        assert s.reboot_after is True
+
+    def test_reboot_after_defaults_false(self):
+        s = AutomationScript(name="a.ps1")
+        assert s.reboot_after is False
+
+    def test_vmconfig_accepts_string_list(self):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+            automations=["a.ps1", "b.ps1"],
+        )
+        assert len(vm.automations) == 2
+        assert all(isinstance(s, AutomationScript) for s in vm.automations)
+        assert vm.automations[0].name == "a.ps1"
+
+    def test_vmconfig_accepts_mixed_list(self):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+            automations=["a.ps1", {"name": "b.ps1", "reboot_after": True}],
+        )
+        assert vm.automations[0].reboot_after is False
+        assert vm.automations[1].reboot_after is True
+
+    def test_yaml_round_trip_plain_string(self, tmp_path):
+        """Scripts with reboot_after=False are written as plain strings in YAML."""
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+            automations=["setup.ps1"],
+        )
+        c = Clutch(name="lab", vms=[vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        raw = path.read_text()
+        assert "- setup.ps1" in raw
+        assert "reboot_after" not in raw
+
+    def test_yaml_round_trip_reboot_after_true(self, tmp_path):
+        """Scripts with reboot_after=True are written as a mapping in YAML."""
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+            automations=[{"name": "setup.ps1", "reboot_after": True}],
+        )
+        c = Clutch(name="lab", vms=[vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        raw = path.read_text()
+        assert "reboot_after: true" in raw
+
+    def test_parallel_false_omitted_from_yaml(self, tmp_path):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+        )
+        c = Clutch(name="lab", vms=[vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        assert "parallel" not in path.read_text()
+
+    def test_load_backward_compat_string_automations(self, tmp_path):
+        """Existing clutch files with plain string automations still load correctly."""
+        content = textwrap.dedent("""
+            name: lab
+            vms:
+              - name: dc01
+                os: win10
+                vcpus: 1
+                ram_gb: 2
+                disk_gb: 20
+                os_media: win10.iso
+                automations:
+                  - setup.ps1
+                  - configure.ps1
+        """)
+        result = clutch.load(write_clutch(tmp_path, content))
+        assert [s.name for s in result.vms[0].automations] == ["setup.ps1", "configure.ps1"]
