@@ -38,13 +38,15 @@ class TestRunScript:
         assert "out" in output
         assert "err" in output
 
-    def test_empty_output_when_no_stdout_or_stderr(self, tmp_path):
+    def test_output_includes_connection_header(self, tmp_path):
         script = tmp_path / "setup.ps1"
         script.write_text("")
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.return_value = self._make_result(0, b"", b"")
             _, output = provision_lib.run_script("192.168.1.1", "admin", "pass", script)
-        assert output == ""
+        assert "192.168.1.1" in output
+        assert "admin" in output
+        assert script.name in output
 
     def test_reads_script_content_from_file(self, tmp_path):
         script = tmp_path / "setup.ps1"

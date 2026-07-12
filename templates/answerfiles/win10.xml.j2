@@ -102,17 +102,17 @@
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>winrm quickconfig -quiet</CommandLine>
+          <CommandLine>powershell.exe -NonInteractive -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>2</Order>
-          <CommandLine>winrm set winrm/config/service @{AllowUnencrypted="true"}</CommandLine>
+          <CommandLine>powershell.exe -NonInteractive -Command "Enable-PSRemoting -Force"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>3</Order>
-          <CommandLine>winrm set winrm/config/service/auth @{Basic="true"}</CommandLine>
+          <CommandLine>powershell.exe -NonInteractive -Command "New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWORD -Force"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
@@ -138,11 +138,6 @@
         <SynchronousCommand wcm:action="add">
           <Order>8</Order>
           <CommandLine>powershell.exe -Command "New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>9</Order>
-          <CommandLine>powershell.exe -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
       </FirstLogonCommands>

@@ -29,9 +29,10 @@ class TestRenderWin10:
         assert "SERVERSTANDARD" not in xml
         assert "InstallFrom" not in xml
 
-    def test_winrm_quickconfig_present(self):
+    def test_winrm_setup_present(self):
         xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert "winrm quickconfig" in xml
+        assert "Enable-PSRemoting" in xml
+        assert "LocalAccountTokenFilterPolicy" in xml
 
     def test_winrm_firewall_rule_present(self):
         xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
@@ -78,7 +79,8 @@ class TestRenderWin11:
 
     def test_winrm_present(self):
         xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert "winrm quickconfig" in xml
+        assert "Enable-PSRemoting" in xml
+        assert "LocalAccountTokenFilterPolicy" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET
@@ -102,7 +104,8 @@ class TestRenderServer2022:
 
     def test_winrm_present(self):
         xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert "winrm quickconfig" in xml
+        assert "Enable-PSRemoting" in xml
+        assert "LocalAccountTokenFilterPolicy" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET
@@ -127,7 +130,8 @@ class TestRenderServer2025:
 
     def test_winrm_present(self):
         xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert "winrm quickconfig" in xml
+        assert "Enable-PSRemoting" in xml
+        assert "LocalAccountTokenFilterPolicy" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET

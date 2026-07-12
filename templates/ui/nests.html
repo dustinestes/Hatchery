@@ -106,21 +106,55 @@
       </span>`;
   }
 
+  function scriptElapsed(s) {
+    if (!s.started_at) return '—';
+    const start = new Date(s.started_at);
+    const end = s.completed_at ? new Date(s.completed_at) : new Date();
+    const secs = Math.max(0, Math.round((end - start) / 1000));
+    if (secs < 60) return secs + 's';
+    const m = Math.floor(secs / 60), r = secs % 60;
+    return r > 0 ? m + 'm ' + r + 's' : m + 'm';
+  }
+
+  function scriptLastLine(output) {
+    if (!output) return '';
+    const lines = output.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0 && !l.startsWith('[Hatchery]'));
+    return lines.length ? lines[lines.length - 1] : '';
+  }
+
+  const CHEVRON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  // Track which VMs / script sections the user has manually collapsed so the
+  // state survives poll-driven re-renders.
+  const collapsedVms = new Set();
+  const collapsedScripts = new Set();
+
   function renderScripts(vm) {
     if (!vm.scripts || !vm.scripts.length) return '';
+
+    const colHeader = `<div class="script-cols-header">
+      <span>Script</span>
+      <span>Elapsed</span>
+      <span>Exit</span>
+      <span>Last Output</span>
+      <span>Status</span>
+    </div>`;
+
     const rows = vm.scripts.map(s => {
       const cls = SCRIPT_STATUS_CLASS[s.status] || '';
       const lbl = SCRIPT_STATUS_LABEL[s.status] || escHtml(s.status);
-      const exitCode = s.exit_code !== null && s.exit_code !== undefined
-        ? `<span class="script-exit-code">exit ${s.exit_code}</span>` : '';
-      const output = s.output
-        ? `<details class="script-output"><summary>Output</summary><pre>${escHtml(s.output)}</pre></details>`
-        : '';
+      const elapsed = s.status === 'pending' ? '—' : scriptElapsed(s);
+      const exit = s.exit_code !== null && s.exit_code !== undefined
+        ? escHtml(String(s.exit_code)) : '—';
+      const lastLine = escHtml(scriptLastLine(s.output));
       return `<div class="script-row">
-        <span class="script-name">${escHtml(s.script_name)}</span>
-        <span class="script-status ${cls}">${lbl}</span>
-        ${exitCode}
-        ${output}
+        <span class="script-col-name">${escHtml(s.script_name)}</span>
+        <span class="script-col-elapsed">${elapsed}</span>
+        <span class="script-col-exit">${exit}</span>
+        <span class="script-col-last-output">${lastLine}</span>
+        <span class="script-col-status script-status ${cls}">${lbl}</span>
       </div>`;
     }).join('');
 
@@ -134,10 +168,16 @@
 
     return `<div class="vm-scripts">
       <div class="vm-scripts-header">
-        <span class="vm-scripts-title">Scripts</span>
+        <button type="button" class="vm-scripts-toggle" aria-expanded="true">
+          <span class="vm-scripts-chevron">${CHEVRON}</span>
+          <span class="vm-scripts-title">Scripts</span>
+        </button>
         ${retryBtn}
       </div>
-      ${rows}
+      <div class="vm-scripts-body">
+        ${colHeader}
+        ${rows}
+      </div>
     </div>`;
   }
 
@@ -145,61 +185,84 @@
     const sc = statusClass(vm.status);
     const label = VM_STATUS_LABEL[vm.status] || escHtml(vm.status);
     return `
-      <div class="vm-row">
-        <div class="vm-row-header">
-          <span class="vm-name">${escHtml(vm.name)}</span>
-          <span class="hatch-status-badge hatch-status-badge--vm-${sc}">${label}</span>
+      <div class="vm-card">
+        <div class="vm-card-header">
+          <button type="button" class="vm-card-toggle" aria-expanded="true">
+            <span class="vm-card-chevron">${CHEVRON}</span>
+            <span class="vm-card-name">${escHtml(vm.name)}</span>
+            <span class="hatch-status-badge hatch-status-badge--vm-${sc}">${label}</span>
+          </button>
         </div>
-        <div class="vm-row-fields">
-          <div class="vm-field">
-            <span class="vm-field-label">IP Address</span>
-            <span class="vm-field-value">${vm.ip ? escHtml(vm.ip) : '<span class="vm-field-muted">—</span>'}</span>
+        <div class="vm-card-body">
+          <div class="vm-row-fields">
+            <div class="vm-field">
+              <span class="vm-field-label">IP Address</span>
+              <span class="vm-field-value">${vm.ip ? escHtml(vm.ip) : '<span class="vm-field-muted">—</span>'}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">Clutch</span>
+              <span class="vm-field-value">${vm.clutch_file ? escHtml(vm.clutch_file) : '<span class="vm-field-muted">—</span>'}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">Hatched</span>
+              <span class="vm-field-value">${fmtTime(vm.started_at)}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">Username</span>
+              <span class="vm-field-value">${vm.admin_username ? escHtml(vm.admin_username) : '<span class="vm-field-muted">—</span>'}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">Password</span>
+              <span class="vm-field-value">${renderPasswordCell(vm)}</span>
+            </div>
           </div>
-          <div class="vm-field">
-            <span class="vm-field-label">Clutch</span>
-            <span class="vm-field-value">${vm.clutch_file ? escHtml(vm.clutch_file) : '<span class="vm-field-muted">—</span>'}</span>
-          </div>
-          <div class="vm-field">
-            <span class="vm-field-label">Hatched</span>
-            <span class="vm-field-value">${fmtTime(vm.started_at)}</span>
-          </div>
-          <div class="vm-field">
-            <span class="vm-field-label">Username</span>
-            <span class="vm-field-value">${vm.admin_username ? escHtml(vm.admin_username) : '<span class="vm-field-muted">—</span>'}</span>
-          </div>
-          <div class="vm-field">
-            <span class="vm-field-label">Password</span>
-            <span class="vm-field-value">${renderPasswordCell(vm)}</span>
-          </div>
+          ${renderScripts(vm)}
         </div>
-        ${renderScripts(vm)}
       </div>`;
+  }
+
+  function applyCollapseState(card, vmName) {
+    if (collapsedVms.has(vmName)) {
+      card.querySelector('.vm-card-toggle').setAttribute('aria-expanded', 'false');
+      card.querySelector('.vm-card-body').hidden = true;
+    }
+    if (collapsedScripts.has(vmName)) {
+      const t = card.querySelector('.vm-scripts-toggle');
+      const b = card.querySelector('.vm-scripts-body');
+      if (t && b) { t.setAttribute('aria-expanded', 'false'); b.hidden = true; }
+    }
   }
 
   function render(vms) {
     if (!vms.length) {
-      vmList.querySelectorAll('.vm-row').forEach(r => r.remove());
+      vmList.querySelectorAll('.vm-card').forEach(r => r.remove());
       emptyMsg.style.display = '';
       return;
     }
     emptyMsg.style.display = 'none';
 
     const incoming = new Set(vms.map(v => v.name));
-    vmList.querySelectorAll('.vm-row').forEach(el => {
+    vmList.querySelectorAll('.vm-card').forEach(el => {
       if (!incoming.has(el.dataset.vmName)) el.remove();
     });
 
     vms.forEach(vm => {
-      const existing = vmList.querySelector(`.vm-row[data-vm-name="${CSS.escape(vm.name)}"]`);
+      const existing = vmList.querySelector(`.vm-card[data-vm-name="${CSS.escape(vm.name)}"]`);
       const tmp = document.createElement('div');
       tmp.innerHTML = renderVm(vm).trim();
-      const newRow = tmp.firstElementChild;
-      newRow.dataset.vmName = vm.name;
+      const newCard = tmp.firstElementChild;
+      newCard.dataset.vmName = vm.name;
+      applyCollapseState(newCard, vm.name);
 
       if (existing) {
-        existing.replaceWith(newRow);
+        const prevScroll = existing.querySelector('.vm-scripts-body')?.scrollLeft ?? 0;
+        existing.replaceWith(newCard);
+        if (prevScroll) {
+          const newBody = newCard.querySelector('.vm-scripts-body');
+          if (newBody) newBody.scrollLeft = prevScroll;
+        }
       } else {
-        vmList.appendChild(newRow);
+        vmList.appendChild(newCard);
       }
     });
   }
@@ -215,17 +278,43 @@
   }
 
   vmList.addEventListener('click', function (e) {
-    const btn = e.target.closest('.vm-retry-btn');
-    if (!btn) return;
-    const sessionId = btn.dataset.session;
-    const vmName = btn.dataset.vm;
-    btn.disabled = true;
-    btn.textContent = 'Retrying…';
+    // VM-level collapse toggle
+    const cardToggle = e.target.closest('.vm-card-toggle');
+    if (cardToggle) {
+      const card = cardToggle.closest('.vm-card');
+      const vmName = card.dataset.vmName;
+      const expanded = cardToggle.getAttribute('aria-expanded') === 'true';
+      cardToggle.setAttribute('aria-expanded', String(!expanded));
+      card.querySelector('.vm-card-body').hidden = expanded;
+      expanded ? collapsedVms.add(vmName) : collapsedVms.delete(vmName);
+      return;
+    }
+
+    // Scripts section collapse toggle
+    const scriptsToggle = e.target.closest('.vm-scripts-toggle');
+    if (scriptsToggle) {
+      const card = scriptsToggle.closest('.vm-card');
+      const vmName = card ? card.dataset.vmName : null;
+      const body = scriptsToggle.closest('.vm-scripts').querySelector('.vm-scripts-body');
+      const expanded = scriptsToggle.getAttribute('aria-expanded') === 'true';
+      scriptsToggle.setAttribute('aria-expanded', String(!expanded));
+      body.hidden = expanded;
+      if (vmName) { expanded ? collapsedScripts.add(vmName) : collapsedScripts.delete(vmName); }
+      return;
+    }
+
+    // Retry button
+    const retryBtn = e.target.closest('.vm-retry-btn');
+    if (!retryBtn) return;
+    const sessionId = retryBtn.dataset.session;
+    const vmName = retryBtn.dataset.vm;
+    retryBtn.disabled = true;
+    retryBtn.textContent = 'Retrying…';
     fetch(`/api/sessions/${encodeURIComponent(sessionId)}/vms/${encodeURIComponent(vmName)}/retry`, {
       method: 'POST',
     }).then(() => poll()).catch(() => {
-      btn.disabled = false;
-      btn.textContent = 'Retry';
+      retryBtn.disabled = false;
+      retryBtn.textContent = 'Retry';
     });
   });
 
