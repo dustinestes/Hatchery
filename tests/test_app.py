@@ -999,7 +999,9 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
-                app_module._sync_hatch_status()
+                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
+                    with patch("hatchery.provision_lib.delete_setup_flag"):
+                        app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "fledged"
@@ -1011,9 +1013,38 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
-                app_module._sync_hatch_status()
+                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
+                    with patch("hatchery.provision_lib.delete_setup_flag"):
+                        app_module._sync_hatch_status()
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("fledged" in a["message"] for a in activity)
+
+    def test_no_change_when_setup_flag_not_present(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=True):
+                with patch("hatchery.provision_lib.check_setup_complete", return_value=False):
+                    app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+
+    def test_deletes_setup_flag_on_handoff(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=True):
+                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
+                    with patch("hatchery.provision_lib.delete_setup_flag") as mock_del:
+                        app_module._sync_hatch_status()
+        mock_del.assert_called_once_with("192.168.122.40", "", "")
 
     def test_starts_vm_when_shut_off_during_hatching(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1349,6 +1380,30 @@ class TestAPIClutchDetail:
         clutch_lib.export(c, "my-lab", clutches_dir)
         data = client.get("/api/clutch/my-lab.yaml").get_json()
         assert data["vms"][0]["admin_username"] == "alice"
+
+    def test_automation_reboot_after_included_in_response(self, client, tmp_path, monkeypatch):
+        from lib.clutch import AutomationScript
+        import lib.clutch as clutch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            automations=[AutomationScript(name="setup.ps1", reboot_after=True)],
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        data = client.get("/api/clutch/my-lab.yaml").get_json()
+        entry = data["vms"][0]["automations"][0]
+        assert isinstance(entry, dict)
+        assert entry["name"] == "setup.ps1"
+        assert entry["reboot_after"] is True
 
     def test_not_found_returns_404(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -2163,6 +2218,31 @@ class TestProvisionVmThread:
 
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
         assert hatch_lib.get_vm_scripts(sid, "dc01")[0]["exit_code"] == -1
+
+    def test_reboot_after_calls_restart_guest_and_waits_for_winrm(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = True
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("hatchery.provision_lib.restart_guest") as mock_restart:
+                with patch("hatchery._check_winrm", return_value=True):
+                    with patch("hatchery.time.sleep"):
+                        app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        mock_restart.assert_called_once_with("192.168.1.1", "admin", "pass")
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
 
     def test_removes_from_provisioning_set_on_completion(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib

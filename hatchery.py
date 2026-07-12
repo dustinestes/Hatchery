@@ -100,7 +100,6 @@ def _provision_vm_thread(
 ) -> None:
     """Run pending automation scripts for a VM sequentially, updating DB state per script."""
     try:
-        provider = _provider()
         scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
         data_dir = config.data_dir()
 
@@ -161,20 +160,8 @@ def _provision_vm_thread(
             )
 
             if script["reboot_after"]:
-                provision_lib.shutdown_guest(ip, admin_username, admin_password)
-                # Wait for shut off
-                for _ in range(60):
-                    time.sleep(5)
-                    try:
-                        if provider.get_status(vm_name) == "shut off":
-                            break
-                    except Exception:
-                        pass
-                try:
-                    provider.start_vm(vm_name)
-                except Exception:
-                    pass
-                # Wait for WinRM to come back
+                provision_lib.restart_guest(ip, admin_username, admin_password)
+                # Wait for WinRM to come back after restart
                 for _ in range(120):
                     time.sleep(5)
                     if _check_winrm(ip):
@@ -270,6 +257,20 @@ def _sync_hatch_status() -> None:
                 continue
 
             db_record = hatch_lib.get_vm_record(session_id, vm_name)
+            admin_username = (db_record or {}).get("admin_username") or ""
+            admin_password = (db_record or {}).get("admin_password") or ""
+
+            # Gate on the setup-complete flag so automation never starts while
+            # FirstLogonCommands (SSH install, WinRM config, etc.) are still running.
+            if not provision_lib.check_setup_complete(ip, admin_username, admin_password):
+                continue
+
+            # Flag confirmed — delete it immediately so the guest stays clean.
+            try:
+                provision_lib.delete_setup_flag(ip, admin_username, admin_password)
+            except Exception:
+                pass
+
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             if scripts:
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
@@ -278,8 +279,8 @@ def _sync_hatch_status() -> None:
                     session_id,
                     vm_name,
                     ip,
-                    (db_record or {}).get("admin_username") or "",
-                    (db_record or {}).get("admin_password") or "",
+                    admin_username,
+                    admin_password,
                 )
             else:
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
@@ -964,7 +965,13 @@ def api_clutch_detail(filename):
                     "os_config": v.os_config or "",
                     "admin_username": v.admin_username or "",
                     "automations": [
-                        {"name": s.name, "parameters": s.parameters} if s.parameters else s.name
+                        s.name
+                        if not s.reboot_after and not s.parameters
+                        else {
+                            "name": s.name,
+                            **({"reboot_after": True} if s.reboot_after else {}),
+                            **({"parameters": s.parameters} if s.parameters else {}),
+                        }
                         for s in v.automations
                     ],
                     "depends_on": v.depends_on,

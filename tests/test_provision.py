@@ -159,3 +159,59 @@ class TestShutdownGuest:
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.side_effect = ConnectionError("dropped")
             provision_lib.shutdown_guest("192.168.1.1", "admin", "pass")  # must not raise
+
+
+class TestRestartGuest:
+    def test_sends_restart_computer(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            provision_lib.restart_guest("192.168.1.1", "admin", "pass")
+        mock_sess.return_value.run_ps.assert_called_once()
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "Restart-Computer" in cmd
+
+    def test_does_not_raise_on_connection_drop(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.side_effect = ConnectionError("dropped")
+            provision_lib.restart_guest("192.168.1.1", "admin", "pass")  # must not raise
+
+
+class TestCheckSetupComplete:
+    def _make_result(self, stdout: str):
+        r = MagicMock()
+        r.std_out = stdout.encode()
+        return r
+
+    def test_returns_true_when_flag_present(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result("True\r\n")
+            result = provision_lib.check_setup_complete("1.2.3.4", "admin", "pass")
+        assert result is True
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "Test-Path" in cmd
+        assert provision_lib.SETUP_COMPLETE_FLAG in cmd
+
+    def test_returns_false_when_flag_absent(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result("False\r\n")
+            result = provision_lib.check_setup_complete("1.2.3.4", "admin", "pass")
+        assert result is False
+
+    def test_returns_false_on_winrm_error(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.side_effect = ConnectionError("refused")
+            result = provision_lib.check_setup_complete("1.2.3.4", "admin", "pass")
+        assert result is False
+
+
+class TestDeleteSetupFlag:
+    def test_sends_remove_item(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            provision_lib.delete_setup_flag("1.2.3.4", "admin", "pass")
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "Remove-Item" in cmd
+        assert provision_lib.SETUP_COMPLETE_FLAG in cmd
+
+    def test_does_not_raise_on_connection_drop(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.side_effect = ConnectionError("dropped")
+            provision_lib.delete_setup_flag("1.2.3.4", "admin", "pass")  # must not raise

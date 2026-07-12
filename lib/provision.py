@@ -9,6 +9,12 @@ import winrm
 # Requires LocalAccountTokenFilterPolicy=1 on the guest for non-built-in admin accounts.
 _TRANSPORT = "ntlm"
 
+# Written by the last FirstLogonCommand in every answer file template.
+# Hatchery polls for this file before starting automation scripts so that
+# provisioning never begins while FirstLogonCommands are still running.
+# Deleted by Hatchery immediately on detection — no permanent guest footprint.
+SETUP_COMPLETE_FLAG = r"C:\Windows\Temp\hatchery-ready"
+
 
 def _make_session(ip: str, admin_username: str, admin_password: str, timeout: int) -> winrm.Session:
     return winrm.Session(
@@ -73,6 +79,35 @@ def run_script(
     return result.status_code, header + body
 
 
+def check_setup_complete(ip: str, admin_username: str, admin_password: str) -> bool:
+    """Return True if the guest's setup-complete flag file exists.
+
+    Called after WinRM TCP is confirmed open to ensure all FirstLogonCommands
+    have finished before automation scripts begin.
+    """
+    try:
+        session = _make_session(ip, admin_username, admin_password, timeout=10)
+        result = session.run_ps(f"Test-Path '{SETUP_COMPLETE_FLAG}'")
+        return result.std_out.decode("utf-8", errors="replace").strip().lower() == "true"
+    except Exception:
+        return False
+
+
+def delete_setup_flag(ip: str, admin_username: str, admin_password: str) -> None:
+    """Remove the setup-complete flag file from the guest.
+
+    Called immediately after check_setup_complete() returns True so the flag
+    leaves no permanent footprint on the guest.
+    """
+    session = _make_session(ip, admin_username, admin_password, timeout=10)
+    try:
+        session.run_ps(
+            f"Remove-Item -Path '{SETUP_COMPLETE_FLAG}' -Force -ErrorAction SilentlyContinue"
+        )
+    except Exception:
+        pass  # non-fatal; flag is ephemeral
+
+
 def shutdown_guest(ip: str, admin_username: str, admin_password: str) -> None:
     """Issue a graceful shutdown to the guest via WinRM.
 
@@ -83,3 +118,15 @@ def shutdown_guest(ip: str, admin_username: str, admin_password: str) -> None:
         session.run_ps("Stop-Computer -Force")
     except Exception:
         pass  # connection drop during shutdown is expected
+
+
+def restart_guest(ip: str, admin_username: str, admin_password: str) -> None:
+    """Issue a graceful restart to the guest via WinRM.
+
+    The WinRM connection will drop before the command returns — that is expected.
+    """
+    session = _make_session(ip, admin_username, admin_password, timeout=30)
+    try:
+        session.run_ps("Restart-Computer -Force")
+    except Exception:
+        pass  # connection drop during restart is expected
