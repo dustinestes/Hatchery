@@ -29,13 +29,13 @@ class TestCheckPython3Gi:
 
 
 class TestCheckAll:
-    def test_returns_six_requirements(self):
+    def test_returns_seven_requirements(self):
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
             patch("lib.requirements._check_python3_gi", return_value=True),
         ):
             results = check_all()
-        assert len(results) == 6
+        assert len(results) == 7
 
     def test_all_present_when_tools_found(self):
         with (
@@ -59,7 +59,7 @@ class TestCheckAll:
             patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             check_all()
-        assert mock_which.call_count == 5
+        assert mock_which.call_count == 6
 
     def test_python3_gi_absent_when_check_returns_false(self):
         with (
@@ -111,7 +111,47 @@ class TestCheckAll:
         ):
             results = check_all()
         names = {r.name for r in results}
-        assert names >= {"virsh", "virt-install", "qemu-img", "virt-make-fs", "swtpm", "python3-gi"}
+        assert names >= {
+            "virsh",
+            "virt-install",
+            "qemu-img",
+            "virt-make-fs",
+            "swtpm",
+            "python3-gi",
+            "pwsh",
+        }
+
+    def test_pwsh_marked_optional(self):
+        with (
+            patch("shutil.which", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
+        ):
+            results = check_all()
+        pwsh = next(r for r in results if r.name == "pwsh")
+        assert pwsh.optional is True
+
+    def test_required_tools_not_optional(self):
+        with (
+            patch("shutil.which", return_value=None),
+            patch("lib.requirements._check_python3_gi", return_value=False),
+        ):
+            results = check_all()
+        required = [r for r in results if r.name != "pwsh"]
+        assert all(not r.optional for r in required)
+
+
+class TestPwshAvailable:
+    def test_returns_true_when_found(self):
+        from lib.requirements import pwsh_available
+
+        with patch("shutil.which", return_value="/usr/bin/pwsh"):
+            assert pwsh_available() is True
+
+    def test_returns_false_when_missing(self):
+        from lib.requirements import pwsh_available
+
+        with patch("shutil.which", return_value=None):
+            assert pwsh_available() is False
 
 
 class TestMissing:

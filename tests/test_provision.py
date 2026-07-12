@@ -74,6 +74,79 @@ class TestRunScript:
         assert kwargs.get("transport") == "ntlm"
 
 
+class TestBuildPsInvocation:
+    def test_no_params_returns_content_unchanged(self):
+        content = "Write-Host hello"
+        assert provision_lib._build_ps_invocation(content, {}) == content
+
+    def test_wraps_in_scriptblock_with_args(self):
+        result = provision_lib._build_ps_invocation("Write-Host $Env", {"Env": "dev"})
+        assert result.startswith("& {")
+        assert "-Env 'dev'" in result
+        assert "Write-Host $Env" in result
+
+    def test_single_quotes_string_values(self):
+        result = provision_lib._build_ps_invocation("", {"Name": "My VM"})
+        assert "-Name 'My VM'" in result
+
+    def test_escapes_single_quotes_in_values(self):
+        result = provision_lib._build_ps_invocation("", {"Name": "it's"})
+        assert "-Name 'it''s'" in result
+
+    def test_multiple_params(self):
+        result = provision_lib._build_ps_invocation("", {"A": "1", "B": "2"})
+        assert "-A '1'" in result
+        assert "-B '2'" in result
+
+
+class TestRunScriptWithParameters:
+    def _make_result(self, status_code=0, stdout=b"", stderr=b""):
+        from unittest.mock import MagicMock
+
+        r = MagicMock()
+        r.status_code = status_code
+        r.std_out = stdout
+        r.std_err = stderr
+        return r
+
+    def test_no_params_sends_content_directly(self, tmp_path):
+        script = tmp_path / "setup.ps1"
+        script.write_text("Write-Host hello")
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0)
+            provision_lib.run_script("1.2.3.4", "admin", "pass", script)
+        sent = mock_sess.return_value.run_ps.call_args[0][0]
+        assert sent == "Write-Host hello"
+
+    def test_with_params_wraps_in_scriptblock(self, tmp_path):
+        script = tmp_path / "setup.ps1"
+        script.write_text("param($Env) Write-Host $Env")
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0)
+            provision_lib.run_script("1.2.3.4", "admin", "pass", script, parameters={"Env": "dev"})
+        sent = mock_sess.return_value.run_ps.call_args[0][0]
+        assert sent.startswith("& {")
+        assert "-Env 'dev'" in sent
+
+    def test_header_includes_params_line(self, tmp_path):
+        script = tmp_path / "setup.ps1"
+        script.write_text("")
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0)
+            _, output = provision_lib.run_script(
+                "1.2.3.4", "admin", "pass", script, parameters={"Env": "dev"}
+            )
+        assert "Env=dev" in output
+
+    def test_no_params_header_shows_none(self, tmp_path):
+        script = tmp_path / "setup.ps1"
+        script.write_text("")
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0)
+            _, output = provision_lib.run_script("1.2.3.4", "admin", "pass", script)
+        assert "params   : none" in output
+
+
 class TestShutdownGuest:
     def test_sends_stop_computer(self):
         with patch("lib.provision.winrm.Session") as mock_sess:

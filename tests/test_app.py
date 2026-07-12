@@ -1730,6 +1730,26 @@ class TestAPIRoutes:
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
+    def test_api_script_params_returns_empty_when_pwsh_missing(self, client, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        scripts_dir = tmp_path / "automation" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "setup.ps1").write_text("param($Env) Write-Host $Env")
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        with patch("shutil.which", return_value=None):
+            resp = client.get("/api/automation/scripts/setup.ps1/params")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_api_script_params_returns_404_when_file_missing(self, client, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        with patch("shutil.which", return_value="/usr/bin/pwsh"):
+            resp = client.get("/api/automation/scripts/nonexistent.ps1/params")
+        assert resp.status_code == 404
+
     def test_api_clutches_returns_json(self, client):
         resp = client.get("/api/clutches")
         assert resp.status_code == 200

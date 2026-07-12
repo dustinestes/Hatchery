@@ -11,6 +11,7 @@ class Requirement:
     package: str
     required_for: str
     present: bool
+    optional: bool = False
 
 
 _CLI_TOOLS = [
@@ -19,6 +20,15 @@ _CLI_TOOLS = [
     ("qemu-img", "qemu-utils", "Disk image operations"),
     ("virt-make-fs", "libguestfs-tools", "Answer file floppy image creation"),
     ("swtpm", "swtpm", "TPM 2.0 emulation (Win11 / Server 2025)"),
+]
+
+# Optional tools — absent means degraded functionality, not a hard failure.
+_OPTIONAL_CLI_TOOLS = [
+    (
+        "pwsh",
+        "powershell",
+        "Script parameter introspection — required to detect and configure automation script parameters",
+    ),
 ]
 
 
@@ -45,7 +55,15 @@ def check_all() -> list[Requirement]:
             _check_python3_gi(),
         )
     )
+    for name, package, required_for in _OPTIONAL_CLI_TOOLS:
+        results.append(
+            Requirement(name, package, required_for, shutil.which(name) is not None, optional=True)
+        )
     return results
+
+
+def pwsh_available() -> bool:
+    return shutil.which("pwsh") is not None
 
 
 def missing(checks: list[Requirement]) -> list[Requirement]:

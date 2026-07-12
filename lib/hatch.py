@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -207,9 +208,16 @@ def add_vm_scripts(session_id: str, vm_name: str, scripts: list) -> None:
         for i, script in enumerate(scripts):
             conn.execute(
                 """INSERT INTO hatch_vm_scripts
-                   (session_id, vm_name, script_name, run_order, reboot_after, status)
-                   VALUES (?, ?, ?, ?, ?, 'pending')""",
-                (session_id, vm_name, script.name, i, int(script.reboot_after)),
+                   (session_id, vm_name, script_name, run_order, reboot_after, parameters, status)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
+                (
+                    session_id,
+                    vm_name,
+                    script.name,
+                    i,
+                    int(script.reboot_after),
+                    json.dumps(p) if (p := getattr(script, "parameters", None)) else None,
+                ),
             )
         conn.commit()
     finally:
@@ -222,12 +230,17 @@ def get_vm_scripts(session_id: str, vm_name: str) -> list[dict]:
     try:
         rows = conn.execute(
             """SELECT script_name, run_order, reboot_after, status, exit_code, output,
-                      started_at, completed_at
+                      parameters, started_at, completed_at
                FROM hatch_vm_scripts WHERE session_id=? AND vm_name=?
                ORDER BY run_order""",
             (session_id, vm_name),
         ).fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            row = dict(r)
+            row["parameters"] = json.loads(row["parameters"]) if row["parameters"] else {}
+            result.append(row)
+        return result
     finally:
         conn.close()
 

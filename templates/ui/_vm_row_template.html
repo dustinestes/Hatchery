@@ -98,37 +98,25 @@
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Post-Boot Scripts</label>
-        <div class="dual-listbox">
-          <div class="listbox-panel">
-            <div class="listbox-header">
-              Available
-              <button type="button" class="btn-refresh-label vm-refresh-scripts" title="Refresh available scripts">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              </button>
-            </div>
-            <ul class="listbox-list vm-avail-scripts" role="listbox" aria-label="Available scripts">
-              {% for f in scripts_files %}
-                <li class="listbox-item" data-value="{{ f }}" role="option" tabindex="0">{{ f }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-          <div class="listbox-controls">
-            <button type="button" class="btn-listbox vm-add-script" title="Add" aria-label="Add to selected">›</button>
-            <button type="button" class="btn-listbox vm-remove-script" title="Remove" aria-label="Remove from selected">‹</button>
-            <div class="listbox-spacer"></div>
-            <button type="button" class="btn-listbox vm-move-up" title="Move up" aria-label="Move up">↑</button>
-            <button type="button" class="btn-listbox vm-move-down" title="Move down" aria-label="Move down">↓</button>
-          </div>
-          <div class="listbox-panel">
-            <div class="listbox-header">Selected (run order)</div>
-            <ul class="listbox-list vm-sel-scripts" role="listbox" aria-label="Selected scripts">
-            </ul>
-          </div>
+        <div class="form-label-row">
+          <label class="form-label">Post-Boot Scripts</label>
+          <button type="button" class="btn-refresh-label vm-refresh-scripts" title="Refresh script list">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+        <div class="script-add-row">
+          <select class="form-select vm-script-select">
+            <option value="">— select a script to add —</option>
+            {% for f in scripts_files %}
+              <option value="{{ f }}">{{ f }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn vm-add-script">Add</button>
         </div>
         {% if not scripts_files %}
           <p class="form-hint">No automation files found. Add scripts via the Automation pane.</p>
         {% endif %}
+        <div class="vm-scripts-list"></div>
         <input type="hidden" name="vm_automations[]" class="vm-automations-hidden" value="">
       </div>
     </div>

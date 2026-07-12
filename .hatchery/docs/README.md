@@ -28,6 +28,7 @@ Reference documentation for Hatchery.
 | [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
 | [`errors.md`](errors.md) | Error handling model — HTTP codes, VM operation errors, UI surfacing |
 | [`examples.md`](examples.md) | Real-world scenarios — hatching VMs, managing snapshots, teardown |
+| [`automations.md`](automations.md) | Automation scripts — writing, parameterizing, and wiring scripts to VMs in Clutch files |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |
 | [`database.md`](database.md) | Database design — what lives in SQLite, what doesn't, and why |
 | [`notifications.md`](notifications.md) | Notification system — tiers, lifecycle, UI components, startup sync, and contributor tooling |

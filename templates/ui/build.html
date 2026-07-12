@@ -12,7 +12,7 @@
   <div class="alert alert-error">{{ form_error }}</div>
 {% endif %}
 
-<form method="post" action="{{ url_for('build_post') }}" id="build-form">
+<form method="post" action="{{ url_for('build_post') }}" id="build-form" novalidate>
 
   <section class="form-section">
     <h2 class="form-section-title">Clutch</h2>
@@ -78,7 +78,12 @@
     rows.markDirty();
   });
 
-  form.addEventListener('submit', function () {
+  form.addEventListener('submit', function (e) {
+    rows.expandInvalidRows();
+    if (!form.reportValidity()) {
+      e.preventDefault();
+      return;
+    }
     rows.serializeDependsOn();
     rows.serializeAutomations();
     rows.markClean();

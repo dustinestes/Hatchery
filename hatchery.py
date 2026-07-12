@@ -1,6 +1,9 @@
 import atexit
+import json
 import os
+import shutil
 import socket
+import subprocess
 import threading
 import time
 
@@ -110,7 +113,11 @@ def _provision_vm_thread(
 
             try:
                 exit_code, output = provision_lib.run_script(
-                    ip, admin_username, admin_password, script_path
+                    ip,
+                    admin_username,
+                    admin_password,
+                    script_path,
+                    parameters=script.get("parameters") or {},
                 )
             except Exception as exc:
                 hatch_lib.set_script_status(
@@ -583,6 +590,23 @@ def hatch_clutch_post():
 # ── Clutch builder ───────────────────────────────────────────────────────────
 
 
+def _parse_automations(raw: str) -> list:
+    """Parse the vm_automations[] hidden field value.
+
+    Accepts JSON (new format with optional parameters) or a legacy comma-separated
+    string of script names. Always returns a list compatible with AutomationScript.coerce().
+    """
+    raw = raw.strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+    return [a.strip() for a in raw.split(",") if a.strip()]
+
+
 def _vm_dicts_from_form(form) -> list[dict]:
     """Extract raw VM dicts from form fields without validation, used for error re-renders."""
     names = form.getlist("vm_name[]")
@@ -611,7 +635,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
                 "os_config": os_config_list[i] if i < len(os_config_list) else "",
                 "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
-                "automations": [a.strip() for a in auto_raw.split(",") if a.strip()],
+                "automations": _parse_automations(auto_raw),
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
             }
         )
@@ -641,7 +665,7 @@ def _vm_list_from_form(form):
         depends_raw = depends_list[i] if i < len(depends_list) else ""
         depends_on = [d.strip() for d in depends_raw.split(",") if d.strip()]
         auto_raw = automations_list[i] if i < len(automations_list) else ""
-        automations = [a.strip() for a in auto_raw.split(",") if a.strip()]
+        automations = _parse_automations(auto_raw)
         vms.append(
             VMConfig(
                 name=name.strip(),
@@ -856,6 +880,55 @@ def api_automation_scripts():
     return jsonify(_scan_dir("automation/scripts"))
 
 
+@app.route("/api/automation/scripts/<path:name>/params")
+def api_automation_script_params(name):
+    """Return PowerShell param() metadata for a script file.
+
+    Uses pwsh on the host to introspect the script. Returns [] if pwsh is not
+    installed or the script has no param() block — callers degrade gracefully.
+    """
+    if not shutil.which("pwsh"):
+        return jsonify([])
+    script_path = config.data_dir() / "automation" / "scripts" / name
+    if not script_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    ps_code = (
+        "$p = (Get-Command -ErrorAction Stop '" + str(script_path) + "').Parameters.Values;"
+        " $p | Select-Object Name,"
+        " @{n='Type';e={$_.ParameterType.Name}},"
+        " @{n='Mandatory';e={[bool]($_.Attributes | Where-Object {$_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory})}}, "
+        " @{n='HelpMessage';e={($_.Attributes | Where-Object {$_ -is [System.Management.Automation.ParameterAttribute]}).HelpMessage}},"
+        " @{n='Default';e={if($_.DefaultValue -ne $null){[string]$_.DefaultValue}else{$null}}}"
+        " | Where-Object { $_.Name -notin @('Verbose','Debug','ErrorAction','WarningAction','InformationAction','ProgressAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable','WhatIf','Confirm') }"
+        " | ConvertTo-Json -Depth 3"
+    )
+    try:
+        result = subprocess.run(
+            ["pwsh", "-NonInteractive", "-Command", ps_code],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return jsonify([])
+        raw = json.loads(result.stdout)
+        if isinstance(raw, dict):
+            raw = [raw]
+        params = [
+            {
+                "name": p.get("Name"),
+                "type": p.get("Type", "String"),
+                "mandatory": bool(p.get("Mandatory")),
+                "default": p.get("Default"),
+                "help": p.get("HelpMessage") or None,
+            }
+            for p in raw
+        ]
+        return jsonify(params)
+    except Exception:
+        return jsonify([])
+
+
 @app.route("/api/clutches")
 def api_clutches():
     return jsonify(_scan_dir("clutches", [".yaml"]))
@@ -890,7 +963,10 @@ def api_clutch_detail(filename):
                     "virtio_drivers": v.virtio_drivers or "",
                     "os_config": v.os_config or "",
                     "admin_username": v.admin_username or "",
-                    "automations": [s.name for s in v.automations],
+                    "automations": [
+                        {"name": s.name, "parameters": s.parameters} if s.parameters else s.name
+                        for s in v.automations
+                    ],
                     "depends_on": v.depends_on,
                 }
                 for v in c.vms

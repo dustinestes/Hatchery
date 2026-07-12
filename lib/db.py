@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS hatch_vm_scripts (
     status       TEXT    NOT NULL DEFAULT 'pending',
     exit_code    INTEGER,
     output       TEXT,
+    parameters   TEXT,
     started_at   TEXT,
     completed_at TEXT,
     UNIQUE(session_id, vm_name, run_order)
@@ -69,6 +70,7 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE hatch_sessions ADD COLUMN archived_at TEXT",
     "ALTER TABLE hatch_vm_status ADD COLUMN admin_username TEXT",
     "ALTER TABLE hatch_vm_status ADD COLUMN admin_password TEXT",
+    "ALTER TABLE hatch_vm_scripts ADD COLUMN parameters TEXT",
 ]
 
 _db_path: Path | None = None

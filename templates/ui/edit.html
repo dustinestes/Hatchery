@@ -12,7 +12,7 @@
   <div class="alert alert-error">{{ form_error }}</div>
 {% endif %}
 
-<form method="post" action="{{ url_for('edit_post') }}" id="edit-form">
+<form method="post" action="{{ url_for('edit_post') }}" id="edit-form" novalidate>
   <input type="hidden" id="existing-filename" name="existing_filename" value="{{ current_filename }}">
 
   <section class="form-section">
@@ -82,7 +82,12 @@
     rows.markDirty();
   });
 
-  form.addEventListener('submit', function () {
+  form.addEventListener('submit', function (e) {
+    rows.expandInvalidRows();
+    if (!form.reportValidity()) {
+      e.preventDefault();
+      return;
+    }
     rows.serializeDependsOn();
     rows.serializeAutomations();
     rows.markClean();
