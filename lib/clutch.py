@@ -20,6 +20,7 @@ class AutomationScript(BaseModel):
 
     name: str
     reboot_after: bool = False
+    parameters: dict[str, str] = {}
 
     @classmethod
     def coerce(cls, v: Any) -> "AutomationScript":
@@ -227,11 +228,20 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = clutch_obj.model_dump(mode="json", exclude_none=True)
     for vm in data.get("vms", []):
-        # Compact automations: plain string when reboot_after is False
+        # Compact automations: plain string only when reboot_after=False and no parameters
         if "automations" in vm:
-            vm["automations"] = [
-                s["name"] if not s.get("reboot_after") else s for s in vm["automations"]
-            ]
+            compacted = []
+            for s in vm["automations"]:
+                if not s.get("reboot_after") and not s.get("parameters"):
+                    compacted.append(s["name"])
+                else:
+                    entry = {"name": s["name"]}
+                    if s.get("reboot_after"):
+                        entry["reboot_after"] = s["reboot_after"]
+                    if s.get("parameters"):
+                        entry["parameters"] = s["parameters"]
+                    compacted.append(entry)
+            vm["automations"] = compacted
         # Omit parallel when False (default)
         if not vm.get("parallel"):
             vm.pop("parallel", None)

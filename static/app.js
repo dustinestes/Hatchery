@@ -9,80 +9,114 @@ hatchery.vmRows = (function () {
     var rowIdx = 0;
     var isDirty = false;
 
-    function initDualListbox(row) {
-      var available = row.querySelector('.vm-avail-scripts');
-      var selected = row.querySelector('.vm-sel-scripts');
+    // ── Script row helpers (shared across initScriptList and addRow) ──────────
+
+    function renderParamFields(scriptItem, params, savedParams) {
+      var existing = scriptItem.querySelector('.script-params');
+      if (existing) existing.remove();
+      if (!params || !params.length) return;
+      var div = document.createElement('div');
+      div.className = 'script-params';
+      params.forEach(function (p) {
+        var fieldRow = document.createElement('div');
+        fieldRow.className = 'script-param-row';
+        var label = document.createElement('label');
+        label.className = 'script-param-label';
+        label.textContent = p.name + (p.mandatory ? ' *' : '');
+        if (p.help) label.title = p.help;
+        var input = document.createElement('input');
+        input.className = 'script-param-input';
+        input.type = 'text';
+        input.dataset.param = p.name;
+        input.placeholder = p.default != null ? String(p.default) : '';
+        input.value = (savedParams && savedParams[p.name] != null) ? savedParams[p.name] : '';
+        if (p.mandatory && p.default == null) input.required = true;
+        fieldRow.appendChild(label);
+        fieldRow.appendChild(input);
+        div.appendChild(fieldRow);
+      });
+      scriptItem.querySelector('.script-item-params').appendChild(div);
+    }
+
+    function addScriptItem(list, scriptName, rebootAfter, savedParams) {
+      var item = document.createElement('div');
+      item.className = 'script-item';
+      item.dataset.scriptName = scriptName;
+      var CHEVRON_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
+      var CHEVRON_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+      var CLOSE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      item.innerHTML =
+        '<div class="script-item-header">' +
+          '<span class="script-item-name">' + scriptName + '</span>' +
+          '<label class="script-item-reboot-label">' +
+            '<input type="checkbox" class="vm-script-reboot"' + (rebootAfter ? ' checked' : '') + '> Reboot after' +
+          '</label>' +
+          '<div class="script-item-actions">' +
+            '<button type="button" class="btn-listbox vm-script-up" title="Move up" aria-label="Move up">' + CHEVRON_UP + '</button>' +
+            '<button type="button" class="btn-listbox vm-script-down" title="Move down" aria-label="Move down">' + CHEVRON_DOWN + '</button>' +
+            '<button type="button" class="btn-icon vm-script-remove" title="Remove" aria-label="Remove script">' + CLOSE + '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="script-item-params"></div>';
+
+      item.querySelector('.vm-script-up').addEventListener('click', function () {
+        if (item.previousElementSibling) list.insertBefore(item, item.previousElementSibling);
+        isDirty = true;
+      });
+      item.querySelector('.vm-script-down').addEventListener('click', function () {
+        if (item.nextElementSibling) list.insertBefore(item.nextElementSibling, item);
+        isDirty = true;
+      });
+      item.querySelector('.vm-script-remove').addEventListener('click', function () {
+        item.remove();
+        isDirty = true;
+      });
+
+      list.appendChild(item);
+
+      // Fetch params and render fields; savedParams pre-fills values
+      fetch('/api/automation/scripts/' + encodeURIComponent(scriptName) + '/params')
+        .then(function (r) { return r.json(); })
+        .then(function (params) { renderParamFields(item, params, savedParams); })
+        .catch(function () {});
+    }
+
+    function initScriptList(row) {
+      var list = row.querySelector('.vm-scripts-list');
+      var select = row.querySelector('.vm-script-select');
       var addBtn = row.querySelector('.vm-add-script');
-      var removeBtn = row.querySelector('.vm-remove-script');
-      var upBtn = row.querySelector('.vm-move-up');
-      var downBtn = row.querySelector('.vm-move-down');
+      var refreshBtn = row.querySelector('.vm-refresh-scripts');
 
-      if (!available || !selected) return;
+      if (!list || !select) return;
 
-      function selectItem(list, item) {
-        list.querySelectorAll('.listbox-item').forEach(function (el) {
-          el.classList.remove('selected');
+      if (addBtn) {
+        addBtn.addEventListener('click', function () {
+          var name = select.value;
+          if (!name) return;
+          var already = Array.from(list.querySelectorAll('.script-item'))
+            .some(function (el) { return el.dataset.scriptName === name; });
+          if (already) return;
+          addScriptItem(list, name, false, null);
+          select.value = '';
+          isDirty = true;
         });
-        item.classList.add('selected');
       }
 
-      available.addEventListener('click', function (e) {
-        var item = e.target.closest('.listbox-item');
-        if (item) selectItem(available, item);
-      });
-      selected.addEventListener('click', function (e) {
-        var item = e.target.closest('.listbox-item');
-        if (item) selectItem(selected, item);
-      });
-      available.addEventListener('dblclick', function (e) {
-        var item = e.target.closest('.listbox-item');
-        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
-      });
-      selected.addEventListener('dblclick', function (e) {
-        var item = e.target.closest('.listbox-item');
-        if (item) { available.appendChild(item); item.classList.remove('selected'); }
-      });
-      if (addBtn) addBtn.addEventListener('click', function () {
-        var item = available.querySelector('.listbox-item.selected');
-        if (item) { selected.appendChild(item); item.classList.remove('selected'); }
-      });
-      if (removeBtn) removeBtn.addEventListener('click', function () {
-        var item = selected.querySelector('.listbox-item.selected');
-        if (item) { available.appendChild(item); item.classList.remove('selected'); }
-      });
-      if (upBtn) upBtn.addEventListener('click', function () {
-        var item = selected.querySelector('.listbox-item.selected');
-        if (item && item.previousElementSibling) {
-          selected.insertBefore(item, item.previousElementSibling);
-        }
-      });
-      if (downBtn) downBtn.addEventListener('click', function () {
-        var item = selected.querySelector('.listbox-item.selected');
-        if (item && item.nextElementSibling) {
-          selected.insertBefore(item.nextElementSibling, item);
-        }
-      });
-
-      var refreshBtn = row.querySelector('.vm-refresh-scripts');
       if (refreshBtn) {
         refreshBtn.addEventListener('click', function () {
           refreshBtn.disabled = true;
           fetch('/api/automation/scripts')
             .then(function (r) { return r.json(); })
             .then(function (files) {
-              var selNames = Array.from(selected.querySelectorAll('.listbox-item'))
-                .map(function (el) { return el.dataset.value; });
-              available.innerHTML = '';
-              files.filter(function (f) { return selNames.indexOf(f) === -1; })
-                .forEach(function (f) {
-                  var li = document.createElement('li');
-                  li.className = 'listbox-item';
-                  li.dataset.value = f;
-                  li.setAttribute('role', 'option');
-                  li.setAttribute('tabindex', '0');
-                  li.textContent = f;
-                  available.appendChild(li);
-                });
+              var current = select.value;
+              select.innerHTML = '<option value="">— select a script to add —</option>';
+              files.forEach(function (f) {
+                var opt = document.createElement('option');
+                opt.value = f;
+                opt.textContent = f;
+                if (f === current) opt.selected = true;
+                select.appendChild(opt);
+              });
             })
             .catch(function () {})
             .finally(function () { refreshBtn.disabled = false; });
@@ -122,7 +156,7 @@ hatchery.vmRows = (function () {
         el.addEventListener('change', function () { isDirty = true; });
       });
 
-      initDualListbox(row);
+      initScriptList(row);
 
       if (vmData) {
         set(row, '[name="vm_name[]"]', vmData.name);
@@ -136,13 +170,13 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_admin_username[]"]', vmData.admin_username || '');
         set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
         if (vmData.automations && vmData.automations.length) {
-          var avail = row.querySelector('.vm-avail-scripts');
-          var sel = row.querySelector('.vm-sel-scripts');
-          if (avail && sel) {
-            vmData.automations.forEach(function (scriptName) {
-              var items = Array.from(avail.querySelectorAll('.listbox-item'));
-              var item = items.find(function (el) { return el.dataset.value === scriptName; });
-              if (item) sel.appendChild(item);
+          var scriptsList = row.querySelector('.vm-scripts-list');
+          if (scriptsList) {
+            vmData.automations.forEach(function (entry) {
+              var scriptName = typeof entry === 'string' ? entry : entry.name;
+              var rebootAfter = typeof entry === 'object' && !!entry.reboot_after;
+              var savedParams = (typeof entry === 'object' && entry.parameters) ? entry.parameters : null;
+              addScriptItem(scriptsList, scriptName, rebootAfter, savedParams);
             });
           }
         }
@@ -217,12 +251,40 @@ hatchery.vmRows = (function () {
 
     function serializeAutomations() {
       container.querySelectorAll('.vm-row').forEach(function (row) {
-        var selScripts = row.querySelector('.vm-sel-scripts');
+        var list = row.querySelector('.vm-scripts-list');
         var hidden = row.querySelector('.vm-automations-hidden');
-        if (selScripts && hidden) {
-          hidden.value = Array.from(selScripts.querySelectorAll('.listbox-item'))
-            .map(function (el) { return el.dataset.value; })
-            .join(',');
+        if (list && hidden) {
+          var entries = Array.from(list.querySelectorAll('.script-item')).map(function (item) {
+            var name = item.dataset.scriptName;
+            var rebootAfter = item.querySelector('.vm-script-reboot')
+              ? item.querySelector('.vm-script-reboot').checked
+              : false;
+            var params = {};
+            item.querySelectorAll('.script-param-input').forEach(function (input) {
+              if (input.value.trim()) params[input.dataset.param] = input.value.trim();
+            });
+            if (!rebootAfter && !Object.keys(params).length) return name;
+            var entry = { name: name };
+            if (rebootAfter) entry.reboot_after = true;
+            if (Object.keys(params).length) entry.parameters = params;
+            return entry;
+          });
+          hidden.value = JSON.stringify(entries);
+        }
+      });
+    }
+
+    function expandInvalidRows() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var body = row.querySelector('.vm-row-body');
+        var toggle = row.querySelector('.vm-row-toggle');
+        if (body && body.hidden) {
+          var hasEmpty = Array.from(body.querySelectorAll('[required]'))
+            .some(function (inp) { return !inp.value.trim(); });
+          if (hasEmpty) {
+            body.hidden = false;
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+          }
         }
       });
     }
@@ -234,6 +296,7 @@ hatchery.vmRows = (function () {
       applyPendingDepends: applyPendingDepends,
       serializeDependsOn: serializeDependsOn,
       serializeAutomations: serializeAutomations,
+      expandInvalidRows: expandInvalidRows,
       markDirty: function () { isDirty = true; },
       markClean: function () { isDirty = false; },
       dirty: function () { return isDirty; },

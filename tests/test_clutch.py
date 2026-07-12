@@ -579,3 +579,59 @@ class TestAutomationScript:
         """)
         result = clutch.load(write_clutch(tmp_path, content))
         assert [s.name for s in result.vms[0].automations] == ["setup.ps1", "configure.ps1"]
+
+    def test_parameters_default_empty(self):
+        s = AutomationScript(name="setup.ps1")
+        assert s.parameters == {}
+
+    def test_coerce_from_dict_with_parameters(self):
+        s = AutomationScript.coerce({"name": "setup.ps1", "parameters": {"Env": "dev"}})
+        assert s.parameters == {"Env": "dev"}
+
+    def test_yaml_compact_when_no_params_no_reboot(self, tmp_path):
+        """Scripts with no parameters and reboot_after=False stay as plain strings."""
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="w.iso",
+            automations=["setup.ps1"],
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        assert "- setup.ps1" in path.read_text()
+
+    def test_yaml_mapping_when_parameters_present(self, tmp_path):
+        """Scripts with parameters are written as mappings in YAML."""
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="w.iso",
+            automations=[{"name": "setup.ps1", "parameters": {"Env": "dev"}}],
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        raw = path.read_text()
+        assert "Env: dev" in raw
+        assert "parameters" in raw
+
+    def test_yaml_round_trip_with_parameters(self, tmp_path):
+        """Parameters survive a save/load round trip."""
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="w.iso",
+            automations=[{"name": "setup.ps1", "parameters": {"Region": "us-east-1"}}],
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        loaded = clutch.load(path)
+        assert loaded.vms[0].automations[0].parameters == {"Region": "us-east-1"}
