@@ -51,6 +51,15 @@
     'pmsuspended': 'Suspended (PM)',
   };
 
+  const HATCH_STATUS_LABEL = {
+    'pending':      'Pending',
+    'hatching':     'Hatching',
+    'provisioning': 'Provisioning',
+    'fledged':      'Fledged',
+    'failed':       'Failed',
+    'culled':       'Culled',
+  };
+
   const SCRIPT_STATUS_LABEL = {
     'pending':   'Pending',
     'running':   'Running',
@@ -184,6 +193,9 @@
   function renderVm(vm) {
     const sc = statusClass(vm.status);
     const label = VM_STATUS_LABEL[vm.status] || escHtml(vm.status);
+    const hatchBadge = vm.hatch_status
+      ? `<span class="hatch-status-badge hatch-status-badge--${escHtml(vm.hatch_status)}">${escHtml(HATCH_STATUS_LABEL[vm.hatch_status] || vm.hatch_status)}</span>`
+      : '';
     return `
       <div class="vm-card">
         <div class="vm-card-header">
@@ -191,6 +203,7 @@
             <span class="vm-card-chevron">${CHEVRON}</span>
             <span class="vm-card-name">${escHtml(vm.name)}</span>
             <span class="hatch-status-badge hatch-status-badge--vm-${sc}">${label}</span>
+            ${hatchBadge}
           </button>
         </div>
         <div class="vm-card-body">

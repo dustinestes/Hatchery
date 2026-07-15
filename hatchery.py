@@ -1007,6 +1007,7 @@ def api_nest_vms(nest: str):
         record: dict = {
             "name": name,
             "status": vm["status"],
+            "hatch_status": None,
             "ip": None,
             "clutch_file": None,
             "session_id": None,
@@ -1030,6 +1031,7 @@ def api_nest_vms(nest: str):
             record["clutch_file"] = tag["clutch_file"]
             db_row = hatch_lib.get_vm_record(tag["session_id"], name)
             if db_row:
+                record["hatch_status"] = db_row.get("status")
                 record["started_at"] = db_row.get("started_at")
                 record["admin_username"] = db_row.get("admin_username")
                 if show_pw:

@@ -1820,6 +1820,11 @@ body {
   color: #D97706;
 }
 
+.hatch-status-badge--provisioning {
+  background: color-mix(in srgb, #2196F3 14%, var(--color-surface));
+  color: #2196F3;
+}
+
 .hatch-status-badge--fledged,
 .hatch-status-badge--completed {
   background: color-mix(in srgb, #4CAF50 14%, var(--color-surface));
