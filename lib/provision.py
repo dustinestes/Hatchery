@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import winrm
@@ -14,6 +16,40 @@ _TRANSPORT = "ntlm"
 # provisioning never begins while FirstLogonCommands are still running.
 # Deleted by Hatchery immediately on detection — no permanent guest footprint.
 SETUP_COMPLETE_FLAG = r"C:\Windows\Temp\hatchery-ready"
+
+
+_CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
+
+
+def _strip_clixml(text: str) -> str:
+    """Extract plain text from CLIXML-formatted PowerShell output.
+
+    pywinrm's run_ps() returns CLIXML (PowerShell's XML serialization format)
+    prefixed with "#< CLIXML\r\n" when output goes through the PowerShell
+    pipeline. This strips the header, extracts readable string content from
+    <S> nodes, and discards progress/verbose/debug objects.
+    Returns the input unchanged when it is not CLIXML.
+    """
+    stripped = text.lstrip()
+    # CLIXML output is always prefixed with "#< CLIXML\r\n" by PowerShell
+    if stripped.startswith("#< CLIXML"):
+        nl = stripped.find("\n")
+        stripped = stripped[nl + 1 :].lstrip() if nl != -1 else ""
+    if not stripped.startswith("<Objs"):
+        return text
+    try:
+        root = ET.fromstring(stripped)
+        lines = []
+        for node in root.iter(f"{{{_CLIXML_NS}}}S"):
+            val = node.text or ""
+            # Decode PowerShell _xHHHH_ unicode escapes (e.g. _x000D_ = \r)
+            val = re.sub(r"_x([0-9A-Fa-f]{4})_", lambda m: chr(int(m.group(1), 16)), val)
+            val = val.replace("\r\n", "\n").replace("\r", "\n").strip()
+            if val:
+                lines.append(val)
+        return "\n".join(lines)
+    except ET.ParseError:
+        return text
 
 
 def _make_session(ip: str, admin_username: str, admin_password: str, timeout: int) -> winrm.Session:
@@ -73,8 +109,8 @@ def run_script(
     ps_code = _build_ps_invocation(content, params)
     session = _make_session(ip, admin_username, admin_password, timeout)
     result = session.run_ps(ps_code)
-    stdout = result.std_out.decode("utf-8", errors="replace").strip()
-    stderr = result.std_err.decode("utf-8", errors="replace").strip()
+    stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
+    stderr = _strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
     body = "\n".join(filter(None, [stdout, stderr]))
     return result.status_code, header + body
 
