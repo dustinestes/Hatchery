@@ -18,6 +18,8 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [activity](#activity)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
+  - [hatch\_vm\_scripts](#hatch_vm_scripts)
+  - [hatch\_events](#hatch_events)
   - [clutch\_instances](#clutch_instances)
 - [Maintenance](#maintenance)
   - [Row cap](#row-cap)
@@ -104,6 +106,65 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 #### Managed by
 
 `lib/hatch.py` — `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `update_vm_name()`, `get_vm_record()`
+
+<br>
+
+### hatch_vm_scripts
+
+One row per automation script per VM per session. Records the declared scripts at hatch time (before any run) and is updated as each script executes. This allows the Nests panel to display the full script queue immediately after hatching, before provisioning begins.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
+| `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
+| `vm_name` | `TEXT` | `NOT NULL` | VM name; kept in sync with `hatch_vm_status.vm_name` |
+| `script_name` | `TEXT` | `NOT NULL` | Filename of the script in `automation/scripts/` |
+| `run_order` | `INTEGER` | `NOT NULL` | Zero-based execution order within this VM's script list |
+| `reboot_after` | `INTEGER` | `NOT NULL DEFAULT 0` | `1` if Hatchery should reboot the VM after this script succeeds |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `running` → `succeeded` or `failed`; `skipped` if a prior script failed |
+| `exit_code` | `INTEGER` | | Exit code returned by the script; `NULL` until the script completes |
+| `output` | `TEXT` | | Combined stdout + stderr from the script run; `NULL` until complete |
+| `parameters` | `TEXT` | | JSON-encoded map of named parameter values passed to this script; `NULL` if no parameters |
+| `started_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `running` |
+| `completed_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `succeeded`, `failed`, or `skipped` |
+
+#### Constraints
+
+`UNIQUE(session_id, vm_name, run_order)` — each (session, VM, position) is unique; enforces that scripts are not double-inserted.
+
+#### Managed by
+
+`lib/hatch.py` — `add_vm_scripts()`, `get_vm_scripts()`, `set_script_status()`, `reset_scripts_for_retry()`
+
+<br>
+
+### hatch_events
+
+One row per provisioning event emitted during a VM's hatch lifecycle. Events come from two sources: Hatchery itself (lifecycle milestones such as script start/complete, reboots, fledged) and automation scripts (lines emitted via `Write-HatchEvent`). Together they form the per-VM event log displayed in the Nests panel Events section.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned; defines insertion order |
+| `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
+| `vm_name` | `TEXT` | `NOT NULL` | VM this event belongs to |
+| `context` | `TEXT` | `NOT NULL` | `'hatchery'` for host-side lifecycle events; `'script'` for `Write-HatchEvent` lines |
+| `tier` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` — controls styling in the UI |
+| `script_name` | `TEXT` | | Script file that generated this event; `NULL` for session-level hatchery events |
+| `component` | `TEXT` | | Optional sub-label from `Write-HatchEvent -Component`; `NULL` for hatchery events and script events without a component |
+| `message` | `TEXT` | `NOT NULL` | Human-readable event text |
+| `received_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) recorded by Hatchery when the event was stored — not the guest's clock |
+
+#### Context and component
+
+`context` identifies *who* generated the event: `'hatchery'` means Hatchery emitted it directly (e.g. "Starting script: setup.ps1"); `'script'` means it came from a `Write-HatchEvent` call inside an automation script.
+
+`component` is an optional grouping label within a script, set by the `-Component` parameter of `Write-HatchEvent` (e.g. `"Chocolatey"`, `"Registry"`). It is always `NULL` for hatchery-context events.
+
+#### Managed by
+
+`lib/hatch.py` — `add_event()`, `get_events()`, `parse_hatch_event_lines()`
+
+`GET /api/sessions/<session_id>/vms/<vm_name>/events` — returns all events for a VM in insertion order.
 
 <br>
 

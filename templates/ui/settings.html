@@ -67,6 +67,30 @@
     </div>
   </section>
 
+  <section class="form-section">
+    <h2 class="form-section-title">Events</h2>
+    <div class="form-grid form-grid-1">
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label">Timezone Format</label>
+          <span class="form-help-icon" data-tip="How event timestamps are displayed in the Events panel. Timestamps are always stored in UTC — this controls how they are shown to you.">i</span>
+        </div>
+        <div class="form-radio-group">
+          <label class="form-radio">
+            <input type="radio" name="display_timezone" value="UTC"
+                   {% if cfg.display_timezone != 'local' %}checked{% endif %}>
+            <span class="form-radio-label">UTC</span>
+          </label>
+          <label class="form-radio">
+            <input type="radio" name="display_timezone" value="local"
+                   {% if cfg.display_timezone == 'local' %}checked{% endif %}>
+            <span class="form-radio-label">Host Local <span class="form-help-text">({{ host_timezone }})</span></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
   </div>

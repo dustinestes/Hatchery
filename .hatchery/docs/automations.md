@@ -16,6 +16,7 @@ How to write, configure, and run automation scripts against guest VMs after firs
 - [Overview](#overview)
 - [How Hatchery Runs Scripts](#how-hatchery-runs-scripts)
 - [Writing Scripts](#writing-scripts)
+  - [Write-HatchEvent](#write-hatchevent)
   - [Conventions](#conventions)
   - [Exit Codes](#exit-codes)
   - [Parameters](#parameters)
@@ -53,7 +54,9 @@ If the script declares parameters (see [Parameters](#parameters)), Hatchery wrap
 } -ComputerName 'dc01' -TimeZone 'Central Standard Time'
 ```
 
-All script output (stdout and stderr) is captured and streamed to the Nests panel in real time. The exit code is read when the script finishes:
+Before execution, Hatchery injects the `Write-HatchEvent` helper function at the top of every script. This means `Write-HatchEvent` is always available without sourcing any file — see [Write-HatchEvent](#write-hatchevent).
+
+All script output (stdout and stderr) is captured and stored per-script in the database. The exit code is read when the script finishes:
 
 | Exit code | Meaning |
 |---|---|
@@ -72,11 +75,56 @@ If `reboot_after: true` is set for a script, Hatchery reboots the VM after the s
 
 ## Writing Scripts
 
+### Write-HatchEvent
+
+Hatchery injects a `Write-HatchEvent` helper function at the top of every script before execution. You do not need to define it, source it, or import it — it is always available.
+
+```powershell
+Write-HatchEvent -Message "text" [-Tier INFO|WARN|ERROR] [-Component "label"]
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `-Message` | string | *(required)* | The log line to emit |
+| `-Tier` | `INFO` \| `WARN` \| `ERROR` | `INFO` | Severity level — controls styling in the event log |
+| `-Component` | string | *(none)* | Optional sub-label grouping related lines (e.g. `"Chocolatey"`, `"Registry"`) |
+
+**Tiers:**
+
+| Tier | When to use |
+|---|---|
+| `INFO` | Normal progress — steps starting, completing, values confirmed |
+| `WARN` | Non-fatal advisory — fallback taken, optional step skipped, value defaulted |
+| `ERROR` | Failure you caught but want flagged — the exit code still controls the actual outcome |
+
+**Examples:**
+
+```powershell
+# Simple progress line
+Write-HatchEvent "Installing Chocolatey"
+
+# With a component label to group related lines in the feed
+Write-HatchEvent "Installing git" -Component "Chocolatey"
+
+# Non-fatal advisory
+Write-HatchEvent "Registry key not found, using default value" -Tier WARN -Component "Registry"
+
+# Caught error (still exit non-zero to mark the script failed)
+Write-HatchEvent "Installation failed: $_" -Tier ERROR -Component "Chocolatey"
+exit 1
+```
+
+`Write-HatchEvent` emits lines prefixed with `[HATCH:TIER]` or `[HATCH:TIER][Component]`. Hatchery parses these after each script completes and stores them as individual feed events in the database, which the event log UI reads.
+
+> **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
+
+<br>
+
 ### Conventions
 
 Follow these conventions to ensure your scripts work reliably with Hatchery:
 
-**Use `Write-Output` for progress lines**, not `Write-Host`. `Write-Output` targets the success stream (stream 1) and is reliably captured by Hatchery across all WinRM configurations. `Write-Host` targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
+**Use `Write-HatchEvent` for progress lines.** Lines emitted through `Write-HatchEvent` appear as structured events in the event log with tier styling and optional component labels. Avoid bare `Write-Host` — it targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
 
 **Set `$ErrorActionPreference = "Stop"`** at the top of every script. This turns unhandled cmdlet errors into terminating exceptions that your `try/catch` block can catch. Without it, many cmdlets write to the error stream and continue, leaving your script in an unknown state.
 
@@ -89,21 +137,16 @@ A minimal script skeleton:
 ```powershell
 $ErrorActionPreference = "Stop"
 
-function Write-Step {
-    param([string]$Message)
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] $Message"
-}
-
 try {
-    Write-Step "Script started"
+    Write-HatchEvent "Script started"
 
     # --- work goes here ---
 
-    Write-Step "Script completed successfully"
+    Write-HatchEvent "Script completed successfully"
     exit 0
 
 } catch {
-    Write-Error "[ERROR] $_"
+    Write-HatchEvent "Script failed: $_" -Tier ERROR
     exit 1
 }
 ```
@@ -225,7 +268,7 @@ Two example files ship with Hatchery under `.hatchery/examples/scripts/`:
 
 | File | Purpose |
 |---|---|
-| [`hatchery-script-template.ps1`](../examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, the `Write-Step` helper, and the `try/catch/exit` pattern |
+| [`hatchery-script-template.ps1`](../examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
 | [`configure-vm-basics.ps1`](../examples/scripts/configure-vm-basics.ps1) | Real working script — renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
 
 Copy either file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts; `configure-vm-basics.ps1` is ready to use as-is.

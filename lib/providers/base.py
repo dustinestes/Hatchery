@@ -84,3 +84,14 @@ class BaseProvider(ABC):
         on_poweroff=destroy, so after the OOBE-triggered restart normal shutdown
         behaviour is restored automatically with no cleanup step needed.
         """
+
+    def create_command_description(self, config: VMConfig) -> str:
+        """Return a human-readable description of the command used to create a VM.
+
+        Default implementation returns a generic summary. Providers override this to
+        return the actual hypervisor command so it can be surfaced in the event log.
+        """
+        return (
+            f"create VM '{config.name}' ({config.os}, {config.vcpus} vCPU, "
+            f"{config.ram_gb}GB RAM, {config.disk_gb}GB disk)"
+        )

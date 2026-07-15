@@ -20,6 +20,22 @@ SETUP_COMPLETE_FLAG = r"C:\Windows\Temp\hatchery-ready"
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
 
+# Injected at the top of every script before execution so Write-HatchEvent is always available.
+# Users call Write-HatchEvent without sourcing any file — Hatchery handles the injection.
+_WRITE_HATCH_EVENT_FUNC = """\
+function Write-HatchEvent {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Message,
+        [ValidateSet('INFO', 'WARN', 'ERROR')]
+        [string]$Tier = 'INFO',
+        [string]$Component = ''
+    )
+    $prefix = if ($Component) { "[HATCH:$Tier][$Component]" } else { "[HATCH:$Tier]" }
+    Write-Output "$prefix $Message"
+}
+"""
+
 
 def _strip_clixml(text: str) -> str:
     """Extract plain text from CLIXML-formatted PowerShell output.
@@ -94,7 +110,7 @@ def run_script(
     Raises an exception if the WinRM connection cannot be established.
     """
     script_path = Path(script_path)
-    content = script_path.read_text(encoding="utf-8")
+    content = _WRITE_HATCH_EVENT_FUNC + script_path.read_text(encoding="utf-8")
     params = parameters or {}
 
     header = (

@@ -5,26 +5,37 @@
 # and declare it in your Clutch file under a VM's automations list.
 #
 # How Hatchery runs this script:
+#   - Injects Write-HatchEvent at the top so it is always available
 #   - Connects to the guest over WinRM and executes the script content
-#   - Captures all output (stdout + stderr) and displays it in the Nests panel
+#   - Captures all output (stdout + stderr) and stores it per-script
 #   - Reads the exit code when the script finishes:
 #       0  = success → next script runs (or VM is marked fledged)
 #       >0 = failure → provisioning halts, remaining scripts are skipped,
 #                      VM is marked failed (retryable from the Nests panel)
 #
 # Conventions:
-#   - Use Write-Output for progress lines you want visible in the Nests panel
+#   - Use Write-HatchEvent for progress lines — they appear in the live feed
 #   - Use $ErrorActionPreference = "Stop" so unhandled errors become fatal
 #   - Wrap the main body in try/catch and exit with a non-zero code on failure
 #   - Keep each script focused on one concern — compose behaviour via the
 #     automations list in your Clutch file, not by chaining logic inside scripts
+#
+# Write-HatchEvent signature (injected by Hatchery — do not define it yourself):
+
+#
+#   Write-HatchEvent -Message "text" [-Tier INFO|WARN|ERROR] [-Component "label"]
+#
+#   Tier defaults to INFO. Use WARN for non-fatal advisories, ERROR for failures
+#   that you catch but still want flagged (exit code drives the actual outcome).
+#   Component is an optional sub-label (e.g. "Chocolatey", "Registry") shown
+#   in the live feed to group related lines.
 # ============================================================
 
 # ── Parameters (optional) ─────────────────────────────────────────────────────
 # Declare script parameters here if your script needs configurable inputs.
-# Hatchery (issue #113) will introspect this block to render input fields in
-# the Clutch builder UI. Until that feature lands, values can be hard-coded or
-# set manually in your Clutch file under the script's "parameters" key.
+# Hatchery introspects this block to render input fields in the Clutch builder
+# UI. Values can also be set manually in your Clutch file under the script's
+# "parameters" key.
 #
 # Parameter attributes Hatchery reads:
 #   Mandatory    — field is marked required in the UI
@@ -46,30 +57,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Write-Step {
-    param([string]$Message)
-    # Write-Output goes to the success stream (stream 1) and is reliably
-    # captured by Hatchery across all WinRM configurations. Avoid Write-Host
-    # for automation scripts — it targets the information stream (stream 6)
-    # and may not be captured depending on the Windows version and WinRM setup.
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] $Message"
-}
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
-    Write-Step "Script started"
+    Write-HatchEvent "Script started"
 
     # --- Your work goes here ---
     #
     # Example: install a Chocolatey package
+    #   Write-HatchEvent "Installing git" -Component "Chocolatey"
     #   choco install git -y --no-progress
     #
     # Example: set a registry value
+    #   Write-HatchEvent "Writing registry key" -Component "Registry"
     #   Set-ItemProperty -Path "HKLM:\SOFTWARE\MyApp" -Name "Setting" -Value 1
     #
-    # Example: copy a file
-    #   Copy-Item -Path "C:\Source\config.json" -Destination "C:\App\config.json"
+    # Example: non-fatal advisory
+    #   Write-HatchEvent "Key not found, using default" -Tier WARN -Component "Registry"
     #
     # Any exception thrown inside this try block will be caught below,
     # written to the error stream, and exit with code 1 so Hatchery marks
@@ -83,10 +87,10 @@ try {
     #              can use specific codes (e.g. exit 2, exit 99) for your
     #              own diagnostic purposes.
 
-    Write-Step "Script completed successfully"
+    Write-HatchEvent "Script completed successfully"
     exit 0
 
 } catch {
-    Write-Error "[ERROR] $_"
+    Write-HatchEvent "Script failed: $_" -Tier ERROR
     exit 1
 }

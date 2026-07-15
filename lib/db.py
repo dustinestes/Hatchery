@@ -64,6 +64,18 @@ CREATE TABLE IF NOT EXISTS hatch_vm_scripts (
     completed_at TEXT,
     UNIQUE(session_id, vm_name, run_order)
 );
+
+CREATE TABLE IF NOT EXISTS hatch_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT    NOT NULL REFERENCES hatch_sessions(id),
+    vm_name     TEXT    NOT NULL,
+    context     TEXT    NOT NULL,
+    tier        TEXT    NOT NULL,
+    script_name TEXT,
+    component   TEXT,
+    message     TEXT    NOT NULL,
+    received_at TEXT    NOT NULL
+);
 """
 
 _MIGRATIONS: list[str] = [

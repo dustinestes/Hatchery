@@ -743,6 +743,65 @@ class TestSnapshots:
         mock_run.assert_called_once_with(["virsh", "snapshot-delete", "myvm", "snap1"], check=True)
 
 
+# ── create_command_description ────────────────────────────────────────────────
+
+
+class TestCreateCommandDescription:
+    def test_returns_virt_install_command(self, provider):
+        vm = VMConfig(name="dc01", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert desc.startswith("virt-install")
+
+    def test_includes_vm_name(self, provider):
+        vm = VMConfig(name="dc01", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "dc01" in desc
+
+    def test_includes_memory(self, provider):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=8, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "8192" in desc
+
+    def test_win11_includes_uefi(self, provider):
+        vm = VMConfig(name="vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        desc = provider.create_command_description(vm)
+        assert "--boot uefi" in desc
+
+    def test_win10_no_uefi(self, provider):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "--boot uefi" not in desc
+
+    def test_virtio_included_in_command(self, provider):
+        vm = VMConfig(
+            name="vm",
+            os="win10",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win10.iso",
+            virtio_drivers="virtio.iso",
+        )
+        desc = provider.create_command_description(vm)
+        assert "virtio.iso" in desc
+
+    def test_no_extra_cdrom_when_no_virtio(self, provider):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "device=cdrom" not in desc
+
+    def test_os_media_path_included(self, provider):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "win10.iso" in desc
+
+    def test_absolute_os_media_used_as_is(self, tmp_path, provider):
+        iso = tmp_path / "custom" / "win10.iso"
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media=str(iso))
+        desc = provider.create_command_description(vm)
+        assert str(iso) in desc
+
+
 # ── Path resolution ───────────────────────────────────────────────────────────
 
 

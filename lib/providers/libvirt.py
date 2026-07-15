@@ -210,6 +210,17 @@ class LibvirtProvider(BaseProvider):
 
         return cmd
 
+    def create_command_description(self, config: VMConfig) -> str:
+        """Return the virt-install command that will be used to create this VM."""
+        os_media = Path(config.os_media)
+        if not os_media.is_absolute():
+            os_media = self.iso_dir / config.os_media
+        virtio = None
+        if config.virtio_drivers:
+            vp = Path(config.virtio_drivers)
+            virtio = vp if vp.is_absolute() else self.virtio_dir / config.virtio_drivers
+        return " ".join(self._build_create_cmd(config, os_media, virtio))
+
     def _floppy_path(self, vm_name: str) -> Path:
         """Return the stable path for a VM's answer file floppy image."""
         return Path(tempfile.gettempdir()) / f"{vm_name}-autounattend.img"

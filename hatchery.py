@@ -107,8 +107,17 @@ def _provision_vm_thread(
             if script["status"] == "succeeded":
                 continue
 
+            sname = script["script_name"]
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                f"Starting script: {sname}",
+                script_name=sname,
+            )
             hatch_lib.set_script_status(session_id, vm_name, script["run_order"], "running")
-            script_path = data_dir / "automation" / "scripts" / script["script_name"]
+            script_path = data_dir / "automation" / "scripts" / sname
 
             try:
                 exit_code, output = provision_lib.run_script(
@@ -119,6 +128,14 @@ def _provision_vm_thread(
                     parameters=script.get("parameters") or {},
                 )
             except Exception as exc:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "ERROR",
+                    f"Script failed: WinRM connection error — {exc}",
+                    script_name=sname,
+                )
                 hatch_lib.set_script_status(
                     session_id,
                     vm_name,
@@ -130,11 +147,30 @@ def _provision_vm_thread(
                 _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
                 hatch_lib.set_vm_status(session_id, vm_name, "failed")
                 notif_lib.record_activity(
-                    f"VM '{vm_name}' provisioning failed: could not run '{script['script_name']}'."
+                    f"VM '{vm_name}' provisioning failed: could not run '{sname}'."
                 )
                 return
 
+            for event in hatch_lib.parse_hatch_event_lines(output):
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "script",
+                    event["tier"],
+                    event["message"],
+                    script_name=sname,
+                    component=event["component"],
+                )
+
             if exit_code != 0:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "ERROR",
+                    f"Script failed: {sname} — Exit Code: {exit_code}",
+                    script_name=sname,
+                )
                 hatch_lib.set_script_status(
                     session_id,
                     vm_name,
@@ -146,10 +182,18 @@ def _provision_vm_thread(
                 _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
                 hatch_lib.set_vm_status(session_id, vm_name, "failed")
                 notif_lib.record_activity(
-                    f"VM '{vm_name}' provisioning failed on '{script['script_name']}' (exit {exit_code})."
+                    f"VM '{vm_name}' provisioning failed on '{sname}' (exit {exit_code})."
                 )
                 return
 
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                f"Script complete: {sname} — Exit Code: {exit_code}",
+                script_name=sname,
+            )
             hatch_lib.set_script_status(
                 session_id,
                 vm_name,
@@ -160,13 +204,36 @@ def _provision_vm_thread(
             )
 
             if script["reboot_after"]:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    f"Rebooting VM after script: {sname}",
+                    script_name=sname,
+                )
                 provision_lib.restart_guest(ip, admin_username, admin_password)
                 # Wait for WinRM to come back after restart
                 for _ in range(120):
                     time.sleep(5)
                     if _check_winrm(ip):
+                        hatch_lib.add_event(
+                            session_id,
+                            vm_name,
+                            "hatchery",
+                            "INFO",
+                            "WinRM reconnected after reboot",
+                            script_name=sname,
+                        )
                         break
 
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            "INFO",
+            "All scripts succeeded — VM is fledged",
+        )
         hatch_lib.set_vm_status(session_id, vm_name, "fledged")
         notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
 
@@ -245,6 +312,13 @@ def _sync_hatch_status() -> None:
                 is_shut_off = False
             if is_shut_off:
                 try:
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "INFO",
+                        f"Starting VM: virsh start {current_name}",
+                    )
                     provider.start_vm(current_name)
                 except Exception:
                     pass
@@ -273,6 +347,15 @@ def _sync_hatch_status() -> None:
 
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             if scripts:
+                n = len(scripts)
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    f"Windows setup complete — starting provisioning "
+                    f"({n} script{'s' if n != 1 else ''})",
+                )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
                 notif_lib.record_activity(f"VM '{vm_name}' is provisioning.")
                 _spawn_provision_thread(
@@ -283,6 +366,13 @@ def _sync_hatch_status() -> None:
                     admin_password,
                 )
             else:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    "Windows setup complete — no automation scripts configured",
+                )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
                 notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
 
@@ -389,6 +479,13 @@ def automation():
     )
 
 
+def _host_timezone() -> str:
+    """Return the host's local IANA timezone name (e.g. 'America/Chicago')."""
+    from datetime import datetime
+
+    return str(datetime.now().astimezone().tzinfo)
+
+
 @app.route("/settings")
 def settings():
     return render_template(
@@ -396,6 +493,7 @@ def settings():
         active_pane="settings",
         cfg=config.get(),
         config_file=str(config.CONFIG_FILE),
+        host_timezone=_host_timezone(),
         form_error=None,
         form_saved=request.args.get("saved") == "1",
     )
@@ -411,6 +509,7 @@ def settings_post():
             active_pane="settings",
             cfg=config.get(),
             config_file=str(config.CONFIG_FILE),
+            host_timezone=_host_timezone(),
             form_error=error,
             form_saved=False,
         )
@@ -429,11 +528,16 @@ def settings_post():
             "Background validation interval must be a whole number of seconds (minimum 10)."
         )
 
+    display_timezone_raw = request.form.get("display_timezone", "UTC").strip()
+    if display_timezone_raw not in ("UTC", "local"):
+        display_timezone_raw = "UTC"
+
     new_cfg = {
         **config.get(),
         "data_dir": str(Path(data_dir_raw).expanduser()),
         "bg_interval": bg_interval,
         "show_passwords": "show_passwords" in request.form,
+        "display_timezone": display_timezone_raw,
     }
     config.save(new_cfg)
     config.init_data_dir()
@@ -476,6 +580,8 @@ def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file:
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
+            cmd_desc = provider.create_command_description(vm)
+            hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", f"Creating VM: {cmd_desc}")
             # Start boot key sender before create_vm so it can begin polling immediately.
             # virt-install takes a few seconds; starting concurrently maximises the chance
             # of hitting the BIOS "press any key" window which opens during that time.
@@ -485,6 +591,7 @@ def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file:
                 daemon=True,
             ).start()
             provider.create_vm(vm, admin_password=passwords[vm.name])
+            hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", "VM created successfully")
             try:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
             except Exception:
@@ -497,9 +604,19 @@ def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file:
                 pass  # best-effort: UUID storage does not block hatching
             notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
+            hatch_lib.add_event(
+                session_id,
+                vm.name,
+                "hatchery",
+                "ERROR",
+                f"VM creation failed: {str(exc).splitlines()[0]}",
+            )
             notif_lib.record_alert(str(exc).splitlines()[0])
             hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
         except Exception as exc:
+            hatch_lib.add_event(
+                session_id, vm.name, "hatchery", "ERROR", f"VM creation failed: {exc}"
+            )
             hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
 
 
@@ -577,6 +694,13 @@ def hatch_clutch_post():
             admin_password=passwords.get(vm.name),
         )
         hatch_lib.add_vm_scripts(session_id, vm.name, vm.automations)
+        hatch_lib.add_event(
+            session_id,
+            vm.name,
+            "hatchery",
+            "INFO",
+            f"Hatching clutch: {clutch_obj.name}",
+        )
 
     t = threading.Thread(
         target=_run_hatch_session,
@@ -1067,6 +1191,7 @@ def api_retry_vm(session_id, vm_name):
 
     hatch_lib.reset_scripts_for_retry(session_id, vm_name)
     hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
+    hatch_lib.add_event(session_id, vm_name, "hatchery", "INFO", "Retry initiated")
 
     provider = _provider()
     try:
@@ -1097,6 +1222,19 @@ def api_notifications():
             "active_alert_count": notif_lib.count_active_alerts(),
         }
     )
+
+
+@app.route("/api/sessions/<session_id>/vms/<vm_name>/events")
+def api_vm_events(session_id: str, vm_name: str):
+    events = hatch_lib.get_events(session_id, vm_name)
+    return jsonify({"events": events})
+
+
+@app.route("/api/config")
+def api_config():
+    tz = config.display_timezone()
+    resolved = _host_timezone() if tz == "local" else "UTC"
+    return jsonify({"display_timezone": tz, "resolved_timezone": resolved})
 
 
 if __name__ == "__main__":  # pragma: no cover
