@@ -4,6 +4,79 @@ import pytest
 
 import lib.provision as provision_lib
 
+_CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
+_CLIXML_PREFIX = "#< CLIXML\r\n"
+
+
+def _clixml(content: str) -> str:
+    """Wrap content in a real-world CLIXML envelope with the WinRM header."""
+    return f'{_CLIXML_PREFIX}<Objs Version="1.1.0.1" xmlns="{_CLIXML_NS}">{content}</Objs>'
+
+
+class TestStripClixml:
+    def test_plain_text_passes_through_unchanged(self):
+        text = "Hello from PowerShell"
+        assert provision_lib._strip_clixml(text) == text
+
+    def test_empty_string_passes_through(self):
+        assert provision_lib._strip_clixml("") == ""
+
+    def test_extracts_string_from_clixml_with_prefix(self):
+        assert provision_lib._strip_clixml(_clixml("<S>Test output Text</S>")) == "Test output Text"
+
+    def test_extracts_string_from_clixml_without_prefix(self):
+        # <Objs directly (no #< CLIXML header) should also be stripped
+        clixml = f'<Objs Version="1.1.0.1" xmlns="{_CLIXML_NS}"><S>hello</S></Objs>'
+        assert provision_lib._strip_clixml(clixml) == "hello"
+
+    def test_discards_progress_objects(self):
+        clixml = _clixml(
+            '<Obj S="progress" RefId="0">'
+            '<TN RefId="0"><T>System.Management.Automation.PSCustomObject</T></TN>'
+            '<MS><PR N="Record"><AV>Preparing modules for first use.</AV></PR></MS>'
+            "</Obj>"
+        )
+        assert provision_lib._strip_clixml(clixml) == ""
+
+    def test_extracts_strings_and_discards_progress(self):
+        clixml = _clixml(
+            "<S>Useful output</S>"
+            '<Obj S="progress" RefId="0"><MS><PR N="Record"><AV>noise</AV></PR></MS></Obj>'
+            "<S>More output</S>"
+        )
+        result = provision_lib._strip_clixml(clixml)
+        assert "Useful output" in result
+        assert "More output" in result
+        assert "noise" not in result
+
+    def test_decodes_powershell_unicode_escapes(self):
+        # _x000D_ is \r, _x000A_ is \n — PowerShell encodes these in CLIXML
+        result = provision_lib._strip_clixml(_clixml("<S>line one_x000D__x000A_line two</S>"))
+        assert "line one" in result
+        assert "line two" in result
+
+    def test_multiple_string_nodes_joined_by_newline(self):
+        result = provision_lib._strip_clixml(_clixml("<S>first</S><S>second</S>"))
+        assert result == "first\nsecond"
+
+    def test_malformed_xml_returns_original(self):
+        bad = f"{_CLIXML_PREFIX}<Objs>unclosed"
+        assert provision_lib._strip_clixml(bad) == bad
+
+    def test_run_script_strips_clixml_from_stdout(self, tmp_path):
+        script = tmp_path / "test.ps1"
+        script.write_text('Write-Output "hello"')
+        clixml = _clixml("<S>hello</S>").encode()
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            r = MagicMock()
+            r.status_code = 0
+            r.std_out = clixml
+            r.std_err = b""
+            mock_sess.return_value.run_ps.return_value = r
+            _, output = provision_lib.run_script("1.2.3.4", "admin", "pass", script)
+        assert "hello" in output
+        assert "<Objs" not in output
+
 
 class TestRunScript:
     def _make_result(self, status_code=0, stdout=b"output", stderr=b""):
