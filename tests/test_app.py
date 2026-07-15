@@ -1918,6 +1918,32 @@ class TestApiNestVms:
         assert data[0]["session_id"] is None
         assert data[0]["clutch_file"] is None
 
+    def test_includes_hatch_status_when_tagged(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["hatch_status"] == "provisioning"
+
+    def test_hatch_status_null_when_untagged(self, client):
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}], tag=None
+            )
+            resp = client.get("/api/nests/local/vms")
+        data = resp.get_json()
+        assert data[0]["hatch_status"] is None
+
     def test_includes_db_credentials_when_tagged(self, client):
         import lib.hatch as hatch_lib
 
