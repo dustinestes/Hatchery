@@ -119,15 +119,15 @@ After the OS install finishes, Windows logs in automatically (via `AutoLogon`) a
 
 | Order | Command | Purpose |
 |---|---|---|
-| 1 | `Set-NetConnectionProfile -NetworkCategory Private` | Allow WinRM through Windows firewall |
+| 1 | `Get-NetConnectionProfile \| Set-NetConnectionProfile -NetworkCategory Private` | Set network profile to Private (required for PSRemoting) |
 | 2 | `Enable-PSRemoting -Force` | Start the WinRM service and configure listeners |
-| 3 | Set `LocalAccountTokenFilterPolicy = 1` | Allow non-built-in admin accounts to authenticate over WinRM |
-| 4 | `netsh advfirewall firewall add rule … localport=5985` | Open WinRM HTTP port |
-| 5 | `Add-WindowsCapability … OpenSSH.Server` | Install the OpenSSH Server capability |
-| 6 | `Set-Service sshd -StartupType Automatic` | Configure SSH to start on boot |
-| 7 | `Start-Service sshd` | Start SSH immediately |
-| 8 | `New-NetFirewallRule … LocalPort 22` | Open SSH port |
-| 9 | `New-Item C:\Windows\Temp\hatchery-ready` | **Setup-complete flag** |
+| 3 | `New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWORD -Force` | Allow non-built-in admin accounts to authenticate over WinRM |
+| 4 | `New-NetFirewallRule -Name 'Hatchery-WinRM-HTTP' -DisplayName 'Hatchery - WinRM HTTP' -Description 'Inbound WinRM rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow -Enabled True` | Open WinRM HTTP port |
+| 5 | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0` | Install the OpenSSH Server capability |
+| 6 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
+| 7 | `Start-Service -Name sshd` | Start SSH immediately |
+| 8 | `New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True` | Open SSH port |
+| 9 | `New-Item -Path 'C:\Windows\Temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
 
 ### The race condition and why the flag exists
 
