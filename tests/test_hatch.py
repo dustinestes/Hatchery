@@ -679,3 +679,141 @@ class TestComputeSessionStatusProvisioning:
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert s["status"] == "in_progress"
+
+
+# ── parse_hatch_event_lines ───────────────────────────────────────────────────
+
+
+class TestParseHatchEventLines:
+    def test_info_line_parsed(self):
+        events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO] Script started")
+        assert events == [{"tier": "INFO", "component": None, "message": "Script started"}]
+
+    def test_warn_line_parsed(self):
+        events = hatch_lib.parse_hatch_event_lines("[HATCH:WARN] Key not found")
+        assert events[0]["tier"] == "WARN"
+
+    def test_error_line_parsed(self):
+        events = hatch_lib.parse_hatch_event_lines("[HATCH:ERROR] Install failed")
+        assert events[0]["tier"] == "ERROR"
+
+    def test_component_label_parsed(self):
+        events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO][Chocolatey] Installing git")
+        assert events[0]["component"] == "Chocolatey"
+        assert events[0]["message"] == "Installing git"
+
+    def test_no_component_is_none(self):
+        events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO] Done")
+        assert events[0]["component"] is None
+
+    def test_non_matching_lines_ignored(self):
+        output = "[Hatchery] endpoint : http://...\n[HATCH:INFO] real line"
+        events = hatch_lib.parse_hatch_event_lines(output)
+        assert len(events) == 1
+        assert events[0]["message"] == "real line"
+
+    def test_empty_string_returns_empty_list(self):
+        assert hatch_lib.parse_hatch_event_lines("") == []
+
+    def test_multiple_events_in_order(self):
+        output = "[HATCH:INFO] first\n[HATCH:WARN] second\n[HATCH:ERROR] third"
+        events = hatch_lib.parse_hatch_event_lines(output)
+        assert [e["tier"] for e in events] == ["INFO", "WARN", "ERROR"]
+        assert [e["message"] for e in events] == ["first", "second", "third"]
+
+    def test_strips_whitespace_from_lines(self):
+        events = hatch_lib.parse_hatch_event_lines("  [HATCH:INFO] padded  ")
+        assert events[0]["message"] == "padded"
+
+
+# ── add_event / get_events ───────────────────────────────────────────────────
+
+
+class TestAddEvent:
+    def test_event_stored_and_retrievable(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "Starting provisioning")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert len(events) == 1
+        assert events[0]["message"] == "Starting provisioning"
+        assert events[0]["tier"] == "INFO"
+        assert events[0]["context"] == "hatchery"
+
+    def test_script_name_stored(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg", script_name="setup.ps1")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert events[0]["script_name"] == "setup.ps1"
+
+    def test_component_stored(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "script", "INFO", "msg", component="Chocolatey")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert events[0]["component"] == "Chocolatey"
+
+    def test_session_level_event_has_null_script_name(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert events[0]["script_name"] is None
+
+    def test_received_at_is_set(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert events[0]["received_at"] is not None
+
+    def test_multiple_events_in_insertion_order(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "first")
+        hatch_lib.add_event(sid, "dc01", "script", "WARN", "second")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "third")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert [e["message"] for e in events] == ["first", "second", "third"]
+
+    def test_events_isolated_by_vm(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "ws01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "dc01 event")
+        hatch_lib.add_event(sid, "ws01", "hatchery", "INFO", "ws01 event")
+        dc_events = hatch_lib.get_events(sid, "dc01")
+        ws_events = hatch_lib.get_events(sid, "ws01")
+        assert len(dc_events) == 1 and dc_events[0]["message"] == "dc01 event"
+        assert len(ws_events) == 1 and ws_events[0]["message"] == "ws01 event"
+
+
+class TestGetEvents:
+    def test_returns_empty_list_when_no_events(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        assert hatch_lib.get_events(sid, "dc01") == []
+
+    def test_returns_dicts(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg")
+        events = hatch_lib.get_events(sid, "dc01")
+        assert isinstance(events[0], dict)
+
+    def test_expected_fields_present(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg", script_name="a.ps1")
+        event = hatch_lib.get_events(sid, "dc01")[0]
+        for field in (
+            "id",
+            "context",
+            "tier",
+            "script_name",
+            "component",
+            "message",
+            "received_at",
+        ):
+            assert field in event

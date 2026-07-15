@@ -27,31 +27,26 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Write-Step {
-    param([string]$Message)
-    Write-Output "[$(Get-Date -Format 'HH:mm:ss')] $Message"
-}
-
 try {
     # ── Timezone ──────────────────────────────────────────────────────────────
-    Write-Step "Setting timezone to '$TimeZone'"
+    Write-HatchEvent "Setting timezone to '$TimeZone'" -Component "Timezone"
     Set-TimeZone -Id $TimeZone
-    Write-Step "Timezone set"
+    Write-HatchEvent "Timezone set" -Component "Timezone"
 
     # ── Rename ────────────────────────────────────────────────────────────────
     $current = $env:COMPUTERNAME
     if ($current -eq $ComputerName) {
-        Write-Step "Computer is already named '$ComputerName' — skipping rename"
+        Write-HatchEvent "Computer is already named '$ComputerName' — skipping rename" -Tier WARN -Component "Rename"
     } else {
-        Write-Step "Renaming computer from '$current' to '$ComputerName'"
+        Write-HatchEvent "Renaming computer from '$current' to '$ComputerName'" -Component "Rename"
         Rename-Computer -NewName $ComputerName -Force
-        Write-Step "Rename staged — reboot required to take effect"
+        Write-HatchEvent "Rename staged — reboot required to take effect" -Component "Rename"
     }
 
-    Write-Step "Basic configuration complete"
+    Write-HatchEvent "Basic configuration complete"
     exit 0
 
 } catch {
-    Write-Error "[ERROR] $_"
+    Write-HatchEvent "Script failed: $_" -Tier ERROR
     exit 1
 }

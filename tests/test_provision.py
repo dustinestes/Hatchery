@@ -127,7 +127,10 @@ class TestRunScript:
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.return_value = self._make_result(0)
             provision_lib.run_script("192.168.1.1", "admin", "pass", script)
-        mock_sess.return_value.run_ps.assert_called_once_with("Get-Date")
+        sent = mock_sess.return_value.run_ps.call_args[0][0]
+        # Hatchery prepends Write-HatchEvent before the script content
+        assert "Get-Date" in sent
+        assert "Write-HatchEvent" in sent
 
     def test_raises_on_connection_error(self, tmp_path):
         script = tmp_path / "setup.ps1"
@@ -183,13 +186,15 @@ class TestRunScriptWithParameters:
         return r
 
     def test_no_params_sends_content_directly(self, tmp_path):
+        # Hatchery prepends Write-HatchEvent but otherwise sends content un-wrapped
         script = tmp_path / "setup.ps1"
         script.write_text("Write-Host hello")
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.return_value = self._make_result(0)
             provision_lib.run_script("1.2.3.4", "admin", "pass", script)
         sent = mock_sess.return_value.run_ps.call_args[0][0]
-        assert sent == "Write-Host hello"
+        assert "Write-Host hello" in sent
+        assert not sent.startswith("& {")
 
     def test_with_params_wraps_in_scriptblock(self, tmp_path):
         script = tmp_path / "setup.ps1"

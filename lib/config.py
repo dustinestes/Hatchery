@@ -31,6 +31,7 @@ _DEFAULTS: dict = {
     "data_dir": str(DEFAULT_DATA_DIR),
     "bg_interval": 60,
     "show_passwords": False,
+    "display_timezone": "UTC",
 }
 _config: dict = {}
 
@@ -75,6 +76,12 @@ def bg_interval() -> int:
 def show_passwords() -> bool:
     """Return whether admin passwords should be displayed in the VM inventory."""
     return bool(get().get("show_passwords", False))
+
+
+def display_timezone() -> str:
+    """Return the timestamp timezone preference: 'UTC' or 'local'."""
+    val = str(get().get("display_timezone", "UTC"))
+    return val if val in ("UTC", "local") else "UTC"
 
 
 def init_data_dir() -> None:

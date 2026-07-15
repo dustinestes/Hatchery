@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 
 from lib import db
+
+_HATCH_EVENT_RE = re.compile(r"^\[HATCH:(INFO|WARN|ERROR)\](?:\[([^\]]+)\])? (.+)$")
 
 
 def _now() -> str:
@@ -323,5 +326,63 @@ def list_sessions(nest: str = "local") -> list[dict]:
                 }
             )
         return result
+    finally:
+        conn.close()
+
+
+def parse_hatch_event_lines(output: str) -> list[dict]:
+    """Extract [HATCH:TIER] tagged lines emitted by Write-HatchEvent from script output.
+
+    Returns a list of dicts with keys: tier, component (may be None), message.
+    Lines that do not match the pattern are ignored.
+    """
+    events = []
+    for line in output.splitlines():
+        m = _HATCH_EVENT_RE.match(line.strip())
+        if m:
+            events.append({"tier": m.group(1), "component": m.group(2), "message": m.group(3)})
+    return events
+
+
+def add_event(
+    session_id: str,
+    vm_name: str,
+    context: str,
+    tier: str,
+    message: str,
+    script_name: str | None = None,
+    component: str | None = None,
+) -> None:
+    """Insert a single provisioning event for a VM.
+
+    context:     'hatchery' for host-side lifecycle events, 'script' for Write-HatchEvent lines.
+    tier:        'INFO', 'WARN', or 'ERROR'.
+    script_name: the script file this event belongs to; None for session-level events.
+    component:   within-script sub-component label from Write-HatchEvent -Component; None if omitted.
+    """
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO hatch_events
+               (session_id, vm_name, context, tier, script_name, component, message, received_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (session_id, vm_name, context, tier, script_name, component, message, _now()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_events(session_id: str, vm_name: str) -> list[dict]:
+    """Return all provisioning events for a VM in insertion order."""
+    conn = db.get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT id, context, tier, script_name, component, message, received_at
+               FROM hatch_events WHERE session_id=? AND vm_name=?
+               ORDER BY id ASC""",
+            (session_id, vm_name),
+        ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
