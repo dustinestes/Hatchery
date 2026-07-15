@@ -132,7 +132,7 @@
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>4</Order>
-          <CommandLine>netsh advfirewall firewall add rule name="WinRM HTTP" protocol=TCP dir=in localport=5985 action=allow</CommandLine>
+          <CommandLine>powershell.exe -NonInteractive -Command "New-NetFirewallRule -Name 'Hatchery-WinRM-HTTP' -DisplayName 'Hatchery - WinRM HTTP' -Description 'Inbound WinRM rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow -Enabled True"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
