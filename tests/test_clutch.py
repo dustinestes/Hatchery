@@ -635,3 +635,61 @@ class TestAutomationScript:
         clutch.save(Clutch(name="lab", vms=[vm]), path)
         loaded = clutch.load(path)
         assert loaded.vms[0].automations[0].parameters == {"Region": "us-east-1"}
+
+
+# ── storage_path ──────────────────────────────────────────────────────────────
+
+
+class TestStoragePath:
+    _vm = VMConfig(name="dc01", os="win10", vcpus=2, ram_gb=4, disk_gb=60, os_media="w.iso")
+
+    def test_defaults_to_none(self):
+        c = Clutch(name="lab", vms=[self._vm])
+        assert c.storage_path is None
+
+    def test_accepts_path_string(self):
+        c = Clutch(name="lab", storage_path="/mnt/nvme/vms", vms=[self._vm])
+        assert c.storage_path == "/mnt/nvme/vms"
+
+    def test_written_to_yaml_when_set(self, tmp_path):
+        c = Clutch(name="lab", storage_path="/mnt/nvme/vms", vms=[self._vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        raw = path.read_text()
+        assert "storage_path" in raw
+        assert "/mnt/nvme/vms" in raw
+
+    def test_omitted_from_yaml_when_none(self, tmp_path):
+        c = Clutch(name="lab", vms=[self._vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        assert "storage_path" not in path.read_text()
+
+    def test_round_trips_through_save_load(self, tmp_path):
+        c = Clutch(name="lab", storage_path="/data/vms", vms=[self._vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        loaded = clutch.load(path)
+        assert loaded.storage_path == "/data/vms"
+
+    def test_load_without_key_returns_none(self, tmp_path):
+        path = tmp_path / "lab.yaml"
+        path.write_text(
+            "name: lab\nvms:\n  - name: dc01\n    os: win10\n    vcpus: 2\n    ram_gb: 4\n    disk_gb: 60\n    os_media: w.iso\n"
+        )
+        assert clutch.load(path).storage_path is None
+
+    def test_load_raw_includes_storage_path(self, tmp_path):
+        c = Clutch(name="lab", storage_path="/mnt/nvme/vms", vms=[self._vm])
+        path = tmp_path / "lab.yaml"
+        clutch.save(c, path)
+        raw = clutch.load_raw(path)
+        assert raw["storage_path"] == "/mnt/nvme/vms"
+
+    def test_load_raw_returns_none_when_absent(self, tmp_path):
+        path = tmp_path / "lab.yaml"
+        path.write_text(
+            "name: lab\nvms:\n  - name: dc01\n    os: win10\n    vcpus: 2\n    ram_gb: 4\n    disk_gb: 60\n    os_media: w.iso\n"
+        )
+        raw = clutch.load_raw(path)
+        assert raw["storage_path"] is None

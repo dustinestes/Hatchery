@@ -60,6 +60,11 @@ class TestPs1Syntax:
             "PowerShell syntax errors in hatchery-script-template.ps1:\n" + "\n".join(errors)
         )
 
+    def test_retry_script_is_valid_powershell(self):
+        path = _EXAMPLES_DIR / "test-retry.ps1"
+        errors = _ps1_syntax_errors(str(path))
+        assert errors == [], "PowerShell syntax errors in test-retry.ps1:\n" + "\n".join(errors)
+
     def test_invalid_powershell_is_caught(self, tmp_path):
         ps1 = tmp_path / "bad.ps1"
         ps1.write_text("function Broken { if ($true) {", encoding="utf-8")

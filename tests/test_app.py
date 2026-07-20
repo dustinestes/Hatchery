@@ -738,7 +738,7 @@ class TestRunHatchSession:
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         observed = []
 
-        def fake_create_vm(vm_cfg, admin_password=None):
+        def fake_create_vm(vm_cfg, admin_password=None, storage_path=None):
             sessions = hatch_lib.list_sessions()
             s = next(s for s in sessions if s["id"] == sid)
             observed.append(next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01"))
@@ -793,7 +793,7 @@ class TestRunHatchSession:
         ]
         call_count = 0
 
-        def fake_create(vm_cfg, admin_password=None):
+        def fake_create(vm_cfg, admin_password=None, storage_path=None):
             nonlocal call_count
             call_count += 1
             if vm_cfg.name == "dc01":

@@ -139,7 +139,19 @@ class LibvirtProvider(BaseProvider):
 
     # ── VM creation ───────────────────────────────────────────────────────────
 
-    def create_vm(self, config: VMConfig, admin_password: str | None = None) -> None:
+    def create_vm(
+        self,
+        config: VMConfig,
+        admin_password: str | None = None,
+        storage_path: str | None = None,
+    ) -> None:
+        if storage_path and not Path(storage_path).is_dir():
+            raise FileNotFoundError(
+                f"Storage path does not exist: {storage_path}\n"
+                "Create the directory before hatching, or leave storage_path unset to use the "
+                "hypervisor default."
+            )
+
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         virtio = (
             self._resolve_media(config.virtio_drivers, self.virtio_dir)
@@ -151,7 +163,7 @@ class LibvirtProvider(BaseProvider):
         if virtio:
             _check_media_accessible(virtio)
 
-        cmd = self._build_create_cmd(config, os_media, virtio)
+        cmd = self._build_create_cmd(config, os_media, virtio, storage_path)
         answer_img: Path | None = None
 
         try:
@@ -180,7 +192,13 @@ class LibvirtProvider(BaseProvider):
         config: VMConfig,
         os_media: Path,
         virtio: Path | None,
+        storage_path: str | None = None,
     ) -> list[str]:
+        if storage_path:
+            disk_arg = f"path={storage_path}/{config.name}.qcow2,size={config.disk_gb},format=qcow2"
+        else:
+            disk_arg = f"size={config.disk_gb},format=qcow2,pool={self.storage_pool}"
+
         cmd = [
             "virt-install",
             "--name",
@@ -190,7 +208,7 @@ class LibvirtProvider(BaseProvider):
             "--vcpus",
             str(config.vcpus),
             "--disk",
-            f"size={config.disk_gb},format=qcow2,pool={self.storage_pool}",
+            disk_arg,
             "--cdrom",
             str(os_media),
             "--os-variant",
@@ -211,7 +229,7 @@ class LibvirtProvider(BaseProvider):
 
         return cmd
 
-    def create_command_description(self, config: VMConfig) -> str:
+    def create_command_description(self, config: VMConfig, storage_path: str | None = None) -> str:
         """Return the virt-install command that will be used to create this VM."""
         os_media = Path(config.os_media)
         if not os_media.is_absolute():
@@ -220,7 +238,7 @@ class LibvirtProvider(BaseProvider):
         if config.virtio_drivers:
             vp = Path(config.virtio_drivers)
             virtio = vp if vp.is_absolute() else self.virtio_dir / config.virtio_drivers
-        return " ".join(self._build_create_cmd(config, os_media, virtio))
+        return " ".join(self._build_create_cmd(config, os_media, virtio, storage_path))
 
     def _floppy_path(self, vm_name: str) -> Path:
         """Return the stable path for a VM's answer file floppy image."""

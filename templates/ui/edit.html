@@ -31,6 +31,11 @@
           <span class="filename-ext">.yaml</span>
         </div>
       </div>
+      <div class="form-group form-group-full">
+        <label class="form-label" for="storage-path">Storage Path <span class="form-optional">(optional — overrides hypervisor default for all VMs in this Clutch)</span></label>
+        <input type="text" id="storage-path" name="storage_path" class="form-input"
+               placeholder="e.g. /mnt/fast-nvme/vms" value="{{ form_storage_path or '' }}">
+      </div>
     </div>
   </section>
 

@@ -68,6 +68,7 @@ class VMConfig(BaseModel):
 class Clutch(BaseModel):
     name: str
     description: str | None = None
+    storage_path: str | None = None
     vms: list[VMConfig]
 
     @model_validator(mode="after")
@@ -155,7 +156,12 @@ def load_raw(path: str | Path) -> dict:
         except ValidationError:
             pass
 
-    return {"name": data.get("name", ""), "description": data.get("description"), "vms": vms}
+    return {
+        "name": data.get("name", ""),
+        "description": data.get("description"),
+        "storage_path": data.get("storage_path"),
+        "vms": vms,
+    }
 
 
 def load(path: str | Path) -> Clutch:

@@ -9,7 +9,12 @@ class BaseProvider(ABC):
     """Abstract interface all hypervisor providers must implement."""
 
     @abstractmethod
-    def create_vm(self, config: VMConfig, admin_password: str | None = None) -> None:
+    def create_vm(
+        self,
+        config: VMConfig,
+        admin_password: str | None = None,
+        storage_path: str | None = None,
+    ) -> None:
         """Hatch a new VM from the given configuration."""
 
     @abstractmethod
