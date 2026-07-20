@@ -11,17 +11,23 @@ import winrm
 # Requires LocalAccountTokenFilterPolicy=1 on the guest for non-built-in admin accounts.
 _TRANSPORT = "ntlm"
 
-# Written by the last FirstLogonCommand in every answer file template.
+# Single well-identified directory for all Hatchery-managed files on the guest.
+# Created by hatchery-setup.ps1 on first boot.
+HATCHERY_GUEST_DIR = r"C:\Program Files\Hatchery"
+
+# Written as the last step of hatchery-setup.ps1.
 # Hatchery polls for this file before starting automation scripts so that
-# provisioning never begins while FirstLogonCommands are still running.
-# Deleted by Hatchery immediately on detection — no permanent guest footprint.
-SETUP_COMPLETE_FLAG = r"C:\Windows\Temp\hatchery-ready"
+# provisioning never begins while first-boot setup is still running.
+# Deleted by Hatchery immediately on detection.
+SETUP_COMPLETE_FLAG = rf"{HATCHERY_GUEST_DIR}\temp\hatchery-ready"
 
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
 
-# Injected at the top of every script before execution so Write-HatchEvent is always available.
-# Users call Write-HatchEvent without sourcing any file — Hatchery handles the injection.
+# Write-HatchEvent function body — injected into every script before execution.
+# Writes to stdout (captured by pywinrm) and to a per-script log file under
+# HATCHERY_GUEST_DIR\logs\ for local audit. $script:HatchLogFile is set by
+# _build_injection() before this function is defined.
 _WRITE_HATCH_EVENT_FUNC = """\
 function Write-HatchEvent {
     param(
@@ -33,8 +39,25 @@ function Write-HatchEvent {
     )
     $prefix = if ($Component) { "[HATCH:$Tier][$Component]" } else { "[HATCH:$Tier]" }
     Write-Output "$prefix $Message"
+    $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $line = if ($Component) { "[HATCH:$Tier][$Component][$ts] $Message" } else { "[HATCH:$Tier][$ts] $Message" }
+    Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8
 }
 """
+
+
+def _build_injection(script_name: str) -> str:
+    """Build the preamble injected into every script before execution.
+
+    Sets $script:HatchLogFile to a per-script path under HATCHERY_GUEST_DIR\\logs\\,
+    creates the directory if needed, then defines Write-HatchEvent.
+    """
+    log_file = rf"{HATCHERY_GUEST_DIR}\logs\{script_name}.log"
+    return (
+        f"$script:HatchLogFile = '{log_file}'\n"
+        "$null = New-Item -Path (Split-Path $script:HatchLogFile) -ItemType Directory -Force\n"
+        + _WRITE_HATCH_EVENT_FUNC
+    )
 
 
 def _strip_clixml(text: str) -> str:
@@ -108,18 +131,17 @@ def _extract_param_block(content: str) -> tuple[str, str]:
     return "", content
 
 
-def _build_ps_invocation(content: str, parameters: dict[str, str]) -> str:
-    """Inject Write-HatchEvent and optionally wrap in a scriptblock for parameter passing.
+def _build_ps_invocation(content: str, parameters: dict[str, str], inject: str = "") -> str:
+    """Optionally wrap content in a scriptblock for parameter passing.
 
     PowerShell requires param() to be the first statement in a scriptblock.
     When wrapping, the param() block is extracted and placed first, then
-    Write-HatchEvent is injected, then the rest of the script follows — so
-    named argument binding works correctly.
+    the inject preamble follows, then the rest of the script — so named
+    argument binding works correctly.
 
-    Without parameters: Write-HatchEvent is prepended and content is sent as-is.
+    Without parameters: inject is prepended and content is sent as-is.
     With parameters: content is wrapped in & { param(...) <inject> <rest> } -Key 'val'
     """
-    inject = _WRITE_HATCH_EVENT_FUNC
     if not parameters:
         return inject + content
     param_block, rest = _extract_param_block(content)
@@ -157,7 +179,8 @@ def run_script(
         f"[Hatchery] ---\n"
     )
 
-    ps_code = _build_ps_invocation(content, params)
+    inject = _build_injection(script_path.name)
+    ps_code = _build_ps_invocation(content, params, inject)
     session = _make_session(ip, admin_username, admin_password, timeout)
     result = session.run_ps(ps_code)
     stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())

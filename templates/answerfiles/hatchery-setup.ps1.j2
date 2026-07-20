@@ -8,7 +8,10 @@ $Host.UI.RawUI.WindowTitle = "Hatchery - First Boot Setup"
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$script:LogFile = "C:\Windows\Temp\hatchery-setup.log"
+$script:HatcheryDir = "C:\Program Files\Hatchery"
+$null = New-Item -Path "$script:HatcheryDir\logs" -ItemType Directory -Force
+$null = New-Item -Path "$script:HatcheryDir\temp" -ItemType Directory -Force
+$script:LogFile = "$script:HatcheryDir\logs\hatchery-setup.log"
 
 function Write-Log {
     param([string]$Tier, [string]$Component, [string]$Message)
@@ -82,7 +85,7 @@ Invoke-Step 4 { Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 }
 Invoke-Step 5 { Set-Service -Name sshd -StartupType Automatic }
 Invoke-Step 6 { Start-Service -Name sshd }
 Invoke-Step 7 { New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True }
-Invoke-Step 8 { New-Item -Path 'C:\Windows\Temp\hatchery-ready' -ItemType File -Force | Out-Null }
+Invoke-Step 8 { New-Item -Path "$script:HatcheryDir\temp\hatchery-ready" -ItemType File -Force | Out-Null }
 
 Write-Log "INFO" "setup" "Hatchery first boot setup completed successfully"
 Show-Steps "Setup complete. Hatchery will begin automation shortly."

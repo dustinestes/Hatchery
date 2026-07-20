@@ -153,7 +153,7 @@ The nine steps it executes, in order:
 | 6 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
 | 7 | `Start-Service -Name sshd` | Start SSH immediately |
 | 8 | `New-NetFirewallRule … -LocalPort 22` | Open SSH port |
-| 9 | `New-Item -Path 'C:\Windows\Temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
+| 9 | `New-Item -Path 'C:\Program Files\Hatchery\temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
 
 If any step fails, it is marked `[!]`, the failure message is displayed, and a "Press any key to close..." prompt is shown before the script exits with code 1. The console window remains open so the operator can read the error.
 
@@ -164,14 +164,27 @@ WinRM becomes available as soon as step 2 completes — but steps 5 through 9 (n
 The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It cannot exist until every preceding step has completed. Hatchery's polling loop:
 
 1. Confirms WinRM TCP port 5985 is open (cheap socket check)
-2. Runs `Test-Path C:\Windows\Temp\hatchery-ready` over WinRM (actual command execution)
+2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over WinRM (actual command execution)
 3. Only advances to the next phase when the flag is present
 
-The flag is **deleted immediately** upon detection — `Remove-Item` is called before any scripts run. The guest carries no permanent Hatchery footprint beyond what the user explicitly defines in their automations.
+The flag is **deleted immediately** upon detection — `Remove-Item` is called before any scripts run.
 
 ### Log file
 
-`hatchery-setup.ps1` writes a structured log to `C:\Windows\Temp\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:TIER][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM (issue #133), it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file. Until that import is implemented, the log file is available on the guest for manual inspection.
+`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:TIER][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM (issue #133), it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file. Until that import is implemented, the log file is available on the guest for manual inspection.
+
+### Hatchery guest directory
+
+`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` with two subdirectories on first boot:
+
+| Subdirectory | Contents |
+|---|---|
+| `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script) |
+| `temp\` | Ephemeral files — currently only `hatchery-ready` (deleted immediately on detection) |
+
+Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
+
+If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup.ps1` as the last entry in your Clutch's `automations` list. See `.hatchery/examples/scripts/hatchery-cleanup.ps1`. If omitted, the directory remains on the guest as a local audit record.
 
 <br>
 

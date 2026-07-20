@@ -183,13 +183,56 @@ class TestExtractParamBlock:
         assert block == "param($Late)"
 
 
+class TestBuildInjection:
+    def test_sets_log_file_variable(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert "$script:HatchLogFile" in result
+
+    def test_log_path_uses_script_name(self):
+        result = provision_lib._build_injection("configure-vm.ps1")
+        assert "configure-vm.ps1.log" in result
+
+    def test_log_path_under_hatchery_dir(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert provision_lib.HATCHERY_GUEST_DIR in result
+
+    def test_different_script_names_produce_different_paths(self):
+        r1 = provision_lib._build_injection("script-a.ps1")
+        r2 = provision_lib._build_injection("script-b.ps1")
+        assert "script-a.ps1.log" in r1
+        assert "script-b.ps1.log" in r2
+        assert "script-b.ps1.log" not in r1
+
+    def test_creates_log_directory(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert "New-Item" in result
+        assert "Directory" in result
+
+    def test_defines_write_hatch_event(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert "function Write-HatchEvent" in result
+
+    def test_write_hatch_event_logs_to_file(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert "Add-Content" in result
+        assert "$script:HatchLogFile" in result
+
+    def test_write_hatch_event_also_writes_to_stdout(self):
+        result = provision_lib._build_injection("my-script.ps1")
+        assert "Write-Output" in result
+
+
 class TestBuildPsInvocation:
-    def test_no_params_prepends_write_hatch_event(self):
-        content = "Write-Host hello"
-        result = provision_lib._build_ps_invocation(content, {})
-        assert "Write-HatchEvent" in result
+    def test_no_params_prepends_inject(self):
+        inject = "# preamble\n"
+        result = provision_lib._build_ps_invocation("Write-Host hello", {}, inject)
+        assert result.startswith("# preamble")
         assert "Write-Host hello" in result
         assert not result.startswith("& {")
+
+    def test_no_inject_returns_content_unchanged(self):
+        content = "Write-Host hello"
+        assert provision_lib._build_ps_invocation(content, {}) == content
 
     def test_wraps_in_scriptblock_with_args(self):
         result = provision_lib._build_ps_invocation("Write-Host $Env", {"Env": "dev"})
@@ -198,15 +241,17 @@ class TestBuildPsInvocation:
         assert "Write-Host $Env" in result
 
     def test_param_block_before_inject_when_wrapping(self):
+        inject = provision_lib._build_injection("test.ps1")
         content = "param($Name)\nWrite-Host $Name"
-        result = provision_lib._build_ps_invocation(content, {"Name": "test"})
+        result = provision_lib._build_ps_invocation(content, {"Name": "test"}, inject)
         param_pos = result.index("param(")
         inject_pos = result.index("Write-HatchEvent")
-        assert param_pos < inject_pos, "param() must appear before Write-HatchEvent injection"
+        assert param_pos < inject_pos, "param() must appear before inject"
 
-    def test_write_hatch_event_injected_when_wrapping(self):
+    def test_inject_present_when_wrapping(self):
+        inject = provision_lib._build_injection("test.ps1")
         content = "param($Name)\nWrite-Host $Name"
-        result = provision_lib._build_ps_invocation(content, {"Name": "test"})
+        result = provision_lib._build_ps_invocation(content, {"Name": "test"}, inject)
         assert "Write-HatchEvent" in result
 
     def test_single_quotes_string_values(self):

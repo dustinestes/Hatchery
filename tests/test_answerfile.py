@@ -157,8 +157,10 @@ class TestRenderSetupScript:
         assert 'Write-Log "INFO"' in script
         assert 'Write-Log "ERROR"' in script
 
-    def test_log_path_is_temp(self):
-        assert r"C:\Windows\Temp\hatchery-setup.log" in answerfile.render_setup_script()
+    def test_log_path_is_hatchery_dir(self):
+        script = answerfile.render_setup_script()
+        assert r"C:\Program Files\Hatchery" in script
+        assert r"hatchery-setup.log" in script
 
     def test_script_name_constant(self):
         assert answerfile.SETUP_SCRIPT_NAME == "hatchery-setup.ps1"
