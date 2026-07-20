@@ -499,6 +499,10 @@ body {
   grid-template-columns: 1fr;
 }
 
+.form-group-full {
+  grid-column: 1 / -1;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

@@ -575,13 +575,15 @@ def _send_boot_key(provider, name: str) -> None:
         time.sleep(0.5)
 
 
-def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file: str) -> None:
+def _run_hatch_session(
+    session_id: str, vms: list, passwords: dict, clutch_file: str, storage_path: str | None = None
+) -> None:
     """Background thread: create each VM sequentially and track state in DB."""
     provider = _provider()
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
-            cmd_desc = provider.create_command_description(vm)
+            cmd_desc = provider.create_command_description(vm, storage_path=storage_path)
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", f"Creating VM: {cmd_desc}")
             # Start boot key sender before create_vm so it can begin polling immediately.
             # virt-install takes a few seconds; starting concurrently maximises the chance
@@ -591,7 +593,7 @@ def _run_hatch_session(session_id: str, vms: list, passwords: dict, clutch_file:
                 args=(provider, vm.name),
                 daemon=True,
             ).start()
-            provider.create_vm(vm, admin_password=passwords[vm.name])
+            provider.create_vm(vm, admin_password=passwords[vm.name], storage_path=storage_path)
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", "VM created successfully")
             try:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
@@ -705,7 +707,7 @@ def hatch_clutch_post():
 
     t = threading.Thread(
         target=_run_hatch_session,
-        args=(session_id, clutch_obj.vms, passwords, filename),
+        args=(session_id, clutch_obj.vms, passwords, filename, clutch_obj.storage_path),
         daemon=True,
     )
     t.start()
@@ -855,9 +857,11 @@ def build_post():
     if not clutch_name:
         clutch_name = filename
 
+    storage_path = request.form.get("storage_path", "").strip() or None
+
     try:
         vms = _vm_list_from_form(request.form)
-        c = clutch_lib.Clutch(name=clutch_name, vms=vms)
+        c = clutch_lib.Clutch(name=clutch_name, storage_path=storage_path, vms=vms)
     except ValidationError as exc:
         msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
         return _rerender("; ".join(msgs))
@@ -893,15 +897,18 @@ def edit():
 
     form_error = None
     form_name = ""
+    form_storage_path = ""
     try:
         clutch_obj = _load_clutch(filename)
         form_name = clutch_obj.name
+        form_storage_path = clutch_obj.storage_path or ""
     except FileNotFoundError:
         return redirect(url_for("clutches"))
     except Exception as exc:
         try:
             raw = clutch_lib.load_raw(config.data_dir() / "clutches" / _Path(filename).name)
             form_name = raw["name"]
+            form_storage_path = raw.get("storage_path") or ""
             form_error = str(exc)
         except Exception:
             return redirect(url_for("clutches"))
@@ -911,6 +918,7 @@ def edit():
         "edit.html",
         form_error=form_error,
         form_name=form_name,
+        form_storage_path=form_storage_path,
         form_filename=current_stem,
         current_filename=filename,
         **_build_template_ctx(),
@@ -949,9 +957,11 @@ def edit_post():
     if not new_name:
         new_name = _Path(new_filename).stem
 
+    storage_path = request.form.get("storage_path", "").strip() or None
+
     try:
         vms = _vm_list_from_form(request.form)
-        c = clutch_lib.Clutch(name=new_name, vms=vms)
+        c = clutch_lib.Clutch(name=new_name, storage_path=storage_path, vms=vms)
     except ValidationError as exc:
         msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
         return _rerender("; ".join(msgs))

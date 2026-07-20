@@ -41,7 +41,7 @@ function Write-HatchEvent {
     Write-Output "$prefix $Message"
     $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     $line = if ($Component) { "[HATCH:$Tier][$Component][$ts] $Message" } else { "[HATCH:$Tier][$ts] $Message" }
-    Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8
+    try { Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8 } catch { }
 }
 """
 

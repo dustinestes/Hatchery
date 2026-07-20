@@ -842,3 +842,81 @@ class TestPathResolution:
     def test_resolve_automation_absolute_missing_raises(self, tmp_path, provider):
         with pytest.raises(FileNotFoundError, match="Automation file not found"):
             provider._resolve_automation(str(tmp_path / "nope.xml"))
+
+
+# ── storage_path ──────────────────────────────────────────────────────────────
+
+
+class TestStoragePath:
+    @pytest.fixture(autouse=True)
+    def _skip_access_check(self, monkeypatch):
+        monkeypatch.setattr("lib.providers.libvirt._check_media_accessible", lambda _: None)
+
+    def test_uses_pool_when_no_storage_path(self, provider):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm)
+        cmd = " ".join(mock_run.call_args[0][0])
+        assert "pool=default" in cmd
+        assert "path=" not in cmd.split("--disk")[1].split("--disk")[0]
+
+    def test_uses_path_when_storage_path_set(self, provider, tmp_path):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        storage = tmp_path / "vms"
+        storage.mkdir()
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm, storage_path=str(storage))
+        cmd = " ".join(mock_run.call_args[0][0])
+        assert "pool=" not in cmd
+        assert str(storage) in cmd
+        assert "vm.qcow2" in cmd
+
+    def test_disk_path_includes_vm_name(self, provider, tmp_path):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        storage = tmp_path / "vms"
+        storage.mkdir()
+        vm = VMConfig(name="myvm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm, storage_path=str(storage))
+        cmd = " ".join(mock_run.call_args[0][0])
+        assert "myvm.qcow2" in cmd
+
+    def test_disk_size_preserved_with_storage_path(self, provider, tmp_path):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        storage = tmp_path / "vms"
+        storage.mkdir()
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=80, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm, storage_path=str(storage))
+        cmd = " ".join(mock_run.call_args[0][0])
+        assert "size=80" in cmd
+
+    def test_missing_storage_path_raises_before_virt_install(self, provider, tmp_path):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(FileNotFoundError, match="Storage path does not exist"):
+                provider.create_vm(vm, storage_path="/nonexistent/path")
+        mock_run.assert_not_called()
+
+    def test_create_command_description_uses_storage_path(self, provider, tmp_path):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm, storage_path="/mnt/nvme/vms")
+        assert "/mnt/nvme/vms" in desc
+        assert "pool=" not in desc
+
+    def test_create_command_description_uses_pool_without_storage_path(self, provider):
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm)
+        assert "pool=default" in desc
