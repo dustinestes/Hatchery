@@ -70,7 +70,14 @@ When the user submits a Clutch for hatching:
 
 ### Answer file
 
-If the VM has an admin username and password configured, Hatchery renders the OS-specific `Autounattend.xml` from a Jinja2 template and writes it into a 1.44 MB FAT floppy image using `mtools` (no root access required). The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
+If the VM has an admin username and password configured, Hatchery renders two files from Jinja2 templates and writes both into a 1.44 MB FAT floppy image using `mtools` (no root access required):
+
+| File on floppy | Source template | Purpose |
+|---|---|---|
+| `Autounattend.xml` | `templates/answerfiles/<os>.xml.j2` | OS-specific unattended install answer file |
+| `hatchery-setup.ps1` | `templates/answerfiles/hatchery-setup.ps1.j2` | First-boot orchestrator script |
+
+The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
 The floppy image is **not** cleaned up on success — it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 
@@ -115,31 +122,56 @@ This behaviour is **scoped to `hatching` status only**. Fledged VMs that are shu
 
 ## Phase 3 — Setup Complete Handoff
 
-After the OS install finishes, Windows logs in automatically (via `AutoLogon`) and runs the `FirstLogonCommands` from the answer file in order:
+After the OS install finishes, Windows logs in automatically (via `AutoLogon`) and runs a single `<FirstLogonCommand>` from the answer file:
 
-| Order | Command | Purpose |
+```
+powershell.exe -ExecutionPolicy Bypass -File "A:\hatchery-setup.ps1"
+```
+
+This is the **stable contract** between the answer file and the orchestrator. If you ever edit the OS-specific answer file templates, the only line in `<FirstLogonCommands>` that must be preserved is this one.
+
+### The orchestrator script (`hatchery-setup.ps1`)
+
+`hatchery-setup.ps1` is rendered from `templates/answerfiles/hatchery-setup.ps1.j2` and written to the floppy alongside `Autounattend.xml`. It runs all setup steps sequentially inside a console window titled **"Hatchery - First Boot Setup"**, displaying a live progress list with step indicators:
+
+| Indicator | Meaning |
+|---|---|
+| `[ ]` | Not yet started |
+| `[>]` | Running |
+| `[+]` | Succeeded |
+| `[!]` | Failed |
+
+The nine steps it executes, in order:
+
+| Step | Action | Purpose |
 |---|---|---|
 | 1 | `Get-NetConnectionProfile \| Set-NetConnectionProfile -NetworkCategory Private` | Set network profile to Private (required for PSRemoting) |
 | 2 | `Enable-PSRemoting -Force` | Start the WinRM service and configure listeners |
-| 3 | `New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWORD -Force` | Allow non-built-in admin accounts to authenticate over WinRM |
-| 4 | `New-NetFirewallRule -Name 'Hatchery-WinRM-HTTP' -DisplayName 'Hatchery - WinRM HTTP' -Description 'Inbound WinRM rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow -Enabled True` | Open WinRM HTTP port |
+| 3 | `New-ItemProperty … LocalAccountTokenFilterPolicy … 1` | Allow non-built-in admin accounts to authenticate over WinRM |
+| 4 | `New-NetFirewallRule … -LocalPort 5985` | Open WinRM HTTP port |
 | 5 | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0` | Install the OpenSSH Server capability |
 | 6 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
 | 7 | `Start-Service -Name sshd` | Start SSH immediately |
-| 8 | `New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True` | Open SSH port |
+| 8 | `New-NetFirewallRule … -LocalPort 22` | Open SSH port |
 | 9 | `New-Item -Path 'C:\Windows\Temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
+
+If any step fails, it is marked `[!]`, the failure message is displayed, and a "Press any key to close..." prompt is shown before the script exits with code 1. The console window remains open so the operator can read the error.
 
 ### The race condition and why the flag exists
 
-WinRM becomes available as soon as command 2 completes — but commands 5 through 9 (notably the SSH capability install, which can take over a minute) are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
+WinRM becomes available as soon as step 2 completes — but steps 5 through 9 (notably the SSH capability install, which can take over a minute) are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
 
-The `hatchery-ready` flag file is written as the **last** `FirstLogonCommand`. It cannot exist until every preceding command has completed. Hatchery's polling loop:
+The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It cannot exist until every preceding step has completed. Hatchery's polling loop:
 
 1. Confirms WinRM TCP port 5985 is open (cheap socket check)
 2. Runs `Test-Path C:\Windows\Temp\hatchery-ready` over WinRM (actual command execution)
 3. Only advances to the next phase when the flag is present
 
 The flag is **deleted immediately** upon detection — `Remove-Item` is called before any scripts run. The guest carries no permanent Hatchery footprint beyond what the user explicitly defines in their automations.
+
+### Log file
+
+`hatchery-setup.ps1` writes a structured log to `C:\Windows\Temp\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:TIER][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM (issue #133), it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file. Until that import is implemented, the log file is available on the guest for manual inspection.
 
 <br>
 
@@ -157,7 +189,7 @@ Scripts run **sequentially** in the order they are declared in the Clutch file. 
 
 1. Status is set to `running` in the database
 2. The script file is read from `~/.local/share/hatchery/automation/scripts/`
-3. If the script has configured parameters, the content is wrapped in a PowerShell scriptblock: `& { <content> } -Param 'value'` — this allows named parameters to be passed without modifying the script file
+3. If the script has configured parameters, the content is wrapped in a PowerShell scriptblock: `& { param(...) <inject> <rest> } -Param 'value'`. The `param()` block is placed first (required by PowerShell), the `Write-HatchEvent` helper is injected after it, then the rest of the script body follows. Scripts without parameters receive the injection prepended directly with no wrapping.
 4. The script is executed on the guest over WinRM via `pywinrm`
 5. All stdout and stderr output is captured and stored against the script record
 6. The exit code determines what happens next:

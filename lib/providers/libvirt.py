@@ -159,7 +159,8 @@ class LibvirtProvider(BaseProvider):
                 xml = answerfile_lib.render(
                     config.os, config.name, config.admin_username, admin_password
                 )
-                answer_img = self._create_answer_image(xml, config.name)
+                setup_script = answerfile_lib.render_setup_script()
+                answer_img = self._create_answer_image(xml, config.name, setup_script)
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
             elif config.os_config:
                 os_config = self._resolve_automation(config.os_config)
@@ -225,8 +226,10 @@ class LibvirtProvider(BaseProvider):
         """Return the stable path for a VM's answer file floppy image."""
         return Path(tempfile.gettempdir()) / f"{vm_name}-autounattend.img"
 
-    def _create_answer_image(self, xml_content: str, vm_name: str) -> Path:  # pragma: no cover
-        """Write xml_content into a FAT floppy image as Autounattend.xml.
+    def _create_answer_image(
+        self, xml_content: str, vm_name: str, setup_script: str | None = None
+    ) -> Path:  # pragma: no cover
+        """Write xml_content and optional setup_script into a FAT floppy image.
 
         Uses mtools (mformat + mcopy) — no root or kernel access required.
         1.44 MB standard floppy: 2880 sectors × 512 bytes.
@@ -234,8 +237,11 @@ class LibvirtProvider(BaseProvider):
         """
         img = self._floppy_path(vm_name)
         xml_file = img.with_suffix(".xml")
+        script_file = img.with_suffix(".ps1") if setup_script else None
         try:
             xml_file.write_text(xml_content, encoding="utf-8")
+            if script_file:
+                script_file.write_text(setup_script, encoding="utf-8")
             subprocess.run(
                 ["dd", "if=/dev/zero", f"of={img}", "bs=512", "count=2880"],
                 check=True,
@@ -247,9 +253,23 @@ class LibvirtProvider(BaseProvider):
                 check=True,
                 capture_output=True,
             )
+            if script_file:
+                subprocess.run(
+                    [
+                        "mcopy",
+                        "-i",
+                        str(img),
+                        str(script_file),
+                        f"::{answerfile_lib.SETUP_SCRIPT_NAME}",
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
         finally:
             if xml_file.exists():
                 xml_file.unlink()
+            if script_file and script_file.exists():
+                script_file.unlink()
         return img
 
     # ── Power state ───────────────────────────────────────────────────────────

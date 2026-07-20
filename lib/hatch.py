@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 
 from lib import db
 
-_HATCH_EVENT_RE = re.compile(r"^\[HATCH:(INFO|WARN|ERROR)\](?:\[([^\]]+)\])? (.+)$")
+_HATCH_EVENT_RE = re.compile(
+    r"^\[HATCH:(INFO|WARN|ERROR)\]"
+    r"(?:\[(?!\d{4}-\d{2}-\d{2}T)([^\]]+)\])?"            # optional component (not a timestamp)
+    r"(?:\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\])?"   # optional ISO timestamp
+    r" (.+)$"
+)
 
 
 def _now() -> str:
@@ -333,14 +338,22 @@ def list_sessions(nest: str = "local") -> list[dict]:
 def parse_hatch_event_lines(output: str) -> list[dict]:
     """Extract [HATCH:TIER] tagged lines emitted by Write-HatchEvent from script output.
 
-    Returns a list of dicts with keys: tier, component (may be None), message.
+    Returns a list of dicts with keys: tier, component, received_at, message.
+    component and received_at are None when omitted from the line.
     Lines that do not match the pattern are ignored.
     """
     events = []
     for line in output.splitlines():
         m = _HATCH_EVENT_RE.match(line.strip())
         if m:
-            events.append({"tier": m.group(1), "component": m.group(2), "message": m.group(3)})
+            events.append(
+                {
+                    "tier": m.group(1),
+                    "component": m.group(2),
+                    "received_at": m.group(3),
+                    "message": m.group(4),
+                }
+            )
     return events
 
 
@@ -352,6 +365,7 @@ def add_event(
     message: str,
     script_name: str | None = None,
     component: str | None = None,
+    received_at: str | None = None,
 ) -> None:
     """Insert a single provisioning event for a VM.
 
@@ -359,6 +373,7 @@ def add_event(
     tier:        'INFO', 'WARN', or 'ERROR'.
     script_name: the script file this event belongs to; None for session-level events.
     component:   within-script sub-component label from Write-HatchEvent -Component; None if omitted.
+    received_at: ISO 8601 UTC timestamp from the guest; falls back to host time if None.
     """
     conn = db.get_connection()
     try:
@@ -366,7 +381,7 @@ def add_event(
             """INSERT INTO hatch_events
                (session_id, vm_name, context, tier, script_name, component, message, received_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (session_id, vm_name, context, tier, script_name, component, message, _now()),
+            (session_id, vm_name, context, tier, script_name, component, message, received_at or _now()),
         )
         conn.commit()
     finally:

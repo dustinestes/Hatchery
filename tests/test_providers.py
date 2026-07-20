@@ -364,9 +364,10 @@ class TestCreateVM:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
                 provider.create_vm(vm, admin_password="secret")
-        xml_arg = mock_img.call_args[0][0]
+        xml_arg, _vm_name, setup_script = mock_img.call_args[0]
         assert "alice" in xml_arg
         assert "secret" in xml_arg
+        assert "Enable-PSRemoting" in setup_script
         cmd = mock_run.call_args[0][0]
         assert any("floppy" in arg for arg in cmd)
 
