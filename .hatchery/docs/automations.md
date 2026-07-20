@@ -270,14 +270,15 @@ You can mix both forms freely in the same list. Hatchery normalizes them on load
 
 ## Example Files
 
-Two example files ship with Hatchery under `.hatchery/examples/scripts/`:
+Example files ship with Hatchery under `.hatchery/examples/scripts/`:
 
 | File | Purpose |
 |---|---|
 | [`hatchery-script-template.ps1`](../examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
 | [`configure-vm-basics.ps1`](../examples/scripts/configure-vm-basics.ps1) | Real working script — renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
+| [`hatchery-cleanup.ps1`](../examples/scripts/hatchery-cleanup.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
 
-Copy either file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts; `configure-vm-basics.ps1` is ready to use as-is.
+Copy any file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts.
 
 <br>
 
