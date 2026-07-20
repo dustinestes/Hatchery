@@ -29,14 +29,10 @@ class TestRenderWin10:
         assert "SERVERSTANDARD" not in xml
         assert "InstallFrom" not in xml
 
-    def test_winrm_setup_present(self):
+    def test_single_firstlogon_command(self):
         xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert "Enable-PSRemoting" in xml
-        assert "LocalAccountTokenFilterPolicy" in xml
-
-    def test_winrm_firewall_rule_present(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert "5985" in xml
+        assert xml.count("<SynchronousCommand") == 1
+        assert "hatchery-setup.ps1" in xml
 
     def test_name_truncated_to_15_chars(self):
         xml = answerfile.render(GuestOS.WIN10, "a" * 20, "admin", "pass")
@@ -77,10 +73,10 @@ class TestRenderWin11:
         xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
         assert "SERVERSTANDARD" not in xml
 
-    def test_winrm_present(self):
+    def test_single_firstlogon_command(self):
         xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert "Enable-PSRemoting" in xml
-        assert "LocalAccountTokenFilterPolicy" in xml
+        assert xml.count("<SynchronousCommand") == 1
+        assert "hatchery-setup.ps1" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET
@@ -102,10 +98,10 @@ class TestRenderServer2022:
         xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
         assert "<PartitionID>1</PartitionID>" in xml
 
-    def test_winrm_present(self):
+    def test_single_firstlogon_command(self):
         xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert "Enable-PSRemoting" in xml
-        assert "LocalAccountTokenFilterPolicy" in xml
+        assert xml.count("<SynchronousCommand") == 1
+        assert "hatchery-setup.ps1" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET
@@ -128,13 +124,41 @@ class TestRenderServer2025:
         xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
         assert "<PartitionID>3</PartitionID>" in xml
 
-    def test_winrm_present(self):
+    def test_single_firstlogon_command(self):
         xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert "Enable-PSRemoting" in xml
-        assert "LocalAccountTokenFilterPolicy" in xml
+        assert xml.count("<SynchronousCommand") == 1
+        assert "hatchery-setup.ps1" in xml
 
     def test_is_valid_xml(self):
         import xml.etree.ElementTree as ET
 
         xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
         ET.fromstring(xml)
+
+
+class TestRenderSetupScript:
+    def test_returns_string(self):
+        assert isinstance(answerfile.render_setup_script(), str)
+
+    def test_contains_all_setup_steps(self):
+        script = answerfile.render_setup_script()
+        assert "Enable-PSRemoting" in script
+        assert "LocalAccountTokenFilterPolicy" in script
+        assert "5985" in script
+        assert "OpenSSH.Server" in script
+        assert "hatchery-ready" in script
+
+    def test_contains_window_title(self):
+        assert "Hatchery - First Boot Setup" in answerfile.render_setup_script()
+
+    def test_log_uses_hatch_event_format(self):
+        script = answerfile.render_setup_script()
+        assert "[HATCH:" in script
+        assert 'Write-Log "INFO"' in script
+        assert 'Write-Log "ERROR"' in script
+
+    def test_log_path_is_temp(self):
+        assert r"C:\Windows\Temp\hatchery-setup.log" in answerfile.render_setup_script()
+
+    def test_script_name_constant(self):
+        assert answerfile.SETUP_SCRIPT_NAME == "hatchery-setup.ps1"

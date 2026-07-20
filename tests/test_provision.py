@@ -150,16 +150,64 @@ class TestRunScript:
         assert kwargs.get("transport") == "ntlm"
 
 
-class TestBuildPsInvocation:
-    def test_no_params_returns_content_unchanged(self):
+class TestExtractParamBlock:
+    def test_no_param_block_returns_empty_and_full_content(self):
         content = "Write-Host hello"
-        assert provision_lib._build_ps_invocation(content, {}) == content
+        block, rest = provision_lib._extract_param_block(content)
+        assert block == ""
+        assert rest == content
+
+    def test_simple_param_block_extracted(self):
+        content = "param($Name)\nWrite-Host $Name"
+        block, rest = provision_lib._extract_param_block(content)
+        assert block == "param($Name)"
+        assert rest == "\nWrite-Host $Name"
+
+    def test_multiline_param_block_extracted(self):
+        content = "param(\n    [string]$Name,\n    [int]$Count\n)\nWrite-Host $Name"
+        block, rest = provision_lib._extract_param_block(content)
+        assert block.startswith("param(")
+        assert block.endswith(")")
+        assert "[string]$Name" in block
+        assert rest.strip() == "Write-Host $Name"
+
+    def test_nested_parens_in_default_value(self):
+        content = "param([string]$Name = (Get-Date).ToString())\nWrite-Host $Name"
+        block, rest = provision_lib._extract_param_block(content)
+        assert block == "param([string]$Name = (Get-Date).ToString())"
+        assert "Write-Host $Name" in rest
+
+    def test_param_in_middle_of_script_not_matched(self):
+        content = "Write-Host hello\nparam($Late)"
+        block, rest = provision_lib._extract_param_block(content)
+        assert block == "param($Late)"
+
+
+class TestBuildPsInvocation:
+    def test_no_params_prepends_write_hatch_event(self):
+        content = "Write-Host hello"
+        result = provision_lib._build_ps_invocation(content, {})
+        assert "Write-HatchEvent" in result
+        assert "Write-Host hello" in result
+        assert not result.startswith("& {")
 
     def test_wraps_in_scriptblock_with_args(self):
         result = provision_lib._build_ps_invocation("Write-Host $Env", {"Env": "dev"})
         assert result.startswith("& {")
         assert "-Env 'dev'" in result
         assert "Write-Host $Env" in result
+
+    def test_param_block_before_inject_when_wrapping(self):
+        content = "param($Name)\nWrite-Host $Name"
+        result = provision_lib._build_ps_invocation(content, {"Name": "test"})
+        param_pos = result.index("param(")
+        inject_pos = result.index("Write-HatchEvent")
+        assert param_pos < inject_pos, "param() must appear before Write-HatchEvent injection"
+
+    def test_write_hatch_event_injected_when_wrapping(self):
+        content = "param($Name)\nWrite-Host $Name"
+        result = provision_lib._build_ps_invocation(content, {"Name": "test"})
+        assert "Write-HatchEvent" in result
 
     def test_single_quotes_string_values(self):
         result = provision_lib._build_ps_invocation("", {"Name": "My VM"})

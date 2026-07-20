@@ -83,17 +83,52 @@ def _ps_quote(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def _build_ps_invocation(content: str, parameters: dict[str, str]) -> str:
-    """Wrap script content in a scriptblock call when parameters are present.
+def _extract_param_block(content: str) -> tuple[str, str]:
+    """Split content into (param_block, rest) at the boundary of the param() block.
 
-    PowerShell's param() block works inside a scriptblock called with named args:
-        & { param($Name) ... } -Name 'value'
-    This lets us pass values without touching the script file.
+    Tracks parenthesis depth so nested parens in default values are handled correctly.
+    Returns ('', content) when no param block is found.
     """
+    m = re.search(r"^[ \t]*param\s*\(", content, re.MULTILINE | re.IGNORECASE)
+    if not m:
+        return "", content
+    start = m.start()
+    paren_start = content.index("(", m.start())
+    depth = 0
+    pos = paren_start
+    while pos < len(content):
+        if content[pos] == "(":
+            depth += 1
+        elif content[pos] == ")":
+            depth -= 1
+            if depth == 0:
+                end = pos + 1
+                return content[start:end], content[end:]
+        pos += 1
+    return "", content
+
+
+def _build_ps_invocation(content: str, parameters: dict[str, str]) -> str:
+    """Inject Write-HatchEvent and optionally wrap in a scriptblock for parameter passing.
+
+    PowerShell requires param() to be the first statement in a scriptblock.
+    When wrapping, the param() block is extracted and placed first, then
+    Write-HatchEvent is injected, then the rest of the script follows — so
+    named argument binding works correctly.
+
+    Without parameters: Write-HatchEvent is prepended and content is sent as-is.
+    With parameters: content is wrapped in & { param(...) <inject> <rest> } -Key 'val'
+    """
+    inject = _WRITE_HATCH_EVENT_FUNC
     if not parameters:
-        return content
+        return inject + content
+    param_block, rest = _extract_param_block(content)
+    if param_block:
+        inner = param_block + "\n" + inject + rest
+    else:
+        inner = inject + content
     args = " ".join(f"-{k} {_ps_quote(v)}" for k, v in parameters.items())
-    return f"& {{\n{content}\n}} {args}"
+    return f"& {{\n{inner}\n}} {args}"
 
 
 def run_script(
@@ -110,7 +145,7 @@ def run_script(
     Raises an exception if the WinRM connection cannot be established.
     """
     script_path = Path(script_path)
-    content = _WRITE_HATCH_EVENT_FUNC + script_path.read_text(encoding="utf-8")
+    content = script_path.read_text(encoding="utf-8")
     params = parameters or {}
 
     header = (

@@ -15,7 +15,15 @@ _TEMPLATES: dict[GuestOS, str] = {
     GuestOS.SERVER2025: "server2025.xml.j2",
 }
 
+SETUP_SCRIPT_NAME = "hatchery-setup.ps1"
+_SETUP_SCRIPT_TEMPLATE = "hatchery-setup.ps1.j2"
+
 _env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
+    autoescape=False,
+)
+
+_xml_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
     autoescape=True,
 )
@@ -23,9 +31,14 @@ _env = jinja2.Environment(
 
 def render(os_type: GuestOS, vm_name: str, admin_username: str, admin_password: str) -> str:
     """Render an Autounattend.xml answer file for the given OS type and credentials."""
-    template = _env.get_template(_TEMPLATES[os_type])
+    template = _xml_env.get_template(_TEMPLATES[os_type])
     return template.render(
         vm_name=vm_name[:15],
         admin_username=admin_username,
         admin_password=admin_password,
     )
+
+
+def render_setup_script() -> str:
+    """Render the first-boot orchestrator script written to the floppy alongside the answer file."""
+    return _env.get_template(_SETUP_SCRIPT_TEMPLATE).render()

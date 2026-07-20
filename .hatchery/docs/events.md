@@ -59,7 +59,7 @@ Each event row in `hatch_events` has these columns:
 | `script_name` | text \| null | Script file name (`.ps1`) when the event is tied to a specific script; null for session-level events |
 | `component` | text \| null | Optional sub-label from `Write-HatchEvent -Component`; always null for `'hatchery'` context events |
 | `message` | text | The event message |
-| `received_at` | text | UTC ISO 8601 timestamp of when Hatchery recorded the event |
+| `received_at` | text | UTC ISO 8601 timestamp. For host-side events this is the time Hatchery wrote the record. For events imported from a guest log file (e.g. `hatchery-setup.log`), this is the guest-side timestamp embedded in the log line — preserving the time each step actually ran. |
 
 <br>
 
@@ -172,19 +172,25 @@ Emitted in `api_retry_vm` when a failed VM is retried from the Nests panel.
 
 ## Script Events (script context)
 
-Script events are emitted by `Write-HatchEvent` inside automation PowerShell scripts. They are parsed from each script's captured output after the script completes and inserted in order.
+Script events come from two sources, both using context `'script'`:
 
-| Context | Tier | `script_name` | `component` | When |
+**Automation scripts** — `Write-HatchEvent` lines emitted inside user-authored `.ps1` scripts. Parsed from captured output after each script completes and inserted in order.
+
+**First-boot setup** — structured log lines written by `hatchery-setup.ps1` to `C:\Windows\Temp\hatchery-setup.log` during the Windows first-boot phase, before WinRM is even available. Hatchery imports this file immediately after WinRM connects (issue #133), then deletes it. Because these events come from a log file rather than live output, each line carries a guest-side UTC timestamp that is used directly as `received_at` — so step durations are preserved as they happened on the guest, not at import time.
+
+| Context | Tier | `script_name` | `component` | Source |
 |---|---|---|---|---|
-| `script` | `INFO` | `<name>.ps1` | value or null | `Write-HatchEvent "message"` — normal progress line |
-| `script` | `WARN` | `<name>.ps1` | value or null | `Write-HatchEvent "message" -Tier WARN` — non-fatal advisory |
-| `script` | `ERROR` | `<name>.ps1` | value or null | `Write-HatchEvent "message" -Tier ERROR` — caught failure |
+| `script` | `INFO` | `<name>.ps1` | value or null | `Write-HatchEvent "message"` in automation script |
+| `script` | `WARN` | `<name>.ps1` | value or null | `Write-HatchEvent "message" -Tier WARN` |
+| `script` | `ERROR` | `<name>.ps1` | value or null | `Write-HatchEvent "message" -Tier ERROR` |
+| `script` | `INFO` | `hatchery-setup.ps1` | `setup` or `step-N` | Setup step started / succeeded (imported from log file) |
+| `script` | `ERROR` | `hatchery-setup.ps1` | `step-N` | Setup step failed (imported from log file) |
 
-The `component` column is populated from `-Component "label"` when passed to `Write-HatchEvent`. It is null when omitted.
+The `component` column is populated from `-Component "label"` in `Write-HatchEvent`, or from the step label (`setup`, `step-1` … `step-9`) in the setup log. It is null when omitted.
 
-Script events appear in the log interleaved with hatchery events, ordered by `id` (insertion order). Because `pywinrm` is blocking — the entire script runs before output is returned — all `Write-HatchEvent` lines from a script are inserted as a batch after the corresponding "Script complete" or "Script failed" hatchery event.
+Script events appear in the log interleaved with hatchery events, ordered by `id` (insertion order). Automation script events are inserted as a batch after each script completes (pywinrm is blocking). Setup log events are imported as a batch when WinRM first connects.
 
-See [automations.md](automations.md#write-hatchevent) for `Write-HatchEvent` usage and the wire format (`[HATCH:TIER]` prefix).
+See [automations.md](automations.md#write-hatchevent) for `Write-HatchEvent` usage and the wire format.
 
 <br>
 

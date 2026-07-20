@@ -122,47 +122,7 @@
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>powershell.exe -NonInteractive -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>2</Order>
-          <CommandLine>powershell.exe -NonInteractive -Command "Enable-PSRemoting -Force"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>3</Order>
-          <CommandLine>powershell.exe -NonInteractive -Command "New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -PropertyType DWORD -Force"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>4</Order>
-          <CommandLine>powershell.exe -NonInteractive -Command "New-NetFirewallRule -Name 'Hatchery-WinRM-HTTP' -DisplayName 'Hatchery - WinRM HTTP' -Description 'Inbound WinRM rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow -Enabled True"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>5</Order>
-          <CommandLine>powershell.exe -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>6</Order>
-          <CommandLine>powershell.exe -Command "Set-Service -Name sshd -StartupType Automatic"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>7</Order>
-          <CommandLine>powershell.exe -Command "Start-Service -Name sshd"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>8</Order>
-          <CommandLine>powershell.exe -Command "New-NetFirewallRule -Name 'Hatchery-SSH-Server-sshd' -DisplayName 'Hatchery - SSH Server (sshd)' -Description 'Inbound SSH rule created by Hatchery via unattend.xml FirstLogonCommands during automated OS provisioning.' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow -Enabled True"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>9</Order>
-          <CommandLine>powershell.exe -NonInteractive -Command "New-Item -Path 'C:\Windows\Temp\hatchery-ready' -ItemType File -Force | Out-Null"</CommandLine>
+          <CommandLine>powershell.exe -ExecutionPolicy Bypass -File "A:\hatchery-setup.ps1"</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
       </FirstLogonCommands>

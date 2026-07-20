@@ -160,6 +160,7 @@ def _provision_vm_thread(
                     event["message"],
                     script_name=sname,
                     component=event["component"],
+                    received_at=event["received_at"],
                 )
 
             if exit_code != 0:
