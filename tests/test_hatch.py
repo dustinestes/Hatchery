@@ -687,7 +687,9 @@ class TestComputeSessionStatusProvisioning:
 class TestParseHatchEventLines:
     def test_info_line_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO] Script started")
-        assert events == [{"tier": "INFO", "component": None, "received_at": None, "message": "Script started"}]
+        assert events == [
+            {"tier": "INFO", "component": None, "received_at": None, "message": "Script started"}
+        ]
 
     def test_warn_line_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:WARN] Key not found")
@@ -774,7 +776,9 @@ class TestAddEvent:
     def test_guest_timestamp_stored_as_received_at(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
-        hatch_lib.add_event(sid, "dc01", "script", "INFO", "msg", received_at="2026-07-20T12:34:56Z")
+        hatch_lib.add_event(
+            sid, "dc01", "script", "INFO", "msg", received_at="2026-07-20T12:34:56Z"
+        )
         events = hatch_lib.get_events(sid, "dc01")
         assert events[0]["received_at"] == "2026-07-20T12:34:56Z"
 

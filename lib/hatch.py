@@ -9,8 +9,8 @@ from lib import db
 
 _HATCH_EVENT_RE = re.compile(
     r"^\[HATCH:(INFO|WARN|ERROR)\]"
-    r"(?:\[(?!\d{4}-\d{2}-\d{2}T)([^\]]+)\])?"            # optional component (not a timestamp)
-    r"(?:\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\])?"   # optional ISO timestamp
+    r"(?:\[(?!\d{4}-\d{2}-\d{2}T)([^\]]+)\])?"  # optional component (not a timestamp)
+    r"(?:\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\])?"  # optional ISO timestamp
     r" (.+)$"
 )
 
@@ -381,7 +381,16 @@ def add_event(
             """INSERT INTO hatch_events
                (session_id, vm_name, context, tier, script_name, component, message, received_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (session_id, vm_name, context, tier, script_name, component, message, received_at or _now()),
+            (
+                session_id,
+                vm_name,
+                context,
+                tier,
+                script_name,
+                component,
+                message,
+                received_at or _now(),
+            ),
         )
         conn.commit()
     finally:
