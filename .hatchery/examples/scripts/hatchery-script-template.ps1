@@ -5,7 +5,7 @@
 # and declare it in your Clutch file under a VM's automations list.
 #
 # How Hatchery runs this script:
-#   - Injects Write-HatchEvent at the top so it is always available
+#   - Injects Write-HatchEvent so it is always available (after param() if present)
 #   - Connects to the guest over WinRM and executes the script content
 #   - Captures all output (stdout + stderr) and stores it per-script
 #   - Reads the exit code when the script finishes:

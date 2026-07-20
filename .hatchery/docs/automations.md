@@ -46,15 +46,19 @@ Scripts are declared per VM in a Clutch file under the `automations` key and run
 
 Hatchery connects to the guest over WinRM using `pywinrm` and executes each script's content. The connection uses the admin credentials declared in the Clutch file.
 
-If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the script content in a PowerShell scriptblock and appends the configured values as named arguments:
+Hatchery injects a `Write-HatchEvent` helper function into every script before execution. You do not need to define it, source it, or import it — it is always available. See [Write-HatchEvent](#write-hatchevent).
+
+If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the content in a PowerShell scriptblock and appends the configured values as named arguments. PowerShell requires `param()` to be the first statement inside a scriptblock, so Hatchery places it first, injects `Write-HatchEvent` immediately after, then appends the rest of the script:
 
 ```powershell
 & {
-    <script content>
+    param($ComputerName, $TimeZone)   # param() block — must be first
+    function Write-HatchEvent { ... } # injected by Hatchery
+    # ... rest of script ...
 } -ComputerName 'dc01' -TimeZone 'Central Standard Time'
 ```
 
-Before execution, Hatchery injects the `Write-HatchEvent` helper function at the top of every script. This means `Write-HatchEvent` is always available without sourcing any file — see [Write-HatchEvent](#write-hatchevent).
+Scripts without parameters receive the same `Write-HatchEvent` injection prepended directly, with no scriptblock wrapping.
 
 All script output (stdout and stderr) is captured and stored per-script in the database. The exit code is read when the script finishes:
 
@@ -77,7 +81,7 @@ If `reboot_after: true` is set for a script, Hatchery reboots the VM after the s
 
 ### Write-HatchEvent
 
-Hatchery injects a `Write-HatchEvent` helper function at the top of every script before execution. You do not need to define it, source it, or import it — it is always available.
+Hatchery injects a `Write-HatchEvent` helper function into every script before execution (see [How Hatchery Runs Scripts](#how-hatchery-runs-scripts) for placement details). You do not need to define it, source it, or import it — it is always available.
 
 ```powershell
 Write-HatchEvent -Message "text" [-Tier INFO|WARN|ERROR] [-Component "label"]
@@ -114,7 +118,9 @@ Write-HatchEvent "Installation failed: $_" -Tier ERROR -Component "Chocolatey"
 exit 1
 ```
 
-`Write-HatchEvent` emits lines prefixed with `[HATCH:TIER]` or `[HATCH:TIER][Component]`. Hatchery parses these after each script completes and stores them as individual feed events in the database, which the event log UI reads.
+`Write-HatchEvent` emits lines in the format `[HATCH:TIER] message` or `[HATCH:TIER][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
+
+The parser also accepts an optional ISO timestamp bracket: `[HATCH:TIER][Component][2026-07-20T12:34:56Z] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. User automation scripts do not need to include timestamps.
 
 > **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
 
