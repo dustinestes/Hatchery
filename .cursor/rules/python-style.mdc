@@ -1,0 +1,29 @@
+---
+description: Python style — ruff, uv, and tests-with-code
+globs: **/*.py,**/pyproject.toml
+alwaysApply: false
+---
+
+# Python Style
+
+- `ruff` only (format + lint); line length **100**
+- Run tools via `uv` (`uv sync`, `uv run …`)
+
+## Local checks (before push / PR)
+
+```bash
+uv run ruff check . && uv run ruff format --check .
+uv run pytest
+```
+
+Auto-fix: `uv run ruff check --fix . && uv run ruff format .`
+
+- Coverage gate: ≥60% line coverage
+- Behavior changes → update `.hatchery/docs/`, `README.md`, or `CONTRIBUTING.md`
+
+```
+✅ Add/change a function and its test in the same change
+❌ "I'll add tests in a follow-up"
+❌ Push/PR that fails ruff or pytest
+❌ Rely on CI instead of running the commands above
+```

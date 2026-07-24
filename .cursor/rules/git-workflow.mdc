@@ -1,0 +1,49 @@
+---
+description: Portable GitHub workflow — issue, branch, commit, label, PR
+alwaysApply: true
+---
+
+# Git Workflow
+
+MUST: GitHub issue → branch → PR → human merges. Never commit to the default branch.
+
+Before commit, push, or PR: ask **"Anything to add before I commit?"** and wait.
+Do not commit, push, or create/close/comment on issues/PRs unless explicitly asked.
+
+## Branch, commit, label
+
+- Branch: `{type}/{issue}-{short-slug}`
+- Commit: `{type}: {present-tense summary} (#{issue})`
+- Issue: exactly **one** type label matching the commit prefix
+
+Types / labels (required — create with `gh label` if missing; do not substitute `bug` / `enhancement`):
+
+`feat` | `fix` | `docs` | `chore` | `refactor` | `sec` | `breaking`
+
+```
+✅ feat/11-vm-snapshot-list
+   feat: add snapshot list to manage page (#11)
+   label: feat
+
+❌ branch: my-fixes / fix-stuff
+❌ chore: misc updates
+❌ commit without (#N) or without an issue
+❌ primary label: bug / enhancement (use fix / feat)
+```
+
+Triage labels (`help wanted`, `dependencies`, `question`, …) may accompany the type label.
+
+After merge: checkout default branch, pull, delete local feature branch.
+
+## PRs
+
+```
+✅ One concern; PR body explains why
+✅ Run this repo's local checks before push (see stack/style rules)
+✅ Update project docs if behavior changed
+
+❌ Kitchen-sink PR
+❌ "CI will catch it" without running local checks
+```
+
+If the repo has a `CONTRIBUTING.md`, follow it for human-oriented detail — this rule is the agent source of truth for git shape.
