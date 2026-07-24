@@ -340,6 +340,24 @@ def _sync_hatch_status() -> None:
             if not provision_lib.check_setup_complete(ip, admin_username, admin_password):
                 continue
 
+            # Import first-boot setup events before deleting guest artifacts.
+            try:
+                setup_log = provision_lib.read_setup_log(ip, admin_username, admin_password)
+                for event in hatch_lib.parse_hatch_event_lines(setup_log):
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "script",
+                        event["tier"],
+                        event["message"],
+                        script_name="hatchery-setup.ps1",
+                        component=event["component"],
+                        received_at=event["received_at"],
+                    )
+                provision_lib.delete_setup_log(ip, admin_username, admin_password)
+            except Exception:
+                pass
+
             # Flag confirmed — delete it immediately so the guest stays clean.
             try:
                 provision_lib.delete_setup_flag(ip, admin_username, admin_password)

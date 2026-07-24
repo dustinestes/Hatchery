@@ -1000,11 +1000,42 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
                 with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.delete_setup_flag"):
-                        app_module._sync_hatch_status()
+                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
+                        with patch("hatchery.provision_lib.delete_setup_log"):
+                            with patch("hatchery.provision_lib.delete_setup_flag"):
+                                app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "fledged"
+
+    def test_imports_setup_log_events_before_fledging(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        setup_log = (
+            "[HATCH:INFO][setup][2026-07-20T12:00:00Z] Hatchery first boot setup started\n"
+            "[HATCH:INFO][step-1][2026-07-20T12:00:05Z] Step 1 succeeded: Set network profile"
+        )
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
+            with patch("hatchery._check_winrm", return_value=True):
+                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
+                    with patch(
+                        "hatchery.provision_lib.read_setup_log", return_value=setup_log
+                    ) as mock_read:
+                        with patch("hatchery.provision_lib.delete_setup_log") as mock_del_log:
+                            with patch("hatchery.provision_lib.delete_setup_flag"):
+                                app_module._sync_hatch_status()
+        mock_read.assert_called_once_with("192.168.122.40", "", "")
+        mock_del_log.assert_called_once_with("192.168.122.40", "", "")
+        events = hatch_lib.get_events(sid, "dc01")
+        setup_events = [e for e in events if e.get("script_name") == "hatchery-setup.ps1"]
+        assert len(setup_events) == 2
+        assert setup_events[0]["component"] == "setup"
+        assert setup_events[0]["received_at"] == "2026-07-20T12:00:00Z"
+        assert setup_events[1]["message"] == "Step 1 succeeded: Set network profile"
 
     def test_records_activity_when_fledged(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1014,8 +1045,10 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
                 with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.delete_setup_flag"):
-                        app_module._sync_hatch_status()
+                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
+                        with patch("hatchery.provision_lib.delete_setup_log"):
+                            with patch("hatchery.provision_lib.delete_setup_flag"):
+                                app_module._sync_hatch_status()
         activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
         assert any("fledged" in a["message"] for a in activity)
 
@@ -1042,8 +1075,10 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("hatchery._check_winrm", return_value=True):
                 with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.delete_setup_flag") as mock_del:
-                        app_module._sync_hatch_status()
+                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
+                        with patch("hatchery.provision_lib.delete_setup_log"):
+                            with patch("hatchery.provision_lib.delete_setup_flag") as mock_del:
+                                app_module._sync_hatch_status()
         mock_del.assert_called_once_with("192.168.122.40", "", "")
 
     def test_starts_vm_when_shut_off_during_hatching(self, tmp_path, monkeypatch):

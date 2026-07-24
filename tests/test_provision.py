@@ -386,3 +386,58 @@ class TestDeleteSetupFlag:
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.side_effect = ConnectionError("dropped")
             provision_lib.delete_setup_flag("1.2.3.4", "admin", "pass")  # must not raise
+
+
+class TestReadSetupLog:
+    def _make_result(self, stdout: str):
+        r = MagicMock()
+        r.std_out = stdout.encode()
+        return r
+
+    def test_returns_log_content(self):
+        log = "[HATCH:INFO][step-1][2026-07-20T12:00:00Z] Step 1 started"
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(log)
+            result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
+        assert result == log
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "Get-Content" in cmd
+        assert provision_lib.SETUP_LOG_FILE in cmd
+
+    def test_returns_empty_when_missing(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result("")
+            result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
+        assert result == ""
+
+    def test_returns_empty_on_winrm_error(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.side_effect = ConnectionError("refused")
+            result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
+        assert result == ""
+
+    def test_strips_clixml(self):
+        clixml = (
+            "#< CLIXML\r\n"
+            '<Objs Version="1.1.1.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">'
+            '<S N="Message">[HATCH:INFO][setup][2026-07-20T12:00:00Z] Setup started</S>'
+            "</Objs>"
+        )
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(clixml)
+            result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
+        assert result == "[HATCH:INFO][setup][2026-07-20T12:00:00Z] Setup started"
+
+
+class TestDeleteSetupLog:
+    def test_sends_remove_item(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            provision_lib.delete_setup_log("1.2.3.4", "admin", "pass")
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "Remove-Item" in cmd
+        assert provision_lib.SETUP_LOG_FILE in cmd
+
+    def test_does_not_raise_on_connection_drop(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.side_effect = ConnectionError("dropped")
+            provision_lib.delete_setup_log("1.2.3.4", "admin", "pass")  # must not raise
