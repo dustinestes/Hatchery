@@ -1,0 +1,46 @@
+---
+description: Hatchery vocabulary, design constraints, and coding defaults
+alwaysApply: true
+---
+
+# Hatchery Core
+
+Windows-first VM manager on Ubuntu KVM (Flask + vanilla HTML/CSS/JS). v1 guests: Win10, Win11, Server 2022/2025.
+
+## Naming (1:1:1 — UI, docs, code)
+
+Use Hatchery terms. Never invent synonyms. Never use retired "Brood".
+
+| Use | Not |
+|---|---|
+| Nest | host / hypervisor (in product language) |
+| Clutch | stack / blueprint / compose file |
+| Hatch | deploy / provision (for create+boot) |
+| Cull | destroy / delete / terminate |
+| Freeze / Thaw | snapshot / restore (in product language) |
+| Chirp | health check / ping |
+| Fledged | ready / healthy (post-provision) |
+
+Power actions stay plain: Start, Stop, Force Stop, Pause, Resume.
+
+```
+❌ "Delete the VM and remove its disk"
+✅ "Cull the VM"
+
+❌ create_snapshot_blueprint()
+✅ Follow existing provider names (create_snapshot / Freeze in UI)
+```
+
+## Design constraints
+
+- Vanilla HTML/CSS/JS only — no JS framework
+- Hypervisor differences stay in `lib/providers/`
+- Answer files and provisioning adapt to guest OS — do not assume Windows everywhere
+- Surface errors in the UI, not only logs
+- Prefer editing existing files; no new abstraction layers beyond the task
+- Project meta belongs in `.hatchery/` (not required to run the app)
+- No devcontainers — needs host libvirt/KVM
+
+When adding VM features, read `lib/providers/base.py` before extending the provider interface.
+
+Human docs: `CONTRIBUTING.md`, `README.md`, `.hatchery/docs/`.

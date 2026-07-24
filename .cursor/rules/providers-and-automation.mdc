@@ -1,0 +1,40 @@
+---
+description: Provider interface, answer files, and provisioning patterns
+globs: lib/providers/**,lib/answerfile.py,lib/provision.py,templates/answerfiles/**
+alwaysApply: false
+---
+
+# Providers and Automation
+
+## Providers
+
+All hypervisor ops go through `lib/providers/base.py`.
+
+- `libvirt.py` — KVM/QEMU (v1)
+- `hyperv.py` — remote Hyper-V via WinRM (future)
+
+```
+❌ Add a method to BaseProvider "just in case" or for one provider only
+✅ Implement in libvirt.py using existing BaseProvider methods;
+   extend base.py only if every provider must support it
+```
+
+## Answer files
+
+Request by OS type via `lib/answerfile.py` — it picks the strategy. Templates: `templates/answerfiles/` (`win10`, `win11`, `server2022`, `server2025`).
+
+```
+❌ Hardcode Autounattend paths in the Flask route
+✅ Call answerfile helpers; add a new guest = new template + branch in answerfile.py
+```
+
+Win11 / Server 2025 need UEFI + TPM (`swtpm`).
+
+## Provisioning
+
+`lib/provision.py`: WinRM for Windows; SSH later for Linux.
+
+```
+❌ New provisioning framework beside provision.py
+✅ Extend the existing connection-type path
+```
