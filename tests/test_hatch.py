@@ -732,16 +732,16 @@ class TestParseHatchEventLines:
         assert events[0]["received_at"] is None
 
     def test_timestamp_extracted(self):
-        line = "[HATCH:INFO][step-1][2026-07-20T12:34:56Z] Step 1 succeeded: do thing"
+        line = "[HATCH:INFO][step-1][2026-07-20T12:34:56+00:00] Step 1 succeeded: do thing"
         events = hatch_lib.parse_hatch_event_lines(line)
-        assert events[0]["received_at"] == "2026-07-20T12:34:56Z"
+        assert events[0]["received_at"] == "2026-07-20T12:34:56+00:00"
         assert events[0]["component"] == "step-1"
         assert events[0]["message"] == "Step 1 succeeded: do thing"
 
     def test_timestamp_without_component(self):
-        line = "[HATCH:INFO][2026-07-20T12:34:56Z] setup started"
+        line = "[HATCH:INFO][2026-07-20T12:34:56+00:00] setup started"
         events = hatch_lib.parse_hatch_event_lines(line)
-        assert events[0]["received_at"] == "2026-07-20T12:34:56Z"
+        assert events[0]["received_at"] == "2026-07-20T12:34:56+00:00"
         assert events[0]["component"] is None
 
 
@@ -777,10 +777,10 @@ class TestAddEvent:
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_event(
-            sid, "dc01", "script", "INFO", "msg", received_at="2026-07-20T12:34:56Z"
+            sid, "dc01", "script", "INFO", "msg", received_at="2026-07-20T12:34:56+00:00"
         )
         events = hatch_lib.get_events(sid, "dc01")
-        assert events[0]["received_at"] == "2026-07-20T12:34:56Z"
+        assert events[0]["received_at"] == "2026-07-20T12:34:56+00:00"
 
     def test_received_at_defaults_to_host_time_when_none(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
@@ -788,7 +788,7 @@ class TestAddEvent:
         hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "msg")
         events = hatch_lib.get_events(sid, "dc01")
         assert events[0]["received_at"] is not None
-        assert events[0]["received_at"] != "2026-07-20T12:34:56Z"
+        assert events[0]["received_at"] != "2026-07-20T12:34:56+00:00"
 
     def test_session_level_event_has_null_script_name(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")

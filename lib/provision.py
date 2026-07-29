@@ -21,6 +21,10 @@ HATCHERY_GUEST_DIR = r"C:\Program Files\Hatchery"
 # Deleted by Hatchery immediately on detection.
 SETUP_COMPLETE_FLAG = rf"{HATCHERY_GUEST_DIR}\temp\hatchery-ready"
 
+# Written by hatchery-setup.ps1 during FirstLogonCommands. Imported into hatch_events
+# after WinRM connects, then deleted so the guest stays clean.
+SETUP_LOG_FILE = rf"{HATCHERY_GUEST_DIR}\logs\hatchery-setup.log"
+
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
 
@@ -39,7 +43,7 @@ function Write-HatchEvent {
     )
     $prefix = if ($Component) { "[HATCH:$Tier][$Component]" } else { "[HATCH:$Tier]" }
     Write-Output "$prefix $Message"
-    $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss+00:00")
     $line = if ($Component) { "[HATCH:$Tier][$Component][$ts] $Message" } else { "[HATCH:$Tier][$ts] $Message" }
     try { Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8 } catch { }
 }
@@ -216,6 +220,35 @@ def delete_setup_flag(ip: str, admin_username: str, admin_password: str) -> None
         )
     except Exception:
         pass  # non-fatal; flag is ephemeral
+
+
+def read_setup_log(ip: str, admin_username: str, admin_password: str) -> str:
+    """Return the first-boot setup log from the guest, or empty string if absent.
+
+    Called after check_setup_complete() returns True so hatchery-setup.ps1 step
+    events can be imported into hatch_events before automation scripts run.
+    """
+    try:
+        session = _make_session(ip, admin_username, admin_password, timeout=10)
+        result = session.run_ps(
+            f"Get-Content -Path '{SETUP_LOG_FILE}' -Raw -ErrorAction SilentlyContinue"
+        )
+        text = result.std_out.decode("utf-8", errors="replace")
+        return _strip_clixml(text).strip()
+    except Exception:
+        return ""
+
+
+def delete_setup_log(ip: str, admin_username: str, admin_password: str) -> None:
+    """Remove the first-boot setup log from the guest after import.
+
+    Non-fatal if the file is already gone or WinRM fails.
+    """
+    session = _make_session(ip, admin_username, admin_password, timeout=10)
+    try:
+        session.run_ps(f"Remove-Item -Path '{SETUP_LOG_FILE}' -Force -ErrorAction SilentlyContinue")
+    except Exception:
+        pass  # non-fatal; log is ephemeral
 
 
 def shutdown_guest(ip: str, admin_username: str, admin_password: str) -> None:
