@@ -1014,8 +1014,8 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path)
         setup_log = (
-            "[HATCH:INFO][setup][2026-07-20T12:00:00Z] Hatchery first boot setup started\n"
-            "[HATCH:INFO][step-1][2026-07-20T12:00:05Z] Step 1 succeeded: Set network profile"
+            "[HATCH:INFO][setup][2026-07-20T12:00:00+00:00] Hatchery first boot setup started\n"
+            "[HATCH:INFO][step-1][2026-07-20T12:00:05+00:00] Step 1 succeeded: Set network profile"
         )
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
@@ -1034,7 +1034,7 @@ class TestSyncHatchStatus:
         setup_events = [e for e in events if e.get("script_name") == "hatchery-setup.ps1"]
         assert len(setup_events) == 2
         assert setup_events[0]["component"] == "setup"
-        assert setup_events[0]["received_at"] == "2026-07-20T12:00:00Z"
+        assert setup_events[0]["received_at"] == "2026-07-20T12:00:00+00:00"
         assert setup_events[1]["message"] == "Step 1 succeeded: Set network profile"
 
     def test_records_activity_when_fledged(self, tmp_path, monkeypatch):

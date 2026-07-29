@@ -10,7 +10,7 @@ from lib import db
 _HATCH_EVENT_RE = re.compile(
     r"^\[HATCH:(INFO|WARN|ERROR)\]"
     r"(?:\[(?!\d{4}-\d{2}-\d{2}T)([^\]]+)\])?"  # optional component (not a timestamp)
-    r"(?:\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\])?"  # optional ISO timestamp
+    r"(?:\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00)\])?"  # optional ISO timestamp
     r" (.+)$"
 )
 

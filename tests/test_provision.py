@@ -395,7 +395,7 @@ class TestReadSetupLog:
         return r
 
     def test_returns_log_content(self):
-        log = "[HATCH:INFO][step-1][2026-07-20T12:00:00Z] Step 1 started"
+        log = "[HATCH:INFO][step-1][2026-07-20T12:00:00+00:00] Step 1 started"
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.return_value = self._make_result(log)
             result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
@@ -420,13 +420,13 @@ class TestReadSetupLog:
         clixml = (
             "#< CLIXML\r\n"
             '<Objs Version="1.1.1.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">'
-            '<S N="Message">[HATCH:INFO][setup][2026-07-20T12:00:00Z] Setup started</S>'
+            '<S N="Message">[HATCH:INFO][setup][2026-07-20T12:00:00+00:00] Setup started</S>'
             "</Objs>"
         )
         with patch("lib.provision.winrm.Session") as mock_sess:
             mock_sess.return_value.run_ps.return_value = self._make_result(clixml)
             result = provision_lib.read_setup_log("1.2.3.4", "admin", "pass")
-        assert result == "[HATCH:INFO][setup][2026-07-20T12:00:00Z] Setup started"
+        assert result == "[HATCH:INFO][setup][2026-07-20T12:00:00+00:00] Setup started"
 
 
 class TestDeleteSetupLog:

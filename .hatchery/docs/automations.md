@@ -120,7 +120,7 @@ exit 1
 
 `Write-HatchEvent` emits lines in the format `[HATCH:TIER] message` or `[HATCH:TIER][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
 
-The parser also accepts an optional ISO timestamp bracket: `[HATCH:TIER][Component][2026-07-20T12:34:56Z] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. User automation scripts do not need to include timestamps.
+The parser also accepts an optional ISO timestamp bracket: `[HATCH:TIER][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
 
 > **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
 
