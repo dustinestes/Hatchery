@@ -6,7 +6,7 @@ import hatchery as app_module
 import lib.clutch as clutch_lib
 import lib.config as cfg
 import lib.db as db_module
-import lib.notifications as notif_lib
+import lib.alerts as alerts_lib
 from hatchery import app as flask_app
 from lib.clutch import VMConfig, Clutch
 from lib.providers.libvirt import LibvirtProvider
@@ -94,6 +94,14 @@ class TestActivePane:
         assert "Events" in html
         # Alerts child should not be the active subitem when on Events
         assert html.count("sidebar-subitem active") == 1
+
+    def test_topbar_bell_and_tray_labeled_alerts(self, client):
+        html = client.get("/").data.decode()
+        assert 'aria-label="Alerts"' in html
+        assert 'title="Alerts"' in html
+        assert "<span>Alerts</span>" in html
+        # Umbrella taxonomy stays on the sidebar group only
+        assert ">Notifications</span>" in html or 'sidebar-label">Notifications' in html
 
 
 class TestPageTitles:
@@ -574,8 +582,8 @@ class TestEditRoute:
     def test_post_save_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some validation error")
-        assert notif_lib.count_active_alerts() == 1
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some validation error")
+        assert alerts_lib.count_active_alerts() == 1
         form = {
             "existing_filename": "my-lab.yaml",
             "clutch_name": "My Lab",
@@ -589,7 +597,7 @@ class TestEditRoute:
             "vm_depends_on[]": "",
         }
         client.post("/edit", data=form)
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
 
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
@@ -794,18 +802,20 @@ class TestRunHatchSession:
                 "cannot access: win11.iso"
             )
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
-        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
+        alerts = [n for n in alerts_lib.list_recent() if n["tier"] == "alert"]
         assert any("cannot access" in a["message"] for a in alerts)
 
-    def test_records_activity_on_success(self, tmp_path, monkeypatch):
+    def test_records_hatch_event_on_success(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
-        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
-        assert any("dc01" in a["message"] for a in activity)
+        events = hatch_lib.get_events(sid, "dc01")
+        assert any("created successfully" in e["message"].lower() for e in events)
 
     def test_continues_after_one_vm_fails(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1064,9 +1074,11 @@ class TestSyncHatchStatus:
         assert setup_events[0]["received_at"] == "2026-07-20T12:00:00+00:00"
         assert setup_events[1]["message"] == "Step 1 succeeded: Set network profile"
 
-    def test_records_activity_when_fledged(self, tmp_path, monkeypatch):
+    def test_records_hatch_event_when_fledged(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        self._setup_hatching(tmp_path)
+        sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
@@ -1076,8 +1088,8 @@ class TestSyncHatchStatus:
                         with patch("hatchery.provision_lib.delete_setup_log"):
                             with patch("hatchery.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
-        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
-        assert any("fledged" in a["message"] for a in activity)
+        events = hatch_lib.get_events(sid, "dc01")
+        assert any("no automation scripts" in e["message"].lower() for e in events)
 
     def test_no_change_when_setup_flag_not_present(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -1206,15 +1218,6 @@ class TestSyncHatchStatus:
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "culled"
 
-    def test_records_activity_when_culled(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        self._setup_hatching(tmp_path)
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
-            app_module._sync_hatch_status()
-        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
-        assert any("removed" in a["message"] for a in activity)
-
     def test_skips_vm_when_no_uuid_stored(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
@@ -1286,16 +1289,6 @@ class TestSyncHatchStatus:
         assert "dc01-renamed" in names
         assert "dc01" not in names
 
-    def test_records_activity_when_renamed(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        self._setup_hatching(tmp_path)
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01-renamed"
-            mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
-        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
-        assert any("renamed" in a["message"] for a in activity)
-
     def test_auto_archives_session_when_last_vm_culled(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
@@ -1305,15 +1298,6 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = None
             app_module._sync_hatch_status()
         assert hatch_lib.list_sessions() == []
-
-    def test_records_archive_activity_with_summary(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        self._setup_hatching(tmp_path)
-        with patch("hatchery._provider") as mock_prov:
-            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
-            app_module._sync_hatch_status()
-        activity = [n for n in notif_lib.list_recent() if n["tier"] == "activity"]
-        assert any("archived" in a["message"] for a in activity)
 
     def test_does_not_archive_when_other_vms_still_hatching(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -1536,10 +1520,10 @@ class TestDeleteClutch:
     def test_delete_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some error")
-        assert notif_lib.count_active_alerts() == 1
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some error")
+        assert alerts_lib.count_active_alerts() == 1
         client.post("/clutch/my-lab.yaml/delete")
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
     def test_clutches_page_uses_modal_not_confirm(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1589,17 +1573,17 @@ class TestScanDir:
 
 class TestNestStatus:
     def test_dot_green_when_no_alerts(self, client):
-        with patch("lib.notifications.count_active_alerts", return_value=0):
+        with patch("lib.alerts.count_active_alerts", return_value=0):
             html = client.get("/").data.decode()
         assert "nest-status-dot--green" in html
 
     def test_dot_red_when_has_alerts(self, client):
-        with patch("lib.notifications.count_active_alerts", return_value=2):
+        with patch("lib.alerts.count_active_alerts", return_value=2):
             html = client.get("/").data.decode()
         assert "nest-status-dot--red" in html
 
     def test_status_present_on_all_panes(self, client):
-        with patch("lib.notifications.count_active_alerts", return_value=0):
+        with patch("lib.alerts.count_active_alerts", return_value=0):
             for path in [
                 "/",
                 "/nests",
@@ -1616,12 +1600,12 @@ class TestNestStatus:
                 assert "nest-status" in html, f"Expected nest status on {path}"
 
     def test_tooltip_all_ok_when_no_alerts(self, client):
-        with patch("lib.notifications.count_active_alerts", return_value=0):
+        with patch("lib.alerts.count_active_alerts", return_value=0):
             html = client.get("/").data.decode()
         assert "All systems operational" in html
 
     def test_tooltip_shows_alert_count(self, client):
-        with patch("lib.notifications.count_active_alerts", return_value=3):
+        with patch("lib.alerts.count_active_alerts", return_value=3):
             html = client.get("/").data.decode()
         assert "3 active alert" in html
 
@@ -1633,7 +1617,7 @@ class TestRequirementsSync:
             return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
         ):
             app_module._sync_requirements()
-        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert"]
+        alerts = [n for n in alerts_lib.list_recent() if n["tier"] == "alert"]
         assert any("virsh" in a["message"] for a in alerts)
 
     def test_no_alerts_when_all_tools_present(self):
@@ -1642,17 +1626,17 @@ class TestRequirementsSync:
             return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
         ):
             app_module._sync_requirements()
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
     def test_resolves_stale_alert_when_tool_now_present(self):
-        notif_lib.record_alert("Missing requirement: 'virsh' is not installed — VM lifecycle")
-        assert notif_lib.count_active_alerts() == 1
+        alerts_lib.record_alert("Missing requirement: 'virsh' is not installed — VM lifecycle")
+        assert alerts_lib.count_active_alerts() == 1
         with patch(
             "lib.requirements.check_all",
             return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", True)],
         ):
             app_module._sync_requirements()
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
     def test_does_not_duplicate_alert_on_repeated_calls(self):
         missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
@@ -1661,7 +1645,7 @@ class TestRequirementsSync:
             app_module._sync_requirements()
             app_module._sync_requirements()
         warnings = [
-            n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
+            n for n in alerts_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
         ]
         assert len(warnings) == 1
 
@@ -1679,7 +1663,9 @@ class TestClutchesSync:
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         app_module._sync_clutches()
-        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        alerts = [
+            n for n in alerts_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
+        ]
         assert any("bad.yaml" in a["message"] for a in alerts)
 
     def test_alert_message_strips_redundant_file_context(self, tmp_path, monkeypatch):
@@ -1694,7 +1680,9 @@ class TestClutchesSync:
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         app_module._sync_clutches()
-        alerts = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        alerts = [
+            n for n in alerts_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
+        ]
         msg = next(a["message"] for a in alerts if "bad.yaml" in a["message"])
         assert "Circular dependency" in msg
         assert msg.count("bad.yaml") == 1
@@ -1704,15 +1692,15 @@ class TestClutchesSync:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
         app_module._sync_clutches()
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
     def test_resolves_stale_alert_when_clutch_fixed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        notif_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some old error")
-        assert notif_lib.count_active_alerts() == 1
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some old error")
+        assert alerts_lib.count_active_alerts() == 1
         _make_clutch(tmp_path)
         app_module._sync_clutches()
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
     def test_does_not_duplicate_alert_on_repeated_calls(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1722,16 +1710,18 @@ class TestClutchesSync:
         app_module._sync_clutches()
         app_module._sync_clutches()
         app_module._sync_clutches()
-        active = [n for n in notif_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0]
+        active = [
+            n for n in alerts_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
+        ]
         assert len(active) == 1
 
     def test_noop_when_clutches_dir_missing(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         app_module._sync_clutches()
-        assert notif_lib.count_active_alerts() == 0
+        assert alerts_lib.count_active_alerts() == 0
 
 
-class TestNotificationsRoute:
+class TestAlertsRoute:
     def test_parent_redirects_to_alerts(self, client):
         resp = client.get("/notifications")
         assert resp.status_code == 302
@@ -1740,19 +1730,19 @@ class TestNotificationsRoute:
     def test_alerts_returns_200(self, client):
         assert client.get("/notifications/alerts").status_code == 200
 
-    def test_shows_recorded_item(self, client):
-        notif_lib.record_activity("test activity message")
+    def test_shows_recorded_alert(self, client):
+        alerts_lib.record_alert("test alert message")
         html = client.get("/notifications/alerts").data.decode()
-        assert "test activity message" in html
+        assert "test alert message" in html
 
     def test_shows_empty_state_when_no_items(self, client):
         html = client.get("/notifications/alerts").data.decode()
-        assert "No notifications yet" in html
+        assert "No alerts yet" in html
 
-    def test_shows_alert_tier_badge(self, client):
-        notif_lib.record_alert("an environment alert")
+    def test_shows_active_status(self, client):
+        alerts_lib.record_alert("an environment alert")
         html = client.get("/notifications/alerts").data.decode()
-        assert "notif-tier-badge--alert" in html
+        assert "notif-status-badge--active" in html
 
 
 class TestEventsRoute:
@@ -1814,30 +1804,30 @@ class TestBackgroundThread:
         assert isinstance(stop, threading.Event)
 
 
-class TestNotificationsAPI:
+class TestAlertsAPI:
     def test_returns_200(self, client):
-        assert client.get("/api/notifications").status_code == 200
+        assert client.get("/api/alerts").status_code == 200
 
     def test_response_is_json(self, client):
-        resp = client.get("/api/notifications")
+        resp = client.get("/api/alerts")
         assert resp.content_type == "application/json"
 
     def test_has_items_key(self, client):
-        data = client.get("/api/notifications").get_json()
+        data = client.get("/api/alerts").get_json()
         assert "items" in data
 
     def test_has_active_alert_count_key(self, client):
-        data = client.get("/api/notifications").get_json()
+        data = client.get("/api/alerts").get_json()
         assert "active_alert_count" in data
 
-    def test_items_contains_recorded_notification(self, client):
-        notif_lib.record_activity("api test message")
-        data = client.get("/api/notifications").get_json()
+    def test_items_contains_recorded_alert(self, client):
+        alerts_lib.record_alert("api test message")
+        data = client.get("/api/alerts").get_json()
         assert any(item["message"] == "api test message" for item in data["items"])
 
     def test_alert_count_reflects_active(self, client):
-        notif_lib.record_alert("Missing requirement: some tool")
-        data = client.get("/api/notifications").get_json()
+        alerts_lib.record_alert("Missing requirement: some tool")
+        data = client.get("/api/alerts").get_json()
         assert data["active_alert_count"] >= 1
 
 

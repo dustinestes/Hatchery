@@ -1,3 +1,5 @@
+"""Environment and validation alerts — conditions that need operator attention."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -22,28 +24,10 @@ def record_alert(message: str) -> int:
         conn.close()
 
 
-def record_activity(message: str) -> int:
-    """Insert an activity entry and return the new row id."""
-    now = datetime.now(timezone.utc).isoformat()
-    conn = db.get_connection()
-    try:
-        cursor = conn.execute(
-            "INSERT INTO activity (created_at, message) VALUES (?, ?)",
-            (now, message),
-        )
-        row_id = cursor.lastrowid
-        db.trim_activity(conn)
-        conn.commit()
-        return row_id
-    finally:
-        conn.close()
-
-
 def list_recent(n: int = 50) -> list[dict]:
-    """Return the n most recent entries from both tables, newest first.
+    """Return the n most recent alerts, newest first.
 
-    Each dict includes a synthesized 'tier' field ('alert' or 'activity') for
-    template rendering and JS filtering.
+    Each dict includes tier='alert' for template and tray badge styling.
     """
     conn = db.get_connection()
     try:
@@ -51,9 +35,6 @@ def list_recent(n: int = 50) -> list[dict]:
             """
             SELECT id, created_at, 'alert' AS tier, message, resolved, resolved_at
             FROM alerts
-            UNION ALL
-            SELECT id, created_at, 'activity' AS tier, message, 0 AS resolved, NULL AS resolved_at
-            FROM activity
             ORDER BY created_at DESC
             LIMIT ?
             """,

@@ -29,19 +29,6 @@ class TestInitDb:
         finally:
             conn.close()
 
-    def test_creates_activity_table(self):
-        conn = db_module.get_connection()
-        try:
-            names = [
-                r["name"]
-                for r in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            ]
-            assert "activity" in names
-        finally:
-            conn.close()
-
     def test_creates_clutch_instances_table(self):
         conn = db_module.get_connection()
         try:
@@ -71,14 +58,6 @@ class TestInitDb:
         try:
             cols = [r["name"] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()]
             assert cols == ["id", "created_at", "message", "resolved", "resolved_at"]
-        finally:
-            conn.close()
-
-    def test_activity_columns(self):
-        conn = db_module.get_connection()
-        try:
-            cols = [r["name"] for r in conn.execute("PRAGMA table_info(activity)").fetchall()]
-            assert cols == ["id", "created_at", "message"]
         finally:
             conn.close()
 
@@ -162,11 +141,9 @@ class TestGetConnection:
     def test_row_factory_enables_column_access(self):
         conn = db_module.get_connection()
         try:
-            conn.execute(
-                "INSERT INTO activity (created_at, message) VALUES ('2024-01-01', 'hello')"
-            )
+            conn.execute("INSERT INTO alerts (created_at, message) VALUES ('2024-01-01', 'hello')")
             conn.commit()
-            row = conn.execute("SELECT * FROM activity").fetchone()
+            row = conn.execute("SELECT * FROM alerts").fetchone()
             assert row["message"] == "hello"
         finally:
             conn.close()
@@ -223,62 +200,6 @@ class TestTrimAlerts:
             db_module.trim_alerts(conn)
             conn.commit()
             count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
-            assert count == 3
-        finally:
-            conn.close()
-
-
-class TestTrimActivity:
-    def test_trims_beyond_cap(self, monkeypatch):
-        monkeypatch.setattr(db_module, "_MAX_ACTIVITY", 5)
-        conn = db_module.get_connection()
-        try:
-            for i in range(10):
-                conn.execute(
-                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
-                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
-                )
-            conn.commit()
-            db_module.trim_activity(conn)
-            conn.commit()
-            count = conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0]
-            assert count == 5
-        finally:
-            conn.close()
-
-    def test_keeps_newest_rows(self, monkeypatch):
-        monkeypatch.setattr(db_module, "_MAX_ACTIVITY", 3)
-        conn = db_module.get_connection()
-        try:
-            for i in range(5):
-                conn.execute(
-                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
-                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
-                )
-            conn.commit()
-            db_module.trim_activity(conn)
-            conn.commit()
-            messages = [
-                r["message"]
-                for r in conn.execute("SELECT message FROM activity ORDER BY id DESC").fetchall()
-            ]
-            assert "msg 4" in messages
-            assert "msg 0" not in messages
-        finally:
-            conn.close()
-
-    def test_no_trim_when_under_cap(self):
-        conn = db_module.get_connection()
-        try:
-            for i in range(3):
-                conn.execute(
-                    "INSERT INTO activity (created_at, message) VALUES (?, ?)",
-                    (f"2024-01-{i + 1:02d}", f"msg {i}"),
-                )
-            conn.commit()
-            db_module.trim_activity(conn)
-            conn.commit()
-            count = conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0]
             assert count == 3
         finally:
             conn.close()

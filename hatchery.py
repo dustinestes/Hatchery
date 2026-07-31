@@ -13,7 +13,7 @@ from lib import config
 from lib import db
 from lib import clutch as clutch_lib
 from lib import hatch as hatch_lib
-from lib import notifications as notif_lib
+from lib import alerts as alerts_lib
 from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -37,10 +37,10 @@ def _sync_requirements() -> None:
     for req in req_lib.check_all():
         msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
         if not req.present:
-            if not notif_lib.has_active_alert(msg):
-                notif_lib.record_alert(msg)
+            if not alerts_lib.has_active_alert(msg):
+                alerts_lib.record_alert(msg)
         else:
-            notif_lib.resolve_alerts_by_prefix(msg)
+            alerts_lib.resolve_alerts_by_prefix(msg)
 
 
 def _clutch_error_detail(filename: str, error: str) -> str:
@@ -66,20 +66,11 @@ def _sync_clutches() -> None:
         prefix = f"{_CLUTCH_ALERT_PREFIX} '{path.name}'"
         try:
             clutch_lib.load(path)
-            notif_lib.resolve_alerts_by_prefix(prefix)
+            alerts_lib.resolve_alerts_by_prefix(prefix)
         except Exception as exc:
             msg = f"{prefix} — {_clutch_error_detail(path.name, str(exc))}"
-            if not notif_lib.has_active_alert(msg):
-                notif_lib.record_alert(msg)
-
-
-def _session_outcome_summary(vms: list[dict]) -> str:
-    """Build a human-readable outcome string from a list of VM status dicts."""
-    counts: dict[str, int] = {}
-    for v in vms:
-        counts[v["status"]] = counts.get(v["status"], 0) + 1
-    parts = [f"{n} {s}" for s, n in counts.items() if n]
-    return ", ".join(parts) if parts else "no VMs"
+            if not alerts_lib.has_active_alert(msg):
+                alerts_lib.record_alert(msg)
 
 
 def _check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
@@ -146,9 +137,6 @@ def _provision_vm_thread(
                 )
                 _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
                 hatch_lib.set_vm_status(session_id, vm_name, "failed")
-                notif_lib.record_activity(
-                    f"VM '{vm_name}' provisioning failed: could not run '{sname}'."
-                )
                 return
 
             for event in hatch_lib.parse_hatch_event_lines(output):
@@ -182,9 +170,6 @@ def _provision_vm_thread(
                 )
                 _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
                 hatch_lib.set_vm_status(session_id, vm_name, "failed")
-                notif_lib.record_activity(
-                    f"VM '{vm_name}' provisioning failed on '{sname}' (exit {exit_code})."
-                )
                 return
 
             hatch_lib.add_event(
@@ -236,7 +221,6 @@ def _provision_vm_thread(
             "All scripts succeeded — VM is fledged",
         )
         hatch_lib.set_vm_status(session_id, vm_name, "fledged")
-        notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
 
     finally:
         with _provisioning_lock:
@@ -287,18 +271,11 @@ def _sync_hatch_status() -> None:
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
         if current_name is None:
             hatch_lib.set_vm_status(session_id, vm_name, "culled")
-            notif_lib.record_activity(f"VM '{vm_name}' was removed from the host.")
-            archived = hatch_lib.archive_if_terminal(session_id)
-            if archived:
-                summary = _session_outcome_summary(archived["vms"])
-                notif_lib.record_activity(
-                    f"Hatch session '{archived['clutch_name']}' archived — {summary}."
-                )
+            hatch_lib.archive_if_terminal(session_id)
             continue
 
         if current_name != vm_name:
             hatch_lib.update_vm_name(session_id, vm_name, current_name)
-            notif_lib.record_activity(f"VM '{vm_name}' was renamed to '{current_name}'.")
             vm_name = current_name
 
         if vm_status == "hatching":
@@ -376,7 +353,6 @@ def _sync_hatch_status() -> None:
                     f"({n} script{'s' if n != 1 else ''})",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
-                notif_lib.record_activity(f"VM '{vm_name}' is provisioning.")
                 _spawn_provision_thread(
                     session_id,
                     vm_name,
@@ -393,7 +369,6 @@ def _sync_hatch_status() -> None:
                     "Windows setup complete — no automation scripts configured",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
-                notif_lib.record_activity(f"VM '{vm_name}' is fledged.")
 
         elif vm_status == "provisioning":
             # Re-spawn provision thread if app restarted mid-provisioning.
@@ -448,7 +423,7 @@ _start_background_thread()
 
 @app.context_processor
 def inject_nest_status():
-    alert_count = notif_lib.count_active_alerts()
+    alert_count = alerts_lib.count_active_alerts()
     return {
         "nest_has_warnings": alert_count > 0,
         "nest_warning_count": alert_count,
@@ -571,8 +546,8 @@ def notifications_pane():
 
 @app.route("/notifications/alerts")
 def alerts_pane():
-    items = notif_lib.list_recent(500)
-    return render_template("notifications.html", active_pane="alerts", items=items)
+    items = alerts_lib.list_recent(500)
+    return render_template("alerts.html", active_pane="alerts", items=items)
 
 
 @app.route("/notifications/events")
@@ -634,7 +609,6 @@ def _run_hatch_session(
                     hatch_lib.set_vm_uuid(session_id, vm.name, uuid)
             except Exception:
                 pass  # best-effort: UUID storage does not block hatching
-            notif_lib.record_activity(f"VM '{vm.name}' is hatching.")
         except PermissionError as exc:
             hatch_lib.add_event(
                 session_id,
@@ -643,7 +617,7 @@ def _run_hatch_session(
                 "ERROR",
                 f"VM creation failed: {str(exc).splitlines()[0]}",
             )
-            notif_lib.record_alert(str(exc).splitlines()[0])
+            alerts_lib.record_alert(str(exc).splitlines()[0])
             hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
         except Exception as exc:
             hatch_lib.add_event(
@@ -905,7 +879,6 @@ def build_post():
         return _rerender(str(exc))
 
     saved = filename if filename.endswith(".yaml") else f"{filename}.yaml"
-    notif_lib.record_activity(f"Clutch '{saved}' created.")
 
     if action == "save_and_hatch":
         return redirect(url_for("hatch_clutch", clutch=saved))
@@ -1011,10 +984,9 @@ def edit_post():
     except Exception as exc:
         return _rerender(str(exc))
 
-    notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{old_filename}'")
+    alerts_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{old_filename}'")
     if new_filename != old_filename:
-        notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{new_filename}'")
-    notif_lib.record_activity(f"Clutch '{new_filename}' saved.")
+        alerts_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{new_filename}'")
 
     if action == "save_and_hatch":
         return redirect(url_for("hatch_clutch", clutch=new_filename))
@@ -1153,8 +1125,7 @@ def clutch_delete(filename):
     safe = Path(filename).name
     path = config.data_dir() / "clutches" / safe
     path.unlink(missing_ok=True)
-    notif_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{safe}'")
-    notif_lib.record_activity(f"Clutch '{safe}' deleted.")
+    alerts_lib.resolve_alerts_by_prefix(f"{_CLUTCH_ALERT_PREFIX} '{safe}'")
     return redirect(url_for("clutches"))
 
 
@@ -1258,12 +1229,12 @@ def api_retry_vm(session_id, vm_name):
     )
 
 
-@app.route("/api/notifications")
-def api_notifications():
+@app.route("/api/alerts")
+def api_alerts():
     return jsonify(
         {
-            "items": notif_lib.list_recent(10),
-            "active_alert_count": notif_lib.count_active_alerts(),
+            "items": alerts_lib.list_recent(10),
+            "active_alert_count": alerts_lib.count_active_alerts(),
         }
     )
 
