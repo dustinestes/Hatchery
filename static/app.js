@@ -621,10 +621,45 @@ hatchery.vmRows = (function () {
     });
   });
 
+  function clearFlyouts() {
+    sidebar.querySelectorAll('.sidebar-item--group.flyout-open').forEach(function (el) {
+      el.classList.remove('flyout-open');
+      var link = el.querySelector(':scope > .sidebar-link');
+      if (link) link.setAttribute('aria-expanded', el.classList.contains('open') ? 'true' : 'false');
+    });
+  }
+
   btn.addEventListener('click', function () {
     var collapsed = sidebar.classList.toggle('collapsed');
     localStorage.setItem('hatchery-sidebar-collapsed', collapsed);
     btn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
     btn.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    clearFlyouts();
+  });
+
+  /* Collapsed rail: parent click opens a flyout (hover also works via CSS).
+     Lets touch / click users reach Alerts and Events without expanding the sidebar. */
+  sidebar.addEventListener('click', function (e) {
+    var groupLink = e.target.closest('.sidebar-item--group > .sidebar-link');
+    if (!groupLink || !sidebar.classList.contains('collapsed')) return;
+    var group = groupLink.closest('.sidebar-item--group');
+    if (!group) return;
+    e.preventDefault();
+    var opening = !group.classList.contains('flyout-open');
+    clearFlyouts();
+    if (opening) {
+      group.classList.add('flyout-open');
+      groupLink.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!sidebar.classList.contains('collapsed')) return;
+    if (e.target.closest('.sidebar-item--group')) return;
+    clearFlyouts();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') clearFlyouts();
   });
 })();

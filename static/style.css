@@ -184,6 +184,7 @@ body {
 /* ── App body ── */
 .app-body {
   display: flex;
+  min-height: 0; /* allow flex children to shrink inside the grid 1fr row */
   overflow: hidden;
 }
 
@@ -193,6 +194,7 @@ body {
   flex-direction: column;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
+  min-height: 0;
   background: var(--color-bg-sidebar);
   border-right: 1px solid var(--color-border);
   transition: var(--sidebar-transition);
@@ -203,6 +205,12 @@ body {
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
   min-width: var(--sidebar-collapsed-width);
+  /* Allow flyout menus to escape the rail */
+  overflow: visible;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  overflow: visible;
 }
 
 /* Suppress transition on first paint to avoid flash */
@@ -212,8 +220,11 @@ body {
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0; /* required for overflow scroll inside a flex column */
   padding: 8px 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sidebar-item {
@@ -264,11 +275,95 @@ body {
   transition: stroke 150ms ease;
 }
 
+/* Nested sidebar group (e.g. Notifications → Alerts / Events) */
+.sidebar-subnav {
+  display: none;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.sidebar-item--group.open > .sidebar-subnav {
+  display: block;
+}
+
+.sidebar.collapsed .sidebar-subnav {
+  display: none;
+}
+
+/* Collapsed rail: show children as a flyout to the right of the icon */
+.sidebar.collapsed .sidebar-item--group {
+  position: relative;
+}
+
+.sidebar.collapsed .sidebar-item--group:hover > .sidebar-subnav,
+.sidebar.collapsed .sidebar-item--group:focus-within > .sidebar-subnav,
+.sidebar.collapsed .sidebar-item--group.flyout-open > .sidebar-subnav {
+  display: block;
+  position: absolute;
+  left: calc(100% - 4px);
+  top: 0;
+  z-index: 30;
+  min-width: 148px;
+  margin: 0;
+  padding: 4px 0;
+  background: var(--color-bg-sidebar);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.sidebar.collapsed .sidebar-item--group .sidebar-sublink {
+  padding: 8px 14px;
+  margin: 1px 4px;
+}
+
+.sidebar.collapsed .sidebar-item--group .sidebar-subnav .sidebar-label {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-sublink {
+  display: flex;
+  align-items: center;
+  padding: 7px 16px 7px 44px;
+  border-radius: 6px;
+  margin: 1px 8px;
+  color: var(--color-sidebar-muted);
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 12px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-sublink:hover {
+  background: var(--color-nav-hover-bg);
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-subitem.active .sidebar-sublink {
+  background: var(--color-nav-active-bg);
+  color: var(--color-nav-active-text);
+}
+
+/* Parent group is active when a child pane is selected — keep parent readable,
+   but let the child carry the stronger active treatment. */
+.sidebar-item--group.active > .sidebar-link {
+  background: transparent;
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-item--group.active > .sidebar-link .sidebar-icon {
+  stroke: var(--gold);
+}
+
 /* ── Sidebar toggle button ── */
 .sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 100%;
   height: 40px;
   color: var(--color-sidebar-muted);
