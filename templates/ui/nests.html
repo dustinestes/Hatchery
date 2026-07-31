@@ -157,7 +157,8 @@
       const elapsed = s.status === 'pending' ? '—' : scriptElapsed(s);
       const exit = s.exit_code !== null && s.exit_code !== undefined
         ? escHtml(String(s.exit_code)) : '—';
-      const lastLine = escHtml(scriptLastLine(s.output));
+      // Prefer latest Write-HatchEvent; fall back to last raw output line.
+      const lastLine = escHtml(s.last_event || scriptLastLine(s.output));
       return `<div class="script-row">
         <span class="script-col-name">${escHtml(s.script_name)}</span>
         <span class="script-col-elapsed">${elapsed}</span>

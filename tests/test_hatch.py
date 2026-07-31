@@ -853,3 +853,33 @@ class TestGetEvents:
             "received_at",
         ):
             assert field in event
+
+
+# ── get_last_script_event_messages ───────────────────────────────────────────
+
+
+class TestGetLastScriptEventMessages:
+    def test_returns_empty_when_no_events(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        assert hatch_lib.get_last_script_event_messages(sid, "dc01") == {}
+
+    def test_returns_latest_message_per_script(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "script", "INFO", "first", script_name="setup.ps1")
+        hatch_lib.add_event(sid, "dc01", "script", "INFO", "second", script_name="setup.ps1")
+        hatch_lib.add_event(sid, "dc01", "script", "WARN", "other", script_name="other.ps1")
+        result = hatch_lib.get_last_script_event_messages(sid, "dc01")
+        assert result == {"setup.ps1": "second", "other.ps1": "other"}
+
+    def test_ignores_hatchery_context_and_null_script_name(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "lifecycle")
+        hatch_lib.add_event(
+            sid, "dc01", "hatchery", "INFO", "script start", script_name="setup.ps1"
+        )
+        hatch_lib.add_event(sid, "dc01", "script", "INFO", "from script", script_name="setup.ps1")
+        result = hatch_lib.get_last_script_event_messages(sid, "dc01")
+        assert result == {"setup.ps1": "from script"}
