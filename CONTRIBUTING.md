@@ -17,6 +17,7 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 - [Before You Open a PR](#before-you-open-a-pr)
 - [Development Setup](#development-setup)
 - [Code & Style Guidelines](#code--style-guidelines)
+- [Accessibility](#accessibility)
 - [Commit Messages](#commit-messages)
 - [Questions](#questions)
 
@@ -93,6 +94,23 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 - **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it.
 - **Answer files** — new guest OS types get a template under `templates/answerfiles/` and a corresponding branch in `answerfile.py`.
 - **Comments** — write one only when the *why* is non-obvious. Don't describe what the code does.
+
+---
+
+<br>
+
+## Accessibility
+
+Inclusive UI is a **standing expectation**, not a follow-up cleanup pass. A broader accessibility investment is tracked under [#161](https://github.com/dustinestes/Hatchery/issues/161); until then, do not regress the basics when you touch the UI.
+
+- **Labels first** — panes and controls should expose clear text names. The collapsed icon rail is an opt-in density mode for people who already know the app; it is not a substitute for readable navigation. Icon-only states still need accessible names (`aria-label` / `title`).
+- **Keyboard** — primary flows must work without a pointer. Keep focus visible; interactive custom widgets (trays, flyouts, toggles) should support Escape / Enter in line with existing patterns.
+- **Don’t rely on color alone** — hatch/script status and alerts need text (or another non-color cue), not only badge color.
+- **Dynamic UI** — toasts, trays, and live regions should remain understandable to assistive tech (sensible roles, labels, and updates — don’t invent a parallel design system).
+- **Motion** — prefer respecting `prefers-reduced-motion` when adding transitions.
+
+When in doubt, favor the labeled, keyboard-reachable control over a mouse-only shortcut.
+
 
 ---
 
