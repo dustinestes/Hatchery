@@ -4,7 +4,6 @@ import sqlite3
 from pathlib import Path
 
 _MAX_ALERTS = 500
-_MAX_ACTIVITY = 500
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS alerts (
@@ -13,12 +12,6 @@ CREATE TABLE IF NOT EXISTS alerts (
     message     TEXT    NOT NULL,
     resolved    INTEGER NOT NULL DEFAULT 0,
     resolved_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS activity (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at TEXT    NOT NULL,
-    message    TEXT    NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS clutch_instances (
@@ -78,13 +71,6 @@ CREATE TABLE IF NOT EXISTS hatch_events (
 );
 """
 
-_MIGRATIONS: list[str] = [
-    "ALTER TABLE hatch_sessions ADD COLUMN archived_at TEXT",
-    "ALTER TABLE hatch_vm_status ADD COLUMN admin_username TEXT",
-    "ALTER TABLE hatch_vm_status ADD COLUMN admin_password TEXT",
-    "ALTER TABLE hatch_vm_scripts ADD COLUMN parameters TEXT",
-]
-
 _db_path: Path | None = None
 
 
@@ -95,12 +81,7 @@ def init_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     try:
         conn.executescript(_SCHEMA)
-        for migration in _MIGRATIONS:  # pragma: no cover
-            try:
-                conn.execute(migration)
-                conn.commit()
-            except sqlite3.OperationalError:
-                pass
+        conn.commit()
     finally:
         conn.close()
 
@@ -117,11 +98,4 @@ def trim_alerts(conn: sqlite3.Connection) -> None:
     conn.execute(
         "DELETE FROM alerts WHERE id NOT IN (SELECT id FROM alerts ORDER BY id DESC LIMIT ?)",
         (_MAX_ALERTS,),
-    )
-
-
-def trim_activity(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        "DELETE FROM activity WHERE id NOT IN (SELECT id FROM activity ORDER BY id DESC LIMIT ?)",
-        (_MAX_ACTIVITY,),
     )

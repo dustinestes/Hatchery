@@ -220,7 +220,7 @@ If a script has `reboot_after: true`, Hatchery issues `Restart-Computer -Force` 
 
 ### Completion
 
-When all scripts have succeeded, the VM is marked `fledged` and an activity notification is recorded. If the VM has no automation scripts at all, it is marked `fledged` immediately after the setup-complete handoff.
+When all scripts have succeeded, the VM is marked `fledged` and a hatch event is recorded. If the VM has no automation scripts at all, it is marked `fledged` immediately after the setup-complete handoff.
 
 <br>
 

@@ -6,7 +6,7 @@
 <h1>Notifications</h1>
 <br clear="both">
 
-How Hatchery surfaces environment alerts and activity events — tiers, lifecycle, UI components, and background sync.
+Umbrella for operator-facing signals in Hatchery: **Alerts** (conditions that need attention), **Events** (hatch/provision transcript), and a future **Audit** trail. The sidebar group is labeled Notifications; each child concern has its own module, API, and pane.
 
 <br>
 
@@ -14,20 +14,14 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
 
 - [Contents](#contents)
 - [Overview](#overview)
-- [Tiers](#tiers)
-- [UI Components](#ui-components)
-  - [Toast Overlay](#toast-overlay)
-  - [Bell Badge](#bell-badge)
-  - [Tray Dropdown](#tray-dropdown)
-  - [Sidebar navigation](#sidebar-navigation)
-  - [Alerts Pane](#alerts-pane)
-  - [Events Pane](#events-pane)
-- [Lifecycle](#lifecycle)
-  - [Alerts](#alerts)
-  - [Activity](#activity)
-  - [Status matrix](#status-matrix)
-- [Background Sync](#background-sync)
-- [Contributor Tooling](#contributor-tooling)
+- [Separation of concerns](#separation-of-concerns)
+- [Alerts](#alerts)
+  - [UI surfaces](#ui-surfaces)
+  - [Lifecycle](#lifecycle)
+  - [Background sync](#background-sync)
+  - [Contributor tooling](#contributor-tooling)
+- [Events](#events)
+- [Audit (v2)](#audit-v2)
 
 ---
 
@@ -35,89 +29,51 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
 
 ## Overview
 
-Hatchery uses a lightweight notification system to communicate two categories of events: environment alerts (missing host requirements, invalid Clutch files) and activity events (VMs hatched, Clutch files exported). Both categories are served from the same `/api/notifications` endpoint and drive the same UI surfaces.
+Use **notifications** only where grouping the concerns makes sense (sidebar parent label, umbrella docs, `/notifications/...` route prefix). Alert-specific UI, code, and APIs use **alerts** — including the topbar bell, tray, and toasts, which never show Events or Audit. Hatch lifecycle uses **events** (`hatch_events`); inventory/CRUD history will use **audit** when v2 lands.
 
-Alerts are stored in the `alerts` table and activity in the `activity` table in `hatchery.db`. The browser polls `/api/notifications` on every page load and updates all UI surfaces — toast overlay, bell badge, tray dropdown, and the Alerts pane — without requiring a page refresh.
-
-<br>
-
----
-
-## Tiers
-
-| Tier | Meaning | Source | Resolution |
-|---|---|---|---|
-| `alert` | Environment is degraded — a required tool is missing, or a Clutch file is invalid | Background sync (startup + periodic) | Auto-resolved when the condition clears on the next sync cycle |
-| `activity` | Something happened — a VM was hatched, a Clutch was exported | User action | Immutable; no lifecycle actions |
-
-**Alerts** are system-owned. They are recorded at startup and re-evaluated on every background sync cycle, and resolved automatically when the triggering condition is gone. An alert is active until the system resolves it — there is no user dismiss action.
-
-**Activity** notifications are action-owned. Each user action that completes successfully (hatch, export, append) records an activity entry. These accumulate as an immutable audit trail; they have no lifecycle state and cannot be dismissed or resolved.
+| Concern | What belongs | Surface |
+|---|---|---|
+| **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts, Alerts pane, footer Nest indicator |
+| **Events** | Under-the-hood hatch/provision transcript (`hatch_events`, including `Write-HatchEvent` script lines) | Events pane ([#114](https://github.com/dustinestes/Hatchery/issues/114)) |
+| **Audit (v2)** | Who/what changed Clutches; VM removed/renamed; session archived | Not implemented yet — not toast spam |
 
 <br>
 
 ---
 
-## UI Components
-
-There are four surfaces that show notification state (toast, bell, tray, Alerts pane). All four derive from the same `/api/notifications` poll. The Events pane is a separate surface under the same sidebar group and reads from `hatch_events` (see [events.md](events.md)).
-
-### Toast Overlay
-
-A brief banner that appears in the bottom-right corner when new notifications arrive. Toasts auto-dismiss after 4 seconds. Alerts render with a distinct color; activity notifications render neutral.
-
-<table><tr>
-<td><img src="assets/screenshot_notifications_toast_warning.png" alt="Alert toast notification"></td>
-<td><img src="assets/screenshot_notifications_toast_activity.png" alt="Activity toast notification"></td>
-</tr></table>
-
-Toasts only appear for notifications created since the last poll. The browser tracks the last poll time in `localStorage` (`hatchery-notif-last-read`) and compares it against each notification's `created_at` timestamp. A page load that finds no new notifications shows no toasts.
-
-### Bell Badge
-
-The bell icon in the top bar carries a red badge when there are active alerts. The badge count shows unread notifications; the red color signals that at least one alert is active. When there are no active alerts and no unread notifications, the badge is hidden.
-
-![Bell icon with alert badge](assets/screenshot_notifications_bell_badge.png)
-
-### Tray Dropdown
-
-Clicking the bell opens a compact tray showing the five most recent notifications. Each entry shows the tier badge, a relative timestamp ("just now", "3m ago"), and the message. A "View all" link navigates to the Alerts pane.
-
-![Notifications tray dropdown](assets/screenshot_notifications_tray.png)
-
-### Sidebar navigation
-
-Notifications is a nested sidebar group with two children:
+## Separation of concerns
 
 ```
-Notifications
-  ├─ Alerts   — environment alerts and activity history (`/notifications/alerts`)
-  └─ Events   — per-VM provisioning event log (`/notifications/events`)
+Notifications (sidebar group)
+  ├─ Alerts   — validation / health (`/notifications/alerts`, `GET /api/alerts`)
+  └─ Events   — hatch lifecycle feed (`/notifications/events` — UI in #114)
 ```
 
-The parent `/notifications` route redirects to Alerts. The group expands (and the parent stays highlighted) whenever Alerts or Events is the active pane. When the sidebar is collapsed, child links appear in a fixed-position flyout beside the Notifications icon (hover, keyboard focus, or click). The flyout is clamped to the viewport so it stays on-screen in short windows. The collapsed nav keeps its own scroll; the native scrollbar is hidden so it does not cover icons, and a thin overlay thumb appears briefly while scrolling.
-
-### Alerts Pane
-
-The full notification history, accessible from the sidebar Alerts item or the tray "View all" link. Displays up to 500 notifications in reverse-chronological order. Route: `/notifications/alerts`.
-
-Filter buttons narrow the view to a single tier (Alerts or Activity). Each row shows the time, tier badge, message, and status. Alert rows show Active or Resolved; activity rows have no status action.
-
-![Notifications pane — full table view](assets/screenshot_notifications_pane.png)
-
-### Events Pane
-
-Placeholder under `/notifications/events` for the per-VM provisioning event log (see issue #114). The nav shell is in place; the live feed UI lands separately.
+Umbrella routes stay under `/notifications/...`. Alert CRUD lives in `lib/alerts.py`. Event writers stay in `lib/hatch.py` (`add_event`).
 
 <br>
 
 ---
 
-## Lifecycle
+## Alerts
 
-### Alerts
+Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and updates toast overlay, bell badge, tray dropdown, and the Alerts pane without a full page refresh.
 
-Alerts are written by calling `lib.notifications.record_alert(message)`. This inserts a row into the `alerts` table with:
+### UI surfaces
+
+**Toast overlay** — brief banner in the bottom-right when new alerts arrive. Auto-dismiss after 4 seconds. Styled with `.toast--alert`.
+
+**Bell badge** — topbar control labeled **Alerts**; unread count of active alerts.
+
+**Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
+
+**Alerts pane** — full alert history (up to 500 rows), reverse-chronological. Filters: Active / Resolved only. Route: `/notifications/alerts`.
+
+![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
+
+### Lifecycle
+
+Alerts are written by calling `lib.alerts.record_alert(message)`. This inserts a row into the `alerts` table with:
 
 - `created_at` — UTC ISO 8601 timestamp
 - `message` — human-readable description
@@ -125,42 +81,26 @@ Alerts are written by calling `lib.notifications.record_alert(message)`. This in
 
 An alert is **active** while `resolved = 0`. It is **resolved** by the system (never by the user) when the condition that triggered it no longer exists. Resolution sets `resolved = 1` and `resolved_at` to the resolution timestamp.
 
-Resolved alerts remain in the table as historical records. They appear in the Alerts pane with a "Resolved" status badge and are excluded from the active alert count used by the bell badge and footer indicator.
+Resolved alerts remain as historical records. They appear in the Alerts pane with a “Resolved” status badge and are excluded from the active alert count used by the bell badge and footer indicator.
 
-### Activity
+After every insert, rows beyond the 500-row cap are trimmed. See [`schema/database.md`](schema/database.md).
 
-Activity entries are written by calling `lib.notifications.record_activity(message)`. This inserts a row into the `activity` table with:
+| State | Rendered as |
+|---|---|
+| `resolved = 0` | Active badge |
+| `resolved = 1` | Resolved badge + timestamp |
 
-- `created_at` — UTC ISO 8601 timestamp
-- `message` — human-readable description
-
-Activity entries are immutable. There is no resolved or dismissed state — they are a permanent audit trail of what happened and when. The Alerts pane displays them with a `—` in the status column.
-
-After every insert into either table, rows beyond the 500-row cap are trimmed. See [`schema/database.md`](schema/database.md) for the full schema.
-
-### Status matrix
-
-| Tier | State | Rendered as |
-|---|---|---|
-| `alert` | `resolved = 0` | Active badge |
-| `alert` | `resolved = 1` | Resolved badge + timestamp |
-| `activity` | _(no state)_ | — |
-
-<br>
-
----
-
-## Background Sync
+### Background sync
 
 Hatchery runs two sync functions at startup and then on every background cycle (controlled by the **Background Validation Interval** setting, default 60 seconds):
 
-### Requirements sync (`_sync_requirements`)
+#### Requirements sync (`_sync_requirements`)
 
 1. Checks which required host tools are currently present via `lib.requirements.check_all()`.
 2. For each missing tool, records an alert prefixed with `"Missing requirement:"` if one is not already active.
 3. For each present tool, resolves any active alert with that same prefix.
 
-### Clutch file sync (`_sync_clutches`)
+#### Clutch file sync (`_sync_clutches`)
 
 1. Iterates every `.yaml` file in the clutches directory.
 2. For each file, runs full schema and dependency validation via `clutch_lib.load()`.
@@ -171,47 +111,43 @@ Alerts for a deleted Clutch file are resolved immediately at delete time — not
 
 The result: alert state in the database always reflects the current environment. If a missing tool is installed or a broken Clutch file is fixed, the alert is resolved on the next sync cycle without requiring a restart.
 
+### Contributor tooling
+
+A seed script inserts sample alerts for UI validation and screenshot capture. Seeded records are marked with `[seed]` so they can be identified and removed without touching real alert history.
+
+```bash
+# Insert the next curated alert (cycles through samples with each call)
+uv run python .hatchery/tooling/seed_alerts.py seed
+
+# Insert a custom message
+uv run python .hatchery/tooling/seed_alerts.py seed "Missing requirement: 'virsh' is not installed"
+
+# Insert all curated samples
+uv run python .hatchery/tooling/seed_alerts.py seed all
+
+# Remove all seeded alerts
+uv run python .hatchery/tooling/seed_alerts.py clean
+```
+
+The script requires Hatchery to have been started at least once (so `hatchery.db` exists). It reads the same data directory configuration as the app.
+
 <br>
 
 ---
 
-## Contributor Tooling
+## Events
 
-A seed script in `.hatchery/tooling/` inserts sample notifications for UI validation and screenshot capture. Seeded records are marked with `[seed]` so they can be identified and removed without touching real notification history.
+Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and exposed via the existing events APIs. The Events pane under `/notifications/events` is the home for that signal ([#114](https://github.com/dustinestes/Hatchery/issues/114)). Until that UI ships, there are no global toasts for hatch lifecycle (e.g. “VM fledged”) — that is intentional.
 
-**Seed one notification at a time:**
+See [events.md](events.md) and [orchestration.md](orchestration.md).
 
-```bash
-# Insert the next curated alert (cycles through samples with each call)
-uv run python .hatchery/tooling/seed_notifications.py seed alert
+<br>
 
-# Insert the next curated activity notification
-uv run python .hatchery/tooling/seed_notifications.py seed activity
+---
 
-# Insert a custom message of any tier
-uv run python .hatchery/tooling/seed_notifications.py seed alert "Missing requirement: 'virsh' is not installed"
-uv run python .hatchery/tooling/seed_notifications.py seed activity "VM 'win11-dev' is hatching."
-```
+## Audit (v2)
 
-Calling `seed alert` or `seed activity` multiple times cycles through the curated sample list, inserting one new record per invocation. This allows incremental insertion for capturing UI state at each step — e.g., insert one, screenshot the toast; insert another, screenshot the tray; repeat.
-
-**Seed all curated samples at once:**
-
-```bash
-uv run python .hatchery/tooling/seed_notifications.py seed all
-```
-
-Inserts all curated alert and activity samples in one pass. Useful for capturing the Notifications pane with a populated list.
-
-**Remove all seeded records:**
-
-```bash
-uv run python .hatchery/tooling/seed_notifications.py clean
-```
-
-Deletes every record containing the `[seed]` marker from both tables. Real notifications are unaffected.
-
-The script requires Hatchery to have been started at least once (so `hatchery.db` exists). It reads the same data directory configuration as the app, so it seeds the same database the running app reads.
+Clutch create/save/delete, VM cull/rename, and session archive are **not** alerts and are **not** written as toast-driving activity. A future audit trail will cover inventory and authoring changes without mixing them into the Alerts surfaces — tracked in [#164](https://github.com/dustinestes/Hatchery/issues/164).
 
 <br>
 

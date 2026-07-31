@@ -15,7 +15,6 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
 - [Contents](#contents)
 - [Tables](#tables)
   - [alerts](#alerts)
-  - [activity](#activity)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
@@ -34,7 +33,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
 
 ### alerts
 
-Stores active and resolved environment alerts. An alert is created when a host condition is degraded (e.g. a required tool is missing) and resolved automatically when the condition clears. Consumed by the notification tray, toast overlay, bell badge, and Notifications pane.
+Stores active and resolved environment alerts. An alert is created when a host condition is degraded (e.g. a required tool is missing) and resolved automatically when the condition clears. Consumed by the alerts tray, toast overlay, bell badge, and Alerts pane.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -46,23 +45,7 @@ Stores active and resolved environment alerts. An alert is created when a host c
 
 #### Managed by
 
-`lib/notifications.py` — `record_alert()`, `resolve()`, `resolve_alerts_by_prefix()`, `has_active_alert()`, `count_active_alerts()`
-
-<br>
-
-### activity
-
-Immutable audit trail of user actions and provisioning events (e.g. "VM hatching started", "Clutch exported"). Entries are never updated or deleted except by the row-cap trim. Consumed by the notification tray, toast overlay, and Notifications pane.
-
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
-| `created_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) |
-| `message` | `TEXT` | `NOT NULL` | Human-readable description of the event |
-
-#### Managed by
-
-`lib/notifications.py` — `record_activity()`
+`lib/alerts.py` — `record_alert()`, `resolve()`, `resolve_alerts_by_prefix()`, `has_active_alert()`, `count_active_alerts()`, `list_recent()`
 
 <br>
 
@@ -187,26 +170,23 @@ Tracks observed runtime state of VMs hatched from Clutch definitions. Associates
 
 ### Row cap
 
-Both `alerts` and `activity` are independently capped at **500 rows**. On every insert, the corresponding trim function deletes the oldest rows beyond the cap. This runs automatically — no manual maintenance required.
+`alerts` is capped at **500 rows**. On every insert, `trim_alerts` deletes the oldest rows beyond the cap. This runs automatically — no manual maintenance required.
 
 | Table | Cap | Trim function |
 |---|---|---|
 | `alerts` | 500 | `lib/db.trim_alerts()` |
-| `activity` | 500 | `lib/db.trim_activity()` |
 
-The caps are defined as `_MAX_ALERTS = 500` and `_MAX_ACTIVITY = 500` in `lib/db.py`.
+The cap is defined as `_MAX_ALERTS = 500` in `lib/db.py`.
 
 ### Migrations
 
-The current schema uses `CREATE TABLE IF NOT EXISTS`, which is idempotent and safe to run on every startup. It cannot alter existing tables.
+Schema creation uses `CREATE TABLE IF NOT EXISTS` on startup. There is no startup migration list — Hatchery is early enough that schema changes land in `_SCHEMA` directly; delete `hatchery.db` (or use a fresh data dir) if an existing local DB predates a column change.
 
-When a future change requires adding or modifying columns, the approach will be:
+When a real migration framework becomes necessary:
 
 1. Add a `schema_version` table to track applied migrations
 2. Apply `ALTER TABLE` statements on startup when the version is behind
 3. Bump the version after each migration
-
-No migration infrastructure is needed yet. This is the documented plan for when it becomes necessary.
 
 <br>
 

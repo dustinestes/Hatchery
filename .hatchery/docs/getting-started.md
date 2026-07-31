@@ -88,11 +88,11 @@ QEMU will now run with your user's permissions and can access files anywhere you
 
 **Remote / NAS storage** — If your media directory is on a network mount or outside `/home` (e.g. `/mnt/nas/hatchery/media/`), paths outside `/home` are world-traversable by default and `libvirt-qemu` can access them without any configuration change. Point Hatchery's data directory at your mount via Settings.
 
-If Hatchery detects a permission problem when you click Hatch, it will surface the exact `chmod` command needed and record an alert in the notification system. See the [Appendix](#appendix-alternative-media-access-configurations) for fallback options if you cannot configure QEMU to run as your user.
+If Hatchery detects a permission problem when you click Hatch, it will surface the exact `chmod` command needed and record an alert. See the [Appendix](#appendix-alternative-media-access-configurations) for fallback options if you cannot configure QEMU to run as your user.
 
 ### If Requirements Are Missing
 
-If any required tools are not installed when you start Hatchery, an alert is recorded in the notification system. The bell icon in the top navigation bar will show a badge; open it to see the exact `apt install` command needed to resolve each missing tool. The alert clears automatically the next time you start Hatchery after the packages are installed.
+If any required tools are not installed when you start Hatchery, an alert is recorded. The Alerts bell in the top navigation bar will show a badge; open it to see the exact `apt install` command needed to resolve each missing tool. The alert clears automatically the next time you start Hatchery after the packages are installed.
 
 ---
 

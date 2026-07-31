@@ -447,7 +447,7 @@ hatchery.vmRows = (function () {
   modeAppend.addEventListener('change', updatePanels);
 })();
 
-/* Notification system — toast, bell badge, tray, notifications table */
+/* Alerts — toast, bell badge, tray (umbrella Notifications group) */
 (function () {
   var LAST_READ_KEY = 'hatchery-notif-last-read';
 
@@ -469,7 +469,7 @@ hatchery.vmRows = (function () {
     var container = document.getElementById('toast-container');
     if (!container) return;
     var el = document.createElement('div');
-    el.className = 'toast toast--' + tier;
+    el.className = 'toast toast--' + (tier || 'alert');
     el.textContent = message;
     container.appendChild(el);
     setTimeout(function () {
@@ -479,15 +479,15 @@ hatchery.vmRows = (function () {
     }, 4000);
   }
 
-  function updateBadge(items, unresolvedWarningCount) {
+  function updateBadge(items, unresolvedAlertCount) {
     var badge = document.getElementById('notif-badge');
     if (!badge) return;
     var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
     var unread = items.filter(function (n) { return n.created_at > lastRead; }).length;
-    if (unread > 0 || unresolvedWarningCount > 0) {
+    if (unread > 0 || unresolvedAlertCount > 0) {
       badge.textContent = unread > 9 ? '9+' : (unread || '');
       badge.style.display = 'flex';
-      badge.className = 'notif-badge' + (unresolvedWarningCount > 0 ? ' notif-badge--alert' : '');
+      badge.className = 'notif-badge' + (unresolvedAlertCount > 0 ? ' notif-badge--alert' : '');
     } else {
       badge.style.display = 'none';
     }
@@ -497,13 +497,13 @@ hatchery.vmRows = (function () {
     var list = document.getElementById('notif-tray-list');
     if (!list) return;
     if (!items.length) {
-      list.innerHTML = '<div class="notif-tray-empty">No recent notifications</div>';
+      list.innerHTML = '<div class="notif-tray-empty">No recent alerts</div>';
       return;
     }
     list.innerHTML = items.slice(0, 5).map(function (n) {
       return '<div class="notif-tray-item">' +
         '<div class="notif-tray-meta">' +
-        '<span class="notif-tier-badge notif-tier-badge--' + escapeHtml(n.tier) + '">' + escapeHtml(n.tier) + '</span>' +
+        '<span class="notif-tier-badge notif-tier-badge--alert">alert</span>' +
         '<span class="notif-tray-time">' + timeAgo(n.created_at) + '</span>' +
         '</div>' +
         '<div class="notif-tray-msg">' + escapeHtml(n.message) + '</div>' +
@@ -511,17 +511,17 @@ hatchery.vmRows = (function () {
     }).join('');
   }
 
-  function pollNotifications() {
-    fetch('/api/notifications')
+  function pollAlerts() {
+    fetch('/api/alerts')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var items = data.items || [];
-        var warnCount = data.active_alert_count || 0;
+        var alertCount = data.active_alert_count || 0;
         var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
         items.forEach(function (n) {
-          if (n.created_at > lastRead) showToast(n.message, n.tier);
+          if (n.created_at > lastRead) showToast(n.message, 'alert');
         });
-        updateBadge(items, warnCount);
+        updateBadge(items, alertCount);
         populateTray(items);
       })
       .catch(function () {});
@@ -545,20 +545,7 @@ hatchery.vmRows = (function () {
     });
   }
 
-  /* Notifications table — filter */
-  var filterBtns = document.querySelectorAll('.notif-filter-btn');
-  filterBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      filterBtns.forEach(function (b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      var filter = btn.dataset.filter;
-      document.querySelectorAll('#notif-tbody tr').forEach(function (row) {
-        row.style.display = (filter === 'all' || row.dataset.tier === filter) ? '' : 'none';
-      });
-    });
-  });
-
-  pollNotifications();
+  pollAlerts();
 })();
 
 /* Dropdown refresh — repopulate media/automation selects without a page reload.

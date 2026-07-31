@@ -67,7 +67,7 @@ The database lives at the root of the data directory alongside `clutches/`, `med
 
 **Upgrades:** Existing data is preserved. The idempotent schema creation means upgrading Hatchery never destroys the database.
 
-**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses only app-generated state (notification history, instance tracking) — not Clutch definitions or configuration.
+**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses only app-generated state (alert history, instance tracking) — not Clutch definitions or configuration.
 
 The file is not included in the Hatchery source repository.
 
@@ -80,7 +80,6 @@ The file is not included in the Hatchery source repository.
 | Data | Table | Why here |
 |---|---|---|
 | Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
-| Activity history | `activity` | App-generated, timestamped, immutable — audit trail of user actions and provisioning events |
 | Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps |
 | VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH — see note below |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |

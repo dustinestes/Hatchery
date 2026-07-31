@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts — Hatchery{% endblock %}
+
+{% block content %}
+<div class="pane-header">
+  <h1 class="pane-title">Alerts</h1>
+  <p class="pane-subtitle">Environment and validation issues that need attention.</p>
+</div>
+
+{% if items %}
+<table class="notif-table" id="alert-table">
+  <thead>
+    <tr>
+      <th data-col="created_at">Time</th>
+      <th data-col="message">Message</th>
+      <th data-col="status">Status</th>
+    </tr>
+  </thead>
+  <tbody id="alert-tbody">
+    {% for item in items %}
+    <tr data-id="{{ item.id }}">
+      <td class="notif-table-time">{{ item.created_at }}</td>
+      <td class="notif-table-msg">{{ item.message }}</td>
+      <td class="notif-table-status">
+        {% if item.resolved %}
+          <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
+          {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
+        {% else %}
+          <span class="notif-status-badge notif-status-badge--active">Active</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No alerts yet.</p>
+{% endif %}
+{% endblock %}
