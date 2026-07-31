@@ -95,7 +95,7 @@ Notifications
   └─ Events   — per-VM provisioning event log (`/notifications/events`)
 ```
 
-The parent `/notifications` route redirects to Alerts. The group expands (and the parent stays highlighted) whenever Alerts or Events is the active pane. When the sidebar is collapsed, child links appear as a flyout beside the Notifications icon (hover, keyboard focus, or click) so both destinations stay reachable without expanding the rail.
+The parent `/notifications` route redirects to Alerts. The group expands (and the parent stays highlighted) whenever Alerts or Events is the active pane. When the sidebar is collapsed, child links appear in a fixed-position flyout beside the Notifications icon (hover, keyboard focus, or click). The flyout is clamped to the viewport so it stays on-screen in short windows. The collapsed nav keeps its own scroll; the native scrollbar is hidden so it does not cover icons, and a thin overlay thumb appears briefly while scrolling.
 
 ### Alerts Pane
 

@@ -192,6 +192,7 @@ body {
 .sidebar {
   display: flex;
   flex-direction: column;
+  position: relative;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   min-height: 0;
@@ -205,12 +206,6 @@ body {
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
   min-width: var(--sidebar-collapsed-width);
-  /* Allow flyout menus to escape the rail */
-  overflow: visible;
-}
-
-.sidebar.collapsed .sidebar-nav {
-  overflow: visible;
 }
 
 /* Suppress transition on first paint to avoid flash */
@@ -225,6 +220,34 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Collapsed rail: hide the native scrollbar (it steals icon space) and use a
+   short-lived overlay thumb instead — same idea as macOS overlay scrollbars. */
+.sidebar.collapsed .sidebar-nav {
+  scrollbar-width: none;
+}
+
+.sidebar.collapsed .sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scroll-thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--color-sidebar-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 6;
+}
+
+.sidebar.collapsed .sidebar-scroll-thumb.is-visible {
+  opacity: 0.75;
 }
 
 .sidebar-item {
@@ -291,18 +314,11 @@ body {
   display: none;
 }
 
-/* Collapsed rail: show children as a flyout to the right of the icon */
-.sidebar.collapsed .sidebar-item--group {
-  position: relative;
-}
-
-.sidebar.collapsed .sidebar-item--group:hover > .sidebar-subnav,
-.sidebar.collapsed .sidebar-item--group:focus-within > .sidebar-subnav,
+/* Collapsed rail: flyout is position:fixed (coords set in JS) so the nav
+   can keep overflow-y:auto and the menu can stay within the viewport. */
 .sidebar.collapsed .sidebar-item--group.flyout-open > .sidebar-subnav {
   display: block;
-  position: absolute;
-  left: calc(100% - 4px);
-  top: 0;
+  position: fixed;
   z-index: 30;
   min-width: 148px;
   margin: 0;
