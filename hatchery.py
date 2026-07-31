@@ -1189,7 +1189,11 @@ def api_nest_vms(nest: str):
                 record["admin_username"] = db_row.get("admin_username")
                 if show_pw:
                     record["admin_password"] = db_row.get("admin_password")
-            record["scripts"] = hatch_lib.get_vm_scripts(tag["session_id"], name)
+            scripts = hatch_lib.get_vm_scripts(tag["session_id"], name)
+            last_events = hatch_lib.get_last_script_event_messages(tag["session_id"], name)
+            for script in scripts:
+                script["last_event"] = last_events.get(script["script_name"])
+            record["scripts"] = scripts
         else:
             record["scripts"] = []
 

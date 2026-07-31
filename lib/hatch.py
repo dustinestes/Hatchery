@@ -410,3 +410,25 @@ def get_events(session_id: str, vm_name: str) -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def get_last_script_event_messages(session_id: str, vm_name: str) -> dict[str, str]:
+    """Return the latest script-context event message keyed by script_name.
+
+    Only rows with context='script' and a non-null script_name are considered.
+    """
+    conn = db.get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT script_name, message FROM hatch_events
+               WHERE session_id=? AND vm_name=? AND context='script'
+                     AND script_name IS NOT NULL
+               ORDER BY id ASC""",
+            (session_id, vm_name),
+        ).fetchall()
+        result: dict[str, str] = {}
+        for r in rows:
+            result[r["script_name"]] = r["message"]
+        return result
+    finally:
+        conn.close()

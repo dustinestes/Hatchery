@@ -2064,6 +2064,59 @@ class TestApiNestVms:
             resp = client.get("/api/nests/local/vms")
         assert resp.get_json()[0]["scripts"] == []
 
+    def test_scripts_include_last_event_from_hatch_events(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+
+        class _S:
+            def __init__(self, name):
+                self.name = name
+                self.reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
+        hatch_lib.set_script_status(sid, "dc01", 0, "succeeded", exit_code=0, output="raw line\n")
+        hatch_lib.add_event(
+            sid, "dc01", "script", "INFO", "Setting timezone", script_name="setup.ps1"
+        )
+        hatch_lib.add_event(
+            sid, "dc01", "script", "INFO", "Rename complete", script_name="setup.ps1"
+        )
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        script = resp.get_json()[0]["scripts"][0]
+        assert script["last_event"] == "Rename complete"
+
+    def test_last_event_null_when_no_script_events(self, client):
+        import lib.hatch as hatch_lib
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+
+        class _S:
+            def __init__(self, name):
+                self.name = name
+                self.reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "lifecycle only")
+
+        with patch("hatchery._provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms")
+        assert resp.get_json()[0]["scripts"][0]["last_event"] is None
+
 
 # ── api_retry_vm ──────────────────────────────────────────────────────────────
 
