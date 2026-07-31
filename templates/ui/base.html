@@ -54,7 +54,7 @@
         <div class="notif-tray" id="notif-tray">
           <div class="notif-tray-header">
             <span>Notifications</span>
-            <a href="{{ url_for('notifications_pane') }}" class="link">View all</a>
+            <a href="{{ url_for('alerts_pane') }}" class="link">View all</a>
           </div>
           <div id="notif-tray-list" class="notif-tray-list"></div>
         </div>
@@ -119,14 +119,26 @@
           </a>
         </li>
 
-        <li class="sidebar-item{% if active_pane == 'notifications' %} active{% endif %}">
-          <a href="{{ url_for('notifications_pane') }}" class="sidebar-link" title="Notifications">
+        <li class="sidebar-item sidebar-item--group{% if active_pane in ('alerts', 'events') %} active open{% endif %}">
+          <a href="{{ url_for('alerts_pane') }}" class="sidebar-link" title="Notifications" aria-haspopup="true" aria-expanded="{% if active_pane in ('alerts', 'events') %}true{% else %}false{% endif %}">
             <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
             <span class="sidebar-label">Notifications</span>
           </a>
+          <ul class="sidebar-subnav" role="list">
+            <li class="sidebar-subitem{% if active_pane == 'alerts' %} active{% endif %}">
+              <a href="{{ url_for('alerts_pane') }}" class="sidebar-sublink" title="Alerts">
+                <span class="sidebar-label">Alerts</span>
+              </a>
+            </li>
+            <li class="sidebar-subitem{% if active_pane == 'events' %} active{% endif %}">
+              <a href="{{ url_for('events_pane') }}" class="sidebar-sublink" title="Events">
+                <span class="sidebar-label">Events</span>
+              </a>
+            </li>
+          </ul>
         </li>
 
         <li class="sidebar-item{% if active_pane == 'settings' %} active{% endif %}">

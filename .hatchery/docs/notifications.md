@@ -19,7 +19,9 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
   - [Toast Overlay](#toast-overlay)
   - [Bell Badge](#bell-badge)
   - [Tray Dropdown](#tray-dropdown)
-  - [Notifications Pane](#notifications-pane)
+  - [Sidebar navigation](#sidebar-navigation)
+  - [Alerts Pane](#alerts-pane)
+  - [Events Pane](#events-pane)
 - [Lifecycle](#lifecycle)
   - [Alerts](#alerts)
   - [Activity](#activity)
@@ -35,7 +37,7 @@ How Hatchery surfaces environment alerts and activity events — tiers, lifecycl
 
 Hatchery uses a lightweight notification system to communicate two categories of events: environment alerts (missing host requirements, invalid Clutch files) and activity events (VMs hatched, Clutch files exported). Both categories are served from the same `/api/notifications` endpoint and drive the same UI surfaces.
 
-Alerts are stored in the `alerts` table and activity in the `activity` table in `hatchery.db`. The browser polls `/api/notifications` on every page load and updates all UI surfaces — toast overlay, bell badge, tray dropdown, and the Notifications pane — without requiring a page refresh.
+Alerts are stored in the `alerts` table and activity in the `activity` table in `hatchery.db`. The browser polls `/api/notifications` on every page load and updates all UI surfaces — toast overlay, bell badge, tray dropdown, and the Alerts pane — without requiring a page refresh.
 
 <br>
 
@@ -58,7 +60,7 @@ Alerts are stored in the `alerts` table and activity in the `activity` table in 
 
 ## UI Components
 
-There are four surfaces that show notification state. All four derive from the same `/api/notifications` poll.
+There are four surfaces that show notification state (toast, bell, tray, Alerts pane). All four derive from the same `/api/notifications` poll. The Events pane is a separate surface under the same sidebar group and reads from `hatch_events` (see [events.md](events.md)).
 
 ### Toast Overlay
 
@@ -79,17 +81,33 @@ The bell icon in the top bar carries a red badge when there are active alerts. T
 
 ### Tray Dropdown
 
-Clicking the bell opens a compact tray showing the five most recent notifications. Each entry shows the tier badge, a relative timestamp ("just now", "3m ago"), and the message. A "View all" link navigates to the full Notifications pane.
+Clicking the bell opens a compact tray showing the five most recent notifications. Each entry shows the tier badge, a relative timestamp ("just now", "3m ago"), and the message. A "View all" link navigates to the Alerts pane.
 
 ![Notifications tray dropdown](assets/screenshot_notifications_tray.png)
 
-### Notifications Pane
+### Sidebar navigation
 
-The full notification history, accessible from the sidebar or the tray "View all" link. Displays up to 500 notifications in reverse-chronological order.
+Notifications is a nested sidebar group with two children:
+
+```
+Notifications
+  ├─ Alerts   — environment alerts and activity history (`/notifications/alerts`)
+  └─ Events   — per-VM provisioning event log (`/notifications/events`)
+```
+
+The parent `/notifications` route redirects to Alerts. The group expands (and the parent stays highlighted) whenever Alerts or Events is the active pane. When the sidebar is collapsed, child links appear in a fixed-position flyout beside the Notifications icon (hover, keyboard focus, or click). The flyout is clamped to the viewport so it stays on-screen in short windows. The collapsed nav keeps its own scroll; the native scrollbar is hidden so it does not cover icons, and a thin overlay thumb appears briefly while scrolling.
+
+### Alerts Pane
+
+The full notification history, accessible from the sidebar Alerts item or the tray "View all" link. Displays up to 500 notifications in reverse-chronological order. Route: `/notifications/alerts`.
 
 Filter buttons narrow the view to a single tier (Alerts or Activity). Each row shows the time, tier badge, message, and status. Alert rows show Active or Resolved; activity rows have no status action.
 
 ![Notifications pane — full table view](assets/screenshot_notifications_pane.png)
+
+### Events Pane
+
+Placeholder under `/notifications/events` for the per-VM provisioning event log (see issue #114). The nav shell is in place; the live feed UI lands separately.
 
 <br>
 
@@ -107,7 +125,7 @@ Alerts are written by calling `lib.notifications.record_alert(message)`. This in
 
 An alert is **active** while `resolved = 0`. It is **resolved** by the system (never by the user) when the condition that triggered it no longer exists. Resolution sets `resolved = 1` and `resolved_at` to the resolution timestamp.
 
-Resolved alerts remain in the table as historical records. They appear in the Notifications pane with a "Resolved" status badge and are excluded from the active alert count used by the bell badge and footer indicator.
+Resolved alerts remain in the table as historical records. They appear in the Alerts pane with a "Resolved" status badge and are excluded from the active alert count used by the bell badge and footer indicator.
 
 ### Activity
 
@@ -116,7 +134,7 @@ Activity entries are written by calling `lib.notifications.record_activity(messa
 - `created_at` — UTC ISO 8601 timestamp
 - `message` — human-readable description
 
-Activity entries are immutable. There is no resolved or dismissed state — they are a permanent audit trail of what happened and when. The Notifications pane displays them with a `—` in the status column.
+Activity entries are immutable. There is no resolved or dismissed state — they are a permanent audit trail of what happened and when. The Alerts pane displays them with a `—` in the status column.
 
 After every insert into either table, rows beyond the 500-row cap are trimmed. See [`schema/database.md`](schema/database.md) for the full schema.
 

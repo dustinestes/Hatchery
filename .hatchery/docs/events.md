@@ -37,7 +37,7 @@ Every VM in a hatch session has its own event log stored in the `hatch_events` t
 - **Hatchery** — host-side lifecycle events emitted as each stage of the hatch progresses (VM creation, Windows setup detection, script execution, reboots, errors). These use context `'hatchery'`.
 - **Scripts** — structured log lines emitted by `Write-HatchEvent` inside automation scripts, parsed from script output after each script completes. These use context `'script'`.
 
-Events are ordered by insertion and scoped to `(session_id, vm_name)`. The future Events panel in the Nests pane will display these in a unified chronological view.
+Events are ordered by insertion and scoped to `(session_id, vm_name)`. They are displayed in the **Events** pane under Notifications in the sidebar (`/notifications/events`).
 
 <br>
 

@@ -184,6 +184,7 @@ body {
 /* ── App body ── */
 .app-body {
   display: flex;
+  min-height: 0; /* allow flex children to shrink inside the grid 1fr row */
   overflow: hidden;
 }
 
@@ -191,8 +192,10 @@ body {
 .sidebar {
   display: flex;
   flex-direction: column;
+  position: relative;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
+  min-height: 0;
   background: var(--color-bg-sidebar);
   border-right: 1px solid var(--color-border);
   transition: var(--sidebar-transition);
@@ -212,8 +215,39 @@ body {
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0; /* required for overflow scroll inside a flex column */
   padding: 8px 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Collapsed rail: hide the native scrollbar (it steals icon space) and use a
+   short-lived overlay thumb instead — same idea as macOS overlay scrollbars. */
+.sidebar.collapsed .sidebar-nav {
+  scrollbar-width: none;
+}
+
+.sidebar.collapsed .sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scroll-thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--color-sidebar-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 6;
+}
+
+.sidebar.collapsed .sidebar-scroll-thumb.is-visible {
+  opacity: 0.75;
 }
 
 .sidebar-item {
@@ -264,11 +298,88 @@ body {
   transition: stroke 150ms ease;
 }
 
+/* Nested sidebar group (e.g. Notifications → Alerts / Events) */
+.sidebar-subnav {
+  display: none;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.sidebar-item--group.open > .sidebar-subnav {
+  display: block;
+}
+
+.sidebar.collapsed .sidebar-subnav {
+  display: none;
+}
+
+/* Collapsed rail: flyout is position:fixed (coords set in JS) so the nav
+   can keep overflow-y:auto and the menu can stay within the viewport. */
+.sidebar.collapsed .sidebar-item--group.flyout-open > .sidebar-subnav {
+  display: block;
+  position: fixed;
+  z-index: 30;
+  min-width: 148px;
+  margin: 0;
+  padding: 4px 0;
+  background: var(--color-bg-sidebar);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.sidebar.collapsed .sidebar-item--group .sidebar-sublink {
+  padding: 8px 14px;
+  margin: 1px 4px;
+}
+
+.sidebar.collapsed .sidebar-item--group .sidebar-subnav .sidebar-label {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar-sublink {
+  display: flex;
+  align-items: center;
+  padding: 7px 16px 7px 44px;
+  border-radius: 6px;
+  margin: 1px 8px;
+  color: var(--color-sidebar-muted);
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 12px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-sublink:hover {
+  background: var(--color-nav-hover-bg);
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-subitem.active .sidebar-sublink {
+  background: var(--color-nav-active-bg);
+  color: var(--color-nav-active-text);
+}
+
+/* Parent group is active when a child pane is selected — keep parent readable,
+   but let the child carry the stronger active treatment. */
+.sidebar-item--group.active > .sidebar-link {
+  background: transparent;
+  color: var(--color-nav-active-text);
+}
+
+.sidebar-item--group.active > .sidebar-link .sidebar-icon {
+  stroke: var(--gold);
+}
+
 /* ── Sidebar toggle button ── */
 .sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 100%;
   height: 40px;
   color: var(--color-sidebar-muted);

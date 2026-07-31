@@ -565,8 +565,19 @@ def settings_post():
 
 @app.route("/notifications")
 def notifications_pane():
+    """Redirect parent Notifications nav to the Alerts child pane."""
+    return redirect(url_for("alerts_pane"))
+
+
+@app.route("/notifications/alerts")
+def alerts_pane():
     items = notif_lib.list_recent(500)
-    return render_template("notifications.html", active_pane="notifications", items=items)
+    return render_template("notifications.html", active_pane="alerts", items=items)
+
+
+@app.route("/notifications/events")
+def events_pane():
+    return render_template("events.html", active_pane="events")
 
 
 # ── Hatch orchestration ───────────────────────────────────────────────────────

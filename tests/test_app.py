@@ -55,8 +55,16 @@ class TestRoutes:
     def test_settings_returns_200(self, client):
         assert client.get("/settings").status_code == 200
 
-    def test_notifications_returns_200(self, client):
-        assert client.get("/notifications").status_code == 200
+    def test_notifications_redirects_to_alerts(self, client):
+        resp = client.get("/notifications")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/notifications/alerts")
+
+    def test_alerts_returns_200(self, client):
+        assert client.get("/notifications/alerts").status_code == 200
+
+    def test_events_returns_200(self, client):
+        assert client.get("/notifications/events").status_code == 200
 
 
 class TestActivePane:
@@ -71,6 +79,21 @@ class TestActivePane:
     def test_settings_marks_active(self, client):
         html = client.get("/settings").data.decode()
         assert "active" in html
+
+    def test_alerts_marks_notifications_group_and_child(self, client):
+        html = client.get("/notifications/alerts").data.decode()
+        assert "sidebar-item--group" in html
+        assert "sidebar-item--group active open" in html
+        assert "sidebar-subitem active" in html or 'class="sidebar-subitem active"' in html
+        assert 'href="/notifications/alerts"' in html
+        assert 'href="/notifications/events"' in html
+
+    def test_events_marks_notifications_group_and_child(self, client):
+        html = client.get("/notifications/events").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert "Events" in html
+        # Alerts child should not be the active subitem when on Events
+        assert html.count("sidebar-subitem active") == 1
 
 
 class TestPageTitles:
@@ -95,8 +118,12 @@ class TestPageTitles:
         assert "Settings" in html
 
     def test_notifications_title(self, client):
-        html = client.get("/notifications").data.decode()
-        assert "Notifications" in html
+        html = client.get("/notifications/alerts").data.decode()
+        assert "Alerts" in html
+
+    def test_events_title(self, client):
+        html = client.get("/notifications/events").data.decode()
+        assert "Events" in html
 
 
 class TestSettingsRoute:
@@ -1581,7 +1608,8 @@ class TestNestStatus:
                 "/settings",
                 "/hatch-clutch",
                 "/build",
-                "/notifications",
+                "/notifications/alerts",
+                "/notifications/events",
                 # /edit redirects without ?clutch= — skip it here
             ]:
                 html = client.get(path).data.decode()
@@ -1704,22 +1732,36 @@ class TestClutchesSync:
 
 
 class TestNotificationsRoute:
-    def test_returns_200(self, client):
-        assert client.get("/notifications").status_code == 200
+    def test_parent_redirects_to_alerts(self, client):
+        resp = client.get("/notifications")
+        assert resp.status_code == 302
+        assert "/notifications/alerts" in resp.headers["Location"]
+
+    def test_alerts_returns_200(self, client):
+        assert client.get("/notifications/alerts").status_code == 200
 
     def test_shows_recorded_item(self, client):
         notif_lib.record_activity("test activity message")
-        html = client.get("/notifications").data.decode()
+        html = client.get("/notifications/alerts").data.decode()
         assert "test activity message" in html
 
     def test_shows_empty_state_when_no_items(self, client):
-        html = client.get("/notifications").data.decode()
+        html = client.get("/notifications/alerts").data.decode()
         assert "No notifications yet" in html
 
     def test_shows_alert_tier_badge(self, client):
         notif_lib.record_alert("an environment alert")
-        html = client.get("/notifications").data.decode()
+        html = client.get("/notifications/alerts").data.decode()
         assert "notif-tier-badge--alert" in html
+
+
+class TestEventsRoute:
+    def test_returns_200(self, client):
+        assert client.get("/notifications/events").status_code == 200
+
+    def test_shows_placeholder(self, client):
+        html = client.get("/notifications/events").data.decode()
+        assert "Event log coming soon" in html
 
 
 class TestBackgroundThread:
