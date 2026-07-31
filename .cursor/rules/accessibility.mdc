@@ -1,0 +1,34 @@
+---
+description: Accessibility is a first-class constraint for UI and interaction work
+alwaysApply: true
+---
+
+# Accessibility
+
+Inclusive UI is a standing product constraint. Do not treat it as optional polish or defer it to a later cleanup when changing panes, navigation, forms, or dynamic status UI.
+
+A fuller accessibility pass is chartered in GitHub [#161](https://github.com/dustinestes/Hatchery/issues/161). Until that work is scheduled, **do not regress** keyboard use, labeling, focus, or color-only status.
+
+## Defaults
+
+- Prefer **visible text labels**; collapsed icon rails are opt-in density, not the primary IA
+- Every icon-only control needs an accessible name (`aria-label` and/or `title`)
+- Primary flows must work **keyboard-only** with a **visible focus** ring/state
+- Custom widgets (sidebar flyouts, notification tray, password toggles, dialogs) support Escape / Enter consistently with existing patterns
+- Status and alerts must not rely on **color alone** — keep text (or another non-color cue)
+- Live regions (toasts, trays, event feeds) get appropriate roles/labels; don’t leave updates announce-hostile
+- Respect `prefers-reduced-motion` when adding motion
+
+## When adding UI
+
+```
+✅ Labeled nav item + keyboard path + focus style
+✅ Badge with text (“Provisioning”) not color-only meaning
+✅ Flyout reachable when the sidebar is collapsed (not hover-only with no name)
+
+❌ Pointer-only control with no keyboard equivalent
+❌ Icon button with no accessible name
+❌ “We’ll fix a11y in the v2 pass” for a regression you introduced
+```
+
+Human-facing guidance: [`CONTRIBUTING.md` — Accessibility](../../CONTRIBUTING.md#accessibility).
