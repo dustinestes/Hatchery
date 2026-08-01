@@ -94,7 +94,7 @@ The floppy image is **not** cleaned up on success — it must persist on disk un
 
 ### Boot prompt
 
-Some BIOS/UEFI firmware displays a "Press any key to boot from CD/DVD" prompt when the VM first powers on. Hatchery sends `KEY_ENTER` via `virsh send-key` up to 10 times at 0.5-second intervals after the VM reaches running state to pass this prompt reliably.
+Some BIOS/UEFI firmware displays a "Press any key to boot from CD/DVD" prompt when the VM first powers on. Libvirt reports the domain as `running` as soon as QEMU starts — often before that prompt appears — so Hatchery waits briefly after `running`, then sends `KEY_ENTER` via `virsh send-key` (100 ms holdtime) repeatedly for about 30 seconds to cover the prompt window. Transient send failures are ignored so an early miss does not abort the burst.
 
 <br>
 

@@ -391,8 +391,15 @@ class LibvirtProvider(BaseProvider):
         return name if name else None
 
     def send_key(self, name: str, key: str) -> None:
-        """Send a key press to a VM's console."""
-        subprocess.run(["virsh", "send-key", name, key], check=True, capture_output=True)
+        """Send a key press to a VM's console.
+
+        A short holdtime helps UEFI firmware register the key during the CD boot prompt.
+        """
+        subprocess.run(
+            ["virsh", "send-key", name, "--holdtime", "100", key],
+            check=True,
+            capture_output=True,
+        )
 
     def set_poweroff_action(self, name: str, action: str) -> None:
         """Set on_poweroff on the live running domain only (not the persistent config).

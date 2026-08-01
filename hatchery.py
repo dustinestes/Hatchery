@@ -557,12 +557,20 @@ def events_pane():
 # ── Hatch orchestration ───────────────────────────────────────────────────────
 
 
-_BOOT_KEY_POLL_ATTEMPTS = 30  # poll up to 30s (1s intervals) for VM to reach running state
-_BOOT_KEY_BURST_ATTEMPTS = 10  # send key 10 times (0.5s intervals) = 5s burst
+_BOOT_KEY_POLL_ATTEMPTS = 60  # poll up to 60s (1s intervals) for VM to reach running state
+_BOOT_KEY_SETTLE_SECONDS = 3  # UEFI POST often trails libvirt "running"
+_BOOT_KEY_BURST_ATTEMPTS = 60  # send key 60 times (0.5s intervals) = 30s burst
+_BOOT_KEY_BURST_INTERVAL = 0.5
 
 
 def _send_boot_key(provider, name: str) -> None:
-    """Wait for VM to reach running state then send KEY_ENTER repeatedly to hit the boot prompt."""
+    """Wait for VM running, then send KEY_ENTER repeatedly to clear the CD boot prompt.
+
+    Libvirt reports ``running`` as soon as QEMU starts — often before firmware shows
+    "Press any key to boot from CD or DVD". A short burst at that moment misses the
+    prompt. After a brief settle we keep sending for tens of seconds. Transient
+    ``send_key`` failures are ignored so an early miss does not abort the burst.
+    """
     for _ in range(_BOOT_KEY_POLL_ATTEMPTS):
         try:
             if provider.get_status(name) == "running":
@@ -570,12 +578,13 @@ def _send_boot_key(provider, name: str) -> None:
         except Exception:
             pass
         time.sleep(1)
+    time.sleep(_BOOT_KEY_SETTLE_SECONDS)
     for _ in range(_BOOT_KEY_BURST_ATTEMPTS):
         try:
             provider.send_key(name, "KEY_ENTER")
         except Exception:
-            break
-        time.sleep(0.5)
+            pass
+        time.sleep(_BOOT_KEY_BURST_INTERVAL)
 
 
 def _run_hatch_session(

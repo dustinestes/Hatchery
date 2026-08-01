@@ -966,12 +966,19 @@ class TestSendBootKey:
                 "KEY_ENTER",
             )
 
-    def test_stops_burst_on_send_key_failure(self):
+    def test_continues_burst_on_send_key_failure(self):
         provider = MagicMock()
         provider.get_status.return_value = "running"
         provider.send_key.side_effect = RuntimeError("virsh failed")
         app_module._send_boot_key(provider, "myvm")
-        assert provider.send_key.call_count == 1
+        assert provider.send_key.call_count == app_module._BOOT_KEY_BURST_ATTEMPTS
+
+    def test_settles_after_running_before_burst(self):
+        provider = MagicMock()
+        provider.get_status.return_value = "running"
+        with patch("hatchery.time.sleep") as mock_sleep:
+            app_module._send_boot_key(provider, "myvm")
+        assert mock_sleep.call_args_list[0].args == (app_module._BOOT_KEY_SETTLE_SECONDS,)
 
     def test_handles_get_status_exception(self):
         provider = MagicMock()
