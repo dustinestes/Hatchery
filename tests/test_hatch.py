@@ -348,6 +348,31 @@ class TestArchiveSession:
         assert len(sessions) == 1
         assert sessions[0]["id"] == sid2
 
+    def test_purges_session_children(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1")])
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "Hatching")
+        hatch_lib.archive_session(sid)
+        assert hatch_lib.get_events(sid, "dc01") == []
+        assert hatch_lib.get_vm_scripts(sid, "dc01") == []
+        assert hatch_lib.get_vm_record(sid, "dc01") is None
+
+    def test_purge_leaves_sibling_session_children(self):
+        sid1 = hatch_lib.create_session("a.yaml", "A")
+        sid2 = hatch_lib.create_session("b.yaml", "B")
+        hatch_lib.add_vm(sid1, "dc01")
+        hatch_lib.add_vm(sid2, "ws01")
+        hatch_lib.add_event(sid1, "dc01", "hatchery", "INFO", "from A")
+        hatch_lib.add_event(sid2, "ws01", "hatchery", "INFO", "from B")
+        hatch_lib.archive_session(sid1)
+        assert hatch_lib.get_events(sid1, "dc01") == []
+        assert hatch_lib.get_vm_record(sid1, "dc01") is None
+        events = hatch_lib.get_events(sid2, "ws01")
+        assert len(events) == 1
+        assert events[0]["message"] == "from B"
+        assert hatch_lib.get_vm_record(sid2, "ws01") is not None
+
 
 # ── archive_if_terminal ───────────────────────────────────────────────────────
 
@@ -382,6 +407,17 @@ class TestArchiveIfTerminal:
         result = hatch_lib.archive_if_terminal(sid)
         assert result is not None
         assert hatch_lib.list_sessions() == []
+
+    def test_purges_children_when_archiving(self):
+        sid = self._failed_session()
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1")])
+        hatch_lib.add_event(sid, "dc01", "hatchery", "ERROR", "boom")
+        result = hatch_lib.archive_if_terminal(sid)
+        assert result is not None
+        assert any(v["vm_name"] == "dc01" for v in result["vms"])
+        assert hatch_lib.get_events(sid, "dc01") == []
+        assert hatch_lib.get_vm_scripts(sid, "dc01") == []
+        assert hatch_lib.get_vm_record(sid, "dc01") is None
 
     def test_does_not_archive_completed_session(self):
         sid = self._completed_session()

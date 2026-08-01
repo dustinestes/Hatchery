@@ -35,7 +35,7 @@ Reference documentation for Hatchery.
 | [`notifications.md`](notifications.md) | Notifications umbrella — Alerts vs Events vs Audit; alert UI, lifecycle, sync, and seed tooling |
 | [`events.md`](events.md) | Per-VM event log — what gets recorded, when, schema, and API |
 | [`schema/clutch.yaml`](schema/clutch.yaml) | Annotated Clutch file schema reference with single-VM and multi-VM examples |
-| [`schema/database.md`](schema/database.md) | Database schema reference — table definitions, columns, row cap, migration plan |
+| [`schema/database.md`](schema/database.md) | Database schema reference — table definitions, columns, archive purge, migration plan |
 
 <br>
 

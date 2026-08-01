@@ -3,8 +3,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-_MAX_ALERTS = 500
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS alerts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,10 +90,3 @@ def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(str(_db_path))
     conn.row_factory = sqlite3.Row
     return conn
-
-
-def trim_alerts(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        "DELETE FROM alerts WHERE id NOT IN (SELECT id FROM alerts ORDER BY id DESC LIMIT ?)",
-        (_MAX_ALERTS,),
-    )
