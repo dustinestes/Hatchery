@@ -171,7 +171,7 @@ The flag is **deleted immediately** upon detection — `Remove-Item` is called b
 
 ### Log file
 
-`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:TIER][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM, it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file.
+`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM, it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file.
 
 ### Hatchery guest directory
 

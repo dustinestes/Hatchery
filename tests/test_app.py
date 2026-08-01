@@ -1786,7 +1786,7 @@ class TestApiVmEvents:
         assert len(data["events"]) == 2
         assert data["events"][0]["message"] == "Creating VM"
         assert data["events"][0]["context"] == "hatchery"
-        assert data["events"][1]["tier"] == "WARN"
+        assert data["events"][1]["level"] == "WARN"
         assert data["events"][1]["script_name"] == "setup.ps1"
         assert data["events"][1]["component"] == "Timezone"
 

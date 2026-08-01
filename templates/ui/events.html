@@ -215,7 +215,7 @@
       '<div class="events-table">' +
         '<div class="events-cols-header" role="row">' +
           '<span>Time</span>' +
-          '<span>Tier</span>' +
+          '<span>Level</span>' +
           '<span>Context</span>' +
           '<span>Script</span>' +
           '<span>Component</span>' +
@@ -227,8 +227,8 @@
   }
 
   function renderEvent(ev) {
-    const tier = String(ev.tier || 'INFO');
-    const tierCls = 'events-tier events-tier--' + escHtml(tier.toLowerCase());
+    const level = String(ev.level || 'INFO');
+    const levelCls = 'events-level events-level--' + escHtml(level.toLowerCase());
     return (
       '<div class="events-row" data-event-id="' + escHtml(ev.id) + '" role="row">' +
         '<span class="events-col-time">' +
@@ -236,7 +236,7 @@
             escHtml(fmtTime(ev.received_at)) +
           '</time>' +
         '</span>' +
-        '<span class="' + tierCls + '">' + escHtml(tier) + '</span>' +
+        '<span class="' + levelCls + '">' + escHtml(level) + '</span>' +
         '<span class="events-col-context">' + escHtml(ev.context || '—') + '</span>' +
         '<span class="events-col-script">' + escHtml(ev.script_name || '—') + '</span>' +
         '<span class="events-col-component">' + escHtml(ev.component || '—') + '</span>' +

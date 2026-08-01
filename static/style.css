@@ -2339,17 +2339,24 @@ body {
 }
 
 .events-table {
-  min-width: 720px;
+  display: grid;
+  grid-template-columns: max-content 3.5rem 5rem minmax(7rem, 1.2fr) minmax(5.5rem, 1fr) minmax(10rem, 3fr);
+  column-gap: 8px;
+  min-width: 780px;
+  align-items: start;
+  font-size: 12px;
 }
 
-/* grid: time | tier | context | script | component | message */
 .events-cols-header,
 .events-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.1fr) 56px 80px minmax(100px, 1.2fr) minmax(80px, 1fr) minmax(160px, 3fr);
-  align-items: start;
-  gap: 8px;
-  font-size: 12px;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: inherit;
+}
+
+.events-rows {
+  display: contents;
 }
 
 .events-cols-header {
@@ -2380,17 +2387,18 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
   white-space: nowrap;
+  overflow: hidden;
 }
 
-.events-tier {
+.events-level {
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
-.events-tier--info { color: var(--color-text-muted); }
-.events-tier--warn { color: #c9a227; }
-.events-tier--error { color: #E53935; }
+.events-level--info { color: var(--color-text-muted); }
+.events-level--warn { color: #c9a227; }
+.events-level--error { color: #E53935; }
 
 .events-col-context,
 .events-col-script,

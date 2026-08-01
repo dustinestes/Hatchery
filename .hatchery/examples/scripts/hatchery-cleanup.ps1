@@ -25,10 +25,10 @@ try {
         Remove-Item -Path $HatcheryDir -Recurse -Force
         Write-HatchEvent "Hatchery guest directory removed"
     } else {
-        Write-HatchEvent "Hatchery guest directory not found -- nothing to remove" -Tier WARN
+        Write-HatchEvent "Hatchery guest directory not found -- nothing to remove" -Level WARN
     }
     exit 0
 } catch {
-    Write-HatchEvent "Cleanup failed: $_" -Tier ERROR
+    Write-HatchEvent "Cleanup failed: $_" -Level ERROR
     exit 1
 }

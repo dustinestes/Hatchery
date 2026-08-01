@@ -23,9 +23,9 @@
 # Write-HatchEvent signature (injected by Hatchery — do not define it yourself):
 
 #
-#   Write-HatchEvent -Message "text" [-Tier INFO|WARN|ERROR] [-Component "label"]
+#   Write-HatchEvent -Message "text" [-Level INFO|WARN|ERROR] [-Component "label"]
 #
-#   Tier defaults to INFO. Use WARN for non-fatal advisories, ERROR for failures
+#   Level defaults to INFO. Use WARN for non-fatal advisories, ERROR for failures
 #   that you catch but still want flagged (exit code drives the actual outcome).
 #   Component is an optional sub-label (e.g. "Chocolatey", "Registry") shown
 #   in the live feed to group related lines.
@@ -73,7 +73,7 @@ try {
     #   Set-ItemProperty -Path "HKLM:\SOFTWARE\MyApp" -Name "Setting" -Value 1
     #
     # Example: non-fatal advisory
-    #   Write-HatchEvent "Key not found, using default" -Tier WARN -Component "Registry"
+    #   Write-HatchEvent "Key not found, using default" -Level WARN -Component "Registry"
     #
     # Any exception thrown inside this try block will be caught below,
     # written to the error stream, and exit with code 1 so Hatchery marks
@@ -91,6 +91,6 @@ try {
     exit 0
 
 } catch {
-    Write-HatchEvent "Script failed: $_" -Tier ERROR
+    Write-HatchEvent "Script failed: $_" -Level ERROR
     exit 1
 }

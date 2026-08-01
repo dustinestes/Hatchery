@@ -27,10 +27,10 @@ try {
     Write-HatchEvent "First run -- writing retry flag and failing intentionally" -Component "test-retry"
     $null = New-Item -Path $FlagFile -ItemType File -Force
     Write-HatchEvent "Flag written to: $FlagFile" -Component "test-retry"
-    Write-HatchEvent "Exiting with code 1 -- use Hatchery retry to continue" -Tier WARN -Component "test-retry"
+    Write-HatchEvent "Exiting with code 1 -- use Hatchery retry to continue" -Level WARN -Component "test-retry"
     exit 1
 
 } catch {
-    Write-HatchEvent "Unexpected error: $_" -Tier ERROR -Component "test-retry"
+    Write-HatchEvent "Unexpected error: $_" -Level ERROR -Component "test-retry"
     exit 1
 }

@@ -84,18 +84,18 @@ If `reboot_after: true` is set for a script, Hatchery reboots the VM after the s
 Hatchery injects a `Write-HatchEvent` helper function into every script before execution (see [How Hatchery Runs Scripts](#how-hatchery-runs-scripts) for placement details). You do not need to define it, source it, or import it — it is always available.
 
 ```powershell
-Write-HatchEvent -Message "text" [-Tier INFO|WARN|ERROR] [-Component "label"]
+Write-HatchEvent -Message "text" [-Level INFO|WARN|ERROR] [-Component "label"]
 ```
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `-Message` | string | *(required)* | The log line to emit |
-| `-Tier` | `INFO` \| `WARN` \| `ERROR` | `INFO` | Severity level — controls styling in the event log |
+| `-Level` | `INFO` \| `WARN` \| `ERROR` | `INFO` | Event level — controls styling in the event log |
 | `-Component` | string | *(none)* | Optional sub-label grouping related lines (e.g. `"Chocolatey"`, `"Registry"`) |
 
-**Tiers:**
+**Levels:**
 
-| Tier | When to use |
+| Level | When to use |
 |---|---|
 | `INFO` | Normal progress — steps starting, completing, values confirmed |
 | `WARN` | Non-fatal advisory — fallback taken, optional step skipped, value defaulted |
@@ -111,16 +111,16 @@ Write-HatchEvent "Installing Chocolatey"
 Write-HatchEvent "Installing git" -Component "Chocolatey"
 
 # Non-fatal advisory
-Write-HatchEvent "Registry key not found, using default value" -Tier WARN -Component "Registry"
+Write-HatchEvent "Registry key not found, using default value" -Level WARN -Component "Registry"
 
 # Caught error (still exit non-zero to mark the script failed)
-Write-HatchEvent "Installation failed: $_" -Tier ERROR -Component "Chocolatey"
+Write-HatchEvent "Installation failed: $_" -Level ERROR -Component "Chocolatey"
 exit 1
 ```
 
-`Write-HatchEvent` emits lines in the format `[HATCH:TIER] message` or `[HATCH:TIER][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
+`Write-HatchEvent` emits lines in the format `[HATCH:LEVEL] message` or `[HATCH:LEVEL][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
 
-The parser also accepts an optional ISO timestamp bracket: `[HATCH:TIER][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
+The parser also accepts an optional ISO timestamp bracket: `[HATCH:LEVEL][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
 
 > **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
 
@@ -130,7 +130,7 @@ The parser also accepts an optional ISO timestamp bracket: `[HATCH:TIER][Compone
 
 Follow these conventions to ensure your scripts work reliably with Hatchery:
 
-**Use `Write-HatchEvent` for progress lines.** Lines emitted through `Write-HatchEvent` appear as structured events in the event log with tier styling and optional component labels. Avoid bare `Write-Host` — it targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
+**Use `Write-HatchEvent` for progress lines.** Lines emitted through `Write-HatchEvent` appear as structured events in the event log with level styling and optional component labels. Avoid bare `Write-Host` — it targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
 
 **Set `$ErrorActionPreference = "Stop"`** at the top of every script. This turns unhandled cmdlet errors into terminating exceptions that your `try/catch` block can catch. Without it, many cmdlets write to the error stream and continue, leaving your script in an unknown state.
 
@@ -152,7 +152,7 @@ try {
     exit 0
 
 } catch {
-    Write-HatchEvent "Script failed: $_" -Tier ERROR
+    Write-HatchEvent "Script failed: $_" -Level ERROR
     exit 1
 }
 ```

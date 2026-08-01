@@ -131,7 +131,7 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 | `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
 | `vm_name` | `TEXT` | `NOT NULL` | VM this event belongs to |
 | `context` | `TEXT` | `NOT NULL` | `'hatchery'` for host-side lifecycle events; `'script'` for `Write-HatchEvent` lines |
-| `tier` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` — controls styling in the UI |
+| `level` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` — controls styling in the UI |
 | `script_name` | `TEXT` | | Script file that generated this event; `NULL` for session-level hatchery events |
 | `component` | `TEXT` | | Optional sub-label from `Write-HatchEvent -Component`; `NULL` for hatchery events and script events without a component |
 | `message` | `TEXT` | `NOT NULL` | Human-readable event text |
