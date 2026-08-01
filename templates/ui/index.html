@@ -5,29 +5,7 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Dashboard</h1>
-  <p class="pane-subtitle">Active VMs and host resources across your Nests.</p>
+  <p class="pane-subtitle">Summary overview across Nests, Clutches, and Alerts — content TBD.</p>
 </div>
-
-<div class="dashboard-layout">
-
-  <!-- ── Nests ── -->
-  <aside class="nest-panel">
-    <h2 class="section-title">Nests</h2>
-    <ul class="nest-list">
-      <li class="nest-item nest-item--active">
-        <span class="nest-status-dot nest-status-dot--online" title="Online"></span>
-        <span class="nest-name">Local</span>
-      </li>
-    </ul>
-  </aside>
-
-  <!-- ── Virtual Machines ── -->
-  <section class="dashboard-section">
-    <div class="section-header">
-      <h2 class="section-title">Virtual Machines</h2>
-    </div>
-    <p class="empty-state">No VMs are running on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.</p>
-  </section>
-
-</div>
+<div class="stub">Dashboard content coming soon</div>
 {% endblock %}

@@ -108,6 +108,9 @@ class TestPageTitles:
     def test_dashboard_title(self, client):
         html = client.get("/").data.decode()
         assert "Dashboard" in html
+        assert "Dashboard content coming soon" in html
+        assert 'class="stub"' in html
+        assert "nest-panel" not in html
 
     def test_nests_title(self, client):
         html = client.get("/nests").data.decode()
@@ -119,7 +122,9 @@ class TestPageTitles:
 
     def test_automation_title(self, client):
         html = client.get("/automation").data.decode()
-        assert "Automation" in html
+        assert "Automations" in html
+        assert "Automations content coming soon" in html
+        assert 'class="stub"' in html
 
     def test_settings_title(self, client):
         html = client.get("/settings").data.decode()
@@ -1738,6 +1743,7 @@ class TestAlertsRoute:
     def test_shows_empty_state_when_no_items(self, client):
         html = client.get("/notifications/alerts").data.decode()
         assert "No alerts yet" in html
+        assert 'class="stub"' in html
 
     def test_shows_active_status(self, client):
         alerts_lib.record_alert("an environment alert")
@@ -1751,7 +1757,8 @@ class TestEventsRoute:
 
     def test_shows_placeholder(self, client):
         html = client.get("/notifications/events").data.decode()
-        assert "Event log coming soon" in html
+        assert "Events content coming soon" in html
+        assert 'class="stub"' in html
 
 
 class TestBackgroundThread:
