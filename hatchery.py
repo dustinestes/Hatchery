@@ -448,8 +448,7 @@ def _scan_dir(subdir: str, extensions: list[str] | None = None) -> list[str]:
 
 @app.route("/")
 def dashboard():
-    clutch_files = _scan_dir("clutches", [".yaml"])
-    return render_template("index.html", active_pane="dashboard", clutch_files=clutch_files)
+    return render_template("index.html", active_pane="dashboard")
 
 
 @app.route("/nests")

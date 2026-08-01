@@ -489,6 +489,6 @@ class LibvirtProvider(BaseProvider):
         if not resolved.exists():
             raise FileNotFoundError(
                 f"os_config file not found in automation directory: {filename}\n"
-                "Create or upload the answer file via the Automation pane before hatching."
+                "Create or upload the answer file via the Automations pane before hatching."
             )
         return resolved

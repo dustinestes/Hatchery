@@ -51,7 +51,7 @@ Hatchery/
 │   └── provision.py              # Post-install provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages rendered by Flask/Jinja2
-│   │   ├── index.html            # Dashboard — brood list and status
+│   │   ├── index.html            # Dashboard — stub overview (content TBD)
 │   │   ├── create.html           # Hatch a new VM
 │   │   └── manage.html           # Per-VM controls — power, snapshots
 │   └── answerfiles/              # Unattended install Jinja2 templates

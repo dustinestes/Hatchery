@@ -836,7 +836,7 @@ class TestPathResolution:
         assert provider._resolve_automation(str(f)) == f
 
     def test_resolve_automation_missing_raises(self, provider):
-        with pytest.raises(FileNotFoundError, match="Automation pane"):
+        with pytest.raises(FileNotFoundError, match="Automations pane"):
             provider._resolve_automation("missing.xml")
 
     def test_resolve_automation_absolute_missing_raises(self, tmp_path, provider):
