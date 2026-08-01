@@ -336,9 +336,9 @@ def list_sessions(nest: str = "local") -> list[dict]:
 
 
 def parse_hatch_event_lines(output: str) -> list[dict]:
-    """Extract [HATCH:TIER] tagged lines emitted by Write-HatchEvent from script output.
+    """Extract [HATCH:LEVEL] tagged lines emitted by Write-HatchEvent from script output.
 
-    Returns a list of dicts with keys: tier, component, received_at, message.
+    Returns a list of dicts with keys: level, component, received_at, message.
     component and received_at are None when omitted from the line.
     Lines that do not match the pattern are ignored.
     """
@@ -348,7 +348,7 @@ def parse_hatch_event_lines(output: str) -> list[dict]:
         if m:
             events.append(
                 {
-                    "tier": m.group(1),
+                    "level": m.group(1),
                     "component": m.group(2),
                     "received_at": m.group(3),
                     "message": m.group(4),
@@ -361,7 +361,7 @@ def add_event(
     session_id: str,
     vm_name: str,
     context: str,
-    tier: str,
+    level: str,
     message: str,
     script_name: str | None = None,
     component: str | None = None,
@@ -370,7 +370,7 @@ def add_event(
     """Insert a single provisioning event for a VM.
 
     context:     'hatchery' for host-side lifecycle events, 'script' for Write-HatchEvent lines.
-    tier:        'INFO', 'WARN', or 'ERROR'.
+    level:       'INFO', 'WARN', or 'ERROR'.
     script_name: the script file this event belongs to; None for session-level events.
     component:   within-script sub-component label from Write-HatchEvent -Component; None if omitted.
     received_at: ISO 8601 UTC timestamp from the guest; falls back to host time if None.
@@ -379,13 +379,13 @@ def add_event(
     try:
         conn.execute(
             """INSERT INTO hatch_events
-               (session_id, vm_name, context, tier, script_name, component, message, received_at)
+               (session_id, vm_name, context, level, script_name, component, message, received_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 session_id,
                 vm_name,
                 context,
-                tier,
+                level,
                 script_name,
                 component,
                 message,
@@ -402,7 +402,7 @@ def get_events(session_id: str, vm_name: str) -> list[dict]:
     conn = db.get_connection()
     try:
         rows = conn.execute(
-            """SELECT id, context, tier, script_name, component, message, received_at
+            """SELECT id, context, level, script_name, component, message, received_at
                FROM hatch_events WHERE session_id=? AND vm_name=?
                ORDER BY id ASC""",
             (session_id, vm_name),

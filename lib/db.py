@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS hatch_events (
     session_id  TEXT    NOT NULL REFERENCES hatch_sessions(id),
     vm_name     TEXT    NOT NULL,
     context     TEXT    NOT NULL,
-    tier        TEXT    NOT NULL,
+    level       TEXT    NOT NULL,
     script_name TEXT,
     component   TEXT,
     message     TEXT    NOT NULL,

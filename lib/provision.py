@@ -38,13 +38,13 @@ function Write-HatchEvent {
         [Parameter(Mandatory)]
         [string]$Message,
         [ValidateSet('INFO', 'WARN', 'ERROR')]
-        [string]$Tier = 'INFO',
+        [string]$Level = 'INFO',
         [string]$Component = ''
     )
-    $prefix = if ($Component) { "[HATCH:$Tier][$Component]" } else { "[HATCH:$Tier]" }
+    $prefix = if ($Component) { "[HATCH:$Level][$Component]" } else { "[HATCH:$Level]" }
     Write-Output "$prefix $Message"
     $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss+00:00")
-    $line = if ($Component) { "[HATCH:$Tier][$Component][$ts] $Message" } else { "[HATCH:$Tier][$ts] $Message" }
+    $line = if ($Component) { "[HATCH:$Level][$Component][$ts] $Message" } else { "[HATCH:$Level][$ts] $Message" }
     try { Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8 } catch { }
 }
 """

@@ -36,7 +36,7 @@ try {
     # ── Rename ────────────────────────────────────────────────────────────────
     $current = $env:COMPUTERNAME
     if ($current -eq $ComputerName) {
-        Write-HatchEvent "Computer is already named '$ComputerName' — skipping rename" -Tier WARN -Component "Rename"
+        Write-HatchEvent "Computer is already named '$ComputerName' — skipping rename" -Level WARN -Component "Rename"
     } else {
         Write-HatchEvent "Renaming computer from '$current' to '$ComputerName'" -Component "Rename"
         Rename-Computer -NewName $ComputerName -Force
@@ -47,6 +47,6 @@ try {
     exit 0
 
 } catch {
-    Write-HatchEvent "Script failed: $_" -Tier ERROR
+    Write-HatchEvent "Script failed: $_" -Level ERROR
     exit 1
 }

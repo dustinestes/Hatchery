@@ -14,9 +14,9 @@ $null = New-Item -Path "$script:HatcheryDir\temp" -ItemType Directory -Force
 $script:LogFile = "$script:HatcheryDir\logs\hatchery-setup.log"
 
 function Write-Log {
-    param([string]$Tier, [string]$Component, [string]$Message)
+    param([string]$Level, [string]$Component, [string]$Message)
     $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss+00:00")
-    Add-Content -Path $script:LogFile -Value "[HATCH:$Tier][$Component][$ts] $Message" -Encoding UTF8
+    Add-Content -Path $script:LogFile -Value "[HATCH:$Level][$Component][$ts] $Message" -Encoding UTF8
 }
 
 $script:steps = @(

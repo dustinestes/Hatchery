@@ -137,7 +137,7 @@ The script requires Hatchery to have been started at least once (so `hatchery.db
 
 ## Events
 
-Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and exposed via the existing events APIs. The Events pane under `/notifications/events` is the home for that signal ([#114](https://github.com/dustinestes/Hatchery/issues/114)). Until that UI ships, there are no global toasts for hatch lifecycle (e.g. “VM fledged”) — that is intentional.
+Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane lists active hatch VMs on the left and a live-updating chronological feed on the right (polls `GET /api/sessions/.../events`). Events do not drive the Alerts bell, tray, or toasts.
 
 See [events.md](events.md) and [orchestration.md](orchestration.md).
 

@@ -7,6 +7,7 @@ import lib.clutch as clutch_lib
 import lib.config as cfg
 import lib.db as db_module
 import lib.alerts as alerts_lib
+import lib.hatch as hatch_lib
 from hatchery import app as flask_app
 from lib.clutch import VMConfig, Clutch
 from lib.providers.libvirt import LibvirtProvider
@@ -1755,10 +1756,45 @@ class TestEventsRoute:
     def test_returns_200(self, client):
         assert client.get("/notifications/events").status_code == 200
 
-    def test_shows_placeholder(self, client):
+    def test_shows_events_layout(self, client):
         html = client.get("/notifications/events").data.decode()
-        assert "Events content coming soon" in html
-        assert 'class="stub"' in html
+        assert "events-layout" in html
+        assert "events-nav" in html
+        assert "events-feed" in html
+        assert "events-cols-header" in html
+        assert "Events content coming soon" not in html
+
+
+class TestApiVmEvents:
+    def test_returns_events_for_vm(self, client):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "Creating VM")
+        hatch_lib.add_event(
+            sid,
+            "dc01",
+            "script",
+            "WARN",
+            "Almost done",
+            script_name="setup.ps1",
+            component="Timezone",
+        )
+        resp = client.get(f"/api/sessions/{sid}/vms/dc01/events")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "events" in data
+        assert len(data["events"]) == 2
+        assert data["events"][0]["message"] == "Creating VM"
+        assert data["events"][0]["context"] == "hatchery"
+        assert data["events"][1]["level"] == "WARN"
+        assert data["events"][1]["script_name"] == "setup.ps1"
+        assert data["events"][1]["component"] == "Timezone"
+
+    def test_returns_empty_list_when_no_events(self, client):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        data = client.get(f"/api/sessions/{sid}/vms/dc01/events").get_json()
+        assert data == {"events": []}
 
 
 class TestBackgroundThread:

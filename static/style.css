@@ -2196,3 +2196,223 @@ body {
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
 }
+
+/* ── Events pane ── */
+.events-layout {
+  display: flex;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+.events-nav {
+  width: 220px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  overflow-y: auto;
+}
+
+.events-nav-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 12px;
+}
+
+.events-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-heading);
+  color: var(--color-text-muted);
+  transition: background 120ms;
+}
+
+.events-nav-item:hover {
+  background: var(--color-surface-alt);
+}
+
+.events-nav-item.active {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.events-nav-item:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.events-nav-label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.events-nav-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.events-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.events-content-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.events-content-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.events-content-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.events-content-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.events-refresh-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.events-feed-wrap {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.events-feed {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  min-height: 280px;
+  max-height: calc(100vh - 260px);
+}
+
+.events-feed-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.events-table {
+  display: grid;
+  grid-template-columns: max-content 3.5rem 5rem minmax(7rem, 1.2fr) minmax(5.5rem, 1fr) minmax(10rem, 3fr);
+  column-gap: 8px;
+  min-width: 780px;
+  align-items: start;
+  font-size: 12px;
+}
+
+.events-cols-header,
+.events-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: inherit;
+}
+
+.events-rows {
+  display: contents;
+}
+
+.events-cols-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.events-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.events-row:last-child {
+  border-bottom: none;
+}
+
+.events-col-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.events-level {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.events-level--info { color: var(--color-text-muted); }
+.events-level--warn { color: #c9a227; }
+.events-level--error { color: #E53935; }
+
+.events-col-context,
+.events-col-script,
+.events-col-component {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.events-col-message {
+  color: var(--color-text);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

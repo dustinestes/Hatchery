@@ -688,16 +688,16 @@ class TestParseHatchEventLines:
     def test_info_line_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO] Script started")
         assert events == [
-            {"tier": "INFO", "component": None, "received_at": None, "message": "Script started"}
+            {"level": "INFO", "component": None, "received_at": None, "message": "Script started"}
         ]
 
     def test_warn_line_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:WARN] Key not found")
-        assert events[0]["tier"] == "WARN"
+        assert events[0]["level"] == "WARN"
 
     def test_error_line_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:ERROR] Install failed")
-        assert events[0]["tier"] == "ERROR"
+        assert events[0]["level"] == "ERROR"
 
     def test_component_label_parsed(self):
         events = hatch_lib.parse_hatch_event_lines("[HATCH:INFO][Chocolatey] Installing git")
@@ -720,7 +720,7 @@ class TestParseHatchEventLines:
     def test_multiple_events_in_order(self):
         output = "[HATCH:INFO] first\n[HATCH:WARN] second\n[HATCH:ERROR] third"
         events = hatch_lib.parse_hatch_event_lines(output)
-        assert [e["tier"] for e in events] == ["INFO", "WARN", "ERROR"]
+        assert [e["level"] for e in events] == ["INFO", "WARN", "ERROR"]
         assert [e["message"] for e in events] == ["first", "second", "third"]
 
     def test_strips_whitespace_from_lines(self):
@@ -756,7 +756,7 @@ class TestAddEvent:
         events = hatch_lib.get_events(sid, "dc01")
         assert len(events) == 1
         assert events[0]["message"] == "Starting provisioning"
-        assert events[0]["tier"] == "INFO"
+        assert events[0]["level"] == "INFO"
         assert events[0]["context"] == "hatchery"
 
     def test_script_name_stored(self):
@@ -846,7 +846,7 @@ class TestGetEvents:
         for field in (
             "id",
             "context",
-            "tier",
+            "level",
             "script_name",
             "component",
             "message",
