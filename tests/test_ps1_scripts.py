@@ -61,9 +61,11 @@ class TestPs1Syntax:
         )
 
     def test_retry_script_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "test-retry.ps1"
+        path = _EXAMPLES_DIR / "hatchery-testretry.ps1"
         errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in test-retry.ps1:\n" + "\n".join(errors)
+        assert errors == [], (
+            "PowerShell syntax errors in hatchery-testretry.ps1:\n" + "\n".join(errors)
+        )
 
     def test_invalid_powershell_is_caught(self, tmp_path):
         ps1 = tmp_path / "bad.ps1"
