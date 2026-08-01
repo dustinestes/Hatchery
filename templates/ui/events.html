@@ -5,7 +5,310 @@
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Events</h1>
-  <p class="pane-subtitle">Per-VM provisioning event log.</p>
+  <p class="pane-subtitle">Per-VM provisioning event log for active hatch sessions.</p>
 </div>
-<div class="stub">Events content coming soon</div>
+
+<div class="events-layout">
+
+  <nav class="events-nav" aria-label="Hatch VMs" id="events-nav">
+    <div class="events-nav-empty" id="events-nav-empty">No active hatch sessions.</div>
+  </nav>
+
+  <div class="events-content" id="events-content">
+    <div class="events-content-header" id="events-content-header" hidden>
+      <div class="events-content-heading">
+        <span class="events-content-title" id="events-content-title"></span>
+        <span class="events-content-meta" id="events-content-meta"></span>
+      </div>
+      <span class="events-refresh-label" id="events-refresh-label" aria-live="polite"></span>
+    </div>
+
+    <div class="events-feed-wrap" id="events-feed-wrap" hidden>
+      <div class="events-feed" id="events-feed" role="log" aria-label="Provisioning events" aria-live="polite"></div>
+    </div>
+
+    <div class="stub" id="events-stub">Select a VM to view its event log</div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const nav = document.getElementById('events-nav');
+  const navEmpty = document.getElementById('events-nav-empty');
+  const header = document.getElementById('events-content-header');
+  const titleEl = document.getElementById('events-content-title');
+  const metaEl = document.getElementById('events-content-meta');
+  const refreshLabel = document.getElementById('events-refresh-label');
+  const feedWrap = document.getElementById('events-feed-wrap');
+  const feed = document.getElementById('events-feed');
+  const stub = document.getElementById('events-stub');
+
+  const HATCH_STATUS_LABEL = {
+    pending: 'Pending',
+    hatching: 'Hatching',
+    provisioning: 'Provisioning',
+    fledged: 'Fledged',
+    failed: 'Failed',
+    culled: 'Culled',
+  };
+
+  let resolvedTimezone = 'UTC';
+  let selectedKey = null;
+  let selected = null;
+  let lastEventId = 0;
+
+  function escHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function vmKey(sessionId, vmName) {
+    return sessionId + '|' + vmName;
+  }
+
+  function flattenSessions(sessions) {
+    const items = [];
+    (sessions || []).forEach(function (s) {
+      (s.vms || []).forEach(function (vm) {
+        items.push({
+          key: vmKey(s.id, vm.vm_name),
+          session_id: s.id,
+          vm_name: vm.vm_name,
+          clutch_name: s.clutch_name,
+          status: vm.status,
+          hatched_at: s.hatched_at,
+        });
+      });
+    });
+    return items;
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        timeZone: resolvedTimezone,
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date(iso));
+    } catch (e) {
+      return new Date(iso).toLocaleString();
+    }
+  }
+
+  function statusLabel(status) {
+    return HATCH_STATUS_LABEL[status] || status || '—';
+  }
+
+  function nearBottom(el) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }
+
+  function renderNav(items) {
+    const existing = new Map();
+    nav.querySelectorAll('.events-nav-item').forEach(function (btn) {
+      existing.set(btn.dataset.key, btn);
+    });
+
+    if (!items.length) {
+      existing.forEach(function (btn) { btn.remove(); });
+      navEmpty.style.display = '';
+      if (selectedKey) {
+        selectedKey = null;
+        selected = null;
+        showStub('No active hatch sessions.');
+      }
+      return;
+    }
+
+    navEmpty.style.display = 'none';
+    const incoming = new Set(items.map(function (i) { return i.key; }));
+
+    existing.forEach(function (btn, key) {
+      if (!incoming.has(key)) btn.remove();
+    });
+
+    items.forEach(function (item) {
+      let btn = nav.querySelector('.events-nav-item[data-key="' + CSS.escape(item.key) + '"]');
+      const label = escHtml(item.vm_name);
+      const sub = escHtml(item.clutch_name) + ' · ' + escHtml(statusLabel(item.status));
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'events-nav-item';
+        btn.dataset.key = item.key;
+        btn.addEventListener('click', function () {
+          selectVm(item);
+        });
+        nav.appendChild(btn);
+      }
+      btn.dataset.sessionId = item.session_id;
+      btn.dataset.vmName = item.vm_name;
+      btn.setAttribute('aria-pressed', item.key === selectedKey ? 'true' : 'false');
+      btn.classList.toggle('active', item.key === selectedKey);
+      btn.innerHTML =
+        '<span class="events-nav-label">' + label + '</span>' +
+        '<span class="events-nav-sub">' + sub + '</span>';
+
+      if (item.key === selectedKey) {
+        selected = item;
+        updateHeader(item);
+      }
+    });
+
+    if (selectedKey && !incoming.has(selectedKey)) {
+      selectedKey = null;
+      selected = null;
+      showStub('Select a VM to view its event log');
+    } else if (!selectedKey && items.length) {
+      selectVm(items[0]);
+    }
+  }
+
+  function updateHeader(item) {
+    titleEl.textContent = item.vm_name;
+    metaEl.textContent = item.clutch_name + ' · ' + statusLabel(item.status);
+    header.hidden = false;
+    feedWrap.hidden = false;
+    stub.style.display = 'none';
+  }
+
+  function showStub(message) {
+    header.hidden = true;
+    feedWrap.hidden = true;
+    stub.style.display = '';
+    stub.textContent = message;
+    feed.innerHTML = '';
+    lastEventId = 0;
+  }
+
+  function selectVm(item) {
+    if (selectedKey === item.key) {
+      selected = item;
+      updateHeader(item);
+      return;
+    }
+    selectedKey = item.key;
+    selected = item;
+    lastEventId = 0;
+    feed.innerHTML = '';
+    updateHeader(item);
+    nav.querySelectorAll('.events-nav-item').forEach(function (btn) {
+      const active = btn.dataset.key === selectedKey;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    fetchEvents(true);
+  }
+
+  function eventMeta(ev) {
+    const parts = [];
+    parts.push('<span class="events-tier events-tier--' + escHtml(String(ev.tier || 'INFO').toLowerCase()) + '">' +
+      escHtml(ev.tier || 'INFO') + '</span>');
+    parts.push('<span class="events-context">' + escHtml(ev.context || '') + '</span>');
+    if (ev.script_name) {
+      parts.push('<span class="events-script">' + escHtml(ev.script_name) + '</span>');
+    }
+    if (ev.component) {
+      parts.push('<span class="events-component">' + escHtml(ev.component) + '</span>');
+    }
+    return parts.join('');
+  }
+
+  function renderEvent(ev) {
+    return (
+      '<article class="events-item" data-event-id="' + escHtml(ev.id) + '">' +
+        '<div class="events-item-meta">' +
+          '<time class="events-item-time" datetime="' + escHtml(ev.received_at) + '">' +
+            escHtml(fmtTime(ev.received_at)) +
+          '</time>' +
+          eventMeta(ev) +
+        '</div>' +
+        '<div class="events-item-msg">' + escHtml(ev.message) + '</div>' +
+      '</article>'
+    );
+  }
+
+  function appendEvents(events, replace) {
+    const stick = replace || nearBottom(feed);
+    if (replace) {
+      feed.innerHTML = '';
+      lastEventId = 0;
+    }
+    if (!events.length && replace) {
+      feed.innerHTML = '<div class="events-feed-empty">No events recorded yet.</div>';
+      return;
+    }
+    const empty = feed.querySelector('.events-feed-empty');
+    if (empty && events.length) empty.remove();
+
+    const frag = document.createDocumentFragment();
+    const tmp = document.createElement('div');
+    events.forEach(function (ev) {
+      if (ev.id <= lastEventId) return;
+      tmp.innerHTML = renderEvent(ev).trim();
+      frag.appendChild(tmp.firstElementChild);
+      lastEventId = Math.max(lastEventId, ev.id);
+    });
+    feed.appendChild(frag);
+    if (stick) feed.scrollTop = feed.scrollHeight;
+  }
+
+  function fetchEvents(replace) {
+    if (!selected) return;
+    const url = '/api/sessions/' + encodeURIComponent(selected.session_id) +
+      '/vms/' + encodeURIComponent(selected.vm_name) + '/events';
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) throw new Error('events ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        const events = data.events || [];
+        if (replace) {
+          appendEvents(events, true);
+        } else {
+          appendEvents(events.filter(function (ev) { return ev.id > lastEventId; }), false);
+        }
+        refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      })
+      .catch(function () {
+        refreshLabel.textContent = 'Refresh failed';
+      });
+  }
+
+  function pollSessions() {
+    fetch('/api/sessions')
+      .then(function (r) {
+        if (!r.ok) throw new Error('sessions ' + r.status);
+        return r.json();
+      })
+      .then(function (sessions) {
+        renderNav(flattenSessions(sessions));
+        if (selected) fetchEvents(false);
+      })
+      .catch(function () {
+        refreshLabel.textContent = 'Refresh failed';
+      });
+  }
+
+  fetch('/api/config')
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      if (cfg && cfg.resolved_timezone) resolvedTimezone = cfg.resolved_timezone;
+    })
+    .catch(function () { /* keep UTC */ })
+    .finally(function () {
+      pollSessions();
+      setInterval(pollSessions, 5000);
+    });
+})();
+</script>
 {% endblock %}

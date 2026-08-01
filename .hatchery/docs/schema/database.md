@@ -123,7 +123,7 @@ One row per automation script per VM per session. Records the declared scripts a
 
 ### hatch_events
 
-One row per provisioning event emitted during a VM's hatch lifecycle. Events come from two sources: Hatchery itself (lifecycle milestones such as script start/complete, reboots, fledged) and automation scripts (lines emitted via `Write-HatchEvent`). Together they form the per-VM event log displayed in the Nests panel Events section.
+One row per provisioning event emitted during a VM's hatch lifecycle. Events come from two sources: Hatchery itself (lifecycle milestones such as script start/complete, reboots, fledged) and automation scripts (lines emitted via `Write-HatchEvent`). Together they form the per-VM event log displayed in the Events pane under Notifications.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|

@@ -206,39 +206,43 @@ Events are exposed at:
 GET /api/sessions/<session_id>/vms/<vm_name>/events
 ```
 
-Returns a JSON array of event objects in insertion order:
+Returns a JSON object with an `events` array in insertion order:
 
 ```json
-[
-  {
-    "id": 1,
-    "context": "hatchery",
-    "tier": "INFO",
-    "script_name": null,
-    "component": null,
-    "message": "Hatching clutch: my-lab",
-    "received_at": "2026-07-15T18:00:00+00:00"
-  },
-  {
-    "id": 2,
-    "context": "hatchery",
-    "tier": "INFO",
-    "script_name": null,
-    "component": null,
-    "message": "Creating VM: virt-install --name dc01 --memory 4096 ...",
-    "received_at": "2026-07-15T18:00:01+00:00"
-  },
-  {
-    "id": 5,
-    "context": "script",
-    "tier": "INFO",
-    "script_name": "configure-vm-basics.ps1",
-    "component": null,
-    "message": "Setting timezone to Central Standard Time",
-    "received_at": "2026-07-15T18:12:44+00:00"
-  }
-]
+{
+  "events": [
+    {
+      "id": 1,
+      "context": "hatchery",
+      "tier": "INFO",
+      "script_name": null,
+      "component": null,
+      "message": "Hatching clutch: my-lab",
+      "received_at": "2026-07-15T18:00:00+00:00"
+    },
+    {
+      "id": 2,
+      "context": "hatchery",
+      "tier": "INFO",
+      "script_name": null,
+      "component": null,
+      "message": "Creating VM: virt-install --name dc01 --memory 4096 ...",
+      "received_at": "2026-07-15T18:00:01+00:00"
+    },
+    {
+      "id": 5,
+      "context": "script",
+      "tier": "INFO",
+      "script_name": "configure-vm-basics.ps1",
+      "component": null,
+      "message": "Setting timezone to Central Standard Time",
+      "received_at": "2026-07-15T18:12:44+00:00"
+    }
+  ]
+}
 ```
+
+The **Events** pane (`/notifications/events`) polls this endpoint for the selected VM (alongside `GET /api/sessions` for the picker) and formats `received_at` using `resolved_timezone` from `/api/config`. The log remains viewable after a VM reaches `fledged` or `failed` for as long as the hatch session is active (not archived).
 
 `received_at` is always stored in UTC. The [Settings](../docs/settings.md) pane lets you choose whether timestamps are displayed in UTC or converted to host local time — conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
 
