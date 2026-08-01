@@ -443,6 +443,94 @@ def _scan_dir(subdir: str, extensions: list[str] | None = None) -> list[str]:
     return files
 
 
+_SCRIPT_LANGUAGES = {
+    ".ps1": "PowerShell",
+    ".sh": "Shell",
+    ".bash": "Shell",
+    ".py": "Python",
+    ".bat": "Batch",
+    ".cmd": "Batch",
+}
+
+_SCRIPT_CONTENT_MAX_BYTES = 1_048_576  # 1 MiB
+
+
+def _script_language(name: str) -> str:
+    from pathlib import Path
+
+    ext = Path(name).suffix.lower()
+    if not ext:
+        return "Unknown"
+    return _SCRIPT_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
+
+
+def _resolve_script_path(name: str):
+    """Return the path to a script under automation/scripts/, or None if invalid."""
+    from pathlib import Path
+
+    safe = Path(name).name
+    if not safe or safe in (".", ".."):
+        return None
+    scripts_dir = (config.data_dir() / "automation" / "scripts").resolve()
+    candidate = (scripts_dir / safe).resolve()
+    try:
+        candidate.relative_to(scripts_dir)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _scan_script_inventory() -> list[dict]:
+    """Return inventory metadata for files in automation/scripts/."""
+    from datetime import datetime, timezone
+
+    subdir = "automation/scripts"
+    path = config.data_dir() / subdir
+    if not path.exists():
+        return []
+    items = []
+    for f in sorted(path.iterdir()):
+        if not f.is_file():
+            continue
+        try:
+            mtime = f.stat().st_mtime
+        except OSError:
+            continue
+        modified = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items.append(
+            {
+                "name": f.name,
+                "relative_path": f"{subdir}/{f.name}",
+                "absolute_path": str(f.resolve()),
+                "language": _script_language(f.name),
+                "modified_at": modified,
+            }
+        )
+    return items
+
+
+def _script_used_by() -> dict[str, list[dict]]:
+    """Map script basename → [{clutch, vm}, ...] from all loadable Clutches."""
+    from pathlib import Path
+
+    clutches_dir = config.data_dir() / "clutches"
+    usage: dict[str, list[dict]] = {}
+    if not clutches_dir.exists():
+        return usage
+    for path in sorted(clutches_dir.glob("*.yaml")):
+        try:
+            clutch = clutch_lib.load(path)
+        except Exception:
+            continue
+        clutch_file = Path(path).name
+        for vm in clutch.vms:
+            for script in vm.automations:
+                usage.setdefault(script.name, []).append(
+                    {"clutch": clutch_file, "clutch_name": clutch.name, "vm": vm.name}
+                )
+    return usage
+
+
 # ── Navigation panes ──────────────────────────────────────────────────────────
 
 
@@ -464,11 +552,16 @@ def clutches():
 
 @app.route("/automation")
 def automation():
+    return redirect(url_for("automation_scripts"))
+
+
+@app.route("/automation/scripts")
+def automation_scripts():
     return render_template(
-        "automation.html",
-        active_pane="automation",
-        os_config_files=_scan_dir("automation/os_config"),
-        scripts_files=_scan_dir("automation/scripts"),
+        "automation_scripts.html",
+        active_pane="automation_scripts",
+        scripts=_scan_script_inventory(),
+        used_by=_script_used_by(),
     )
 
 
@@ -1025,6 +1118,25 @@ def api_automation_scripts():
     return jsonify(_scan_dir("automation/scripts"))
 
 
+@app.route("/api/automation/scripts/<path:name>/content")
+def api_automation_script_content(name):
+    """Return read-only text content of a script under automation/scripts/."""
+    script_path = _resolve_script_path(name)
+    if script_path is None or not script_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        size = script_path.stat().st_size
+    except OSError:
+        return jsonify({"error": "not found"}), 404
+    if size > _SCRIPT_CONTENT_MAX_BYTES:
+        return jsonify({"error": "file too large", "max_bytes": _SCRIPT_CONTENT_MAX_BYTES}), 413
+    try:
+        text = script_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return jsonify({"error": "unreadable"}), 500
+    return jsonify({"name": script_path.name, "content": text})
+
+
 @app.route("/api/automation/scripts/<path:name>/params")
 def api_automation_script_params(name):
     """Return PowerShell param() metadata for a script file.
@@ -1034,8 +1146,8 @@ def api_automation_script_params(name):
     """
     if not shutil.which("pwsh"):
         return jsonify([])
-    script_path = config.data_dir() / "automation" / "scripts" / name
-    if not script_path.is_file():
+    script_path = _resolve_script_path(name)
+    if script_path is None or not script_path.is_file():
         return jsonify({"error": "not found"}), 404
     ps_code = (
         "$p = (Get-Command -ErrorAction Stop '" + str(script_path) + "').Parameters.Values;"

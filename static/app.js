@@ -465,19 +465,23 @@ hatchery.vmRows = (function () {
     return Math.floor(diff / 86400) + 'd ago';
   }
 
-  function showToast(message, tier) {
+  function showToast(message, tier, durationMs) {
     var container = document.getElementById('toast-container');
     if (!container) return;
     var el = document.createElement('div');
     el.className = 'toast toast--' + (tier || 'alert');
     el.textContent = message;
     container.appendChild(el);
+    var hold = typeof durationMs === 'number' ? durationMs : 4000;
     setTimeout(function () {
       el.style.transition = 'opacity 300ms';
       el.style.opacity = '0';
       setTimeout(function () { el.remove(); }, 320);
-    }, 4000);
+    }, hold);
   }
+
+  /* UI-only toasts (no Alerts tray / DB entry). Alert polling still uses showToast for unread alerts. */
+  hatchery.showToast = showToast;
 
   function updateBadge(items, unresolvedAlertCount) {
     var badge = document.getElementById('notif-badge');

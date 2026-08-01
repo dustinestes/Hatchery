@@ -32,7 +32,7 @@ How to write, configure, and run automation scripts against guest VMs after firs
 
 Automation scripts are PowerShell scripts that Hatchery executes against a guest VM over WinRM after it has completed its unattended Windows install. They are the primary mechanism for post-install provisioning — installing software, configuring the OS, renaming the machine, joining a domain, or anything else that needs to happen before a VM is considered fledged.
 
-Scripts are stored in the `automation/scripts/` subdirectory of your Hatchery data directory (`~/.local/share/hatchery/automation/scripts/` by default). Any `.ps1` file placed there becomes available for selection in the Clutch builder.
+Scripts are stored in the `automation/scripts/` subdirectory of your Hatchery data directory (`~/.local/share/hatchery/automation/scripts/` by default). Any `.ps1` file placed there becomes available for selection in the Clutch builder. The Automations → Scripts pane inventories those files for discovery and audit (metadata, Clutch usage, read-only content, copy path) — editing stays in your host editor.
 
 Scripts are declared per VM in a Clutch file under the `automations` key and run in order. A failed script (non-zero exit code) halts provisioning for that VM — remaining scripts are skipped, and the VM is marked failed. Failed VMs can be retried from the Nests panel.
 
