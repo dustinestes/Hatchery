@@ -25,6 +25,7 @@ Per-VM event log written throughout the hatching and provisioning lifecycle — 
   - [Retry](#retry)
 - [Script Events (script context)](#script-events-script-context)
 - [API](#api)
+- [Retention](#retention)
 
 ---
 
@@ -245,6 +246,18 @@ Returns a JSON object with an `events` array in insertion order:
 The **Events** pane (`/notifications/events`) polls this endpoint for the selected VM (alongside `GET /api/sessions` for the picker) and formats `received_at` using `resolved_timezone` from `/api/config`. The log remains viewable after a VM reaches `fledged` or `failed` for as long as the hatch session is active (not archived).
 
 `received_at` is always stored in UTC. The [Settings](../docs/settings.md) pane lets you choose whether timestamps are displayed in UTC or converted to host local time — conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
+
+<br>
+
+---
+
+<br>
+
+## Retention
+
+Event rows are kept for the life of the **active** hatch session so the transcript stays complete while the environment is still tracked. When the session is archived (dismissed from Nests, or auto-archived after a terminal/degraded state), Hatchery deletes that session's `hatch_events` along with related `hatch_vm_scripts` and `hatch_vm_status` rows. The `hatch_sessions` row remains with `archived_at` set.
+
+Hatchery does not trim event rows by age or count while a session is active — a partial transcript is not useful. Space is reclaimed only when the session is archived (no longer applicable). Broader DB capacity is the operator's concern; a future file-size alert is tracked in [#169](https://github.com/dustinestes/Hatchery/issues/169).
 
 <br>
 

@@ -67,7 +67,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET
 
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
-**Alerts pane** — full alert history (up to 500 rows), reverse-chronological. Filters: Active / Resolved only. Route: `/notifications/alerts`.
+**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Filters: Active / Resolved only. Route: `/notifications/alerts`.
 
 ![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
 
@@ -81,9 +81,7 @@ Alerts are written by calling `lib.alerts.record_alert(message)`. This inserts a
 
 An alert is **active** while `resolved = 0`. It is **resolved** by the system (never by the user) when the condition that triggered it no longer exists. Resolution sets `resolved = 1` and `resolved_at` to the resolution timestamp.
 
-Resolved alerts remain as historical records. They appear in the Alerts pane with a “Resolved” status badge and are excluded from the active alert count used by the bell badge and footer indicator.
-
-After every insert, rows beyond the 500-row cap are trimmed. See [`schema/database.md`](schema/database.md).
+Resolved alerts remain as historical records. They appear in the Alerts pane with a “Resolved” status badge and are excluded from the active alert count used by the bell badge and footer indicator. Hatchery does not auto-delete alert rows by count or age.
 
 | State | Rendered as |
 |---|---|
@@ -137,7 +135,7 @@ The script requires Hatchery to have been started at least once (so `hatchery.db
 
 ## Events
 
-Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane lists active hatch VMs on the left and a live-updating chronological feed on the right (polls `GET /api/sessions/.../events`). Events do not drive the Alerts bell, tray, or toasts.
+Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane lists active hatch VMs on the left and a live-updating chronological feed on the right (polls `GET /api/sessions/.../events`). Events do not drive the Alerts bell, tray, or toasts. Event rows for a session are purged when that session is archived — see [events.md — Retention](events.md#retention).
 
 See [events.md](events.md) and [orchestration.md](orchestration.md).
 

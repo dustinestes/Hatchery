@@ -17,7 +17,6 @@ def record_alert(message: str) -> int:
             (now, message),
         )
         row_id = cursor.lastrowid
-        db.trim_alerts(conn)
         conn.commit()
         return row_id
     finally:

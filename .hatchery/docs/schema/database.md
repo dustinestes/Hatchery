@@ -21,7 +21,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [hatch\_events](#hatch_events)
   - [clutch\_instances](#clutch_instances)
 - [Maintenance](#maintenance)
-  - [Row cap](#row-cap)
+  - [Hatch session archive purge](#hatch-session-archive-purge)
   - [Migrations](#migrations)
 - [Credential storage](#credential-storage)
 
@@ -61,7 +61,7 @@ One row per Clutch hatch initiated by the user. Groups the VMs hatched together 
 | `clutch_name` | `TEXT` | `NOT NULL` | Human-readable name from the Clutch definition |
 | `hatched_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) when the session was initiated |
 | `completed_at` | `TEXT` | | Set when all VMs in the session reach `fledged`; `NULL` otherwise |
-| `archived_at` | `TEXT` | | Set when the session is auto-archived or manually dismissed; archived sessions are excluded from the active Nests view |
+| `archived_at` | `TEXT` | | Set when the session is auto-archived or manually dismissed; archived sessions are excluded from the active Nests view. Archiving also deletes child rows (`hatch_events`, `hatch_vm_scripts`, `hatch_vm_status`) for the session |
 
 #### Managed by
 
@@ -168,15 +168,22 @@ Tracks observed runtime state of VMs hatched from Clutch definitions. Associates
 
 ## Maintenance
 
-### Row cap
+Hatchery does **not** auto-delete historical rows by age, count, or FIFO. Records stay until they are **no longer applicable**. Further capacity management (including any DB file-size alert) is the operator's concern — see [#169](https://github.com/dustinestes/Hatchery/issues/169).
 
-`alerts` is capped at **500 rows**. On every insert, `trim_alerts` deletes the oldest rows beyond the cap. This runs automatically — no manual maintenance required.
+### Hatch session archive purge
 
-| Table | Cap | Trim function |
-|---|---|---|
-| `alerts` | 500 | `lib/db.trim_alerts()` |
+When a hatch session is archived (manual dismiss or `archive_if_terminal`), its environment is no longer tracked, so Hatchery deletes that session's child rows in the same transaction:
 
-The cap is defined as `_MAX_ALERTS = 500` in `lib/db.py`.
+| Table | Action |
+|---|---|
+| `hatch_events` | `DELETE` for `session_id` |
+| `hatch_vm_scripts` | `DELETE` for `session_id` |
+| `hatch_vm_status` | `DELETE` for `session_id` |
+| `hatch_sessions` | Kept; `archived_at` set |
+
+Active sessions keep a complete event transcript until archive. Alert rows are never auto-trimmed; resolved alerts remain as history.
+
+Implemented in `lib/hatch.py` — `_purge_session_children()`, called from `archive_session()` and `archive_if_terminal()`.
 
 ### Migrations
 
@@ -198,7 +205,7 @@ Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_s
 
 ### What is stored and where
 
-Credentials are written to `hatch_vm_status` at hatch time and persist for the lifetime of the session record. They are stored as **plaintext** in the SQLite database at:
+Credentials are written to `hatch_vm_status` at hatch time and persist until the session is archived (child rows, including credentials, are purged on archive). They are stored as **plaintext** in the SQLite database at:
 
 ```
 ~/.local/share/hatchery/hatchery.db

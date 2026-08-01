@@ -155,10 +155,23 @@ def _compute_session_status(vms: list[dict]) -> str:
     return "unknown"
 
 
+def _purge_session_children(conn, session_id: str) -> None:
+    """Delete hatch child rows for a session. Keeps the hatch_sessions row."""
+    conn.execute("DELETE FROM hatch_events WHERE session_id=?", (session_id,))
+    conn.execute("DELETE FROM hatch_vm_scripts WHERE session_id=?", (session_id,))
+    conn.execute("DELETE FROM hatch_vm_status WHERE session_id=?", (session_id,))
+
+
 def archive_session(session_id: str) -> None:
-    """Archive (dismiss) a session — removes it from the active Nests view."""
+    """Archive (dismiss) a session — removes it from the active Nests view.
+
+    Purges events, scripts, and VM status rows for the session. The session
+    row is retained with archived_at set; child data is irrelevant once the
+    environment is no longer tracked.
+    """
     conn = db.get_connection()
     try:
+        _purge_session_children(conn, session_id)
         conn.execute(
             "UPDATE hatch_sessions SET archived_at=? WHERE id=?",
             (_now(), session_id),
@@ -173,6 +186,7 @@ def archive_if_terminal(session_id: str) -> dict | None:
 
     Returns a summary dict with clutch_name, status, and vm counts if the session
     was archived this call; returns None if it was already archived or not terminal.
+    Purges session child rows the same way as archive_session.
     """
     conn = db.get_connection()
     try:
@@ -193,6 +207,7 @@ def archive_if_terminal(session_id: str) -> dict | None:
         if status not in ("degraded", "failed"):
             return None
 
+        _purge_session_children(conn, session_id)
         conn.execute(
             "UPDATE hatch_sessions SET archived_at=? WHERE id=?",
             (_now(), session_id),

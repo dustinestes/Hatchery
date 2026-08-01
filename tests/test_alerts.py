@@ -39,11 +39,10 @@ class TestRecordAlert:
         row = alerts.list_recent()[0]
         assert row["created_at"] not in ("", None)
 
-    def test_trims_on_insert(self, monkeypatch):
-        monkeypatch.setattr(db_module, "_MAX_ALERTS", 3)
+    def test_keeps_all_rows_on_insert(self):
         for i in range(5):
             alerts.record_alert(f"alert {i}")
-        assert len(alerts.list_recent(100)) == 3
+        assert len(alerts.list_recent(100)) == 5
 
 
 class TestListRecent:
