@@ -1761,6 +1761,7 @@ class TestEventsRoute:
         assert "events-layout" in html
         assert "events-nav" in html
         assert "events-feed" in html
+        assert "events-cols-header" in html
         assert "Events content coming soon" not in html
 
 

@@ -208,31 +208,40 @@
     fetchEvents(true);
   }
 
-  function eventMeta(ev) {
-    const parts = [];
-    parts.push('<span class="events-tier events-tier--' + escHtml(String(ev.tier || 'INFO').toLowerCase()) + '">' +
-      escHtml(ev.tier || 'INFO') + '</span>');
-    parts.push('<span class="events-context">' + escHtml(ev.context || '') + '</span>');
-    if (ev.script_name) {
-      parts.push('<span class="events-script">' + escHtml(ev.script_name) + '</span>');
-    }
-    if (ev.component) {
-      parts.push('<span class="events-component">' + escHtml(ev.component) + '</span>');
-    }
-    return parts.join('');
+  function ensureTable() {
+    let rows = document.getElementById('events-rows');
+    if (rows) return rows;
+    feed.innerHTML =
+      '<div class="events-table">' +
+        '<div class="events-cols-header" role="row">' +
+          '<span>Time</span>' +
+          '<span>Tier</span>' +
+          '<span>Context</span>' +
+          '<span>Script</span>' +
+          '<span>Component</span>' +
+          '<span>Message</span>' +
+        '</div>' +
+        '<div class="events-rows" id="events-rows" role="rowgroup"></div>' +
+      '</div>';
+    return document.getElementById('events-rows');
   }
 
   function renderEvent(ev) {
+    const tier = String(ev.tier || 'INFO');
+    const tierCls = 'events-tier events-tier--' + escHtml(tier.toLowerCase());
     return (
-      '<article class="events-item" data-event-id="' + escHtml(ev.id) + '">' +
-        '<div class="events-item-meta">' +
-          '<time class="events-item-time" datetime="' + escHtml(ev.received_at) + '">' +
+      '<div class="events-row" data-event-id="' + escHtml(ev.id) + '" role="row">' +
+        '<span class="events-col-time">' +
+          '<time datetime="' + escHtml(ev.received_at) + '">' +
             escHtml(fmtTime(ev.received_at)) +
           '</time>' +
-          eventMeta(ev) +
-        '</div>' +
-        '<div class="events-item-msg">' + escHtml(ev.message) + '</div>' +
-      '</article>'
+        '</span>' +
+        '<span class="' + tierCls + '">' + escHtml(tier) + '</span>' +
+        '<span class="events-col-context">' + escHtml(ev.context || '—') + '</span>' +
+        '<span class="events-col-script">' + escHtml(ev.script_name || '—') + '</span>' +
+        '<span class="events-col-component">' + escHtml(ev.component || '—') + '</span>' +
+        '<span class="events-col-message">' + escHtml(ev.message) + '</span>' +
+      '</div>'
     );
   }
 
@@ -249,6 +258,7 @@
     const empty = feed.querySelector('.events-feed-empty');
     if (empty && events.length) empty.remove();
 
+    const rows = ensureTable();
     const frag = document.createDocumentFragment();
     const tmp = document.createElement('div');
     events.forEach(function (ev) {
@@ -257,7 +267,7 @@
       frag.appendChild(tmp.firstElementChild);
       lastEventId = Math.max(lastEventId, ev.id);
     });
-    feed.appendChild(frag);
+    rows.appendChild(frag);
     if (stick) feed.scrollTop = feed.scrollHeight;
   }
 
