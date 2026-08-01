@@ -50,8 +50,13 @@ class TestRoutes:
     def test_clutches_returns_200(self, client):
         assert client.get("/clutches").status_code == 200
 
-    def test_automation_returns_200(self, client):
-        assert client.get("/automation").status_code == 200
+    def test_automation_redirects_to_scripts(self, client):
+        resp = client.get("/automation")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/automation/scripts")
+
+    def test_automation_scripts_returns_200(self, client):
+        assert client.get("/automation/scripts").status_code == 200
 
     def test_settings_returns_200(self, client):
         assert client.get("/settings").status_code == 200
@@ -121,11 +126,20 @@ class TestPageTitles:
         html = client.get("/clutches").data.decode()
         assert "Clutches" in html
 
-    def test_automation_title(self, client):
-        html = client.get("/automation").data.decode()
-        assert "Automations" in html
-        assert "Automations content coming soon" in html
+    def test_automation_scripts_title(self, client):
+        html = client.get("/automation/scripts").data.decode()
+        assert "Scripts" in html
+        assert "Select a script to inspect" in html
         assert 'class="stub"' in html
+        assert "sidebar-item--group" in html
+        assert "sidebar-item--group active open" in html
+        assert 'href="/automation/scripts"' in html
+
+    def test_automation_scripts_marks_group_and_child(self, client):
+        html = client.get("/automation/scripts").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert "Scripts" in html
 
     def test_settings_title(self, client):
         html = client.get("/settings").data.decode()
@@ -1601,13 +1615,14 @@ class TestNestStatus:
                 "/",
                 "/nests",
                 "/clutches",
-                "/automation",
+                "/automation/scripts",
                 "/settings",
                 "/hatch-clutch",
                 "/build",
                 "/notifications/alerts",
                 "/notifications/events",
                 # /edit redirects without ?clutch= — skip it here
+                # /automation redirects to /automation/scripts
             ]:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
@@ -1922,10 +1937,139 @@ class TestAPIRoutes:
             resp = client.get("/api/automation/scripts/nonexistent.ps1/params")
         assert resp.status_code == 404
 
+    def test_api_script_params_rejects_path_traversal(self, client, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        (tmp_path / "automation" / "scripts").mkdir(parents=True)
+        (tmp_path / "secret.ps1").write_text("Write-Host leaked")
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        with patch("shutil.which", return_value="/usr/bin/pwsh"):
+            resp = client.get("/api/automation/scripts/../secret.ps1/params")
+        assert resp.status_code == 404
+
     def test_api_clutches_returns_json(self, client):
         resp = client.get("/api/clutches")
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
+
+
+class TestAutomationScriptsPane:
+    def test_page_lists_scripts_and_metadata(self, client, tmp_path, monkeypatch):
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "setup.ps1").write_text("Write-Host hi")
+        (scripts / "bootstrap.sh").write_text("#!/bin/sh\necho hi")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/scripts").data.decode()
+        assert "setup.ps1" in html
+        assert "bootstrap.sh" in html
+        assert "PowerShell" in html
+        assert "Shell" in html
+        assert "automation/scripts/setup.ps1" in html
+        assert "scripts-layout" in html
+        assert "Copy file path" in html
+        assert "Copy script contents" in html
+        assert ">Path</span>" in html
+        assert ">Contents</span>" in html
+
+    def test_page_shows_used_by_from_clutch_string_and_object(self, client, tmp_path, monkeypatch):
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "setup.ps1").write_text("Write-Host hi")
+        (scripts / "configure.ps1").write_text("Write-Host cfg")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="win11",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=60,
+                    os_media="win11.iso",
+                    automations=["setup.ps1", {"name": "configure.ps1", "reboot_after": True}],
+                )
+            ],
+        )
+        clutch_lib.save(clutch, clutches / "lab.yaml")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/scripts").data.decode()
+        assert '"setup.ps1"' in html or "setup.ps1" in html
+        # used_by embedded as JSON for the client
+        assert "lab.yaml" in html
+        assert "dc01" in html
+
+    def test_empty_state_when_no_scripts(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "scripts").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        html = client.get("/automation/scripts").data.decode()
+        assert "No scripts found" in html
+        assert "automation/scripts/" in html
+
+    def test_content_api_returns_script_text(self, client, tmp_path, monkeypatch):
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "setup.ps1").write_text("Write-Host hello")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        resp = client.get("/api/automation/scripts/setup.ps1/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "setup.ps1"
+        assert data["content"] == "Write-Host hello"
+
+    def test_content_api_404_when_missing(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "scripts").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/scripts/missing.ps1/content")
+        assert resp.status_code == 404
+
+    def test_content_api_rejects_path_traversal(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "scripts").mkdir(parents=True)
+        (tmp_path / "outside.ps1").write_text("secret")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/scripts/../outside.ps1/content")
+        assert resp.status_code == 404
+
+    def test_content_api_rejects_oversized_file(self, client, tmp_path, monkeypatch):
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        big = scripts / "huge.ps1"
+        big.write_bytes(b"x" * (app_module._SCRIPT_CONTENT_MAX_BYTES + 1))
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/scripts/huge.ps1/content")
+        assert resp.status_code == 413
+
+    def test_script_used_by_helper_maps_references(self, tmp_path, monkeypatch):
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "setup.ps1").write_text("x")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        clutch_lib.save(
+            Clutch(
+                name="Lab",
+                vms=[
+                    VMConfig(
+                        name="web01",
+                        os="win11",
+                        vcpus=2,
+                        ram_gb=4,
+                        disk_gb=40,
+                        os_media="win.iso",
+                        automations=["setup.ps1"],
+                    )
+                ],
+            ),
+            clutches / "lab.yaml",
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        usage = app_module._script_used_by()
+        assert usage["setup.ps1"] == [{"clutch": "lab.yaml", "clutch_name": "Lab", "vm": "web01"}]
 
 
 # ── settings show_passwords ───────────────────────────────────────────────────
