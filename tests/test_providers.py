@@ -607,7 +607,7 @@ class TestSendKey:
         with patch("subprocess.run") as mock_run:
             provider.send_key("myvm", "KEY_ENTER")
         cmd = mock_run.call_args[0][0]
-        assert cmd == ["virsh", "send-key", "myvm", "KEY_ENTER"]
+        assert cmd == ["virsh", "send-key", "myvm", "--holdtime", "100", "KEY_ENTER"]
 
     def test_passes_arbitrary_key(self, provider):
         with patch("subprocess.run") as mock_run:
