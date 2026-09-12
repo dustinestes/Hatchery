@@ -14,6 +14,7 @@ from lib import db
 from lib import clutch as clutch_lib
 from lib import hatch as hatch_lib
 from lib import alerts as alerts_lib
+from lib import media_inspect as media_inspect_lib
 from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -565,6 +566,43 @@ def automation_scripts():
     )
 
 
+@app.route("/media")
+def media():
+    return redirect(url_for("media_iso"))
+
+
+@app.route("/media/iso")
+def media_iso():
+    return render_template(
+        "media_inventory.html",
+        active_pane="media_iso",
+        pane_title="ISO",
+        pane_subtitle="Inventory of OS install media in the data directory.",
+        nav_label="ISO media files",
+        stub_text="Select an ISO to inspect",
+        inspect_url_prefix="/api/media/iso/",
+        items=media_inspect_lib.scan_media_dir("iso"),
+        used_by=media_inspect_lib.media_used_by("os_media"),
+        empty_subdir="media/iso/",
+    )
+
+
+@app.route("/media/virtio")
+def media_virtio():
+    return render_template(
+        "media_inventory.html",
+        active_pane="media_virtio",
+        pane_title="VirtIO",
+        pane_subtitle="Inventory of VirtIO driver media in the data directory.",
+        nav_label="VirtIO media files",
+        stub_text="Select a VirtIO file to inspect",
+        inspect_url_prefix="/api/media/virtio/",
+        items=media_inspect_lib.scan_media_dir("virtio"),
+        used_by=media_inspect_lib.media_used_by("virtio_drivers"),
+        empty_subdir="media/virtio/",
+    )
+
+
 def _host_timezone() -> str:
     """Return the host's local IANA timezone name (e.g. 'America/Chicago')."""
     from datetime import datetime
@@ -1106,6 +1144,43 @@ def api_media_iso():
 @app.route("/api/media/virtio")
 def api_media_virtio():
     return jsonify(_scan_dir("media/virtio"))
+
+
+def _api_media_inspect(subdir: str, name: str):
+    from datetime import datetime, timezone
+
+    media_path = media_inspect_lib.resolve_media_path(subdir, name)
+    if media_path is None or not media_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        st = media_path.stat()
+        size_bytes = st.st_size
+        modified_at = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    except OSError:
+        return jsonify({"error": "not found"}), 404
+    probe = media_inspect_lib.probe_iso(media_path)
+    return jsonify(
+        {
+            "name": media_path.name,
+            "relative_path": f"media/{subdir}/{media_path.name}",
+            "absolute_path": str(media_path.resolve()),
+            "size_bytes": size_bytes,
+            "modified_at": modified_at,
+            "probe": probe,
+        }
+    )
+
+
+@app.route("/api/media/iso/<path:name>/inspect")
+def api_media_iso_inspect(name):
+    return _api_media_inspect("iso", name)
+
+
+@app.route("/api/media/virtio/<path:name>/inspect")
+def api_media_virtio_inspect(name):
+    return _api_media_inspect("virtio", name)
 
 
 @app.route("/api/automation/os-config")

@@ -94,6 +94,10 @@ If Hatchery detects a permission problem when you click Hatch, it will surface t
 
 If any required tools are not installed when you start Hatchery, an alert is recorded. The Alerts bell in the top navigation bar will show a badge; open it to see the exact `apt install` command needed to resolve each missing tool. The alert clears automatically the next time you start Hatchery after the packages are installed.
 
+### Media inspection
+
+The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
+
 ---
 
 <br>

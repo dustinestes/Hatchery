@@ -59,6 +59,7 @@ class TestCheckAll:
             patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             check_all()
+        # 5 required CLI tools + pwsh
         assert mock_which.call_count == 6
 
     def test_python3_gi_absent_when_check_returns_false(self):
@@ -136,8 +137,10 @@ class TestCheckAll:
             patch("lib.requirements._check_python3_gi", return_value=False),
         ):
             results = check_all()
-        required = [r for r in results if r.name != "pwsh"]
+        required = [r for r in results if not r.optional]
+        assert required
         assert all(not r.optional for r in required)
+        assert {r.name for r in results if r.optional} == {"pwsh"}
 
 
 class TestPwshAvailable:
