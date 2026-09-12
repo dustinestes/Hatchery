@@ -98,6 +98,14 @@ body {
   gap: 10px;
 }
 
+.topbar-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .topbar-name {
   font-family: var(--font-heading);
   font-weight: 700;

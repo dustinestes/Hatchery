@@ -23,16 +23,13 @@
   <!-- Top bar -->
   <header class="topbar">
     <div class="topbar-brand">
-      <svg class="topbar-icon" width="24" height="24" viewBox="32 120 96 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs><clipPath id="nav-icon-clip"><path d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/></clipPath></defs>
-        <g transform="translate(6,105) scale(0.48)">
-          <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M154 49 C106 49 72 88 72 137 L72 183 C72 228 108 263 154 263 C200 263 236 228 236 183 L236 137 C236 88 202 49 154 49 Z"/>
-          <g clip-path="url(#nav-icon-clip)">
-            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 190 L154 111 L265 190"/>
-            <path stroke="#C9A84C" fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="M43 237 L154 158 L265 237"/>
-          </g>
-        </g>
-      </svg>
+      <img class="topbar-icon"
+           id="topbar-brand-icon"
+           src="{{ url_for('static', filename='branding/hatchery-icon-current.svg') }}"
+           width="24"
+           height="24"
+           alt=""
+           aria-hidden="true">
       <span class="topbar-name">Hatchery</span>
     </div>
     <div class="topbar-actions">
