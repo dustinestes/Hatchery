@@ -39,11 +39,14 @@ After merge: checkout default branch, pull, delete local feature branch.
 
 ```
 ✅ One concern; PR body explains why
+✅ PR body includes a GitHub closing keyword for every issue this PR completes
+   (e.g. Closes #11) so merge auto-closes the issue
 ✅ Run this repo's local checks before push (see stack/style rules)
 ✅ Update project docs if behavior changed
 
 ❌ Kitchen-sink PR
 ❌ "CI will catch it" without running local checks
+❌ Issue only in the title/branch/commit — without Closes/Fixes/Resolves in the body
 ```
 
 If the repo has a `CONTRIBUTING.md`, follow it for human-oriented detail — this rule is the agent source of truth for git shape.

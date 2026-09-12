@@ -41,6 +41,7 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 1. **Check existing issues and PRs** to avoid duplicating work in progress.
 2. **Open an issue first** for anything significant — a new provider, a change to the answer file schema, or a new provisioning target. This keeps effort aligned before code is written.
 3. **Keep PRs focused.** One concern per pull request makes review faster and merging cleaner.
+4. **Close the issue from the PR body.** Include a GitHub closing keyword for every issue the PR completes (for example `Closes #11`, or `Fixes` / `Resolves`). Referencing the number only in the title, branch, or commit is not enough — without a closing keyword, merge will not auto-close the issue.
 
 ---
 
