@@ -408,6 +408,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "flask" },
     { name = "gunicorn" },
+    { name = "pycdlib" },
     { name = "pydantic" },
     { name = "pywinrm" },
     { name = "pyyaml" },
@@ -424,6 +425,7 @@ dev = [
 requires-dist = [
     { name = "flask" },
     { name = "gunicorn" },
+    { name = "pycdlib", specifier = ">=1.20.0" },
     { name = "pydantic" },
     { name = "pywinrm" },
     { name = "pyyaml" },
@@ -565,6 +567,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "pycdlib"
+version = "1.20.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/01/7fdd73e832b95a1b32e137be2fbeed05abef3aec527bcfebca4c313969a6/pycdlib-1.20.0.tar.gz", hash = "sha256:1d768eb491d761a3bace188270f152ef40f33fb0d3daf6cf39bc38a81272072c", size = 328278, upload-time = "2026-08-05T13:59:47.58Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/2e/624824081e1ceb69bcd2c3b2358d01e8ba7e7c84a0f019bf24e1e822ec01/pycdlib-1.20.0-py2.py3-none-any.whl", hash = "sha256:cb675959dd6d61e94f02560ed7e9a5d368a3188b5f7f31813bc25a750cff0863", size = 228561, upload-time = "2026-08-05T13:59:45.007Z" },
 ]
 
 [[package]]

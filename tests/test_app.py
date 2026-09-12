@@ -58,6 +58,17 @@ class TestRoutes:
     def test_automation_scripts_returns_200(self, client):
         assert client.get("/automation/scripts").status_code == 200
 
+    def test_media_redirects_to_iso(self, client):
+        resp = client.get("/media")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/media/iso")
+
+    def test_media_iso_returns_200(self, client):
+        assert client.get("/media/iso").status_code == 200
+
+    def test_media_virtio_returns_200(self, client):
+        assert client.get("/media/virtio").status_code == 200
+
     def test_settings_returns_200(self, client):
         assert client.get("/settings").status_code == 200
 
@@ -140,6 +151,22 @@ class TestPageTitles:
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
         assert "Scripts" in html
+
+    def test_media_iso_title_and_nav(self, client):
+        html = client.get("/media/iso").data.decode()
+        assert "ISO" in html
+        assert "Select an ISO to inspect" in html
+        assert 'class="stub"' in html
+        assert "sidebar-item--group active open" in html
+        assert 'href="/media/iso"' in html
+        assert 'href="/media/virtio"' in html
+
+    def test_media_virtio_marks_group_and_child(self, client):
+        html = client.get("/media/virtio").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert "VirtIO" in html
+        assert "Select a VirtIO file to inspect" in html
 
     def test_settings_title(self, client):
         html = client.get("/settings").data.decode()
@@ -2070,6 +2097,111 @@ class TestAutomationScriptsPane:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         usage = app_module._script_used_by()
         assert usage["setup.ps1"] == [{"clutch": "lab.yaml", "clutch_name": "Lab", "vm": "web01"}]
+
+
+class TestMediaPanes:
+    def test_iso_page_lists_files(self, client, tmp_path, monkeypatch):
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"iso-bytes")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/media/iso").data.decode()
+        assert "win11.iso" in html
+        assert "media/iso/win11.iso" in html
+        assert "media-layout" in html
+        assert "Copy file path" in html
+
+    def test_virtio_empty_state(self, client, tmp_path, monkeypatch):
+        (tmp_path / "media" / "virtio").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        html = client.get("/media/virtio").data.decode()
+        assert "No files found" in html
+        assert "media/virtio/" in html
+
+    def test_iso_used_by_embedded(self, client, tmp_path, monkeypatch):
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"x")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        clutch_lib.save(
+            Clutch(
+                name="Lab",
+                vms=[
+                    VMConfig(
+                        name="dc01",
+                        os="win11",
+                        vcpus=2,
+                        ram_gb=4,
+                        disk_gb=60,
+                        os_media="win11.iso",
+                    )
+                ],
+            ),
+            clutches / "lab.yaml",
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        html = client.get("/media/iso").data.decode()
+        assert "lab.yaml" in html
+        assert "dc01" in html
+
+    def test_inspect_api_returns_probe(self, client, tmp_path, monkeypatch):
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"not-a-real-iso")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        with patch(
+            "lib.media_inspect.probe_iso",
+            return_value={
+                "available": True,
+                "volume_id": "TEST_VOL",
+                "publisher": "MICROSOFT CORPORATION",
+                "app_id": "CDIMAGE 2.56",
+                "created_at": "2025-09-16 00:00:00",
+                "boot": "BIOS, UEFI",
+                "backend": "pycdlib",
+                "error": None,
+            },
+        ):
+            resp = client.get("/api/media/iso/win11.iso/inspect")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "win11.iso"
+        assert data["probe"]["volume_id"] == "TEST_VOL"
+        assert data["probe"]["boot"] == "BIOS, UEFI"
+        assert data["probe"]["backend"] == "pycdlib"
+        assert data["size_bytes"] == len(b"not-a-real-iso")
+
+    def test_inspect_api_404_and_traversal(self, client, tmp_path, monkeypatch):
+        (tmp_path / "media" / "iso").mkdir(parents=True)
+        (tmp_path / "outside.iso").write_bytes(b"secret")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        assert client.get("/api/media/iso/missing.iso/inspect").status_code == 404
+        assert client.get("/api/media/iso/../outside.iso/inspect").status_code == 404
+
+    def test_virtio_inspect_api(self, client, tmp_path, monkeypatch):
+        virtio = tmp_path / "media" / "virtio"
+        virtio.mkdir(parents=True)
+        (virtio / "virtio-win.iso").write_bytes(b"virtio")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        with patch(
+            "lib.media_inspect.probe_iso",
+            return_value={
+                "available": False,
+                "volume_id": None,
+                "publisher": None,
+                "app_id": None,
+                "created_at": None,
+                "boot": None,
+                "backend": None,
+                "error": "not a valid ISO",
+            },
+        ):
+            resp = client.get("/api/media/virtio/virtio-win.iso/inspect")
+        assert resp.status_code == 200
+        assert resp.get_json()["probe"]["error"] == "not a valid ISO"
 
 
 # ── settings show_passwords ───────────────────────────────────────────────────

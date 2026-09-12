@@ -110,6 +110,28 @@
           </a>
         </li>
 
+        <li class="sidebar-item sidebar-item--group{% if active_pane in ('media_iso', 'media_virtio') %} active open{% endif %}">
+          <a href="{{ url_for('media_iso') }}" class="sidebar-link" title="Media" aria-haspopup="true" aria-expanded="{% if active_pane in ('media_iso', 'media_virtio') %}true{% else %}false{% endif %}">
+            <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span class="sidebar-label">Media</span>
+          </a>
+          <ul class="sidebar-subnav" role="list">
+            <li class="sidebar-subitem{% if active_pane == 'media_iso' %} active{% endif %}">
+              <a href="{{ url_for('media_iso') }}" class="sidebar-sublink" title="ISO">
+                <span class="sidebar-label">ISO</span>
+              </a>
+            </li>
+            <li class="sidebar-subitem{% if active_pane == 'media_virtio' %} active{% endif %}">
+              <a href="{{ url_for('media_virtio') }}" class="sidebar-sublink" title="VirtIO">
+                <span class="sidebar-label">VirtIO</span>
+              </a>
+            </li>
+          </ul>
+        </li>
+
         <li class="sidebar-item sidebar-item--group{% if active_pane in ('automation_scripts',) %} active open{% endif %}">
           <a href="{{ url_for('automation_scripts') }}" class="sidebar-link" title="Automations" aria-haspopup="true" aria-expanded="{% if active_pane in ('automation_scripts',) %}true{% else %}false{% endif %}">
             <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
