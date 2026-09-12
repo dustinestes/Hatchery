@@ -98,6 +98,14 @@ body {
   gap: 10px;
 }
 
+.topbar-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .topbar-name {
   font-family: var(--font-heading);
   font-weight: 700;
@@ -1343,10 +1351,26 @@ body {
   border-top: 1px solid var(--color-footer-border);
 }
 
-.footer-version {
+.footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
   color: var(--color-text-muted);
   letter-spacing: 0.02em;
+}
+
+.footer-tagline {
+  font-weight: 500;
+}
+
+.footer-meta-sep {
+  opacity: 0.45;
+  user-select: none;
+}
+
+.footer-version {
+  font-variant-numeric: tabular-nums;
 }
 
 .nest-status {

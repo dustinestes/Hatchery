@@ -26,7 +26,7 @@ Root directory layout and purpose of every file and folder in Hatchery.
 Hatchery/
 ├── .hatchery/                    # Project meta — not required to run the application
 │   ├── audits/                   # Security and quality audit artifacts
-│   ├── branding/                 # SVG logos, icons, banners, and brand guidelines
+│   ├── branding/                 # Brand assets — dragon scale mark (icons/logos/banners); dragon_egg.svg kept for history
 │   ├── docs/                     # Reference documentation (this directory)
 │   └── ui/                       # Interface mockups and interactive examples
 ├── .github/
@@ -127,5 +127,5 @@ Project meta-content. Not required to run the application. Excluded from deploym
   <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
   <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">Where environments hatch</div>
+<div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">
