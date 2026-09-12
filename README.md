@@ -5,11 +5,13 @@
 <br/>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/banners/hatchery-banner-dark.svg">
-  <img alt="Hatchery" src=".hatchery/branding/banners/hatchery-banner-light.svg" height="160">
+  <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img alt="Hatchery" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="200">
 </picture>
 
-<br/><br/>
+<p><strong>Hatch. Provision. Scale.</strong></p>
+
+<br/>
 
 ![License](https://img.shields.io/badge/license-MIT-111111?style=flat-square&labelColor=555555)
 ![Version](https://img.shields.io/badge/version-v0.1.0-111111?style=flat-square&labelColor=555555)
@@ -164,5 +166,5 @@ MIT License. See [LICENSE](LICENSE) for full terms.
   <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/logos/hatchery-logo-dark.svg">
   <img align="left" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">Where environments hatch</div>
+<div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

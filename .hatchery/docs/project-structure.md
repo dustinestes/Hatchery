@@ -127,5 +127,5 @@ Project meta-content. Not required to run the application. Excluded from deploym
   <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
   <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">Where environments hatch</div>
+<div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

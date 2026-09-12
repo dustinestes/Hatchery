@@ -154,5 +154,5 @@ Open an issue and tag it `question`. There's no wrong question here.
   <source media="(prefers-color-scheme: dark)" srcset=".hatchery/branding/logos/hatchery-logo-dark.svg">
   <img align="left" src=".hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
-<div align="right">Where environments hatch</div>
+<div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">
