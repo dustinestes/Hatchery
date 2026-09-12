@@ -27,3 +27,8 @@ instance/
 .idea/
 *.swp
 *.swo
+
+# Clockify Agent Plugin — personal time-tracking (delete this block to share with the team)
+.clockify/
+.cursor/rules/clockify.mdc
+.cursor/hooks/clockify-runaway.sh
