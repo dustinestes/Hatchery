@@ -15,6 +15,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
 - [Contents](#contents)
 - [Tables](#tables)
   - [alerts](#alerts)
+  - [app\_settings](#app_settings)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
@@ -47,6 +48,21 @@ Stores active and resolved environment alerts. An alert is created when a host c
 #### Managed by
 
 `lib/alerts.py` — `record_alert()`, `resolve()`, `resolve_alerts_by_prefix()`, `has_active_alert()`, `count_active_alerts()`, `list_recent()`
+
+<br>
+
+### app_settings
+
+Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` — see [Settings storage](../settings.md).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `key` | `TEXT` | `PRIMARY KEY` | Setting name (e.g. `bg_interval`, `show_passwords`) |
+| `value` | `TEXT` | `NOT NULL` | JSON text (number, bool, string, array, or object) |
+
+#### Managed by
+
+`lib/config.py` — `bind_db()`, `save()`
 
 <br>
 

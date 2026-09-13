@@ -230,6 +230,8 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
         resp = client.post(
             "/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "60"}
         )
@@ -249,6 +251,8 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
         client.post("/settings/general", data={"data_dir": "~/hatchery/data", "bg_interval": "60"})
         assert not saved["data_dir"].startswith("~")
 
@@ -261,6 +265,8 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: None)
         monkeypatch.setattr(cfg, "init_data_dir", lambda: called.append(True))
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
         client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "60"})
         assert called
 
@@ -274,6 +280,8 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
         client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "120"})
         assert saved["bg_interval"] == 120
 
@@ -305,6 +313,8 @@ class TestSettingsRoute:
         )
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
         client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "90"})
         assert saved["show_passwords"] is True
         assert saved["display_timezone"] == "local"

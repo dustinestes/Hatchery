@@ -426,6 +426,7 @@ def _provider() -> LibvirtProvider:
 config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
+config.bind_db()
 _sync_requirements()
 _sync_clutches()
 _sync_hatch_status()
@@ -727,6 +728,8 @@ def settings_section_post(section: str):
         new_cfg["bg_interval"] = bg_interval
         config.save(new_cfg)
         config.init_data_dir()
+        db.init_db(Path(new_cfg["data_dir"]) / "hatchery.db")
+        config.bind_db()
         return redirect(url_for("settings_section", section="general", saved="1"))
 
     if section == "security":

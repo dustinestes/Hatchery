@@ -1,31 +1,59 @@
-import yaml
+import json
+
 import pytest
+import yaml
+
 import lib.config as cfg
+import lib.db as db_module
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(monkeypatch, tmp_path):
-    """Redirect all paths to tmp_path and reset in-memory state for each test."""
+    """Redirect paths, reset config state, and bind an isolated SQLite DB."""
     monkeypatch.setattr(cfg, "CONFIG_FILE", tmp_path / "config.yaml")
     monkeypatch.setattr(cfg, "DEFAULT_DATA_DIR", tmp_path / "data")
-    monkeypatch.setattr(cfg, "_DEFAULTS", {"data_dir": str(tmp_path / "data"), "bg_interval": 60})
+    monkeypatch.setattr(
+        cfg,
+        "_DEFAULTS",
+        {
+            "data_dir": str(tmp_path / "data"),
+            "bg_interval": 60,
+            "show_passwords": False,
+            "display_timezone": "UTC",
+            "nest_key_alert_tiers": [
+                {"days_before": 30, "alerts_per_day": 1},
+                {"days_before": 7, "alerts_per_day": 2},
+            ],
+            "nest_ssh_identities": [],
+        },
+    )
     monkeypatch.setattr(cfg, "_config", {})
-    return tmp_path
+    monkeypatch.setattr(cfg, "_pending_yaml_settings", {})
+    monkeypatch.setattr(cfg, "_db_bound", False)
+    db_module.init_db(tmp_path / "hatchery.db")
+    yield tmp_path
+    db_module._db_path = None
+
+
+def _bootstrap_on_disk():
+    with open(cfg.CONFIG_FILE) as f:
+        return yaml.safe_load(f)
 
 
 class TestLoad:
-    def test_creates_config_file_with_defaults_when_missing(self, isolated_config):
+    def test_creates_bootstrap_with_data_dir_when_missing(self, isolated_config):
         result = cfg.load()
         assert result["data_dir"] == str(isolated_config / "data")
         assert cfg.CONFIG_FILE.exists()
+        on_disk = _bootstrap_on_disk()
+        assert on_disk == {"data_dir": str(isolated_config / "data")}
 
-    def test_written_config_is_valid_yaml(self, isolated_config):
+    def test_written_bootstrap_is_valid_yaml(self, isolated_config):
         cfg.load()
-        with open(cfg.CONFIG_FILE) as f:
-            on_disk = yaml.safe_load(f)
+        on_disk = _bootstrap_on_disk()
         assert on_disk["data_dir"] == str(isolated_config / "data")
 
-    def test_reads_existing_config(self, isolated_config):
+    def test_reads_existing_bootstrap(self, isolated_config):
         cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(cfg.CONFIG_FILE, "w") as f:
             yaml.dump({"data_dir": str(isolated_config / "custom")}, f)
@@ -38,6 +66,7 @@ class TestLoad:
             yaml.dump({}, f)
         result = cfg.load()
         assert "data_dir" in result
+        assert result["bg_interval"] == 60
 
     def test_empty_config_file_falls_back_to_defaults(self, isolated_config):
         cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -45,24 +74,97 @@ class TestLoad:
         result = cfg.load()
         assert result["data_dir"] == str(isolated_config / "data")
 
+    def test_legacy_yaml_settings_slims_bootstrap_and_pending(self, isolated_config):
+        cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(cfg.CONFIG_FILE, "w") as f:
+            yaml.dump(
+                {
+                    "data_dir": str(isolated_config / "data"),
+                    "bg_interval": 45,
+                    "show_passwords": True,
+                },
+                f,
+            )
+        result = cfg.load()
+        assert result["bg_interval"] == 45
+        assert result["show_passwords"] is True
+        assert _bootstrap_on_disk() == {"data_dir": str(isolated_config / "data")}
+        assert cfg._pending_yaml_settings["bg_interval"] == 45
+
+
+class TestBindDb:
+    def test_migrates_pending_yaml_into_sqlite(self, isolated_config):
+        cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(cfg.CONFIG_FILE, "w") as f:
+            yaml.dump(
+                {
+                    "data_dir": str(isolated_config / "data"),
+                    "bg_interval": 42,
+                    "display_timezone": "local",
+                },
+                f,
+            )
+        cfg.load()
+        cfg.bind_db()
+        assert cfg.bg_interval() == 42
+        assert cfg.display_timezone() == "local"
+        assert cfg._pending_yaml_settings == {}
+        conn = db_module.get_connection()
+        try:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?", ("bg_interval",)
+            ).fetchone()
+            assert json.loads(row["value"]) == 42
+        finally:
+            conn.close()
+
+    def test_loads_existing_db_settings(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "bg_interval": 99, "show_passwords": True})
+        cfg._config = {}
+        cfg._db_bound = False
+        cfg.load()
+        cfg.bind_db()
+        assert cfg.bg_interval() == 99
+        assert cfg.show_passwords() is True
+
 
 class TestSave:
-    def test_persists_to_disk(self, isolated_config):
-        new_cfg = {"data_dir": str(isolated_config / "saved")}
+    def test_persists_data_dir_to_bootstrap_only(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        new_cfg = {**cfg.get(), "data_dir": str(isolated_config / "saved"), "bg_interval": 77}
         cfg.save(new_cfg)
-        with open(cfg.CONFIG_FILE) as f:
-            on_disk = yaml.safe_load(f)
-        assert on_disk["data_dir"] == str(isolated_config / "saved")
+        on_disk = _bootstrap_on_disk()
+        assert on_disk == {"data_dir": str(isolated_config / "saved")}
+        assert "bg_interval" not in on_disk
+
+    def test_persists_settings_to_sqlite(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "bg_interval": 33})
+        conn = db_module.get_connection()
+        try:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?", ("bg_interval",)
+            ).fetchone()
+            assert json.loads(row["value"]) == 33
+        finally:
+            conn.close()
 
     def test_updates_in_memory_state(self, isolated_config):
-        new_cfg = {"data_dir": str(isolated_config / "saved")}
-        cfg.save(new_cfg)
+        cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "data_dir": str(isolated_config / "saved")})
         assert cfg.get()["data_dir"] == str(isolated_config / "saved")
 
     def test_creates_parent_directories(self, isolated_config):
         monkeypatch_path = isolated_config / "deep" / "nested" / "config.yaml"
         cfg.CONFIG_FILE = monkeypatch_path
-        cfg.save({"data_dir": str(isolated_config / "data")})
+        cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "data_dir": str(isolated_config / "data")})
         assert monkeypatch_path.exists()
 
 
@@ -112,16 +214,17 @@ class TestInitDataDir:
 
 class TestBgInterval:
     def test_returns_default(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
         assert cfg.bg_interval() == 60
 
     def test_returns_configured_value(self, isolated_config):
-        cfg.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        import yaml
-
-        with open(cfg.CONFIG_FILE, "w") as f:
-            yaml.dump({"data_dir": str(isolated_config / "data"), "bg_interval": 30}, f)
         cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "bg_interval": 30})
         assert cfg.bg_interval() == 30
 
     def test_returns_int(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
         assert isinstance(cfg.bg_interval(), int)

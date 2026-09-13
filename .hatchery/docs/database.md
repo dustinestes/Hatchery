@@ -67,7 +67,7 @@ The database lives at the root of the data directory alongside `clutches/`, `med
 
 **Upgrades:** Existing data is preserved. The idempotent schema creation means upgrading Hatchery never destroys the database.
 
-**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses only app-generated state (alert history, instance tracking) — not Clutch definitions or configuration.
+**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses app-generated state (alert history, instance tracking, and **Settings** stored in `app_settings`) — not Clutch definitions. The bootstrap file still points at the data directory; defaults are re-seeded for missing Settings keys.
 
 The file is not included in the Hatchery source repository.
 
@@ -80,6 +80,7 @@ The file is not included in the Hatchery source repository.
 | Data | Table | Why here |
 |---|---|---|
 | Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
+| Application Settings | `app_settings` | Operational knobs (intervals, display, Nest key expiry) — see [Settings storage](settings.md); bootstrap file keeps only `data_dir` |
 | Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps |
 | VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH — see note below |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |
@@ -97,7 +98,7 @@ The file is not included in the Hatchery source repository.
 | Clutch definitions | `clutches/*.yaml` | User-authored — version controlled, human-readable, shareable |
 | OS config files | `automation/os_config/*` | User-authored — same reasons |
 | Post-boot scripts | `automation/scripts/*` | User-authored — same reasons |
-| Application configuration | Config file (YAML) | User-authored — editable outside the app, survives DB reset |
+| Data directory pointer | Bootstrap `config.yaml` | Must exist before the DB can open — see [Settings storage](settings.md) |
 | Source images | `media/*` | Binary files — not relational data |
 | Frozen VM states (snapshots) | Managed by libvirt/virsh | Owned by the hypervisor, not Hatchery |
 

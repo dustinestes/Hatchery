@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS hatch_events (
     message     TEXT    NOT NULL,
     received_at TEXT    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 _db_path: Path | None = None
@@ -91,6 +96,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     alert_cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()}
     if "tier" not in alert_cols:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
+
+
+def is_initialized() -> bool:
+    """Return True after ``init_db`` has set the active database path."""
+    return _db_path is not None
 
 
 def get_connection() -> sqlite3.Connection:

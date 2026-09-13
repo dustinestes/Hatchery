@@ -29,6 +29,19 @@ class TestInitDb:
         finally:
             conn.close()
 
+    def test_creates_app_settings_table(self):
+        conn = db_module.get_connection()
+        try:
+            names = [
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            assert "app_settings" in names
+        finally:
+            conn.close()
+
     def test_creates_clutch_instances_table(self):
         conn = db_module.get_connection()
         try:

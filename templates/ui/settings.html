@@ -30,10 +30,13 @@
         <input type="text" id="data-dir" name="data_dir" class="form-input"
                value="{{ cfg.data_dir }}" required placeholder="e.g. /home/user/.local/share/hatchery">
       </div>
-      <div class="form-group">
-        <label class="form-label" for="config-file">Config File</label>
-        <input type="text" id="config-file" class="form-input" value="{{ config_file }}" disabled>
-      </div>
+        <div class="form-group">
+          <div class="form-label-row">
+            <label class="form-label" for="config-file">Bootstrap file</label>
+            <span class="form-help-icon" data-tip="Minimal external file that only stores the data directory path so Hatchery can find hatchery.db. Other Settings live in the database inside the data directory.">i</span>
+          </div>
+          <input type="text" id="config-file" class="form-input" value="{{ config_file }}" disabled>
+        </div>
     </div>
   </section>
 
