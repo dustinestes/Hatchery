@@ -825,6 +825,10 @@ body {
   align-items: end;
 }
 
+.library-bind-row--media {
+  grid-template-columns: 1.2fr 0.7fr 1.2fr auto;
+}
+
 .library-bind-row .library-bind-test-result {
   grid-column: 1 / -1;
 }
@@ -896,7 +900,8 @@ body {
 
 @media (max-width: 40rem) {
   .library-conn-row-fields,
-  .library-bind-row {
+  .library-bind-row,
+  .library-bind-row--media {
     grid-template-columns: 1fr;
   }
 }

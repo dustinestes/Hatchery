@@ -40,6 +40,7 @@ _DB_SETTING_KEYS = frozenset(
         "library_enabled",
         "library_connections",
         "library_script_bindings",
+        "library_media_bindings",
     }
 )
 
@@ -65,6 +66,7 @@ _DEFAULTS: dict = {
     "library_enabled": False,
     "library_connections": [],
     "library_script_bindings": [],
+    "library_media_bindings": [],
     # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
     "nest_key_alert_tiers": [
         {"days_before": 30, "alerts_per_day": 1},
@@ -200,6 +202,11 @@ def library_connections() -> list:
 def library_script_bindings() -> list:
     """Return Scripts domain bindings (list of dicts)."""
     return list(get().get("library_script_bindings") or [])
+
+
+def library_media_bindings() -> list:
+    """Return Media domain bindings (list of dicts)."""
+    return list(get().get("library_media_bindings") or [])
 
 
 def init_data_dir() -> None:

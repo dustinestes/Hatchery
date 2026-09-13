@@ -601,6 +601,9 @@ def media_iso():
         used_by=media_inspect_lib.media_used_by("os_media"),
         empty_subdir="media/iso/",
         item_kind="ISO",
+        library_media_target="iso",
+        library_catalog_url=url_for("api_library_media", target="iso"),
+        library_pull_url=url_for("api_library_media_pull"),
     )
 
 
@@ -621,6 +624,9 @@ def media_virtio():
         used_by=media_inspect_lib.media_used_by("virtio_drivers"),
         empty_subdir="media/virtio/",
         item_kind="VirtIO file",
+        library_media_target="virtio",
+        library_catalog_url=url_for("api_library_media", target="virtio"),
+        library_pull_url=url_for("api_library_media_pull"),
     )
 
 
@@ -833,7 +839,11 @@ def settings_section_post(section: str):
         except ValueError as exc:
             return _rerender(
                 f"Library connections are invalid: {exc}",
-                {"library_connections": raw_conns, "library_script_bindings": []},
+                {
+                    "library_connections": raw_conns,
+                    "library_script_bindings": [],
+                    "library_media_bindings": [],
+                },
             )
 
         bind_ids = request.form.getlist("library_script_bind_id")
@@ -861,11 +871,46 @@ def settings_section_post(section: str):
                 {
                     "library_connections": connections,
                     "library_script_bindings": raw_binds,
+                    "library_media_bindings": list(
+                        config.get().get("library_media_bindings") or []
+                    ),
+                },
+            )
+
+        media_ids = request.form.getlist("library_media_bind_id")
+        media_conn_ids = request.form.getlist("library_media_bind_connection_id")
+        media_filters = request.form.getlist("library_media_bind_filter")
+        media_targets = request.form.getlist("library_media_bind_target")
+        mn = len(media_conn_ids)
+        if not (len(media_ids) == mn and len(media_filters) == mn and len(media_targets) == mn):
+            return _rerender(
+                "Media bindings are incomplete — each row needs a connection, target, and filter."
+            )
+        raw_media = []
+        for i in range(mn):
+            raw_media.append(
+                {
+                    "id": (media_ids[i] or "").strip(),
+                    "connection_id": (media_conn_ids[i] or "").strip(),
+                    "filter": (media_filters[i] or "*").strip() or "*",
+                    "target": (media_targets[i] or "iso").strip() or "iso",
+                }
+            )
+        try:
+            media_bindings = library_lib.parse_media_bindings(raw_media, connections)
+        except ValueError as exc:
+            return _rerender(
+                f"Media bindings are invalid: {exc}",
+                {
+                    "library_connections": connections,
+                    "library_script_bindings": bindings,
+                    "library_media_bindings": raw_media,
                 },
             )
 
         new_cfg["library_connections"] = connections
         new_cfg["library_script_bindings"] = bindings
+        new_cfg["library_media_bindings"] = media_bindings
         config.save(new_cfg)
         return redirect(url_for("settings_section", section="library", saved="1"))
 
@@ -888,14 +933,14 @@ def _connection_from_request_body(data: dict) -> dict:
     """Normalize a connection object from JSON (Settings test or pull)."""
     raw = data.get("connection")
     if isinstance(raw, dict):
-        parsed = library_lib.parse_connections([raw])
+        parsed = library_lib.parse_connections([raw], enforce_expiry_future=False)
         return parsed[0]
     conn_id = str(data.get("connection_id") or "").strip()
     if not conn_id:
         raise ValueError("connection or connection_id is required")
     for conn in config.library_connections():
         if conn.get("id") == conn_id:
-            return library_lib.parse_connections([conn])[0]
+            return library_lib.parse_connections([conn], enforce_expiry_future=False)[0]
     raise ValueError(f"Unknown connection id: {conn_id}")
 
 
@@ -925,7 +970,8 @@ def api_library_test_filter():
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc), "hits": []}), 400
     filt = str(data.get("filter") or "*")
-    result = library_lib.test_filter(conn, filt)
+    domain = str(data.get("domain") or "scripts").strip().lower() or "scripts"
+    result = library_lib.test_filter(conn, filt, domain=domain)
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 
@@ -958,6 +1004,49 @@ def api_library_scripts_pull():
         if not relative_path:
             raise ValueError("relative_path is required")
         result = library_lib.pull_script(conn, relative_path)
+    except FileExistsError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
+
+
+@app.route("/api/library/media")
+def api_library_media():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    target = (request.args.get("target") or "").strip().lower() or None
+    raw_connections = config.library_connections()
+    raw_bindings = config.library_media_bindings()
+    try:
+        connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+        bindings = library_lib.parse_media_bindings(raw_bindings, connections)
+        items = library_lib.catalog_media(connections, bindings, target=target)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    return jsonify({"items": items})
+
+
+@app.route("/api/library/media/pull", methods=["POST"])
+def api_library_media_pull():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data)
+        relative_path = str(data.get("relative_path") or "").strip()
+        target = str(data.get("target") or "").strip().lower()
+        if not relative_path:
+            raise ValueError("relative_path is required")
+        if not target:
+            raise ValueError("target is required (iso or virtio)")
+        result = library_lib.pull_media(conn, relative_path, target=target)
     except FileExistsError as exc:
         return jsonify({"error": str(exc)}), 409
     except FileNotFoundError as exc:

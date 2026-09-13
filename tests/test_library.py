@@ -157,3 +157,65 @@ class TestPathLibrary:
         names = [i["name"] for i in items]
         assert names.count("hello.ps1") == 1
         assert "setup.sh" in names
+
+
+class TestMediaLibrary:
+    @pytest.fixture
+    def media_share(self, tmp_path: Path) -> Path:
+        root = tmp_path / "media-share"
+        root.mkdir()
+        (root / "win11.iso").write_bytes(b"iso-bytes")
+        (root / "virtio.iso").write_bytes(b"virtio-bytes")
+        (root / "notes.txt").write_text("skip\n", encoding="utf-8")
+        return root
+
+    def _media_conn(self, root: Path) -> dict:
+        return {
+            "id": "m1",
+            "label": "Media share",
+            "type": "path",
+            "base_uri": str(root),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["media"],
+        }
+
+    def test_parse_media_bindings_require_target(self, media_share):
+        conn = self._media_conn(media_share)
+        with pytest.raises(ValueError, match="target must be one of"):
+            library.parse_media_bindings(
+                [{"id": "b1", "connection_id": "m1", "filter": "*", "target": "vhd"}],
+                [conn],
+            )
+
+    def test_list_pull_and_catalog_by_target(self, media_share, tmp_path, monkeypatch):
+        conn = self._media_conn(media_share)
+        hits = library.list_media_hits(conn, "*.iso")
+        assert {h["name"] for h in hits} == {"win11.iso", "virtio.iso"}
+
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "media" / "iso").mkdir(parents=True)
+        pulled = library.pull_media(conn, "win11.iso", target="iso")
+        assert pulled["name"] == "win11.iso"
+        assert (tmp_path / "data" / "media" / "iso" / "win11.iso").is_file()
+
+        bindings = [
+            {
+                "id": "b-iso",
+                "connection_id": "m1",
+                "filter": "win11.iso",
+                "domain": "media",
+                "target": "iso",
+            },
+            {
+                "id": "b-virtio",
+                "connection_id": "m1",
+                "filter": "virtio.iso",
+                "domain": "media",
+                "target": "virtio",
+            },
+        ]
+        iso_items = library.catalog_media([conn], bindings, target="iso")
+        assert [i["name"] for i in iso_items] == ["win11.iso"]
+        virtio_items = library.catalog_media([conn], bindings, target="virtio")
+        assert [i["name"] for i in virtio_items] == ["virtio.iso"]
