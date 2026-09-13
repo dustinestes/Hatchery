@@ -105,7 +105,11 @@ Hatchery runs two sync functions at startup and then on every background cycle (
 3. On failure, records an alert prefixed with `"Invalid Clutch file: '<filename>'"` if one is not already active.
 4. On success, resolves any active alert for that file.
 
-Alerts for a deleted Clutch file are resolved immediately at delete time — not waiting for the next background cycle.
+Alerts for a deleted Clutch file are resolved immediately at delete time — not waiting for the next sync cycle.
+
+#### Import copies (`lib/import_files.py`)
+
+UI **Import** on Clutches, Media (ISO / VirtIO), and Automations → Scripts uploads files into the data directory. While the Nest is writing a batch, Hatchery records an active alert prefixed with `"Import in progress:"`. When the request finishes, that alert is resolved and a `"Import finished:"` trail alert is recorded as already resolved (history only — it does not keep the bell active). Conflicts refuse overwrite and never replace an existing basename.
 
 The result: alert state in the database always reflects the current environment. If a missing tool is installed or a broken Clutch file is fixed, the alert is resolved on the next sync cycle without requiring a restart.
 

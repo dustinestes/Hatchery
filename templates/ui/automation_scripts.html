@@ -8,6 +8,18 @@
   <p class="pane-subtitle">Inventory of post-boot automation scripts in the data directory.</p>
 </div>
 
+<div class="section-header inventory-toolbar">
+  <h2 class="section-title">Script files</h2>
+  <div class="section-header-actions">
+    <input type="file"
+           id="scripts-import-input"
+           accept=".ps1,.sh,.bash,.py,.bat,.cmd"
+           multiple
+           hidden>
+    <button type="button" class="btn btn-primary btn-sm" id="scripts-import-btn">Import</button>
+  </div>
+</div>
+
 <div class="scripts-layout">
 
   <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
@@ -27,7 +39,7 @@
       {% endfor %}
     {% else %}
       <div class="scripts-nav-empty" id="scripts-nav-empty">
-        No scripts found. Place files in
+        No scripts found. Use <strong>Import</strong>, or place files in
         <code>automation/scripts/</code>
         under your Hatchery data directory.
       </div>
@@ -107,6 +119,14 @@
 <script>
 (function () {
   const USED_BY = {{ used_by | tojson }};
+
+  if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
+    hatchery.bindImportControl({
+      button: document.getElementById('scripts-import-btn'),
+      input: document.getElementById('scripts-import-input'),
+      url: {{ url_for('api_import_automation_scripts') | tojson }}
+    });
+  }
 
   const nav = document.getElementById('scripts-nav');
   const header = document.getElementById('scripts-content-header');

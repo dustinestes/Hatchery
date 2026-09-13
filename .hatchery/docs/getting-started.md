@@ -96,7 +96,7 @@ If any required tools are not installed when you start Hatchery, an alert is rec
 
 ### Media inspection
 
-The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
+The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Use **Import** on those panes (or place files on the Nest) to load media. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
 
 ---
 
@@ -174,10 +174,11 @@ bash scripts/uninstall-service.sh
 
 ## Hatching Your First VM
 
-1. Copy your Windows ISO into the media directory:
+1. Add your Windows ISO to the media directory — either use **Import** on **Media → ISO**, or copy on the Nest:
    ```bash
    cp /path/to/Win11.iso ~/.local/share/hatchery/media/iso/
    ```
+   Large imports (network drives, multi‑GB ISOs) show an active **Alert** while the copy runs and a finished Alert when the file is ready. Existing basenames are never overwritten.
 2. Go to `http://localhost:5000/hatch`
 3. Fill in the form:
    - **VM name** — a short identifier, e.g. `win11-dev`
@@ -197,7 +198,7 @@ The VM appears on the dashboard while hatching. Provisioning completes in the ba
 
 ## VirtIO Drivers
 
-For better disk and network performance, pass a VirtIO driver ISO alongside the Windows ISO. Download the latest stable ISO from the [Fedora VirtIO project](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) and copy it into your media directory.
+For better disk and network performance, pass a VirtIO driver ISO alongside the Windows ISO. Download the latest stable ISO from the [Fedora VirtIO project](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) and add it via **Import** on **Media → VirtIO**, or copy it into your media directory.
 
 In the creation form, select it from the **VirtIO Drivers** dropdown. Hatchery will configure the VM to use VirtIO disk and network adapters and make the driver ISO available during install.
 

@@ -48,6 +48,7 @@ Hatchery/
 │   │   ├── libvirt.py            # KVM/QEMU implementation (v1)
 │   │   └── hyperv.py             # Hyper-V remote implementation (future)
 │   ├── answerfile.py             # Unattended install file rendering (OS-aware)
+│   ├── import_files.py           # UI Import — create-only copy into data dir
 │   └── provision.py              # Post-install provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages rendered by Flask/Jinja2
