@@ -112,12 +112,14 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 
 Default hatch contract:
 
-1. Resolve required content (media, and other cache-backed artifacts as applicable) for the target Nest
+1. Resolve required content (media, answer files, scripts, and other cache-backed artifacts) for the target Nest
 2. Verify each item exists in the **Nest cache** (basename; SHA-256 when ensure/Library metadata is present)
-3. If missing, fail with a clear UI/API error — or run ensure/sync first when the operator requested it
+3. If missing, fail with a clear UI/API error — or run ensure/sync first when the operator requested it (`ensure_cache` on Hatch form; `POST /api/nest-cache/ensure`)
 4. Only then call the provider create/attach path with Nest-local paths
 
-Local Nest preflight is a filesystem check under the data directory (no network ensure).
+**Local Nest:** preflight is a filesystem check under the operator data directory (no network ensure). Hatch Clutch POST runs this check before starting the hatch session.
+
+**Remote Nest:** ensure/copy over Nest transport is not wired yet (#207 / #215). Preflight and ensure fail closed so Hatchery does not attach operator-only paths over WAN. APIs: `POST /api/nest-cache/preflight`, `POST /api/nest-cache/ensure`.
 
 <br>
 

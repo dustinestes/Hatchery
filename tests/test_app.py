@@ -571,6 +571,36 @@ class TestLibrarySettingsGate:
         assert pull.status_code == 200
         assert (data / "media" / "iso" / "win11.iso").is_file()
 
+    def test_nest_cache_preflight_api_ok_and_missing(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="lab")
+        ok = client.post(
+            "/api/nest-cache/preflight",
+            json={"clutch_file": "lab.yaml"},
+        )
+        assert ok.status_code == 200
+        assert ok.get_json()["ok"] is True
+
+        (tmp_path / "media" / "iso" / "win11.iso").unlink()
+        missing = client.post(
+            "/api/nest-cache/preflight",
+            json={"clutch_file": "lab.yaml"},
+        )
+        assert missing.status_code == 200
+        body = missing.get_json()
+        assert body["ok"] is False
+        assert "Nest cache missing" in body["error"]
+
+    def test_nest_cache_ensure_remote_returns_501(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path, name="lab")
+        resp = client.post(
+            "/api/nest-cache/ensure",
+            json={"clutch_file": "lab.yaml", "location": "remote", "host": "nest.example"},
+        )
+        assert resp.status_code == 501
+        assert "not available yet" in resp.get_json()["error"]
+
     def test_library_clutch_catalog_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
         share.mkdir()
@@ -1138,6 +1168,9 @@ class TestEditRoute:
 def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     clutches_dir = tmp_path / "clutches"
     clutches_dir.mkdir(exist_ok=True)
+    iso_dir = tmp_path / "media" / "iso"
+    iso_dir.mkdir(parents=True, exist_ok=True)
+    (iso_dir / "win11.iso").write_bytes(b"test-iso")
     vm = VMConfig(name=vm_name, os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
     c = Clutch(name=name, vms=[vm])
     clutch_lib.export(c, name, clutches_dir)
@@ -1197,6 +1230,9 @@ class TestHatchClutchRoute:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         clutches_dir = tmp_path / "clutches"
         clutches_dir.mkdir()
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"x")
         vm = VMConfig(
             name="dc01",
             os="win11",
@@ -1214,6 +1250,28 @@ class TestHatchClutchRoute:
         assert resp.status_code == 200
         assert "Password required" in resp.data.decode()
         mock_prov.return_value.create_vm.assert_not_called()
+
+    def test_post_missing_nest_cache_media_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        with patch("hatchery._run_hatch_session") as mock_run:
+            resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "Nest cache missing" in html
+        assert "media/iso/win11.iso" in html
+        mock_run.assert_not_called()
 
     def test_post_creates_session_and_redirects_to_nests(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
