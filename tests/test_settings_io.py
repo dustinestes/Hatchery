@@ -1,4 +1,4 @@
-"""Unit tests for Settings profile export/import."""
+"""Unit tests for Settings export/import (full replace)."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 import lib.config as cfg
-import lib.settings_profile as profile
+import lib.settings_io as settings_io
 
 
 @pytest.fixture
@@ -53,17 +53,22 @@ def live_cfg(tmp_path, monkeypatch):
 
 class TestExportImport:
     def test_round_trip_preserves_library(self, live_cfg):
-        exported = profile.export_profile(include_meta=False)
+        exported = settings_io.export_document(include_meta=False)
         assert exported["version"] == 1
         assert "data_dir" not in exported
         assert "data_dir" not in exported["settings"]
         assert exported["settings"]["library_connections"][0]["token"] == "secret"
         assert exported["settings"]["bg_interval"] == 90
 
-        text = profile.dump_yaml(exported)
-        raw = profile.load_yaml(text)
-        live_cfg.save({**live_cfg.defaults_for_profile(), "data_dir": live_cfg.get()["data_dir"]})
-        result = profile.apply_profile(raw, mode="replace")
+        text = settings_io.dump_yaml(exported)
+        raw = settings_io.load_yaml(text)
+        live_cfg.save(
+            {
+                **live_cfg.defaults_for_exportable_settings(),
+                "data_dir": live_cfg.get()["data_dir"],
+            }
+        )
+        result = settings_io.apply_document(raw)
         assert result["ok"] is True
         assert live_cfg.get()["bg_interval"] == 90
         assert live_cfg.get()["library_enabled"] is True
@@ -71,64 +76,34 @@ class TestExportImport:
         assert live_cfg.get()["library_script_bindings"][0]["filter"] == "*.ps1"
         assert Path(live_cfg.get()["data_dir"]).name == "data"
 
-    def test_ignores_data_dir_in_profile(self, live_cfg):
+    def test_ignores_data_dir_in_document(self, live_cfg):
         before = live_cfg.get()["data_dir"]
         raw = {
             "version": 1,
             "settings": {"bg_interval": 120, "data_dir": "/evil/path"},
         }
-        result = profile.apply_profile(raw, mode="merge")
+        result = settings_io.apply_document(raw)
         assert any("data_dir" in w for w in result["warnings"])
         assert live_cfg.get()["data_dir"] == before
         assert live_cfg.get()["bg_interval"] == 120
-
-    def test_merge_upserts_connection_by_id(self, live_cfg):
-        raw = {
-            "version": 1,
-            "settings": {
-                "library_connections": [
-                    {
-                        "id": "conn1",
-                        "label": "Share renamed",
-                        "type": "path",
-                        "base_uri": "/mnt/share",
-                        "token": "",
-                        "expires_at": None,
-                        "kinds": ["scripts", "media"],
-                    },
-                    {
-                        "id": "conn2",
-                        "label": "New",
-                        "type": "path",
-                        "base_uri": "/mnt/other",
-                        "token": "",
-                        "expires_at": None,
-                        "kinds": ["clutches"],
-                    },
-                ]
-            },
-        }
-        profile.apply_profile(raw, mode="merge")
-        conns = {c["id"]: c for c in live_cfg.get()["library_connections"]}
-        assert conns["conn1"]["label"] == "Share renamed"
-        assert "media" in conns["conn1"]["kinds"]
-        assert conns["conn2"]["label"] == "New"
-        assert live_cfg.get()["library_script_bindings"][0]["id"] == "bind1"
+        # Omitted keys reset to defaults on replace.
+        assert live_cfg.get()["library_enabled"] is False
+        assert live_cfg.get()["library_connections"] == []
 
     def test_replace_resets_omitted_keys(self, live_cfg):
         raw = {"version": 1, "settings": {"bg_interval": 30}}
-        profile.apply_profile(raw, mode="replace")
+        settings_io.apply_document(raw)
         assert live_cfg.get()["bg_interval"] == 30
         assert live_cfg.get()["library_enabled"] is False
         assert live_cfg.get()["library_connections"] == []
         assert live_cfg.get()["display_timezone"] == "UTC"
 
     def test_rejects_bad_version(self, live_cfg):
-        with pytest.raises(ValueError, match="Unsupported profile version"):
-            profile.apply_profile({"version": 99, "settings": {}}, mode="merge")
+        with pytest.raises(ValueError, match="Unsupported Settings document version"):
+            settings_io.apply_document({"version": 99, "settings": {}})
 
     def test_yaml_round_trip_structure(self, live_cfg):
-        text = profile.dump_yaml(profile.export_profile())
+        text = settings_io.dump_yaml(settings_io.export_document())
         loaded = yaml.safe_load(text)
         assert loaded["version"] == 1
         assert "library_connections" in loaded["settings"]

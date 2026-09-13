@@ -18,6 +18,7 @@ How Hatchery splits the external bootstrap file from Settings stored in SQLite.
 - [Database Settings](#database-settings)
 - [Upgrade From Legacy config.yaml](#upgrade-from-legacy-configyaml)
 - [Settings UI](#settings-ui)
+- [Export and import](#export-and-import)
 
 ---
 
@@ -93,13 +94,55 @@ Existing installs keep their Settings without manual edits.
 
 ## Settings UI
 
-- **General** — edits `data_dir` (bootstrap) and `bg_interval` / Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. **Settings profile** export/import (YAML `version: 1`, merge or replace) lives here and never changes `data_dir`.
+- **General** — edits `data_dir` (bootstrap) and `bg_interval` / Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch — property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
 - **Security** / **Display** — write only to SQLite; bootstrap is unchanged.
 - **Library** — connections and domain bindings (when Library is enabled).
 
 The disabled “Bootstrap file” field on General shows the path to the external YAML pointer.
 
-Portable Settings across machines (export/import profile, including Library feature flags and source definitions) are described under [Library and Nest cache — Settings profiles](library.md#settings-profiles).
+Product framing (escape hatch vs CLI/API) also lives under [Library and Nest cache — Settings export and import](library.md#settings-export-and-import).
+
+<br>
+
+## Export and import
+
+Manual backup/restore of operational Settings as a YAML **Settings document** (`version: 1`). Implemented in `lib/settings_io.py`; HTTP: `GET /api/settings/export`, `POST /api/settings/import`.
+
+### Contract
+
+| Behavior | Detail |
+|---|---|
+| **Replace** | Import starts from defaults for every exportable key, then applies keys present in the file. Omitted known keys reset to defaults. |
+| **`data_dir`** | Never applied from the file (top-level or under `settings`). Local bootstrap path stays; import warns if the file included it. |
+| **Allowlist** | Only keys in the [Database Settings](#database-settings) table are written. |
+
+Shape (export includes optional `exported_at` metadata):
+
+```yaml
+version: 1
+exported_at: 2026-09-13T18:00:00Z
+settings:
+  bg_interval: 60
+  # …other exportable keys…
+```
+
+### Validation
+
+**Hard fail** (import rejected — API `400`, UI error toast):
+
+- Empty / non-YAML / not a mapping
+- `version` missing, not an integer, or not `1`
+- `settings` present but not a mapping
+- A **known** key with an invalid value (e.g. `bg_interval` below 10, `display_timezone` not `UTC`/`local`, Library connections/bindings failing `lib/library` parsers, Nest tiers/identities failing their parsers)
+
+**Soft ignore** (import proceeds; warning returned in the response / toast):
+
+- Unknown keys under `settings` — not written (`"Unknown settings key ignored: …"`)
+- `data_dir` anywhere in the document — ignored as above
+
+Extra top-level fields that are not settings (e.g. `exported_at`) are harmless. If the file has no `settings:` map, only top-level keys that match exportable names are considered.
+
+This is intentionally a simple document replace — not a merge or conflict UI. Per-property / fleet updates belong on CLI/API later.
 
 <br>
 

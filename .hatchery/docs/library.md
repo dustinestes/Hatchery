@@ -19,7 +19,7 @@ How Hatchery keeps a local-first operator model while supporting Library **conne
 - [Settings and Import](#settings-and-import)
 - [Inventory: Cache vs Catalog](#inventory-cache-vs-catalog)
 - [Hatch Preflight](#hatch-preflight)
-- [Settings Profiles](#settings-profiles)
+- [Settings export and import](#settings-export-and-import)
 - [Future: Allow Remote Content](#future-allow-remote-content)
 
 ---
@@ -121,25 +121,28 @@ Local Nest preflight is a filesystem check under the data directory (no network 
 
 <br>
 
-## Settings Profiles
+## Settings export and import
 
-Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a **profile** document (YAML, `version: 1`): export from / import into the DB (merge or replace). The same format serves personal multi-host use and light enterprise “golden” config — including Library connections/bindings when present.
+Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a YAML **Settings document** (`version: 1`): export from / import into the DB as a **full replace**. The same format serves personal multi-host backup/restore and light “golden” config handoff — including Library connections/bindings when present.
 
-Bootstrap `data_dir` stays in the external bootstrap file — profiles do not replace the need to know where the database lives. Continuous path/git watch of a profile is a later enhancement; export/import is the first step.
+Bootstrap `data_dir` stays in the external bootstrap file — imports do not replace the need to know where the database lives.
+
+### Intentional scope (UI vs tooling)
+
+The Settings UI export/import controls are a **manual escape hatch**: what you export is what you get on import (omitted keys reset to defaults; `data_dir` never changes). They are **not** a conflict-aware merge UI and **not** the surface for fleet push or per-property updates. Richer property-level configuration belongs on Hatchery’s **CLI/API** later so Hatchery stays extensible without growing a noisy in-app config platform.
+
+Continuous path/git watch of a Settings file is also a later enhancement — not this UI.
 
 ### UI
 
-Settings → **General** → **Settings profile**:
+Settings → **General** header:
 
-- **Export profile** — downloads `hatchery-settings.yaml` (all SQLite Settings keys, including Library tokens when configured)
-- **Import** — choose **Merge** or **Replace**, then pick a YAML file
+- **Export** — downloads `hatchery-settings.yaml` via the browser (Save As / downloads folder)
+- **Import** — confirms, then file-selects a YAML document and **replaces** operational Settings
 
-| Mode | Behavior |
-|---|---|
-| **Merge** | Scalars present in the file overwrite. Lists keyed by `id` (connections, bindings, Nest SSH identities) upsert by id. `nest_key_alert_tiers` replaces as a whole list when present. |
-| **Replace** | File keys apply; omitted profile keys reset to Hatchery defaults. Confirm before import. |
+`data_dir` in a document (top-level or under `settings`) is **ignored** with a warning — set the data directory on each machine under General.
 
-`data_dir` in a profile (top-level or under `settings`) is **ignored** with a warning — set the data directory on each machine under General.
+Validation (hard fail vs soft-ignore unknown keys) is documented under [Settings storage — Export and import](settings.md#export-and-import).
 
 ### Shape
 
@@ -159,7 +162,7 @@ settings:
   library_media_bindings: [...]
 ```
 
-API: `GET` / `POST` `/api/settings/profile` (POST accepts multipart `file` + `mode`, or JSON `{yaml}` / `{profile}`).
+API: `GET /api/settings/export`, `POST /api/settings/import` (multipart `file`, or JSON `{yaml}` / `{document}`). Import always replaces. The HTTP API is the stable contract CLI/fleet tooling should build on later.
 
 
 <br>

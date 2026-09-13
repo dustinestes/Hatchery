@@ -4,8 +4,22 @@
 
 {% block content %}
 <div class="pane-header">
-  <h1 class="pane-title">{{ pane_title }}</h1>
-  <p class="pane-subtitle">{{ pane_subtitle }}</p>
+  <div class="pane-header-row">
+    <div class="pane-header-text">
+      <h1 class="pane-title">{{ pane_title }}</h1>
+      <p class="pane-subtitle">{{ pane_subtitle }}</p>
+    </div>
+    {% if section == 'general' %}
+    <div class="pane-header-actions">
+      <a class="btn btn-primary btn-sm" id="settings-export-btn"
+         href="{{ url_for('api_settings_export') }}"
+         download="hatchery-settings.yaml">Export</a>
+      <input type="file" id="settings-import-input"
+             accept=".yaml,.yml,text/yaml,application/x-yaml" hidden>
+      <button type="button" class="btn btn-primary btn-sm" id="settings-import-btn">Import</button>
+    </div>
+    {% endif %}
+  </div>
 </div>
 
 {% if form_saved %}
@@ -437,44 +451,19 @@
 </form>
 
 {% if section == 'general' %}
-<section class="form-section" id="settings-profile">
-  <h2 class="form-section-title">Settings profile</h2>
-  <p class="form-help-text">
-    Export or import operational Settings as YAML (<code>version: 1</code>) — including Library
-    connections and bindings when present. The bootstrap data directory is never changed by import;
-    set it above on each machine.
-  </p>
-  <div class="form-grid form-grid-1">
-    <div class="form-group">
-      <a class="btn btn-secondary btn-sm" id="settings-profile-export"
-         href="{{ url_for('api_settings_profile') }}"
-         download="hatchery-settings.yaml">Export profile</a>
+<div id="settings-import-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-import-title">
+    <h2 class="modal-title" id="settings-import-title">Import Settings</h2>
+    <div class="modal-body">
+      <p>Replace all operational Settings from a YAML file?</p>
+      <p class="modal-warning">Keys omitted in the file reset to defaults. The data directory is not changed.</p>
     </div>
-    <div class="form-group">
-      <span class="form-label" id="settings-profile-mode-label">Import mode</span>
-      <div class="form-radio-group export-mode-tabs" role="radiogroup"
-           aria-labelledby="settings-profile-mode-label">
-        <label class="export-mode-option form-radio">
-          <input type="radio" name="settings_profile_mode" value="merge" checked>
-          <span class="form-radio-label">Merge — upsert by id; overwrite scalars present in the file</span>
-        </label>
-        <label class="export-mode-option form-radio">
-          <input type="radio" name="settings_profile_mode" value="replace">
-          <span class="form-radio-label">Replace — apply file keys; omitted keys reset to defaults</span>
-        </label>
-      </div>
-    </div>
-    <div class="form-group">
-      <input type="file" id="settings-profile-import-input" accept=".yaml,.yml,text/yaml,application/x-yaml"
-             hidden>
-      <button type="button" class="btn btn-secondary btn-sm" id="settings-profile-import-btn">
-        Import profile…
-      </button>
-      <span class="library-test-result" id="settings-profile-import-status" role="status"
-            aria-live="polite"></span>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="settings-import-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="settings-import-confirm">Choose file…</button>
     </div>
   </div>
-</section>
+</div>
 {% endif %}
 
 {% if section == 'security' %}
@@ -678,43 +667,50 @@
 {% if section == 'general' %}
 <script>
 (function () {
-  const importBtn = document.getElementById('settings-profile-import-btn');
-  const importInput = document.getElementById('settings-profile-import-input');
-  const statusEl = document.getElementById('settings-profile-import-status');
-  if (!importBtn || !importInput) return;
+  const importBtn = document.getElementById('settings-import-btn');
+  const importInput = document.getElementById('settings-import-input');
+  const backdrop = document.getElementById('settings-import-backdrop');
+  const cancelBtn = document.getElementById('settings-import-cancel');
+  const confirmBtn = document.getElementById('settings-import-confirm');
+  if (!importBtn || !importInput || !backdrop || !cancelBtn || !confirmBtn) return;
 
-  function setStatus(ok, message) {
-    if (!statusEl) return;
-    statusEl.textContent = message || '';
-    statusEl.classList.toggle('library-test-result--ok', !!ok);
-    statusEl.classList.toggle('library-test-result--err', !ok && !!message);
+  function openModal() {
+    backdrop.hidden = false;
+    confirmBtn.focus();
   }
 
-  function selectedMode() {
-    const checked = document.querySelector('input[name="settings_profile_mode"]:checked');
-    return (checked && checked.value) || 'merge';
+  function closeModal() {
+    backdrop.hidden = true;
+    importBtn.focus();
   }
 
-  importBtn.addEventListener('click', function () {
+  importBtn.addEventListener('click', openModal);
+
+  cancelBtn.addEventListener('click', closeModal);
+
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) closeModal();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !backdrop.hidden) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
+
+  confirmBtn.addEventListener('click', function () {
+    closeModal();
     importInput.click();
   });
 
   importInput.addEventListener('change', function () {
-    const file = importInput.files && importInput.files[0];
+    var file = importInput.files && importInput.files[0];
     importInput.value = '';
     if (!file) return;
-    const mode = selectedMode();
-    if (mode === 'replace') {
-      const ok = window.confirm(
-        'Replace all operational Settings from this profile? Keys omitted in the file reset to defaults. The data directory is not changed.'
-      );
-      if (!ok) return;
-    }
-    setStatus(true, 'Importing…');
-    const body = new FormData();
+    var body = new FormData();
     body.append('file', file);
-    body.append('mode', mode);
-    fetch({{ url_for('api_settings_profile') | tojson }}, {
+    fetch({{ url_for('api_settings_import') | tojson }}, {
       method: 'POST',
       body: body,
     })
@@ -724,26 +720,26 @@
         });
       })
       .then(function (res) {
-        const data = res.data || {};
+        var data = res.data || {};
         if (!res.ok) {
-          setStatus(false, data.error || 'Import failed');
           if (window.hatchery && hatchery.showToast) {
             hatchery.showToast(data.error || 'Import failed', 'error', 5000);
           }
           return;
         }
-        const warn = (data.warnings && data.warnings.length)
+        var warn = (data.warnings && data.warnings.length)
           ? (' — ' + data.warnings.join(' '))
           : '';
-        const msg = 'Profile imported (' + (data.mode || mode) + ')' + warn;
-        setStatus(true, msg);
+        var msg = 'Settings imported' + warn;
         if (window.hatchery && hatchery.showToast) {
           hatchery.showToast(msg, warn ? 'warning' : 'success', 4000);
         }
         window.setTimeout(function () { window.location.reload(); }, 600);
       })
       .catch(function () {
-        setStatus(false, 'Network or server error');
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast('Network or server error', 'error', 5000);
+        }
       });
   });
 })();

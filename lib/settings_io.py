@@ -1,14 +1,15 @@
-"""Settings profile export/import — portable YAML for ``app_settings``.
+"""Settings export/import — portable YAML for ``app_settings``.
 
-Profiles carry operational Settings (SQLite keys) across machines. Bootstrap
-``data_dir`` is never applied from a profile; operators set that out of band.
+Operational Settings (SQLite keys) can be downloaded and re-applied across
+machines as a full document replace. Bootstrap ``data_dir`` is never applied
+from an import; operators set that out of band.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 
@@ -16,83 +17,74 @@ from lib import config as config_lib
 from lib import library as library_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 
-PROFILE_VERSION = 1
-ApplyMode = Literal["merge", "replace"]
-
-_LIST_KEYS_BY_ID = frozenset(
-    {
-        "library_connections",
-        "library_script_bindings",
-        "library_clutch_bindings",
-        "library_media_bindings",
-        "nest_ssh_identities",
-    }
-)
+DOCUMENT_VERSION = 1
 
 
-def export_profile(*, include_meta: bool = True) -> dict[str, Any]:
-    """Build a versioned profile dict from the current in-memory Settings."""
+def export_document(*, include_meta: bool = True) -> dict[str, Any]:
+    """Build a versioned Settings document from the current in-memory Settings."""
     cfg = config_lib.get()
     settings: dict[str, Any] = {}
-    for key in sorted(config_lib.profile_setting_keys()):
+    for key in sorted(config_lib.exportable_setting_keys()):
         settings[key] = deepcopy(cfg.get(key, config_lib.default_for(key)))
-    out: dict[str, Any] = {"version": PROFILE_VERSION, "settings": settings}
+    out: dict[str, Any] = {"version": DOCUMENT_VERSION, "settings": settings}
     if include_meta:
         out["exported_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return out
 
 
-def dump_yaml(profile: dict[str, Any]) -> str:
-    """Serialize a profile dict to YAML text."""
-    return yaml.dump(profile, default_flow_style=False, sort_keys=False, allow_unicode=True)
+def dump_yaml(document: dict[str, Any]) -> str:
+    """Serialize a Settings document to YAML text."""
+    return yaml.dump(document, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
 def load_yaml(text: str) -> dict[str, Any]:
-    """Parse YAML text into a profile dict (not yet validated)."""
+    """Parse YAML text into a Settings document dict (not yet validated)."""
     raw = yaml.safe_load(text)
     if raw is None:
-        raise ValueError("Profile is empty")
+        raise ValueError("Settings document is empty")
     if not isinstance(raw, dict):
-        raise ValueError("Profile must be a YAML mapping")
+        raise ValueError("Settings document must be a YAML mapping")
     return raw
 
 
-def validate_profile(raw: dict[str, Any]) -> dict[str, Any]:
-    """Validate and normalize a profile. Returns ``{version, settings, warnings}``.
+def validate_document(raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize a Settings document.
 
-    ``settings`` contains only known profile keys, fully normalized. Library
-    bindings are checked against connections when both appear in the profile;
-    final cross-checks run in :func:`apply_profile` against the merged config.
+    Returns ``{version, settings, warnings}``. ``settings`` contains only known
+    exportable keys. Library bindings are checked against connections when both
+    appear in the document; final cross-checks run in :func:`apply_document`.
     """
     warnings: list[str] = []
     version = raw.get("version")
     try:
         version_n = int(version)
     except (TypeError, ValueError) as exc:
-        raise ValueError("Profile version must be an integer") from exc
-    if version_n != PROFILE_VERSION:
-        raise ValueError(f"Unsupported profile version: {version_n} (expected {PROFILE_VERSION})")
+        raise ValueError("Settings document version must be an integer") from exc
+    if version_n != DOCUMENT_VERSION:
+        raise ValueError(
+            f"Unsupported Settings document version: {version_n} (expected {DOCUMENT_VERSION})"
+        )
 
     if "data_dir" in raw or (
         isinstance(raw.get("settings"), dict) and "data_dir" in raw["settings"]
     ):
         warnings.append(
-            "Bootstrap data_dir in the profile was ignored — set the data directory under "
+            "Bootstrap data_dir in the file was ignored — set the data directory under "
             "Settings → General on this machine."
         )
 
     settings_raw = raw.get("settings")
     if settings_raw is None:
-        settings_raw = {k: v for k, v in raw.items() if k in config_lib.profile_setting_keys()}
+        settings_raw = {k: v for k, v in raw.items() if k in config_lib.exportable_setting_keys()}
     if not isinstance(settings_raw, dict):
-        raise ValueError("Profile settings must be a mapping")
+        raise ValueError("Settings document settings must be a mapping")
 
-    unknown = sorted(set(settings_raw) - config_lib.profile_setting_keys() - {"data_dir"})
+    unknown = sorted(set(settings_raw) - config_lib.exportable_setting_keys() - {"data_dir"})
     for key in unknown:
         warnings.append(f"Unknown settings key ignored: {key}")
 
     normalized: dict[str, Any] = {}
-    for key in config_lib.profile_setting_keys():
+    for key in config_lib.exportable_setting_keys():
         if key not in settings_raw:
             continue
         normalized[key] = _normalize_setting(key, settings_raw[key])
@@ -100,34 +92,27 @@ def validate_profile(raw: dict[str, Any]) -> dict[str, Any]:
     if "library_connections" in normalized:
         _validate_library_slice(normalized)
 
-    return {"version": PROFILE_VERSION, "settings": normalized, "warnings": warnings}
+    return {"version": DOCUMENT_VERSION, "settings": normalized, "warnings": warnings}
 
 
-def apply_profile(raw: dict[str, Any], *, mode: ApplyMode) -> dict[str, Any]:
-    """Validate and apply a profile to live Settings.
+def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate and replace live Settings with the document.
 
-    Returns ``{ok, mode, warnings, applied}``.
+    Starts from exportable-key defaults, applies keys present in the file, keeps
+    local ``data_dir``. Omitted keys reset to Hatchery defaults — what you import
+    is what you get.
+
+    Returns ``{ok, warnings, applied}``.
     """
-    if mode not in ("merge", "replace"):
-        raise ValueError("mode must be 'merge' or 'replace'")
-    validated = validate_profile(raw)
+    validated = validate_document(raw)
     incoming = validated["settings"]
     warnings = list(validated["warnings"])
 
     current = deepcopy(config_lib.get())
     data_dir = current["data_dir"]
 
-    if mode == "replace":
-        new_cfg = {**config_lib.defaults_for_profile(), "data_dir": data_dir}
-        new_cfg.update(incoming)
-    else:
-        new_cfg = current
-        for key, value in incoming.items():
-            if key in _LIST_KEYS_BY_ID:
-                new_cfg[key] = _merge_by_id(list(new_cfg.get(key) or []), value)
-            else:
-                # Scalars and nest_key_alert_tiers (whole-list replace when present).
-                new_cfg[key] = value
+    new_cfg = {**config_lib.defaults_for_exportable_settings(), "data_dir": data_dir}
+    new_cfg.update(incoming)
 
     _validate_library_full(new_cfg)
     nest_key_expiry_lib.parse_tiers(new_cfg.get("nest_key_alert_tiers"))
@@ -147,10 +132,11 @@ def apply_profile(raw: dict[str, Any], *, mode: ApplyMode) -> dict[str, Any]:
     new_cfg["data_dir"] = data_dir
 
     config_lib.save(new_cfg)
-    applied = (
-        sorted(incoming.keys()) if mode == "merge" else sorted(config_lib.profile_setting_keys())
-    )
-    return {"ok": True, "mode": mode, "warnings": warnings, "applied": applied}
+    return {
+        "ok": True,
+        "warnings": warnings,
+        "applied": sorted(config_lib.exportable_setting_keys()),
+    }
 
 
 def _normalize_setting(key: str, value: Any) -> Any:
@@ -195,7 +181,7 @@ def _normalize_setting(key: str, value: Any) -> Any:
 
 
 def _validate_library_slice(settings: dict[str, Any]) -> None:
-    """Validate bindings in the profile against connections also in the profile."""
+    """Validate bindings in the document against connections also in the document."""
     conns = settings["library_connections"]
     if "library_script_bindings" in settings:
         settings["library_script_bindings"] = library_lib.parse_script_bindings(
@@ -226,26 +212,3 @@ def _validate_library_full(cfg: dict[str, Any]) -> None:
     cfg["library_media_bindings"] = library_lib.parse_media_bindings(
         cfg.get("library_media_bindings") or [], conns
     )
-
-
-def _merge_by_id(existing: list, incoming: list) -> list:
-    by_id: dict[str, Any] = {}
-    order: list[str] = []
-    for item in existing:
-        if not isinstance(item, dict):
-            continue
-        iid = str(item.get("id") or "").strip()
-        if not iid:
-            continue
-        by_id[iid] = deepcopy(item)
-        order.append(iid)
-    for item in incoming:
-        if not isinstance(item, dict):
-            continue
-        iid = str(item.get("id") or "").strip()
-        if not iid:
-            continue
-        if iid not in by_id:
-            order.append(iid)
-        by_id[iid] = deepcopy(item)
-    return [by_id[i] for i in order]

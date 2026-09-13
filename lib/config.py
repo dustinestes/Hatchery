@@ -217,8 +217,8 @@ def library_media_bindings() -> list:
     return list(get().get("library_media_bindings") or [])
 
 
-def profile_setting_keys() -> frozenset[str]:
-    """Keys included in Settings profile export/import (not bootstrap ``data_dir``)."""
+def exportable_setting_keys() -> frozenset[str]:
+    """Keys included in Settings export/import (not bootstrap ``data_dir``)."""
     return _DB_SETTING_KEYS
 
 
@@ -227,8 +227,8 @@ def default_for(key: str):
     return deepcopy(_DEFAULTS[key]) if key in _DEFAULTS else None
 
 
-def defaults_for_profile() -> dict:
-    """Return a copy of all profile (DB) setting defaults — excludes ``data_dir``."""
+def defaults_for_exportable_settings() -> dict:
+    """Return a copy of all exportable (DB) setting defaults — excludes ``data_dir``."""
     return {k: deepcopy(_DEFAULTS[k]) for k in _DB_SETTING_KEYS}
 
 
