@@ -92,7 +92,7 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 - **Python** — formatted and linted with `ruff`. Run `uv run ruff check . && uv run ruff format --check .` before pushing.
 - **Line length** — 100 characters.
 - **HTML/CSS/JS** — follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
-- **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it.
+- **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`.hatchery/docs/providers.md`](.hatchery/docs/providers.md) when capability changes.
 - **Answer files** — new guest OS types get a template under `templates/answerfiles/` and a corresponding branch in `answerfile.py`.
 - **Comments** — write one only when the *why* is non-obvious. Don't describe what the code does.
 

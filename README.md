@@ -89,6 +89,8 @@ Hatchery/
 | Linux guests | KVM/QEMU | Planned |
 | Windows (Hyper-V) | Remote Nest via SSH (WinRM Nest fallback planned) | Planned |
 
+> Full Nest × feature matrix (libvirt / UTM / Hyper-V, local and remote) → [Provider support matrix](.hatchery/docs/providers.md)
+
 ---
 
 <br/>
