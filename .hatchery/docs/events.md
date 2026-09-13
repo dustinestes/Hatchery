@@ -245,7 +245,7 @@ Returns a JSON object with an `events` array in insertion order:
 
 The **Events** pane (`/notifications/events`) polls this endpoint for the selected VM (alongside `GET /api/sessions` for the picker) and formats `received_at` using `resolved_timezone` from `/api/config`. The log remains viewable after a VM reaches `fledged` or `failed` for as long as the hatch session is active (not archived).
 
-`received_at` is always stored in UTC. The [Settings](../docs/settings.md) pane lets you choose whether timestamps are displayed in UTC or converted to host local time — conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
+`received_at` is always stored in UTC. **Settings → Display** lets you choose whether timestamps are shown in UTC or host local time — conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
 
 <br>
 

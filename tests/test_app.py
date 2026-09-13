@@ -70,8 +70,22 @@ class TestRoutes:
     def test_media_virtio_returns_200(self, client):
         assert client.get("/media/virtio").status_code == 200
 
-    def test_settings_returns_200(self, client):
-        assert client.get("/settings").status_code == 200
+    def test_settings_redirects_to_general(self, client):
+        resp = client.get("/settings")
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/settings/general")
+
+    def test_settings_general_returns_200(self, client):
+        assert client.get("/settings/general").status_code == 200
+
+    def test_settings_security_returns_200(self, client):
+        assert client.get("/settings/security").status_code == 200
+
+    def test_settings_display_returns_200(self, client):
+        assert client.get("/settings/display").status_code == 200
+
+    def test_settings_unknown_section_404(self, client):
+        assert client.get("/settings/database").status_code == 404
 
     def test_notifications_redirects_to_alerts(self, client):
         resp = client.get("/notifications")
@@ -94,9 +108,19 @@ class TestActivePane:
         html = client.get("/nests").data.decode()
         assert "active" in html
 
-    def test_settings_marks_active(self, client):
-        html = client.get("/settings").data.decode()
-        assert "active" in html
+    def test_settings_marks_group_and_general_child(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert 'href="/settings/general"' in html
+        assert 'href="/settings/security"' in html
+        assert 'href="/settings/display"' in html
+
+    def test_settings_security_marks_group_and_child(self, client):
+        html = client.get("/settings/security").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert "Security" in html
 
     def test_alerts_marks_notifications_group_and_child(self, client):
         html = client.get("/notifications/alerts").data.decode()
@@ -169,9 +193,18 @@ class TestPageTitles:
         assert "VirtIO" in html
         assert "Select a VirtIO file to inspect" in html
 
-    def test_settings_title(self, client):
-        html = client.get("/settings").data.decode()
+    def test_settings_general_title(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert "General" in html
         assert "Settings" in html
+
+    def test_settings_security_title(self, client):
+        html = client.get("/settings/security").data.decode()
+        assert "Security" in html
+
+    def test_settings_display_title(self, client):
+        html = client.get("/settings/display").data.decode()
+        assert "Display" in html
 
     def test_notifications_title(self, client):
         html = client.get("/notifications/alerts").data.decode()
@@ -185,11 +218,11 @@ class TestPageTitles:
 class TestSettingsRoute:
     def test_get_shows_current_data_dir(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
-        html = client.get("/settings").data.decode()
+        html = client.get("/settings/general").data.decode()
         assert str(tmp_path) in html
 
     def test_get_shows_config_file_path(self, client):
-        html = client.get("/settings").data.decode()
+        html = client.get("/settings/general").data.decode()
         assert str(cfg.CONFIG_FILE) in html
 
     def test_post_valid_saves_and_redirects(self, client, tmp_path, monkeypatch):
@@ -197,14 +230,17 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        resp = client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
+        resp = client.post(
+            "/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "60"}
+        )
         assert resp.status_code == 302
+        assert "/settings/general" in resp.headers["Location"]
         assert "saved=1" in resp.headers["Location"]
         assert saved["data_dir"] == str(tmp_path)
 
     def test_post_empty_path_shows_error(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old/path", "bg_interval": 60})
-        resp = client.post("/settings", data={"data_dir": "", "bg_interval": "60"})
+        resp = client.post("/settings/general", data={"data_dir": "", "bg_interval": "60"})
         assert resp.status_code == 200
         assert "required" in resp.data.decode().lower()
 
@@ -213,11 +249,11 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        client.post("/settings", data={"data_dir": "~/hatchery/data", "bg_interval": "60"})
+        client.post("/settings/general", data={"data_dir": "~/hatchery/data", "bg_interval": "60"})
         assert not saved["data_dir"].startswith("~")
 
     def test_get_saved_param_shows_success_banner(self, client):
-        html = client.get("/settings?saved=1").data.decode()
+        html = client.get("/settings/general?saved=1").data.decode()
         assert "saved" in html.lower()
 
     def test_post_calls_init_data_dir(self, client, tmp_path, monkeypatch):
@@ -225,12 +261,12 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: None)
         monkeypatch.setattr(cfg, "init_data_dir", lambda: called.append(True))
-        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
+        client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "60"})
         assert called
 
     def test_get_shows_current_bg_interval(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/some/path", "bg_interval": 120})
-        html = client.get("/settings").data.decode()
+        html = client.get("/settings/general").data.decode()
         assert "120" in html
 
     def test_post_saves_bg_interval(self, client, tmp_path, monkeypatch):
@@ -238,20 +274,54 @@ class TestSettingsRoute:
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
         monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "120"})
+        client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "120"})
         assert saved["bg_interval"] == 120
 
     def test_post_bg_interval_below_minimum_shows_error(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
-        resp = client.post("/settings", data={"data_dir": "/some/path", "bg_interval": "5"})
+        resp = client.post("/settings/general", data={"data_dir": "/some/path", "bg_interval": "5"})
         assert resp.status_code == 200
         assert "10" in resp.data.decode()
 
     def test_post_bg_interval_non_numeric_shows_error(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
-        resp = client.post("/settings", data={"data_dir": "/some/path", "bg_interval": "abc"})
+        resp = client.post(
+            "/settings/general", data={"data_dir": "/some/path", "bg_interval": "abc"}
+        )
         assert resp.status_code == 200
         assert "interval" in resp.data.decode().lower()
+
+    def test_general_post_preserves_security_keys(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {
+                "data_dir": "/old",
+                "bg_interval": 60,
+                "show_passwords": True,
+                "display_timezone": "local",
+            },
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        client.post("/settings/general", data={"data_dir": str(tmp_path), "bg_interval": "90"})
+        assert saved["show_passwords"] is True
+        assert saved["display_timezone"] == "local"
+
+    def test_display_post_saves_timezone(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": str(tmp_path), "bg_interval": 60, "display_timezone": "UTC"},
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        resp = client.post("/settings/display", data={"display_timezone": "local"})
+        assert resp.status_code == 302
+        assert "/settings/display" in resp.headers["Location"]
+        assert saved["display_timezone"] == "local"
+        assert saved["data_dir"] == str(tmp_path)
 
 
 class TestBuildRoute:
@@ -1644,13 +1714,16 @@ class TestNestStatus:
                 "/nests",
                 "/clutches",
                 "/automation/scripts",
-                "/settings",
+                "/settings/general",
+                "/settings/security",
+                "/settings/display",
                 "/hatch-clutch",
                 "/build",
                 "/notifications/alerts",
                 "/notifications/events",
                 # /edit redirects without ?clutch= — skip it here
                 # /automation redirects to /automation/scripts
+                # /settings redirects to /settings/general
             ]:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
@@ -2309,23 +2382,26 @@ class TestSettingsShowPasswords:
         saved = {}
         monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
-        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
         client.post(
-            "/settings",
-            data={"data_dir": str(tmp_path), "bg_interval": "60", "show_passwords": "on"},
+            "/settings/security",
+            data={"show_passwords": "on", "nest_ssh_identities": "[]"},
         )
         assert saved["show_passwords"] is True
+        assert saved["data_dir"] == str(tmp_path)
 
     def test_post_saves_show_passwords_false_when_unchecked(self, client, tmp_path, monkeypatch):
         saved = {}
-        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": str(tmp_path), "bg_interval": 60})
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": str(tmp_path), "bg_interval": 60, "show_passwords": True},
+        )
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
-        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
-        client.post("/settings", data={"data_dir": str(tmp_path), "bg_interval": "60"})
+        client.post("/settings/security", data={"nest_ssh_identities": "[]"})
         assert saved["show_passwords"] is False
 
     def test_get_shows_show_passwords_checkbox(self, client):
-        html = client.get("/settings").data.decode()
+        html = client.get("/settings/security").data.decode()
         assert "show_passwords" in html
 
     def test_get_checkbox_checked_when_setting_true(self, client, monkeypatch):
@@ -2334,7 +2410,7 @@ class TestSettingsShowPasswords:
             "get",
             lambda: {"data_dir": "/some/path", "bg_interval": 60, "show_passwords": True},
         )
-        html = client.get("/settings").data.decode()
+        html = client.get("/settings/security").data.decode()
         assert 'name="show_passwords"' in html
         assert "checked" in html
 
