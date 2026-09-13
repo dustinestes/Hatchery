@@ -12,7 +12,7 @@ All hypervisor ops go through `lib/providers/base.py`.
 
 - `libvirt.py` — KVM/QEMU (v1)
 - `hyperv.py` — Hyper-V (local/remote; Nest control via SSH by default — #218)
-- Nest control plane: `lib/nest_transport.py` — SSH default (key **reference**); WinRM Nest fallback #220
+- Nest control plane: `lib/nest_transport.py` — SSH default (key **reference**); WinRM Nest fallback (#220)
 - Guest provision stays in `lib/provision.py` (WinRM for Windows guests)
 
 ```
