@@ -9,16 +9,18 @@ Windows-first VM manager on Ubuntu KVM (Flask + vanilla HTML/CSS/JS). v1 guests:
 
 ## Naming (1:1:1 — UI, docs, code)
 
-Use Hatchery terms. Never invent synonyms. Never use retired "Brood".
+Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood".
 
 | Use | Not |
 |---|---|
 | Nest | host / hypervisor (in product language) |
 | Clutch | stack / blueprint / compose file |
 | Hatch | deploy / provision (for create+boot) |
-| Cull | destroy / delete / terminate |
-| Freeze / Thaw | snapshot / restore (in product language) |
-| Chirp | health check / ping |
+| Cull | destroy / delete / terminate (VM remove) |
+| Snapshot | Freeze (retired brand verb) |
+| Revert (to snapshot) | Thaw (retired brand verb) |
+| Delete snapshot | — |
+| Health check / connectivity check | Chirp (retired as primary UI label) |
 | Fledged | ready / healthy (post-provision) |
 
 Power actions stay plain: Start, Stop, Force Stop, Pause, Resume.
@@ -27,10 +29,14 @@ Power actions stay plain: Start, Stop, Force Stop, Pause, Resume.
 ❌ "Delete the VM and remove its disk"
 ✅ "Cull the VM"
 
+❌ "Freeze" / "Thaw" / "Chirp" as primary button labels
+✅ Snapshot / Revert / Delete snapshot; "Test Nest connection" or "Guest health check"
+
 ❌ create_snapshot_blueprint()
-✅ Follow existing provider names (create_snapshot / Freeze in UI)
+✅ Follow existing provider names (create_snapshot / revert_snapshot / delete_snapshot)
 ```
 
+Provider method names already use snapshot language — keep them. Do not rename code to Freeze/Thaw.
 ## Design constraints
 
 - Vanilla HTML/CSS/JS only — no JS framework
