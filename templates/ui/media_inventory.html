@@ -65,6 +65,20 @@
           </svg>
           <span class="media-copy-label">Path</span>
         </button>
+        <button type="button"
+                class="media-copy-btn"
+                id="media-delete-btn"
+                title="Delete"
+                aria-label="Delete"
+                hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -115,6 +129,20 @@
   </div>
 
 </div>
+
+<div id="delete-modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <h2 class="modal-title" id="delete-modal-title">Delete {{ item_kind }}</h2>
+    <div class="modal-body">
+      <p>Delete <strong id="delete-modal-filename"></strong>?</p>
+      <p class="modal-warning">This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="delete-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="delete-modal-confirm">Delete</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -122,6 +150,7 @@
 (function () {
   const USED_BY = {{ used_by | tojson }};
   const INSPECT_URL = {{ inspect_url_prefix | tojson }};
+  const DELETE_URL_PREFIX = {{ delete_url_prefix | tojson }};
 
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
@@ -148,6 +177,11 @@
   const usedByList = document.getElementById('media-used-by-list');
   const usedByEmpty = document.getElementById('media-used-by-empty');
   const copyPathBtn = document.getElementById('media-copy-path-btn');
+  const deleteBtn = document.getElementById('media-delete-btn');
+  const deleteBackdrop = document.getElementById('delete-modal-backdrop');
+  const deleteFilenameEl = document.getElementById('delete-modal-filename');
+  const deleteCancel = document.getElementById('delete-modal-cancel');
+  const deleteConfirm = document.getElementById('delete-modal-confirm');
 
   let selectedName = null;
   let selectedAbsPath = null;
@@ -262,6 +296,9 @@
     header.hidden = false;
     detail.hidden = false;
     copyPathBtn.hidden = false;
+    deleteBtn.hidden = false;
+    deleteBtn.title = 'Delete ' + name;
+    deleteBtn.setAttribute('aria-label', 'Delete ' + name);
 
     titleEl.textContent = name;
     metaEl.textContent = formatBytes(sizeBytes);
@@ -343,6 +380,65 @@
   copyPathBtn.addEventListener('click', function () {
     if (!selectedAbsPath) return;
     copyText(selectedAbsPath);
+  });
+
+  function openDeleteModal(name) {
+    deleteFilenameEl.textContent = name;
+    deleteBackdrop.hidden = false;
+    deleteConfirm.focus();
+  }
+
+  function closeDeleteModal() {
+    deleteBackdrop.hidden = true;
+  }
+
+  deleteBtn.addEventListener('click', function () {
+    if (!selectedName) return;
+    openDeleteModal(selectedName);
+  });
+
+  deleteCancel.addEventListener('click', closeDeleteModal);
+  deleteBackdrop.addEventListener('click', function (e) {
+    if (e.target === deleteBackdrop) closeDeleteModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !deleteBackdrop.hidden) closeDeleteModal();
+  });
+
+  deleteConfirm.addEventListener('click', function () {
+    if (!selectedName) return;
+    const name = selectedName;
+    deleteConfirm.disabled = true;
+    fetch(DELETE_URL_PREFIX + encodeURIComponent(name) + '/delete', { method: 'POST' })
+      .then(function (resp) {
+        return resp.json().then(function (data) {
+          return { ok: resp.ok, data: data };
+        }, function () {
+          return { ok: resp.ok, data: {} };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = (res.data && res.data.error) || 'Delete failed';
+          if (window.hatchery && typeof hatchery.showToast === 'function') {
+            hatchery.showToast(msg, 'warning', 5000);
+          }
+          return;
+        }
+        if (window.hatchery && typeof hatchery.showToast === 'function') {
+          hatchery.showToast('Deleted ' + name, 'info', 2200);
+        }
+        window.location.reload();
+      })
+      .catch(function () {
+        if (window.hatchery && typeof hatchery.showToast === 'function') {
+          hatchery.showToast('Delete failed — network or server error.', 'alert', 5000);
+        }
+      })
+      .finally(function () {
+        deleteConfirm.disabled = false;
+        closeDeleteModal();
+      });
   });
 })();
 </script>

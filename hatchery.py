@@ -582,11 +582,13 @@ def media_iso():
         nav_label="ISO media files",
         stub_text="Select an ISO to inspect",
         inspect_url_prefix="/api/media/iso/",
+        delete_url_prefix="/api/media/iso/",
         import_url=url_for("api_import_media_iso"),
         import_accept=".iso",
         items=media_inspect_lib.scan_media_dir("iso"),
         used_by=media_inspect_lib.media_used_by("os_media"),
         empty_subdir="media/iso/",
+        item_kind="ISO",
     )
 
 
@@ -600,11 +602,13 @@ def media_virtio():
         nav_label="VirtIO media files",
         stub_text="Select a VirtIO file to inspect",
         inspect_url_prefix="/api/media/virtio/",
+        delete_url_prefix="/api/media/virtio/",
         import_url=url_for("api_import_media_virtio"),
         import_accept=".iso",
         items=media_inspect_lib.scan_media_dir("virtio"),
         used_by=media_inspect_lib.media_used_by("virtio_drivers"),
         empty_subdir="media/virtio/",
+        item_kind="VirtIO file",
     )
 
 
@@ -1218,6 +1222,32 @@ def api_media_iso_inspect(name):
 @app.route("/api/media/virtio/<path:name>/inspect")
 def api_media_virtio_inspect(name):
     return _api_media_inspect("virtio", name)
+
+
+def _api_unlink_inventory_file(path) -> tuple:
+    """Unlink a resolved inventory file; return (jsonify_result, status)."""
+    if path is None or not path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        path.unlink()
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, "name": path.name}), 200
+
+
+@app.route("/api/media/iso/<path:name>/delete", methods=["POST"])
+def api_media_iso_delete(name):
+    return _api_unlink_inventory_file(media_inspect_lib.resolve_media_path("iso", name))
+
+
+@app.route("/api/media/virtio/<path:name>/delete", methods=["POST"])
+def api_media_virtio_delete(name):
+    return _api_unlink_inventory_file(media_inspect_lib.resolve_media_path("virtio", name))
+
+
+@app.route("/api/automation/scripts/<path:name>/delete", methods=["POST"])
+def api_automation_script_delete(name):
+    return _api_unlink_inventory_file(_resolve_script_path(name))
 
 
 @app.route("/api/automation/os-config")
