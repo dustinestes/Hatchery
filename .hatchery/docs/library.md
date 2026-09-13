@@ -6,7 +6,7 @@
 <h1>Library and Nest Cache</h1>
 <br clear="both">
 
-How Hatchery keeps a local-first operator model while supporting shared Library sources and per-Nest content caches.
+How Hatchery keeps a local-first operator model while supporting Library **connections**, domain **bindings**, and per-Nest content caches.
 
 <br>
 
@@ -14,8 +14,10 @@ How Hatchery keeps a local-first operator model while supporting shared Library 
 
 - [Contents](#contents)
 - [Planes](#planes)
+- [Connections and Bindings](#connections-and-bindings)
 - [Identity](#identity)
 - [Settings and Import](#settings-and-import)
+- [Inventory: Cache vs Catalog](#inventory-cache-vs-catalog)
 - [Hatch Preflight](#hatch-preflight)
 - [Settings Profiles](#settings-profiles)
 - [Future: Allow Remote Content](#future-allow-remote-content)
@@ -30,8 +32,9 @@ Hatchery does not become a CMS. Content moves through explicit planes:
 
 | Plane | Role |
 |---|---|
-| **Library** | Product feature: shared/org content you can browse and pull from |
-| **Sources** | Named endpoints inside Library (git forge, NAS/share, HTTPS/artifacts) — field language in Settings |
+| **Library** | Product feature and Settings section (when enabled) |
+| **Connections** | Named endpoints: type, base URI, auth — defined once |
+| **Bindings** | Per-domain rows: connection + path/filter (Clutches, Scripts, Media) |
 | **Operator cache** | This Hatchery instance’s data directory — `media/`, `automation/`, `clutches/` |
 | **Nest cache** | The same layout on the Nest host that will attach or run the content |
 | **Attach / run** | Hypervisor (or guest tooling) uses Nest-reachable paths |
@@ -46,28 +49,58 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 <br>
 
+## Connections and Bindings
+
+**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, Artifactory-style API later). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
+
+**Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern). Multiple bindings per domain are allowed (several git repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
+
+| Concept | Example |
+|---|---|
+| Connection | `Artifactory` — HTTPS base + token; kinds: media |
+| Binding | Media → that connection + `repo=win-isos` + `**/Win11*.iso` |
+| Connection | `Ops git` — forge URL + token; kinds: scripts, clutches |
+| Binding | Scripts → that connection + path `automation/scripts` |
+
+**Test connection** checks reachability/auth without a full catalog. **Test filter** applies a domain binding and returns a small sample (about five hits) so locators can be validated before rely-on-hatch.
+
+<br>
+
 ## Identity
 
 Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 - Basename matches how Clutches already reference media and scripts (e.g. `win11.iso`)
-- Checksum ensures the Nest cache has the intended bytes when multiple sources or machines are involved
+- Checksum ensures the Nest cache has the intended bytes when multiple connections or machines are involved
 - Ensure/sync and hatch preflight compare on this pair
 
 <br>
 
 ## Settings and Import
 
-**Settings owns Library configuration** (feature flag and source definitions). Asset panes keep an in-context control so operators shop next to Clutches, Automations, or Media.
+**Settings owns Library configuration** (feature flag, connections, domain bindings). Asset panes keep an in-context control so operators shop next to Clutches, Automations, or Media.
 
 | `library_enabled` | Import control |
 |---|---|
 | Off (default) | Single **Import** — file into the operator cache |
 | On | Import becomes a dropdown: **From file…** \| **From library…** |
 
-When Library is on, Settings gains a **Library** section (same sidebar section pattern as General / Security / Display). That section lists and edits **sources** (where content is pulled from). Deep links to Library Settings while the feature is off should redirect or prompt to enable Library first.
+When Library is on, Settings gains a **Library** section with:
 
-Pull copies selected items into the normal data-dir paths so inventory, Used-by, and provisioning keep using local files.
+- **Connections** — registry rows  
+- **Clutches / Scripts / Media** — binding rows (connection picker filtered by kind + path/filter)
+
+Enable Library under Settings → General. Deep links to Library Settings while the feature is off redirect to General with an enable hint.
+
+Pull copies selected items into the normal data-dir paths so inventory, Used-by, and provisioning keep using local files by default.
+
+<br>
+
+## Inventory: Cache vs Catalog
+
+**Default (cache-first):** domain panes list the operator cache only. **From library…** browses bindings and pulls chosen items into the cache.
+
+**Optional:** Settings → Library knob to **show library results in inventory panes**. When on, panes may list binding hits with badges such as **Cached** vs **Library** (not cached). Visibility is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later). Actions on Library-only rows are pull/cache (and later pull-and-use), not silent remote attach.
 
 <br>
 
@@ -86,7 +119,7 @@ Local Nest preflight is a filesystem check under the data directory (no network 
 
 ## Settings Profiles
 
-Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a **profile** document (YAML, `version: 1`): export from / import into the DB (merge or replace). The same format serves personal multi-host use and light enterprise “golden” config.
+Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a **profile** document (YAML, `version: 1`): export from / import into the DB (merge or replace). The same format serves personal multi-host use and light enterprise “golden” config — including Library connections/bindings when present.
 
 Bootstrap `data_dir` stays in the external bootstrap file — profiles do not replace the need to know where the database lives. Continuous path/git watch of a profile is a later enhancement; export/import is the first step.
 
@@ -94,7 +127,7 @@ Bootstrap `data_dir` stays in the external bootstrap file — profiles do not re
 
 ## Future: Allow Remote Content
 
-Orgs with high bandwidth or all-local DC networks may later opt in so a Nest can attach or run content from a remote source **without** pre-download into the Nest cache. That flag is not the default and is not required for Library MVP.
+Orgs with high bandwidth or all-local DC networks may later opt in so a Nest can attach or run content from a remote connection **without** pre-download into the Nest cache. That flag is not the default and is not required for Library MVP.
 
 <br>
 

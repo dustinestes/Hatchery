@@ -588,6 +588,12 @@ body {
   color: var(--color-text);
 }
 
+.alert-info {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
 /* ── Forms ── */
 .form-section {
   margin-bottom: 28px;

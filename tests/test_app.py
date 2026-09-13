@@ -115,6 +115,13 @@ class TestActivePane:
         assert 'href="/settings/general"' in html
         assert 'href="/settings/security"' in html
         assert 'href="/settings/display"' in html
+        assert 'href="/settings/library"' not in html
+
+    def test_settings_library_nav_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        html = client.get("/settings/general").data.decode()
+        assert 'href="/settings/library"' in html
+        assert ">Library</span>" in html or 'sidebar-label">Library' in html
 
     def test_settings_security_marks_group_and_child(self, client):
         html = client.get("/settings/security").data.decode()
@@ -332,6 +339,80 @@ class TestSettingsRoute:
         assert "/settings/display" in resp.headers["Location"]
         assert saved["display_timezone"] == "local"
         assert saved["data_dir"] == str(tmp_path)
+
+
+class TestLibrarySettingsGate:
+    def test_library_redirects_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        resp = client.get("/settings/library")
+        assert resp.status_code == 302
+        assert "/settings/general" in resp.headers["Location"]
+        assert "library_required=1" in resp.headers["Location"]
+
+    def test_library_required_shows_hint_on_general(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        html = client.get("/settings/general?library_required=1").data.decode()
+        assert "Enable" in html
+        assert "Library" in html
+
+    def test_library_returns_200_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": "/data", "bg_interval": 60, "library_enabled": True},
+        )
+        resp = client.get("/settings/library")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "No connections yet" in html
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+
+    def test_general_post_saves_library_enabled(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": str(tmp_path), "bg_interval": 60, "library_enabled": False},
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
+        client.post(
+            "/settings/general",
+            data={
+                "data_dir": str(tmp_path),
+                "bg_interval": "60",
+                "library_enabled": "on",
+            },
+        )
+        assert saved["library_enabled"] is True
+
+    def test_general_post_clears_library_enabled_when_unchecked(
+        self, client, tmp_path, monkeypatch
+    ):
+        saved = {}
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {"data_dir": str(tmp_path), "bg_interval": 60, "library_enabled": True},
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
+        client.post(
+            "/settings/general",
+            data={"data_dir": str(tmp_path), "bg_interval": "60"},
+        )
+        assert saved["library_enabled"] is False
+
+    def test_general_shows_library_toggle(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert 'name="library_enabled"' in html
+        assert "Enable Library" in html
 
 
 class TestBuildRoute:
