@@ -728,12 +728,7 @@ class TestLibrarySettingsGate:
         monkeypatch.setattr(cfg, "get", lambda: state)
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
 
-        yaml_body = (
-            "version: 1\n"
-            "settings:\n"
-            "  bg_interval: 99\n"
-            "  library_enabled: true\n"
-        )
+        yaml_body = "version: 1\nsettings:\n  bg_interval: 99\n  library_enabled: true\n"
         resp = client.post(
             "/api/settings/import",
             json={"yaml": yaml_body},
