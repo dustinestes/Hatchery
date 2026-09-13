@@ -127,6 +127,41 @@ Live operational Settings remain in SQLite (`app_settings`). Portability across 
 
 Bootstrap `data_dir` stays in the external bootstrap file — profiles do not replace the need to know where the database lives. Continuous path/git watch of a profile is a later enhancement; export/import is the first step.
 
+### UI
+
+Settings → **General** → **Settings profile**:
+
+- **Export profile** — downloads `hatchery-settings.yaml` (all SQLite Settings keys, including Library tokens when configured)
+- **Import** — choose **Merge** or **Replace**, then pick a YAML file
+
+| Mode | Behavior |
+|---|---|
+| **Merge** | Scalars present in the file overwrite. Lists keyed by `id` (connections, bindings, Nest SSH identities) upsert by id. `nest_key_alert_tiers` replaces as a whole list when present. |
+| **Replace** | File keys apply; omitted profile keys reset to Hatchery defaults. Confirm before import. |
+
+`data_dir` in a profile (top-level or under `settings`) is **ignored** with a warning — set the data directory on each machine under General.
+
+### Shape
+
+```yaml
+version: 1
+exported_at: 2026-09-13T18:00:00Z   # optional metadata
+settings:
+  bg_interval: 60
+  show_passwords: false
+  display_timezone: UTC
+  nest_key_alert_tiers: [...]
+  nest_ssh_identities: [...]
+  library_enabled: true
+  library_connections: [...]
+  library_script_bindings: [...]
+  library_clutch_bindings: [...]
+  library_media_bindings: [...]
+```
+
+API: `GET` / `POST` `/api/settings/profile` (POST accepts multipart `file` + `mode`, or JSON `{yaml}` / `{profile}`).
+
+
 <br>
 
 ## Future: Allow Remote Content

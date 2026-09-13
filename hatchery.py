@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
@@ -20,6 +20,7 @@ from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
+from lib import settings_profile as settings_profile_lib
 from lib.clutch import VMConfig, GuestOS
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
@@ -640,7 +641,7 @@ def _host_timezone() -> str:
 _SETTINGS_SECTIONS = {
     "general": (
         "General",
-        "Application paths, background validation, and feature toggles.",
+        "Application paths, background validation, feature toggles, and Settings profiles.",
     ),
     "security": (
         "Security",
@@ -959,6 +960,54 @@ def settings_section_post(section: str):
     new_cfg["display_timezone"] = display_timezone_raw
     config.save(new_cfg)
     return redirect(url_for("settings_section", section="display", saved="1"))
+
+
+@app.route("/api/settings/profile", methods=["GET", "POST"])
+def api_settings_profile():
+    """GET: download Settings profile YAML. POST: import (merge or replace)."""
+    if request.method == "GET":
+        body = settings_profile_lib.dump_yaml(settings_profile_lib.export_profile())
+        return Response(
+            body,
+            mimetype="application/yaml",
+            headers={
+                "Content-Disposition": 'attachment; filename="hatchery-settings.yaml"',
+            },
+        )
+
+    mode = (request.form.get("mode") or request.args.get("mode") or "merge").strip().lower()
+    if mode not in ("merge", "replace"):
+        return jsonify({"error": "mode must be merge or replace"}), 400
+
+    text = ""
+    upload = request.files.get("file") or request.files.get("profile")
+    if upload and upload.filename:
+        text = upload.read().decode("utf-8", errors="replace")
+    else:
+        data = request.get_json(silent=True)
+        if isinstance(data, dict) and "yaml" in data:
+            text = str(data.get("yaml") or "")
+        elif isinstance(data, dict) and "profile" in data and isinstance(data["profile"], dict):
+            try:
+                result = settings_profile_lib.apply_profile(data["profile"], mode=mode)
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+            _sync_nest_key_expiry()
+            return jsonify(result)
+        else:
+            text = request.get_data(as_text=True) or ""
+
+    if not text.strip():
+        return jsonify({"error": "Profile YAML is required"}), 400
+    try:
+        raw = settings_profile_lib.load_yaml(text)
+        result = settings_profile_lib.apply_profile(raw, mode=mode)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    _sync_nest_key_expiry()
+    return jsonify(result)
 
 
 def _library_require_enabled():

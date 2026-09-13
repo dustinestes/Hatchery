@@ -69,6 +69,11 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `nest_ssh_identities` | Security | Tracked identities (until Nest registry) |
 | `display_timezone` | Display | `UTC` or `local` for Events |
+| `library_enabled` | General | Feature flag for Library Settings + Import from library |
+| `library_connections` | Library | Connection registry |
+| `library_script_bindings` | Library | Scripts domain bindings |
+| `library_clutch_bindings` | Library | Clutches domain bindings |
+| `library_media_bindings` | Library | Media domain bindings (include cache target) |
 
 Managed by `lib/config.py` after `db.init_db` via `bind_db()` / `save()`.
 
@@ -88,8 +93,9 @@ Existing installs keep their Settings without manual edits.
 
 ## Settings UI
 
-- **General** — edits `data_dir` (bootstrap) and `bg_interval` (DB). Changing the data directory re-opens `hatchery.db` under the new path.
+- **General** — edits `data_dir` (bootstrap) and `bg_interval` / Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. **Settings profile** export/import (YAML `version: 1`, merge or replace) lives here and never changes `data_dir`.
 - **Security** / **Display** — write only to SQLite; bootstrap is unchanged.
+- **Library** — connections and domain bindings (when Library is enabled).
 
 The disabled “Bootstrap file” field on General shows the path to the external YAML pointer.
 

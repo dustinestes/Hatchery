@@ -436,6 +436,47 @@
 
 </form>
 
+{% if section == 'general' %}
+<section class="form-section" id="settings-profile">
+  <h2 class="form-section-title">Settings profile</h2>
+  <p class="form-help-text">
+    Export or import operational Settings as YAML (<code>version: 1</code>) — including Library
+    connections and bindings when present. The bootstrap data directory is never changed by import;
+    set it above on each machine.
+  </p>
+  <div class="form-grid form-grid-1">
+    <div class="form-group">
+      <a class="btn btn-secondary btn-sm" id="settings-profile-export"
+         href="{{ url_for('api_settings_profile') }}"
+         download="hatchery-settings.yaml">Export profile</a>
+    </div>
+    <div class="form-group">
+      <span class="form-label" id="settings-profile-mode-label">Import mode</span>
+      <div class="form-radio-group export-mode-tabs" role="radiogroup"
+           aria-labelledby="settings-profile-mode-label">
+        <label class="export-mode-option form-radio">
+          <input type="radio" name="settings_profile_mode" value="merge" checked>
+          <span class="form-radio-label">Merge — upsert by id; overwrite scalars present in the file</span>
+        </label>
+        <label class="export-mode-option form-radio">
+          <input type="radio" name="settings_profile_mode" value="replace">
+          <span class="form-radio-label">Replace — apply file keys; omitted keys reset to defaults</span>
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <input type="file" id="settings-profile-import-input" accept=".yaml,.yml,text/yaml,application/x-yaml"
+             hidden>
+      <button type="button" class="btn btn-secondary btn-sm" id="settings-profile-import-btn">
+        Import profile…
+      </button>
+      <span class="library-test-result" id="settings-profile-import-status" role="status"
+            aria-live="polite"></span>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if section == 'security' %}
 <template id="nest-tier-row-template">
   <div class="settings-tier-row">
@@ -634,6 +675,81 @@
 {% endblock %}
 
 {% block scripts %}
+{% if section == 'general' %}
+<script>
+(function () {
+  const importBtn = document.getElementById('settings-profile-import-btn');
+  const importInput = document.getElementById('settings-profile-import-input');
+  const statusEl = document.getElementById('settings-profile-import-status');
+  if (!importBtn || !importInput) return;
+
+  function setStatus(ok, message) {
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    statusEl.classList.toggle('library-test-result--ok', !!ok);
+    statusEl.classList.toggle('library-test-result--err', !ok && !!message);
+  }
+
+  function selectedMode() {
+    const checked = document.querySelector('input[name="settings_profile_mode"]:checked');
+    return (checked && checked.value) || 'merge';
+  }
+
+  importBtn.addEventListener('click', function () {
+    importInput.click();
+  });
+
+  importInput.addEventListener('change', function () {
+    const file = importInput.files && importInput.files[0];
+    importInput.value = '';
+    if (!file) return;
+    const mode = selectedMode();
+    if (mode === 'replace') {
+      const ok = window.confirm(
+        'Replace all operational Settings from this profile? Keys omitted in the file reset to defaults. The data directory is not changed.'
+      );
+      if (!ok) return;
+    }
+    setStatus(true, 'Importing…');
+    const body = new FormData();
+    body.append('file', file);
+    body.append('mode', mode);
+    fetch({{ url_for('api_settings_profile') | tojson }}, {
+      method: 'POST',
+      body: body,
+    })
+      .then(function (r) {
+        return r.json().then(function (data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function (res) {
+        const data = res.data || {};
+        if (!res.ok) {
+          setStatus(false, data.error || 'Import failed');
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast(data.error || 'Import failed', 'error', 5000);
+          }
+          return;
+        }
+        const warn = (data.warnings && data.warnings.length)
+          ? (' — ' + data.warnings.join(' '))
+          : '';
+        const msg = 'Profile imported (' + (data.mode || mode) + ')' + warn;
+        setStatus(true, msg);
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast(msg, warn ? 'warning' : 'success', 4000);
+        }
+        window.setTimeout(function () { window.location.reload(); }, 600);
+      })
+      .catch(function () {
+        setStatus(false, 'Network or server error');
+      });
+  });
+})();
+</script>
+{% endif %}
+
 {% if section == 'security' %}
 <script>
 (function () {

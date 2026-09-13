@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -214,6 +215,21 @@ def library_clutch_bindings() -> list:
 def library_media_bindings() -> list:
     """Return Media domain bindings (list of dicts)."""
     return list(get().get("library_media_bindings") or [])
+
+
+def profile_setting_keys() -> frozenset[str]:
+    """Keys included in Settings profile export/import (not bootstrap ``data_dir``)."""
+    return _DB_SETTING_KEYS
+
+
+def default_for(key: str):
+    """Return the default value for a config key."""
+    return deepcopy(_DEFAULTS[key]) if key in _DEFAULTS else None
+
+
+def defaults_for_profile() -> dict:
+    """Return a copy of all profile (DB) setting defaults — excludes ``data_dir``."""
+    return {k: deepcopy(_DEFAULTS[k]) for k in _DB_SETTING_KEYS}
 
 
 def init_data_dir() -> None:
