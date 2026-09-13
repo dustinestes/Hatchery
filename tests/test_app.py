@@ -108,7 +108,8 @@ class TestActivePane:
         html = client.get("/nests").data.decode()
         assert "active" in html
 
-    def test_settings_marks_group_and_general_child(self, client):
+    def test_settings_marks_group_and_general_child(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/settings/general").data.decode()
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
@@ -360,14 +361,114 @@ class TestLibrarySettingsGate:
         monkeypatch.setattr(
             cfg,
             "get",
-            lambda: {"data_dir": "/data", "bg_interval": 60, "library_enabled": True},
+            lambda: {
+                "data_dir": "/data",
+                "bg_interval": 60,
+                "library_enabled": True,
+                "library_connections": [],
+                "library_script_bindings": [],
+            },
         )
         resp = client.get("/settings/library")
         assert resp.status_code == 200
         html = resp.data.decode()
         assert "No connections yet" in html
+        assert "Add connection" in html
+        assert "Script bindings" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
+
+    def test_library_post_saves_connection_and_binding(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "a.ps1").write_text("# hi\n", encoding="utf-8")
+        saved = {}
+        from datetime import date, timedelta
+
+        expires = (date.today() + timedelta(days=14)).isoformat()
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {
+                "data_dir": str(tmp_path),
+                "bg_interval": 60,
+                "library_enabled": True,
+                "library_connections": [],
+                "library_script_bindings": [],
+            },
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        resp = client.post(
+            "/settings/library",
+            data={
+                "library_conn_id": "abc123def456",
+                "library_conn_label": "Ops share",
+                "library_conn_type": "path",
+                "library_conn_base_uri": str(share),
+                "library_conn_token": "",
+                "library_conn_expires_at": expires,
+                "library_conn_kinds": "scripts",
+                "library_script_bind_id": "bind001",
+                "library_script_bind_connection_id": "abc123def456",
+                "library_script_bind_filter": "*.ps1",
+            },
+        )
+        assert resp.status_code == 302
+        assert saved["library_connections"][0]["label"] == "Ops share"
+        assert saved["library_connections"][0]["expires_at"] == expires
+        assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+
+    def test_library_api_test_and_pull(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "tool.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+        data = tmp_path / "data"
+        (data / "automation" / "scripts").mkdir(parents=True)
+        from datetime import date, timedelta
+
+        conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": (date.today() + timedelta(days=30)).isoformat(),
+            "kinds": ["scripts"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(
+            cfg,
+            "library_script_bindings",
+            lambda: [{"id": "b1", "connection_id": "cpath1", "filter": "*", "domain": "scripts"}],
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        test_resp = client.post(
+            "/api/library/test-connection",
+            json={"connection_id": "cpath1"},
+        )
+        assert test_resp.status_code == 200
+        assert test_resp.get_json()["ok"] is True
+
+        catalog = client.get("/api/library/scripts")
+        assert catalog.status_code == 200
+        items = catalog.get_json()["items"]
+        assert any(i["name"] == "tool.sh" for i in items)
+
+        pull = client.post(
+            "/api/library/scripts/pull",
+            json={"connection_id": "cpath1", "relative_path": "tool.sh"},
+        )
+        assert pull.status_code == 200
+        assert pull.get_json()["imported"] == ["tool.sh"]
+        assert (data / "automation" / "scripts" / "tool.sh").is_file()
+
+    def test_library_api_forbidden_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        resp = client.get("/api/library/scripts")
+        assert resp.status_code == 403
 
     def test_general_post_saves_library_enabled(self, client, tmp_path, monkeypatch):
         saved = {}

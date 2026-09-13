@@ -19,6 +19,7 @@ from lib import import_files as import_files_lib
 from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
+from lib import library as library_lib
 from lib.clutch import VMConfig, GuestOS
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
@@ -797,7 +798,75 @@ def settings_section_post(section: str):
         return redirect(url_for("settings_section", section="security", saved="1"))
 
     if section == "library":
-        # Shell only (#232) — source CRUD lands in follow-on issues.
+        conn_ids = request.form.getlist("library_conn_id")
+        conn_labels = request.form.getlist("library_conn_label")
+        conn_types = request.form.getlist("library_conn_type")
+        conn_uris = request.form.getlist("library_conn_base_uri")
+        conn_tokens = request.form.getlist("library_conn_token")
+        conn_expires = request.form.getlist("library_conn_expires_at")
+        conn_kinds = request.form.getlist("library_conn_kinds")
+        n = len(conn_labels)
+        if not (
+            len(conn_ids) == n
+            and len(conn_types) == n
+            and len(conn_uris) == n
+            and len(conn_tokens) == n
+            and len(conn_expires) == n
+            and len(conn_kinds) == n
+        ):
+            return _rerender("Library connections are incomplete — each row needs all fields.")
+        raw_conns = []
+        for i in range(n):
+            raw_conns.append(
+                {
+                    "id": (conn_ids[i] or "").strip(),
+                    "label": (conn_labels[i] or "").strip(),
+                    "type": (conn_types[i] or "path").strip(),
+                    "base_uri": (conn_uris[i] or "").strip(),
+                    "token": conn_tokens[i] or "",
+                    "expires_at": (conn_expires[i] or "").strip(),
+                    "kinds": [
+                        k.strip() for k in (conn_kinds[i] or "").split(",") if k.strip()
+                    ],
+                }
+            )
+        try:
+            connections = library_lib.parse_connections(raw_conns)
+        except ValueError as exc:
+            return _rerender(
+                f"Library connections are invalid: {exc}",
+                {"library_connections": raw_conns, "library_script_bindings": []},
+            )
+
+        bind_ids = request.form.getlist("library_script_bind_id")
+        bind_conn_ids = request.form.getlist("library_script_bind_connection_id")
+        bind_filters = request.form.getlist("library_script_bind_filter")
+        bn = len(bind_conn_ids)
+        if not (len(bind_ids) == bn and len(bind_filters) == bn):
+            return _rerender("Script bindings are incomplete — each row needs a connection and filter.")
+        raw_binds = []
+        for i in range(bn):
+            raw_binds.append(
+                {
+                    "id": (bind_ids[i] or "").strip(),
+                    "connection_id": (bind_conn_ids[i] or "").strip(),
+                    "filter": (bind_filters[i] or "*").strip() or "*",
+                }
+            )
+        try:
+            bindings = library_lib.parse_script_bindings(raw_binds, connections)
+        except ValueError as exc:
+            return _rerender(
+                f"Script bindings are invalid: {exc}",
+                {
+                    "library_connections": connections,
+                    "library_script_bindings": raw_binds,
+                },
+            )
+
+        new_cfg["library_connections"] = connections
+        new_cfg["library_script_bindings"] = bindings
+        config.save(new_cfg)
         return redirect(url_for("settings_section", section="library", saved="1"))
 
     # display
@@ -807,6 +876,99 @@ def settings_section_post(section: str):
     new_cfg["display_timezone"] = display_timezone_raw
     config.save(new_cfg)
     return redirect(url_for("settings_section", section="display", saved="1"))
+
+
+def _library_require_enabled():
+    if not config.library_enabled():
+        return jsonify({"error": "Library is disabled — enable it under Settings → General."}), 403
+    return None
+
+
+def _connection_from_request_body(data: dict, *, require_expiry: bool = True) -> dict:
+    """Normalize a connection object from JSON (Settings test or pull)."""
+    raw = data.get("connection")
+    if isinstance(raw, dict):
+        parsed = library_lib.parse_connections([raw], require_expiry=require_expiry)
+        return parsed[0]
+    conn_id = str(data.get("connection_id") or "").strip()
+    if not conn_id:
+        raise ValueError("connection or connection_id is required")
+    for conn in config.library_connections():
+        if conn.get("id") == conn_id:
+            return library_lib.parse_connections(
+                [conn], require_expiry=require_expiry
+            )[0]
+    raise ValueError(f"Unknown connection id: {conn_id}")
+
+
+@app.route("/api/library/test-connection", methods=["POST"])
+def api_library_test_connection():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data, require_expiry=False)
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    result = library_lib.test_connection(conn)
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/library/test-filter", methods=["POST"])
+def api_library_test_filter():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data, require_expiry=False)
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc), "hits": []}), 400
+    filt = str(data.get("filter") or "*")
+    result = library_lib.test_filter(conn, filt)
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/library/scripts")
+def api_library_scripts():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    try:
+        connections = library_lib.parse_connections(config.library_connections())
+        bindings = library_lib.parse_script_bindings(
+            config.library_script_bindings(), connections
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    items = library_lib.catalog_scripts(connections, bindings)
+    return jsonify({"items": items})
+
+
+@app.route("/api/library/scripts/pull", methods=["POST"])
+def api_library_scripts_pull():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data)
+        relative_path = str(data.get("relative_path") or "").strip()
+        if not relative_path:
+            raise ValueError("relative_path is required")
+        result = library_lib.pull_script(conn, relative_path)
+    except FileExistsError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
 
 
 @app.route("/notifications")
