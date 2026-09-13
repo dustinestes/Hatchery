@@ -367,6 +367,7 @@ class TestLibrarySettingsGate:
                 "library_enabled": True,
                 "library_connections": [],
                 "library_script_bindings": [],
+                "library_clutch_bindings": [],
                 "library_media_bindings": [],
             },
         )
@@ -376,6 +377,7 @@ class TestLibrarySettingsGate:
         assert "No connections yet" in html
         assert "Add connection" in html
         assert "Script bindings" in html
+        assert "Clutch bindings" in html
         assert "Media bindings" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
@@ -395,6 +397,7 @@ class TestLibrarySettingsGate:
                 "library_enabled": True,
                 "library_connections": [],
                 "library_script_bindings": [],
+                "library_clutch_bindings": [],
                 "library_media_bindings": [],
             },
         )
@@ -408,10 +411,13 @@ class TestLibrarySettingsGate:
                 "library_conn_base_uri": str(share),
                 "library_conn_token": "",
                 "library_conn_expires_at": "",
-                "library_conn_kinds": "scripts,media",
+                "library_conn_kinds": "scripts,clutches,media",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
                 "library_script_bind_filter": "*.ps1",
+                "library_clutch_bind_id": "cbind001",
+                "library_clutch_bind_connection_id": "abc123def456",
+                "library_clutch_bind_filter": "*.yaml",
                 "library_media_bind_id": "mbind001",
                 "library_media_bind_connection_id": "abc123def456",
                 "library_media_bind_filter": "*.iso",
@@ -422,6 +428,7 @@ class TestLibrarySettingsGate:
         assert saved["library_connections"][0]["label"] == "Ops share"
         assert saved["library_connections"][0]["expires_at"] is None
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+        assert saved["library_clutch_bindings"][0]["filter"] == "*.yaml"
         assert saved["library_media_bindings"][0]["target"] == "iso"
 
     def test_library_api_test_and_pull(self, client, tmp_path, monkeypatch):
@@ -563,6 +570,51 @@ class TestLibrarySettingsGate:
         )
         assert pull.status_code == 200
         assert (data / "media" / "iso" / "win11.iso").is_file()
+
+    def test_library_clutch_catalog_and_pull(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "lab.yaml").write_text("name: lab\n", encoding="utf-8")
+        data = tmp_path / "data"
+        (data / "clutches").mkdir(parents=True)
+        conn = {
+            "id": "c1",
+            "label": "Clutches",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["clutches"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(
+            cfg,
+            "library_clutch_bindings",
+            lambda: [
+                {
+                    "id": "b1",
+                    "connection_id": "c1",
+                    "filter": "*",
+                    "domain": "clutches",
+                }
+            ],
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        catalog = client.get("/api/library/clutches")
+        assert catalog.status_code == 200
+        assert any(i["name"] == "lab.yaml" for i in catalog.get_json()["items"])
+
+        pull = client.post(
+            "/api/library/clutches/pull",
+            json={
+                "connection_id": "c1",
+                "relative_path": "lab.yaml",
+            },
+        )
+        assert pull.status_code == 200
+        assert (data / "clutches" / "lab.yaml").is_file()
 
     def test_general_post_saves_library_enabled(self, client, tmp_path, monkeypatch):
         saved = {}
