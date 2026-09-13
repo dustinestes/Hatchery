@@ -32,7 +32,12 @@ class TestImportUploads:
         assert (tmp_path / "clutches" / "lab.yaml").read_bytes().startswith(b"name:")
 
         rows = alerts_lib.list_recent(10)
-        assert any(r["message"].startswith("Import finished:") and r["resolved"] == 1 for r in rows)
+        assert any(
+            r["message"].startswith("Import finished:")
+            and r["resolved"] == 1
+            and r["tier"] == "info"
+            for r in rows
+        )
         assert not any(
             r["resolved"] == 0 and r["message"].startswith("Import in progress:") for r in rows
         )

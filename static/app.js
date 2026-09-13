@@ -468,19 +468,66 @@ hatchery.vmRows = (function () {
   function showToast(message, tier, durationMs) {
     var container = document.getElementById('toast-container');
     if (!container) return;
+
+    var normalized = String(tier || 'alert').toLowerCase();
+    if (normalized === 'error') normalized = 'alert';
+    if (normalized !== 'info' && normalized !== 'warning' && normalized !== 'alert') {
+      normalized = 'alert';
+    }
+
+    var labels = { info: 'Info', warning: 'Warning', alert: 'Alert' };
+    var defaults = { info: 2200, warning: 4500, alert: 5000 };
+
     var el = document.createElement('div');
-    el.className = 'toast toast--' + (tier || 'alert');
-    el.textContent = message;
+    el.className = 'toast toast--' + normalized;
+    el.setAttribute('role', normalized === 'alert' ? 'alert' : 'status');
+
+    var icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = toastIconSvg(normalized);
+
+    var body = document.createElement('div');
+    body.className = 'toast-body';
+
+    var tierEl = document.createElement('span');
+    tierEl.className = 'toast-tier';
+    tierEl.textContent = labels[normalized];
+
+    var msgEl = document.createElement('span');
+    msgEl.className = 'toast-msg';
+    msgEl.textContent = message == null ? '' : String(message);
+
+    body.appendChild(tierEl);
+    body.appendChild(msgEl);
+    el.appendChild(icon);
+    el.appendChild(body);
     container.appendChild(el);
-    var hold = typeof durationMs === 'number' ? durationMs : 4000;
+
+    var hold = typeof durationMs === 'number' ? durationMs : defaults[normalized];
     setTimeout(function () {
-      el.style.transition = 'opacity 300ms';
-      el.style.opacity = '0';
+      el.classList.add('toast--out');
       setTimeout(function () { el.remove(); }, 320);
     }, hold);
   }
 
-  /* UI-only toasts (no Alerts tray / DB entry). Alert polling still uses showToast for unread alerts. */
+  function toastIconSvg(tier) {
+    /* Simple stroke icons — info (i), warning (!), alert (x in circle) */
+    if (tier === 'info') {
+      return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
+    }
+    if (tier === 'warning') {
+      return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+    }
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>';
+  }
+
+  /**
+   * Ephemeral UI feedback only — does not create Alerts tray / DB rows.
+   * showToast(message, tier?, durationMs?)
+   * tier: 'info' | 'warning' | 'alert' (alias 'error' → alert). Default 'alert'.
+   * durationMs: override; defaults info 2200, warning 4500, alert 5000.
+   */
   hatchery.showToast = showToast;
 
   /**
@@ -575,9 +622,12 @@ hatchery.vmRows = (function () {
       return;
     }
     list.innerHTML = items.slice(0, 5).map(function (n) {
+      var tier = String(n.tier || 'alert').toLowerCase();
+      if (tier === 'error') tier = 'alert';
+      if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'alert';
       return '<div class="notif-tray-item">' +
         '<div class="notif-tray-meta">' +
-        '<span class="notif-tier-badge notif-tier-badge--alert">alert</span>' +
+        '<span class="notif-tier-badge notif-tier-badge--' + tier + '">' + tier + '</span>' +
         '<span class="notif-tray-time">' + timeAgo(n.created_at) + '</span>' +
         '</div>' +
         '<div class="notif-tray-msg">' + escapeHtml(n.message) + '</div>' +
@@ -593,7 +643,9 @@ hatchery.vmRows = (function () {
         var alertCount = data.active_alert_count || 0;
         var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
         items.forEach(function (n) {
-          if (n.created_at > lastRead) showToast(n.message, 'alert');
+          if (n.created_at > lastRead) {
+            showToast(n.message, n.tier || 'alert');
+          }
         });
         updateBadge(items, alertCount);
         populateTray(items);

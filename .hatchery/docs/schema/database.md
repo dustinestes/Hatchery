@@ -40,6 +40,7 @@ Stores active and resolved environment alerts. An alert is created when a host c
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
 | `created_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) |
 | `message` | `TEXT` | `NOT NULL` | Human-readable description of the condition |
+| `tier` | `TEXT` | `NOT NULL DEFAULT 'alert'` | Same vocabulary as UI toasts: `info`, `warning`, or `alert` |
 | `resolved` | `INTEGER` | `NOT NULL DEFAULT 0` | `0` = active, `1` = resolved |
 | `resolved_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when `resolved` transitions to `1`; `NULL` while active |
 
@@ -187,7 +188,7 @@ Implemented in `lib/hatch.py` — `_purge_session_children()`, called from `arch
 
 ### Migrations
 
-Schema creation uses `CREATE TABLE IF NOT EXISTS` on startup. There is no startup migration list — Hatchery is early enough that schema changes land in `_SCHEMA` directly; delete `hatchery.db` (or use a fresh data dir) if an existing local DB predates a column change.
+Schema creation uses `CREATE TABLE IF NOT EXISTS` on startup. Additive column changes for existing local DBs are applied in `lib/db._migrate` (for example adding `alerts.tier`). There is no versioned migration list yet — delete `hatchery.db` (or use a fresh data dir) only if a local DB is too old for a simple `ALTER TABLE` to repair.
 
 When a real migration framework becomes necessary:
 

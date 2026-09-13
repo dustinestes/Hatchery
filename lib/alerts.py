@@ -6,15 +6,33 @@ from datetime import datetime, timezone
 
 from lib import db
 
+_VALID_TIERS = frozenset({"info", "warning", "alert"})
 
-def record_alert(message: str) -> int:
-    """Insert a health alert and return the new row id."""
+
+def normalize_tier(tier: str | None) -> str:
+    """Return a toast-aligned alert tier: info | warning | alert."""
+    raw = (tier or "alert").strip().lower()
+    if raw == "error":
+        return "alert"
+    if raw in _VALID_TIERS:
+        return raw
+    return "alert"
+
+
+def record_alert(message: str, tier: str = "alert") -> int:
+    """Insert an alert and return the new row id.
+
+    ``tier`` uses the same vocabulary as ``hatchery.showToast``:
+    ``info``, ``warning``, or ``alert`` (alias ``error`` → ``alert``).
+    Default ``alert`` preserves the historical health-condition posture.
+    """
     now = datetime.now(timezone.utc).isoformat()
+    normalized = normalize_tier(tier)
     conn = db.get_connection()
     try:
         cursor = conn.execute(
-            "INSERT INTO alerts (created_at, message) VALUES (?, ?)",
-            (now, message),
+            "INSERT INTO alerts (created_at, message, tier) VALUES (?, ?, ?)",
+            (now, message, normalized),
         )
         row_id = cursor.lastrowid
         conn.commit()
@@ -26,13 +44,14 @@ def record_alert(message: str) -> int:
 def list_recent(n: int = 50) -> list[dict]:
     """Return the n most recent alerts, newest first.
 
-    Each dict includes tier='alert' for template and tray badge styling.
+    Each dict includes ``tier`` for toast, tray, and Alerts pane styling.
     """
     conn = db.get_connection()
     try:
         rows = conn.execute(
             """
-            SELECT id, created_at, 'alert' AS tier, message, resolved, resolved_at
+            SELECT id, created_at, COALESCE(tier, 'alert') AS tier,
+                   message, resolved, resolved_at
             FROM alerts
             ORDER BY created_at DESC
             LIMIT ?

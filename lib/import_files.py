@@ -126,7 +126,7 @@ def import_uploads(kind: str, files: list) -> dict:
 
     if pending:
         if not alerts_lib.has_active_alert(in_progress_msg):
-            in_progress_id = alerts_lib.record_alert(in_progress_msg)
+            in_progress_id = alerts_lib.record_alert(in_progress_msg, tier="info")
         for name, upload in pending:
             dest = _resolve_dest(root, name)
             assert dest is not None
@@ -152,13 +152,16 @@ def import_uploads(kind: str, files: list) -> dict:
         n_err = len(errors)
         if n_ok and not n_err:
             finished = f"{_FINISHED_PREFIX} {n_ok} imported into {subdir}/ — ready to use"
+            finished_tier = "info"
         elif n_ok:
             finished = (
                 f"{_FINISHED_PREFIX} {n_ok} imported, {n_err} skipped into {subdir}/ — ready to use"
             )
+            finished_tier = "warning"
         else:
             finished = f"{_FINISHED_PREFIX} with errors: 0 imported into {subdir}/"
-        finished_id = alerts_lib.record_alert(finished)
+            finished_tier = "warning"
+        finished_id = alerts_lib.record_alert(finished, tier=finished_tier)
         alerts_lib.resolve(finished_id)
 
     return {"imported": imported, "errors": errors}

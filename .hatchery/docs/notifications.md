@@ -15,6 +15,7 @@ Umbrella for operator-facing signals in Hatchery: **Alerts** (conditions that ne
 - [Contents](#contents)
 - [Overview](#overview)
 - [Separation of concerns](#separation-of-concerns)
+- [Toasts](#toasts)
 - [Alerts](#alerts)
   - [UI surfaces](#ui-surfaces)
   - [Lifecycle](#lifecycle)
@@ -29,17 +30,20 @@ Umbrella for operator-facing signals in Hatchery: **Alerts** (conditions that ne
 
 ## Overview
 
-Use **notifications** only where grouping the concerns makes sense (sidebar parent label, umbrella docs, `/notifications/...` route prefix). Alert-specific UI, code, and APIs use **alerts** — including the topbar bell, tray, and toasts, which never show Events or Audit. Hatch lifecycle uses **events** (`hatch_events`); inventory/CRUD history will use **audit** when v2 lands.
+Use **notifications** only where grouping the concerns makes sense (sidebar parent label, umbrella docs, `/notifications/...` route prefix). Alert-specific UI, code, and APIs use **alerts** — including the topbar bell and tray. Ephemeral **toasts** are a separate UI channel (`hatchery.showToast`) that never show Events or Audit. Hatch lifecycle uses **events** (`hatch_events`); inventory/CRUD history will use **audit** when v2 lands.
 
 | Concern | What belongs | Surface |
 |---|---|---|
-| **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts, Alerts pane, footer Nest indicator |
+| **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts (when new alerts arrive), Alerts pane, footer Nest indicator |
+| **Toasts** | Ephemeral UI feedback (copy succeeded, import conflict, etc.) — **not** persisted | Bottom-right overlay via `hatchery.showToast` |
 | **Events** | Under-the-hood hatch/provision transcript (`hatch_events`, including `Write-HatchEvent` script lines) | Events pane ([#114](https://github.com/dustinestes/Hatchery/issues/114)) |
 | **Audit (v2)** | Who/what changed Clutches; VM removed/renamed; session archived | Not implemented yet — not toast spam |
 
 <br>
 
 ---
+
+<br>
 
 ## Separation of concerns
 
@@ -51,9 +55,45 @@ Notifications (sidebar group)
 
 Umbrella routes stay under `/notifications/...`. Alert CRUD lives in `lib/alerts.py`. Event writers stay in `lib/hatch.py` (`add_event`).
 
+**Toast vs Alerts tray:** painting a toast never inserts an Alerts DB row by itself. Alert polling may call `hatchery.showToast` when a *new* alert arrives so operators notice it; Import/copy/delete panes also call `showToast` for short-lived UI feedback without touching the tray. Alerts store the same **tier** vocabulary as toasts (`info` / `warning` / `alert`) via `record_alert(message, tier=...)`; polling passes that tier through to `showToast` and the tray badge.
+
 <br>
 
 ---
+
+<br>
+
+## Toasts
+
+Fixed bottom-right stack (`#toast-container` in `templates/ui/base.html`). Implemented in `static/app.js` as `hatchery.showToast` and styled in `static/style.css` (`.toast*`).
+
+### API
+
+```js
+hatchery.showToast(message, tier?, durationMs?)
+```
+
+| Argument | Notes |
+|---|---|
+| `message` | Plain text shown in the toast body |
+| `tier` | `'info'` \| `'warning'` \| `'alert'` (alias `'error'` → `alert`). Default `'alert'` |
+| `durationMs` | Optional hold time before dismiss. Defaults: info **2200**, warning **4500**, alert **5000** |
+
+Each toast shows a **tier label** (Info / Warning / Alert) plus an icon so meaning is not color-only. Alert-tier toasts use `role="alert"`; info/warning use `role="status"`. The container keeps `aria-live="polite"`. Enter/exit motion respects `prefers-reduced-motion`.
+
+### When to use which
+
+| Use | Prefer |
+|---|---|
+| Condition that needs attention until fixed (missing tool, invalid Clutch, import in progress) | `lib.alerts.record_alert` (bell + tray + pane); toast may appear via alert polling |
+| Short UI confirmation or rejection (path copied, file exists, delete failed) | `hatchery.showToast` only |
+| Hatch/provision transcript | Events pane — not toasts |
+
+<br>
+
+---
+
+<br>
 
 ## Alerts
 
@@ -61,7 +101,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET
 
 ### UI surfaces
 
-**Toast overlay** — brief banner in the bottom-right when new alerts arrive. Auto-dismiss after 4 seconds. Styled with `.toast--alert`.
+**Toast overlay** — brief banner in the bottom-right when new alerts arrive (via `hatchery.showToast(..., 'alert')`). Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
 
 **Bell badge** — topbar control labeled **Alerts**; unread count of active alerts.
 
@@ -73,10 +113,11 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET
 
 ### Lifecycle
 
-Alerts are written by calling `lib.alerts.record_alert(message)`. This inserts a row into the `alerts` table with:
+Alerts are written by calling `lib.alerts.record_alert(message, tier="alert")`. This inserts a row into the `alerts` table with:
 
 - `created_at` — UTC ISO 8601 timestamp
 - `message` — human-readable description
+- `tier` — `info` \| `warning` \| `alert` (same as `hatchery.showToast`; default `alert`)
 - `resolved = 0`, `resolved_at = NULL`
 
 An alert is **active** while `resolved = 0`. It is **resolved** by the system (never by the user) when the condition that triggered it no longer exists. Resolution sets `resolved = 1` and `resolved_at` to the resolution timestamp.
@@ -109,7 +150,7 @@ Alerts for a deleted Clutch file are resolved immediately at delete time — not
 
 #### Import copies (`lib/import_files.py`)
 
-UI **Import** on Clutches, Media (ISO / VirtIO), and Automations → Scripts uploads files into the data directory. While the Nest is writing a batch, Hatchery records an active alert prefixed with `"Import in progress:"`. When the request finishes, that alert is resolved and a `"Import finished:"` trail alert is recorded as already resolved (history only — it does not keep the bell active). Conflicts refuse overwrite and never replace an existing basename.
+UI **Import** on Clutches, Media (ISO / VirtIO), and Automations → Scripts uploads files into the data directory. While the Nest is writing a batch, Hatchery records an active alert prefixed with `"Import in progress:"` at tier **info**. When the request finishes, that alert is resolved and a `"Import finished:"` trail alert is recorded as already resolved (history only — it does not keep the bell active) at tier **info** on full success or **warning** when files were skipped/failed. Conflicts refuse overwrite and never replace an existing basename.
 
 The result: alert state in the database always reflects the current environment. If a missing tool is installed or a broken Clutch file is fixed, the alert is resolved on the next sync cycle without requiring a restart.
 
