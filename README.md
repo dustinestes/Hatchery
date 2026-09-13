@@ -15,11 +15,11 @@
 
 ![License](https://img.shields.io/badge/license-MIT-111111?style=flat-square&labelColor=555555)
 ![Version](https://img.shields.io/badge/version-v0.1.0-111111?style=flat-square&labelColor=555555)
-![Platform](https://img.shields.io/badge/platform-Ubuntu%20%7C%20KVM-111111?style=flat-square&labelColor=555555)
+![Nests](https://img.shields.io/badge/nests-local%20%7C%20remote-111111?style=flat-square&labelColor=555555)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-111111?style=flat-square&labelColor=555555)
 ![uv](https://img.shields.io/badge/uv-managed-111111?style=flat-square&labelColor=555555)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustin-estes/hatchery/lint.yml?style=flat-square&label=Lint&labelColor=555555)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustin-estes/hatchery/test.yml?style=flat-square&label=Tests&labelColor=555555)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustinestes/Hatchery/lint.yml?style=flat-square&label=Lint&labelColor=555555)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/dustinestes/Hatchery/test.yml?style=flat-square&label=Tests&labelColor=555555)
 
 <br/>
 
@@ -29,7 +29,7 @@
 
 ---
 
-Hatchery is a local web application for creating, provisioning, and managing VMs — Windows-first on KVM/QEMU, built to grow toward any guest OS and remote Nest management (SSH control plane by default). Point it at an ISO, fill in a form, and get a fully provisioned VM without touching a terminal.
+Hatchery is a local web application for creating, provisioning, and managing VMs on local and remote Nests. Point it at source media, fill in a form, and get a fully provisioned VM without touching a terminal.
 
 ---
 
@@ -37,10 +37,12 @@ Hatchery is a local web application for creating, provisioning, and managing VMs
 
 ## What It Does
 
-- **Hatch VMs** — create Windows VMs from ISO with fully unattended installs via `Autounattend.xml`
-- **Provision automatically** — installs Chocolatey, VS Code, Python, Go, PowerShell, and OpenSSH over WinRM after first boot
-- **Manage the full lifecycle** — start, stop, destroy, snapshot, and restore from a browser UI
-- **Stay out of the way** — zero manual steps from "Hatch" to a ready development environment
+- **Hatch** — create guest VMs from source media using unattended install methods on local and remote hosts
+- **Provision** — runs defined script automations on the new guest to baseline the configuration
+- **Scale** — operate one local Nest or many remote Nests from a single control plane
+- **Manage** — start, stop, destroy, snapshot, and restore from a browser UI
+- **Observe** — monitor Hatchery, Nests (local and remote), and individual VMs
+- **Notify** — alerting, event tracking, and auditing across the fleet
 
 ---
 
@@ -48,31 +50,46 @@ Hatchery is a local web application for creating, provisioning, and managing VMs
 
 ## What It's Made Of
 
-### Project Structure
+### Architecture
 
-```
-Hatchery/
-├── hatchery.py                   # Flask app, all API routes
-├── lib/
-│   ├── providers/
-│   │   ├── base.py               # Abstract provider interface
-│   │   ├── libvirt.py            # KVM/QEMU implementation (v1)
-│   │   └── hyperv.py             # Hyper-V remote implementation (future)
-│   ├── answerfile.py             # Unattended install file rendering (OS-aware)
-│   └── provision.py              # Post-install provisioning (WinRM / SSH)
-├── templates/
-│   ├── ui/                       # HTML pages (Jinja2)
-│   └── answerfiles/              # Autounattend.xml Jinja2 templates
-├── tests/                        # pytest test suite
-├── static/
-│   ├── style.css
-│   └── app.js
-├── pyproject.toml
-├── uv.lock
-└── CLAUDE.md
+```mermaid
+flowchart LR
+  H["Hatchery<br/>local control plane"]
+
+  subgraph LN["Local Nest"]
+    direction TB
+    L1["VM · win11-dev"]
+    L2["VM · ubuntu-server"]
+  end
+
+  subgraph RN["Remote Nest · SSH"]
+    direction TB
+    R1["VM · macos-build"]
+    R2["VM · srv2025-app"]
+  end
+
+  H -->|"provider API"| LN
+  H -->|"SSH control plane"| RN
 ```
 
-> Full structure guide → [Project Structure](.hatchery/docs/project-structure.md)
+One Hatchery instance on your workstation drives a local Nest and any number of remote Nests over SSH. Hatch, provision, and lifecycle actions run against whichever Nest you choose. The same UI covers a local host and remote hosts across the network.
+
+### Stack
+
+| Piece | Role |
+|---|---|
+| **Python ≥3.11** + **uv** | Runtime and dependency management |
+| **Flask** + **Gunicorn** | Local web app and API |
+| **Jinja2** + vanilla **HTML/CSS/JS** | UI pages and unattended-install templates (no JS framework) |
+| **SQLite** | App state: hatch sessions, events, alerts, settings |
+| **YAML** + **Pydantic** | Clutch blueprints and validated config |
+| **libvirt / KVM / QEMU** | Nest provider for Linux hosts: create, lifecycle, and snapshots |
+| **OpenSSH** | Nest control plane to remote hosts |
+| **Answer files** + **WinRM** | Unattended guest install, then scripted baseline provisioning |
+
+<br>
+
+> Layout and module map → [Project Structure](.hatchery/docs/project-structure.md)
 
 ---
 
@@ -88,6 +105,8 @@ Hatchery/
 | Windows Server 2025 | KVM/QEMU | v1 — requires UEFI + TPM |
 | Linux guests | KVM/QEMU | Planned |
 | Windows (Hyper-V) | Remote Nest via SSH (WinRM Nest fallback planned) | Planned |
+
+<br>
 
 > Full Nest × feature matrix (libvirt / UTM / Hyper-V, local and remote) → [Provider support matrix](.hatchery/docs/providers.md)
 
@@ -124,6 +143,8 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 4. **Open the dashboard** — `http://localhost:5000`
 5. **Hatch a VM** — go to `/create`, fill in the form, click Hatch
 
+<br>
+
 > Getting Started → [Getting Started Guide](.hatchery/docs/getting-started.md)
 
 ---
@@ -158,7 +179,6 @@ MIT License. See [LICENSE](LICENSE) for full terms.
 ## With Thanks To
 
 - **Dustin Estes** — creator, product design, and development
-- **[Claude](https://claude.ai) (Anthropic)** — AI development assistant
 
 <br>
 
