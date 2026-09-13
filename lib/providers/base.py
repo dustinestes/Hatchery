@@ -43,19 +43,19 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def create_snapshot(self, name: str, label: str) -> None:
-        """Freeze a VM — save disk and memory state."""
+        """Create a named snapshot of a VM (disk and memory state as supported)."""
 
     @abstractmethod
     def list_snapshots(self, name: str) -> list[str]:
-        """Return all frozen states for a VM."""
+        """Return all snapshot labels for a VM."""
 
     @abstractmethod
     def revert_snapshot(self, name: str, label: str) -> None:
-        """Thaw a VM — restore to a previously frozen state."""
+        """Revert a VM to a previously created snapshot."""
 
     @abstractmethod
     def delete_snapshot(self, name: str, label: str) -> None:
-        """Delete a frozen state."""
+        """Delete a snapshot."""
 
     @abstractmethod
     def get_vm_ip(self, name: str) -> str | None:

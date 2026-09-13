@@ -328,7 +328,7 @@ class LibvirtProvider(BaseProvider):
         )
         return result.stdout.strip()
 
-    # ── Snapshots (Freeze / Thaw) ─────────────────────────────────────────────
+    # ── Snapshots ─────────────────────────────────────────────────────────────
 
     def create_snapshot(self, name: str, label: str) -> None:
         subprocess.run(
