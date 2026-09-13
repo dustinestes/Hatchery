@@ -20,9 +20,11 @@ All hypervisor ops go through `lib/providers/base.py`.
 ✅ Implement in the Nest provider using existing BaseProvider methods;
    extend base.py only if every provider must support it
 ❌ Put Nest WinRM/SSH session code in provision.py — use nest_transport for Nest hosts
+❌ Change provider capability without updating the support matrix
+✅ When Nest/provider support changes, update `.hatchery/docs/providers.md`
 ```
 
-Docs: [`.hatchery/docs/nest-transport.md`](../../.hatchery/docs/nest-transport.md).
+Docs: [`.hatchery/docs/providers.md`](../../.hatchery/docs/providers.md) (feature matrix), [`.hatchery/docs/nest-transport.md`](../../.hatchery/docs/nest-transport.md).
 
 ## Answer files
 
