@@ -88,7 +88,7 @@ Guest health check is tracked in [#14](https://github.com/dustinestes/Hatchery/i
 | Media layout (`media/iso`, VirtIO) | Works | Partial | Planned | Planned | Planned | Planned |
 | Hatch media to remote Nest | N/A | Planned | N/A | Planned | N/A | Planned |
 
-Media for local libvirt uses the Hatchery data directory on the Nest. Remote hatch media is [#215](https://github.com/dustinestes/Hatchery/issues/215). Guest provision stays in `lib/provision.py` regardless of Nest type.
+Media for local libvirt uses the Hatchery data directory on the Nest (operator cache = Nest cache). Remote hatch must use Nest-local cache (or Nest-mounted share) after ensure/sync — not operator paths over WAN. See [Library and Nest cache](library.md) and [#215](https://github.com/dustinestes/Hatchery/issues/215) / [#234](https://github.com/dustinestes/Hatchery/issues/234). Guest provision stays in `lib/provision.py` regardless of Nest type.
 
 <br>
 

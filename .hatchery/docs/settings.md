@@ -93,6 +93,8 @@ Existing installs keep their Settings without manual edits.
 
 The disabled “Bootstrap file” field on General shows the path to the external YAML pointer.
 
+Portable Settings across machines (export/import profile, including Library feature flags and source definitions) are described under [Library and Nest cache — Settings profiles](library.md#settings-profiles).
+
 <br>
 
 ---
