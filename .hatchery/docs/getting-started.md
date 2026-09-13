@@ -96,7 +96,7 @@ If any required tools are not installed when you start Hatchery, an alert is rec
 
 ### Media inspection
 
-The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Use **Import** on those panes (or place files on the Nest) to load media. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
+The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Use **Import** on those panes (or place files on the Nest) to load media; select a file and use the trash control to remove it from the data directory. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
 
 ---
 

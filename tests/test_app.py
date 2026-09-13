@@ -1941,6 +1941,58 @@ class TestApiImport:
         assert resp.status_code == 400
 
 
+class TestApiInventoryDelete:
+    def test_delete_media_iso(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win.iso").write_bytes(b"iso")
+        resp = client.post("/api/media/iso/win.iso/delete")
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        assert not (iso_dir / "win.iso").exists()
+
+    def test_delete_media_virtio(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        virtio_dir = tmp_path / "media" / "virtio"
+        virtio_dir.mkdir(parents=True)
+        (virtio_dir / "virtio.iso").write_bytes(b"v")
+        resp = client.post("/api/media/virtio/virtio.iso/delete")
+        assert resp.status_code == 200
+        assert not (virtio_dir / "virtio.iso").exists()
+
+    def test_delete_script(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "setup.ps1").write_text("Write-Host hi\n")
+        resp = client.post("/api/automation/scripts/setup.ps1/delete")
+        assert resp.status_code == 200
+        assert not (scripts / "setup.ps1").exists()
+
+    def test_delete_missing_returns_404(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "media" / "iso").mkdir(parents=True)
+        assert client.post("/api/media/iso/missing.iso/delete").status_code == 404
+
+    def test_delete_rejects_path_traversal(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        outside = tmp_path / "secret.txt"
+        outside.write_text("nope")
+        (tmp_path / "automation" / "scripts").mkdir(parents=True)
+        resp = client.post("/api/automation/scripts/../secret.txt/delete")
+        assert resp.status_code == 404
+        assert outside.exists()
+
+    def test_inventory_pages_have_delete_controls(self, client):
+        iso_html = client.get("/media/iso").data.decode()
+        assert 'id="media-delete-btn"' in iso_html
+        assert 'id="delete-modal-backdrop"' in iso_html
+        scripts_html = client.get("/automation/scripts").data.decode()
+        assert 'id="scripts-delete-btn"' in scripts_html
+        assert 'id="delete-modal-backdrop"' in scripts_html
+
+
 class TestAlertsAPI:
     def test_returns_200(self, client):
         assert client.get("/api/alerts").status_code == 200
