@@ -4,8 +4,22 @@
 
 {% block content %}
 <div class="pane-header">
-  <h1 class="pane-title">{{ pane_title }}</h1>
-  <p class="pane-subtitle">{{ pane_subtitle }}</p>
+  <div class="pane-header-row">
+    <div class="pane-header-text">
+      <h1 class="pane-title">{{ pane_title }}</h1>
+      <p class="pane-subtitle">{{ pane_subtitle }}</p>
+    </div>
+    {% if section == 'general' %}
+    <div class="pane-header-actions">
+      <a class="btn btn-primary btn-sm" id="settings-export-btn"
+         href="{{ url_for('api_settings_export') }}"
+         download="hatchery-settings.yaml">Export</a>
+      <input type="file" id="settings-import-input"
+             accept=".yaml,.yml,text/yaml,application/x-yaml" hidden>
+      <button type="button" class="btn btn-primary btn-sm" id="settings-import-btn">Import</button>
+    </div>
+    {% endif %}
+  </div>
 </div>
 
 {% if form_saved %}
@@ -436,6 +450,22 @@
 
 </form>
 
+{% if section == 'general' %}
+<div id="settings-import-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-import-title">
+    <h2 class="modal-title" id="settings-import-title">Import Settings</h2>
+    <div class="modal-body">
+      <p>Replace all operational Settings from a YAML file?</p>
+      <p class="modal-warning">Keys omitted in the file reset to defaults. The data directory is not changed.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="settings-import-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="settings-import-confirm">Choose file…</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if section == 'security' %}
 <template id="nest-tier-row-template">
   <div class="settings-tier-row">
@@ -634,6 +664,88 @@
 {% endblock %}
 
 {% block scripts %}
+{% if section == 'general' %}
+<script>
+(function () {
+  const importBtn = document.getElementById('settings-import-btn');
+  const importInput = document.getElementById('settings-import-input');
+  const backdrop = document.getElementById('settings-import-backdrop');
+  const cancelBtn = document.getElementById('settings-import-cancel');
+  const confirmBtn = document.getElementById('settings-import-confirm');
+  if (!importBtn || !importInput || !backdrop || !cancelBtn || !confirmBtn) return;
+
+  function openModal() {
+    backdrop.hidden = false;
+    confirmBtn.focus();
+  }
+
+  function closeModal() {
+    backdrop.hidden = true;
+    importBtn.focus();
+  }
+
+  importBtn.addEventListener('click', openModal);
+
+  cancelBtn.addEventListener('click', closeModal);
+
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) closeModal();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !backdrop.hidden) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
+
+  confirmBtn.addEventListener('click', function () {
+    closeModal();
+    importInput.click();
+  });
+
+  importInput.addEventListener('change', function () {
+    var file = importInput.files && importInput.files[0];
+    importInput.value = '';
+    if (!file) return;
+    var body = new FormData();
+    body.append('file', file);
+    fetch({{ url_for('api_settings_import') | tojson }}, {
+      method: 'POST',
+      body: body,
+    })
+      .then(function (r) {
+        return r.json().then(function (data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function (res) {
+        var data = res.data || {};
+        if (!res.ok) {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast(data.error || 'Import failed', 'error', 5000);
+          }
+          return;
+        }
+        var warn = (data.warnings && data.warnings.length)
+          ? (' — ' + data.warnings.join(' '))
+          : '';
+        var msg = 'Settings imported' + warn;
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast(msg, warn ? 'warning' : 'success', 4000);
+        }
+        window.setTimeout(function () { window.location.reload(); }, 600);
+      })
+      .catch(function () {
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast('Network or server error', 'error', 5000);
+        }
+      });
+  });
+})();
+</script>
+{% endif %}
+
 {% if section == 'security' %}
 <script>
 (function () {

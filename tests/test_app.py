@@ -661,6 +661,85 @@ class TestLibrarySettingsGate:
         assert 'name="library_enabled"' in html
         assert "Enable Library" in html
 
+    def test_general_shows_settings_export_import_controls(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert 'id="settings-export-btn"' in html
+        assert ">Export<" in html
+        assert 'id="settings-import-btn"' in html
+        assert ">Import<" in html
+        assert 'id="settings-import-backdrop"' in html
+        assert 'id="settings-import-confirm"' in html
+        assert "/api/settings/export" in html
+        assert "Profile" not in html
+
+    def test_settings_export_download(self, client, monkeypatch):
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {
+                "data_dir": "/data",
+                "bg_interval": 45,
+                "show_passwords": False,
+                "display_timezone": "UTC",
+                "library_enabled": True,
+                "library_connections": [],
+                "library_script_bindings": [],
+                "library_clutch_bindings": [],
+                "library_media_bindings": [],
+                "nest_key_alert_tiers": [{"days_before": 30, "alerts_per_day": 1}],
+                "nest_ssh_identities": [],
+            },
+        )
+        resp = client.get("/api/settings/export")
+        assert resp.status_code == 200
+        assert "attachment" in resp.headers.get("Content-Disposition", "")
+        body = resp.data.decode()
+        assert "version: 1" in body
+        assert "bg_interval: 45" in body
+        assert "library_enabled: true" in body
+
+    def test_settings_import_replace(self, client, tmp_path, monkeypatch):
+        state = {
+            "data_dir": str(tmp_path),
+            "bg_interval": 60,
+            "show_passwords": False,
+            "display_timezone": "UTC",
+            "library_enabled": True,
+            "library_connections": [
+                {
+                    "id": "old",
+                    "label": "Old",
+                    "type": "path",
+                    "base_uri": "/old",
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                }
+            ],
+            "library_script_bindings": [],
+            "library_clutch_bindings": [],
+            "library_media_bindings": [],
+            "nest_key_alert_tiers": [
+                {"days_before": 30, "alerts_per_day": 1},
+                {"days_before": 7, "alerts_per_day": 2},
+            ],
+            "nest_ssh_identities": [],
+        }
+        monkeypatch.setattr(cfg, "get", lambda: state)
+        monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+
+        yaml_body = "version: 1\nsettings:\n  bg_interval: 99\n  library_enabled: true\n"
+        resp = client.post(
+            "/api/settings/import",
+            json={"yaml": yaml_body},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        assert state["bg_interval"] == 99
+        assert state["library_enabled"] is True
+        assert state["library_connections"] == []
+        assert state["data_dir"] == str(tmp_path)
+
 
 class TestBuildRoute:
     def test_build_get_returns_200(self, client):

@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
@@ -20,6 +20,7 @@ from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
+from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
@@ -959,6 +960,53 @@ def settings_section_post(section: str):
     new_cfg["display_timezone"] = display_timezone_raw
     config.save(new_cfg)
     return redirect(url_for("settings_section", section="display", saved="1"))
+
+
+@app.route("/api/settings/export")
+def api_settings_export():
+    """Download operational Settings as YAML (does not include data_dir)."""
+    body = settings_io_lib.dump_yaml(settings_io_lib.export_document())
+    return Response(
+        body,
+        mimetype="application/yaml",
+        headers={
+            "Content-Disposition": 'attachment; filename="hatchery-settings.yaml"',
+        },
+    )
+
+
+@app.route("/api/settings/import", methods=["POST"])
+def api_settings_import():
+    """Replace operational Settings from a YAML document. Does not change data_dir."""
+    text = ""
+    upload = request.files.get("file") or request.files.get("settings")
+    if upload and upload.filename:
+        text = upload.read().decode("utf-8", errors="replace")
+    else:
+        data = request.get_json(silent=True)
+        if isinstance(data, dict) and "yaml" in data:
+            text = str(data.get("yaml") or "")
+        elif isinstance(data, dict) and "document" in data and isinstance(data["document"], dict):
+            try:
+                result = settings_io_lib.apply_document(data["document"])
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+            _sync_nest_key_expiry()
+            return jsonify(result)
+        else:
+            text = request.get_data(as_text=True) or ""
+
+    if not text.strip():
+        return jsonify({"error": "Settings YAML is required"}), 400
+    try:
+        raw = settings_io_lib.load_yaml(text)
+        result = settings_io_lib.apply_document(raw)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    _sync_nest_key_expiry()
+    return jsonify(result)
 
 
 def _library_require_enabled():

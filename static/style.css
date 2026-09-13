@@ -422,6 +422,22 @@ body {
   margin-bottom: 28px;
 }
 
+.pane-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pane-header-text {
+  min-width: 0;
+}
+
+.pane-header-actions {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
 .pane-title {
   font-family: var(--font-heading);
   font-weight: 700;
