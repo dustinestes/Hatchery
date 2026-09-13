@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at  TEXT    NOT NULL,
     message     TEXT    NOT NULL,
+    tier        TEXT    NOT NULL DEFAULT 'alert',
     resolved    INTEGER NOT NULL DEFAULT 0,
     resolved_at TEXT
 );
@@ -79,9 +80,17 @@ def init_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     try:
         conn.executescript(_SCHEMA)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply additive column changes for existing local DBs (no version table yet)."""
+    alert_cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()}
+    if "tier" not in alert_cols:
+        conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
 
 
 def get_connection() -> sqlite3.Connection:

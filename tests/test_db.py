@@ -57,7 +57,38 @@ class TestInitDb:
         conn = db_module.get_connection()
         try:
             cols = [r["name"] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()]
-            assert cols == ["id", "created_at", "message", "resolved", "resolved_at"]
+            assert cols == ["id", "created_at", "message", "tier", "resolved", "resolved_at"]
+        finally:
+            conn.close()
+
+    def test_migrates_alerts_tier_on_existing_db(self, tmp_path):
+        path = tmp_path / "legacy.db"
+        conn = __import__("sqlite3").connect(str(path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE alerts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    resolved INTEGER NOT NULL DEFAULT 0,
+                    resolved_at TEXT
+                )
+                """
+            )
+            conn.execute("INSERT INTO alerts (created_at, message) VALUES ('2024-01-01', 'old')")
+            conn.commit()
+        finally:
+            conn.close()
+
+        db_module.init_db(path)
+        conn = db_module.get_connection()
+        try:
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()]
+            assert "tier" in cols
+            row = conn.execute("SELECT tier, message FROM alerts").fetchone()
+            assert row["message"] == "old"
+            assert row["tier"] == "alert"
         finally:
             conn.close()
 

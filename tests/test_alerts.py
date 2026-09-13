@@ -26,6 +26,19 @@ class TestRecordAlert:
         row = alerts.list_recent()[0]
         assert row["tier"] == "alert"
 
+    def test_tier_can_be_info_or_warning(self):
+        alerts.record_alert("import ok", tier="info")
+        alerts.record_alert("partial", tier="warning")
+        alerts.record_alert("bad", tier="error")  # alias
+        rows = {r["message"]: r["tier"] for r in alerts.list_recent()}
+        assert rows["import ok"] == "info"
+        assert rows["partial"] == "warning"
+        assert rows["bad"] == "alert"
+
+    def test_normalize_tier_rejects_unknown(self):
+        assert alerts.normalize_tier("nope") == "alert"
+        assert alerts.normalize_tier(None) == "alert"
+
     def test_defaults_resolved_zero(self):
         alerts.record_alert("disk full")
         assert alerts.list_recent()[0]["resolved"] == 0
