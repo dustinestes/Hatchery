@@ -119,9 +119,7 @@ class TestPathLibrary:
     def test_pull_create_only(self, script_share, tmp_path, monkeypatch):
         dest = tmp_path / "data" / "automation" / "scripts"
         dest.mkdir(parents=True)
-        monkeypatch.setattr(
-            "lib.config.data_dir", lambda: tmp_path / "data"
-        )
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
         conn = _path_conn(script_share)
         result = library.pull_script(conn, "hello.ps1")
         assert result["name"] == "hello.ps1"

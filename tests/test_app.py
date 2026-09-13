@@ -490,9 +490,7 @@ class TestLibrarySettingsGate:
             "kinds": ["media"],
         }
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
-        monkeypatch.setattr(
-            cfg, "library_connections", lambda: [media_conn, script_conn]
-        )
+        monkeypatch.setattr(cfg, "library_connections", lambda: [media_conn, script_conn])
         monkeypatch.setattr(
             cfg,
             "library_script_bindings",

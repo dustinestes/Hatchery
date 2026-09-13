@@ -825,9 +825,7 @@ def settings_section_post(section: str):
                     "base_uri": (conn_uris[i] or "").strip(),
                     "token": conn_tokens[i] or "",
                     "expires_at": (conn_expires[i] or "").strip(),
-                    "kinds": [
-                        k.strip() for k in (conn_kinds[i] or "").split(",") if k.strip()
-                    ],
+                    "kinds": [k.strip() for k in (conn_kinds[i] or "").split(",") if k.strip()],
                 }
             )
         try:
@@ -843,7 +841,9 @@ def settings_section_post(section: str):
         bind_filters = request.form.getlist("library_script_bind_filter")
         bn = len(bind_conn_ids)
         if not (len(bind_ids) == bn and len(bind_filters) == bn):
-            return _rerender("Script bindings are incomplete — each row needs a connection and filter.")
+            return _rerender(
+                "Script bindings are incomplete — each row needs a connection and filter."
+            )
         raw_binds = []
         for i in range(bn):
             raw_binds.append(

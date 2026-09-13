@@ -35,9 +35,7 @@ def min_expires_at() -> date:
     return date.today() + timedelta(days=1)
 
 
-def parse_expires_at(
-    raw: object, *, label: str, enforce_future: bool = True
-) -> str | None:
+def parse_expires_at(raw: object, *, label: str, enforce_future: bool = True) -> str | None:
     """Parse an optional calendar day (YYYY-MM-DD).
 
     Empty means no expiry tracked. When set and ``enforce_future`` is true
@@ -61,9 +59,7 @@ def parse_expires_at(
     return expires.isoformat()
 
 
-def parse_connections(
-    raw: list | None, *, enforce_expiry_future: bool = True
-) -> list[dict]:
+def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -> list[dict]:
     """Validate and normalize connection dicts from Settings / app_settings."""
     if not raw:
         return []
@@ -95,9 +91,7 @@ def parse_connections(
         if bad:
             raise ValueError(f"unknown artifact types: {', '.join(sorted(bad))}")
         if not kinds:
-            raise ValueError(
-                f"connection '{label}' must select at least one artifact type"
-            )
+            raise ValueError(f"connection '{label}' must select at least one artifact type")
         token = str(item.get("token") or "")
         expires_at = parse_expires_at(
             item.get("expires_at"),
@@ -143,6 +137,7 @@ def connections_for_bindings(
             needed.append(by_id[cid])
     # Catalog/pull paths should not fail because a stored expiry is now in the past.
     return parse_connections(needed, enforce_expiry_future=False)
+
 
 def parse_script_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
     """Validate Scripts domain bindings against the connection registry."""
