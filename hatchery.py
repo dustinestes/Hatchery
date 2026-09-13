@@ -842,6 +842,7 @@ def settings_section_post(section: str):
                 {
                     "library_connections": raw_conns,
                     "library_script_bindings": [],
+                    "library_clutch_bindings": [],
                     "library_media_bindings": [],
                 },
             )
@@ -871,6 +872,41 @@ def settings_section_post(section: str):
                 {
                     "library_connections": connections,
                     "library_script_bindings": raw_binds,
+                    "library_clutch_bindings": list(
+                        config.get().get("library_clutch_bindings") or []
+                    ),
+                    "library_media_bindings": list(
+                        config.get().get("library_media_bindings") or []
+                    ),
+                },
+            )
+
+        clutch_ids = request.form.getlist("library_clutch_bind_id")
+        clutch_conn_ids = request.form.getlist("library_clutch_bind_connection_id")
+        clutch_filters = request.form.getlist("library_clutch_bind_filter")
+        cn = len(clutch_conn_ids)
+        if not (len(clutch_ids) == cn and len(clutch_filters) == cn):
+            return _rerender(
+                "Clutch bindings are incomplete — each row needs a connection and filter."
+            )
+        raw_clutches = []
+        for i in range(cn):
+            raw_clutches.append(
+                {
+                    "id": (clutch_ids[i] or "").strip(),
+                    "connection_id": (clutch_conn_ids[i] or "").strip(),
+                    "filter": (clutch_filters[i] or "*").strip() or "*",
+                }
+            )
+        try:
+            clutch_bindings = library_lib.parse_clutch_bindings(raw_clutches, connections)
+        except ValueError as exc:
+            return _rerender(
+                f"Clutch bindings are invalid: {exc}",
+                {
+                    "library_connections": connections,
+                    "library_script_bindings": bindings,
+                    "library_clutch_bindings": raw_clutches,
                     "library_media_bindings": list(
                         config.get().get("library_media_bindings") or []
                     ),
@@ -904,12 +940,14 @@ def settings_section_post(section: str):
                 {
                     "library_connections": connections,
                     "library_script_bindings": bindings,
+                    "library_clutch_bindings": clutch_bindings,
                     "library_media_bindings": raw_media,
                 },
             )
 
         new_cfg["library_connections"] = connections
         new_cfg["library_script_bindings"] = bindings
+        new_cfg["library_clutch_bindings"] = clutch_bindings
         new_cfg["library_media_bindings"] = media_bindings
         config.save(new_cfg)
         return redirect(url_for("settings_section", section="library", saved="1"))
@@ -1004,6 +1042,45 @@ def api_library_scripts_pull():
         if not relative_path:
             raise ValueError("relative_path is required")
         result = library_lib.pull_script(conn, relative_path)
+    except FileExistsError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
+
+
+@app.route("/api/library/clutches")
+def api_library_clutches():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    raw_connections = config.library_connections()
+    raw_bindings = config.library_clutch_bindings()
+    try:
+        connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+        bindings = library_lib.parse_clutch_bindings(raw_bindings, connections)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    items = library_lib.catalog_clutches(connections, bindings)
+    return jsonify({"items": items})
+
+
+@app.route("/api/library/clutches/pull", methods=["POST"])
+def api_library_clutches_pull():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data)
+        relative_path = str(data.get("relative_path") or "").strip()
+        if not relative_path:
+            raise ValueError("relative_path is required")
+        result = library_lib.pull_clutch(conn, relative_path)
     except FileExistsError as exc:
         return jsonify({"error": str(exc)}), 409
     except FileNotFoundError as exc:

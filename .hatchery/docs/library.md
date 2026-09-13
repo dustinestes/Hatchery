@@ -89,14 +89,14 @@ When Library is on, Settings gains a **Library** section with:
 
 - **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow — for later alerting). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
+- **Clutches** — binding rows (connection picker filtered by clutches artifact type + path/filter), pull into `clutches/`, Import dropdown when Library is on
 - **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
-- **Clutches** — binding rows land in a follow-on issue
 
 Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library Settings while the feature is off redirect to General with an enable hint.
 
-Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts) so inventory, Used-by, and provisioning keep using local files by default.
+Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts, `clutches/` for Clutches) so inventory, Used-by, and provisioning keep using local files by default.
 
 <br>
 

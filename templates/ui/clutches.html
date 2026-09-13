@@ -17,7 +17,22 @@
              accept=".yaml,application/x-yaml,text/yaml"
              multiple
              hidden>
+      {% if library_enabled %}
+      <div class="import-dropdown" id="clutch-import-dropdown">
+        <button type="button"
+                class="btn btn-primary btn-sm"
+                id="clutch-import-btn"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-controls="clutch-import-menu">Import</button>
+        <div class="dropdown-menu import-dropdown-menu" id="clutch-import-menu" hidden role="menu">
+          <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-file">From file…</button>
+          <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-library">From library…</button>
+        </div>
+      </div>
+      {% else %}
       <button type="button" class="btn btn-primary btn-sm" id="clutch-import-btn">Import</button>
+      {% endif %}
       <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
     </div>
   </div>
@@ -61,6 +76,24 @@
     </div>
   </div>
 </div>
+
+{% if library_enabled %}
+<div id="library-import-backdrop" class="modal-backdrop" hidden>
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="library-import-title">
+    <h2 class="modal-title" id="library-import-title">Import from library</h2>
+    <div class="modal-body">
+      <p class="form-help-text">Select Clutches from your Clutches bindings. Pull copies them into the operator cache.</p>
+      <div id="library-import-status" class="library-test-result" role="status" aria-live="polite"></div>
+      <div id="library-import-list" class="library-import-list" role="group" aria-label="Library Clutches"></div>
+      <p class="empty-state" id="library-import-empty" hidden>No Clutch hits from your Library bindings. Configure connections under Settings → Library.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-import-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="library-import-confirm" disabled>Pull selected</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -74,7 +107,19 @@
     hatchery.bindImportControl({
       button: document.getElementById('clutch-import-btn'),
       input: document.getElementById('clutch-import-input'),
-      url: {{ url_for('api_import_clutches') | tojson }}
+      url: {{ url_for('api_import_clutches') | tojson }},
+      libraryEnabled: {{ library_enabled | tojson }},
+      menu: document.getElementById('clutch-import-menu'),
+      fromFile: document.getElementById('clutch-import-from-file'),
+      fromLibrary: document.getElementById('clutch-import-from-library'),
+      libraryModal: document.getElementById('library-import-backdrop'),
+      libraryList: document.getElementById('library-import-list'),
+      libraryEmpty: document.getElementById('library-import-empty'),
+      libraryStatus: document.getElementById('library-import-status'),
+      libraryCancel: document.getElementById('library-import-cancel'),
+      libraryConfirm: document.getElementById('library-import-confirm'),
+      catalogUrl: {{ url_for('api_library_clutches') | tojson }},
+      pullUrl: {{ url_for('api_library_clutches_pull') | tojson }}
     });
   }
 

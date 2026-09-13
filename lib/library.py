@@ -24,8 +24,10 @@ CONNECTION_TYPES = frozenset({"path", "https", "git"})
 CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
+CLUTCH_EXTENSIONS = frozenset({".yaml"})
 _SAMPLE_LIMIT = 5
 _SCRIPT_PULL_DEST = "automation/scripts"
+_CLUTCH_PULL_DEST = "clutches"
 
 
 def new_id() -> str:
@@ -149,6 +151,17 @@ def parse_script_bindings(raw: list | None, connections: list[dict]) -> list[dic
         domain="scripts",
         kind="scripts",
         label="script",
+    )
+
+
+def parse_clutch_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
+    """Validate Clutches domain bindings against the connection registry."""
+    return _parse_domain_bindings(
+        raw,
+        connections,
+        domain="clutches",
+        kind="clutches",
+        label="clutch",
     )
 
 
@@ -312,6 +325,16 @@ def list_script_hits(
     return list_hits(conn, filt, extensions=SCRIPT_EXTENSIONS, limit=limit)
 
 
+def list_clutch_hits(
+    conn: dict,
+    filt: str,
+    *,
+    limit: int | None = None,
+) -> list[dict]:
+    """List Clutch (.yaml) files for a connection + filter."""
+    return list_hits(conn, filt, extensions=CLUTCH_EXTENSIONS, limit=limit)
+
+
 def list_media_hits(
     conn: dict,
     filt: str,
@@ -439,12 +462,14 @@ def _list_https_files(
 def test_filter(conn: dict, filt: str, *, domain: str = "scripts") -> dict:
     """Return {ok, message, hits} with up to _SAMPLE_LIMIT matches."""
     domain = (domain or "scripts").strip().lower()
-    noun = "script" if domain == "scripts" else "media"
+    list_by_domain = {
+        "scripts": (list_script_hits, "script"),
+        "media": (list_media_hits, "media"),
+        "clutches": (list_clutch_hits, "clutch"),
+    }
+    list_fn, noun = list_by_domain.get(domain, (list_script_hits, "script"))
     try:
-        if domain == "media":
-            hits = list_media_hits(conn, filt, limit=_SAMPLE_LIMIT)
-        else:
-            hits = list_script_hits(conn, filt, limit=_SAMPLE_LIMIT)
+        hits = list_fn(conn, filt, limit=_SAMPLE_LIMIT)
     except ValueError as exc:
         return {"ok": False, "message": str(exc), "hits": []}
     if not hits:
@@ -481,6 +506,25 @@ def pull_script(
         dest_root=dest_root,
         extensions=SCRIPT_EXTENSIONS,
         kind_label="script",
+    )
+
+
+def pull_clutch(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+) -> dict:
+    """Copy one Clutch into the operator clutches/ cache (create-only)."""
+    from lib import config as config_lib
+
+    dest_root = dest_dir or (config_lib.data_dir() / _CLUTCH_PULL_DEST)
+    return _pull_file(
+        conn,
+        relative_path,
+        dest_root=dest_root,
+        extensions=CLUTCH_EXTENSIONS,
+        kind_label="clutch",
     )
 
 
@@ -555,6 +599,11 @@ def _pull_file(
 def catalog_scripts(connections: list[dict], bindings: list[dict]) -> list[dict]:
     """Union of script hits across Scripts bindings (dedupe by name, first wins)."""
     return _catalog(connections, bindings, list_fn=list_script_hits)
+
+
+def catalog_clutches(connections: list[dict], bindings: list[dict]) -> list[dict]:
+    """Union of Clutch hits across Clutches bindings (dedupe by name, first wins)."""
+    return _catalog(connections, bindings, list_fn=list_clutch_hits)
 
 
 def catalog_media(

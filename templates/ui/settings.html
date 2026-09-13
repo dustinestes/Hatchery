@@ -170,8 +170,53 @@
 
   <section class="form-section">
     <h2 class="form-section-title">Clutches</h2>
-    <p class="form-help-text">Bindings: which connections supply Clutch YAML, and how to filter them.</p>
-    <p class="empty-state">No Clutch bindings yet — lands in a follow-on issue.</p>
+    <p class="form-help-text">
+      Bindings pick a clutches-capable connection and a path/filter (glob for path connections;
+      explicit relative file paths for HTTPS). Pull lands in <code>clutches/</code> under the data directory.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-clutch-bind-label">Clutch bindings</span>
+      <button type="button" id="add-library-clutch-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add clutch binding">+ Add binding</button>
+    </div>
+    <div id="library-clutch-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-clutch-bind-label">
+      {% for bind in (cfg.get('library_clutch_bindings') or []) %}
+      <div class="library-bind-row">
+        <input type="hidden" name="library_clutch_bind_id" value="{{ bind.id }}">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+            {% for conn in (cfg.get('library_connections') or []) if 'clutches' in (conn.kinds or []) %}
+            <option value="{{ conn.id }}"
+                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_clutch_bind_filter" class="form-input"
+                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.yaml or path/file.yaml">
+        </div>
+        <div class="library-bind-row-actions">
+          <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+          <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
+                  aria-label="Remove clutch binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-clutch-bind-rows-empty"
+       {% if cfg.get('library_clutch_bindings') %}hidden{% endif %}>
+      No Clutch bindings yet.
+    </p>
   </section>
 
   <section class="form-section">
@@ -523,6 +568,34 @@
   </div>
 </template>
 
+<template id="library-clutch-bind-row-template">
+  <div class="library-bind-row">
+    <input type="hidden" name="library_clutch_bind_id" value="">
+    <div class="form-group">
+      <label class="form-label">Connection</label>
+      <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+        <option value="">Choose a connection</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Filter</label>
+      <input type="text" name="library_clutch_bind_filter" class="form-input"
+             value="*" placeholder="* or **/*.yaml or path/file.yaml">
+    </div>
+    <div class="library-bind-row-actions">
+      <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+      <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
+              aria-label="Remove clutch binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+  </div>
+</template>
+
 <template id="library-media-bind-row-template">
   <div class="library-bind-row library-bind-row--media">
     <input type="hidden" name="library_media_bind_id" value="">
@@ -631,11 +704,16 @@
   const bindEmpty = document.getElementById('library-script-bind-rows-empty');
   const bindTpl = document.getElementById('library-script-bind-row-template');
   const addBindBtn = document.getElementById('add-library-script-bind-btn');
+  const clutchRows = document.getElementById('library-clutch-bind-rows');
+  const clutchEmpty = document.getElementById('library-clutch-bind-rows-empty');
+  const clutchTpl = document.getElementById('library-clutch-bind-row-template');
+  const addClutchBtn = document.getElementById('add-library-clutch-bind-btn');
   const mediaRows = document.getElementById('library-media-bind-rows');
   const mediaEmpty = document.getElementById('library-media-bind-rows-empty');
   const mediaTpl = document.getElementById('library-media-bind-row-template');
   const addMediaBtn = document.getElementById('add-library-media-bind-btn');
   if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
+  if (!clutchRows || !clutchTpl || !addClutchBtn) return;
   if (!mediaRows || !mediaTpl || !addMediaBtn) return;
 
   function newId() {
@@ -667,6 +745,10 @@
 
   function syncBindEmpty() {
     if (bindEmpty) bindEmpty.hidden = bindRows.children.length > 0;
+  }
+
+  function syncClutchEmpty() {
+    if (clutchEmpty) clutchEmpty.hidden = clutchRows.children.length > 0;
   }
 
   function syncMediaEmpty() {
@@ -745,6 +827,7 @@
 
   function refreshBindConnectionOptions() {
     refreshBindSelects('.library-bind-conn-select', 'scripts');
+    refreshBindSelects('.library-clutch-bind-conn-select', 'clutches');
     refreshBindSelects('.library-media-bind-conn-select', 'media');
   }
 
@@ -909,6 +992,59 @@
       });
   });
 
+  addClutchBtn.addEventListener('click', function () {
+    const node = clutchTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.querySelector('input[name="library_clutch_bind_id"]').value = newId();
+    clutchRows.appendChild(node);
+    refreshBindConnectionOptions();
+    syncClutchEmpty();
+    const sel = row.querySelector('.library-clutch-bind-conn-select');
+    if (sel) {
+      sel.value = '';
+      sel.focus();
+    }
+  });
+
+  clutchRows.addEventListener('click', function (e) {
+    const remove = e.target.closest('.library-clutch-bind-remove');
+    if (remove) {
+      const row = remove.closest('.library-bind-row');
+      if (row) row.remove();
+      syncClutchEmpty();
+      return;
+    }
+    const testBtn = e.target.closest('.library-clutch-test-filter-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.library-bind-row');
+    const result = row.querySelector('.library-bind-test-result');
+    const connId = (row.querySelector('select[name="library_clutch_bind_connection_id"]') || {}).value;
+    const filt = (row.querySelector('input[name="library_clutch_bind_filter"]') || {}).value || '*';
+    let connRow = null;
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) connRow = r;
+    });
+    if (!connId || !connRow) {
+      setTestResult(result, false, 'Choose a connection first');
+      return;
+    }
+    setTestResult(result, true, 'Testing…');
+    fetch({{ url_for('api_library_test_filter') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: 'clutches' }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+      });
+  });
+
   addMediaBtn.addEventListener('click', function () {
     const node = mediaTpl.content.cloneNode(true);
     const row = node.querySelector('.library-bind-row');
@@ -977,6 +1113,7 @@
   refreshBindConnectionOptions();
   syncConnEmpty();
   syncBindEmpty();
+  syncClutchEmpty();
   syncMediaEmpty();
 })();
 </script>

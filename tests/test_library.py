@@ -159,6 +159,71 @@ class TestPathLibrary:
         assert "setup.sh" in names
 
 
+class TestClutchLibrary:
+    @pytest.fixture
+    def clutch_share(self, tmp_path: Path) -> Path:
+        root = tmp_path / "clutch-share"
+        (root / "nested").mkdir(parents=True)
+        (root / "lab.yaml").write_text("name: lab\n", encoding="utf-8")
+        (root / "nested" / "prod.yaml").write_text("name: prod\n", encoding="utf-8")
+        (root / "notes.txt").write_text("skip\n", encoding="utf-8")
+        return root
+
+    def _clutch_conn(self, root: Path) -> dict:
+        return {
+            "id": "c1",
+            "label": "Clutch share",
+            "type": "path",
+            "base_uri": str(root),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["clutches"],
+        }
+
+    def test_parse_clutch_bindings_requires_clutches_kind(self, clutch_share):
+        conn = {
+            "id": "a",
+            "label": "Scripts only",
+            "type": "path",
+            "base_uri": str(clutch_share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        with pytest.raises(ValueError, match="does not serve clutches"):
+            library.parse_clutch_bindings(
+                [{"id": "b1", "connection_id": "a", "filter": "*"}],
+                [conn],
+            )
+
+    def test_list_pull_and_catalog(self, clutch_share, tmp_path, monkeypatch):
+        conn = self._clutch_conn(clutch_share)
+        hits = library.list_clutch_hits(conn, "*")
+        assert {h["name"] for h in hits} == {"lab.yaml", "prod.yaml"}
+
+        sample = library.test_filter(conn, "*.yaml", domain="clutches")
+        assert sample["ok"] is True
+        assert len(sample["hits"]) >= 1
+
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "clutches").mkdir(parents=True)
+        pulled = library.pull_clutch(conn, "lab.yaml")
+        assert pulled["name"] == "lab.yaml"
+        assert (tmp_path / "data" / "clutches" / "lab.yaml").is_file()
+
+        with pytest.raises(FileExistsError):
+            library.pull_clutch(conn, "lab.yaml")
+
+        bindings = [
+            {"id": "b1", "connection_id": "c1", "filter": "*", "domain": "clutches"},
+            {"id": "b2", "connection_id": "c1", "filter": "lab.yaml", "domain": "clutches"},
+        ]
+        items = library.catalog_clutches([conn], bindings)
+        names = [i["name"] for i in items]
+        assert names.count("lab.yaml") == 1
+        assert "prod.yaml" in names
+
+
 class TestMediaLibrary:
     @pytest.fixture
     def media_share(self, tmp_path: Path) -> Path:
