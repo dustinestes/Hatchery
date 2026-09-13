@@ -688,6 +688,31 @@ body {
   width: 100%;
 }
 
+.settings-tier-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.settings-tier-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 40rem) {
+  .settings-tier-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .settings-tier-row .settings-tier-remove {
+    justify-self: start;
+  }
+}
+
 .form-input:focus,
 .form-select:focus {
   outline: none;

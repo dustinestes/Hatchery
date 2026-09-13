@@ -64,6 +64,56 @@
           <span class="form-toggle-label">Display passwords in the Nests panel</span>
         </label>
       </div>
+      <div class="form-group form-group-full">
+        <div class="section-header">
+          <div class="form-label-row" style="margin-bottom:0">
+            <span class="form-label" id="nest-key-tiers-label">Nest SSH key expiry alert tiers</span>
+            <span class="form-help-icon" data-tip="Within N days of expiry, fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry — set expires_at on each identity.">i</span>
+          </div>
+          <button type="button" id="add-nest-tier-btn" class="btn btn-secondary btn-sm"
+                  aria-label="Add alert tier">+ Add tier</button>
+        </div>
+        <div id="nest-tier-rows" class="settings-tier-rows" role="group" aria-labelledby="nest-key-tiers-label">
+          {% for tier in (cfg.get('nest_key_alert_tiers') or []) %}
+          <div class="settings-tier-row">
+            <div class="form-group">
+              <label class="form-label" for="nest-tier-days-{{ loop.index0 }}">Days before</label>
+              <input type="number" id="nest-tier-days-{{ loop.index0 }}"
+                     name="nest_tier_days_before" class="form-input"
+                     min="0" step="1" inputmode="numeric" required
+                     value="{{ tier.days_before }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="nest-tier-alerts-{{ loop.index0 }}">Alerts per day</label>
+              <input type="number" id="nest-tier-alerts-{{ loop.index0 }}"
+                     name="nest_tier_alerts_per_day" class="form-input"
+                     min="1" step="1" inputmode="numeric" required
+                     value="{{ tier.alerts_per_day }}">
+            </div>
+            <button type="button" class="btn-icon settings-tier-remove" title="Remove tier"
+                    aria-label="Remove alert tier">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="empty-state" id="nest-tier-rows-empty"
+           {% if cfg.get('nest_key_alert_tiers') %}hidden{% endif %}>
+          No tiers yet. Add one above.
+        </p>
+        <p class="form-help-text">Checked on the background validation interval.</p>
+      </div>
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label" for="nest-ssh-identities">Nest SSH identities (JSON)</label>
+          <span class="form-help-icon" data-tip="List of {id, label?, identity_file?, cert_path?, expires_at?, expires_source?}. expires_at is ISO-8601. Omit expires_at to try OpenSSH certificate Valid-before from cert_path or identity_file-cert.pub. Nest registry (#207) will replace this list later.">i</span>
+        </div>
+        <textarea id="nest-ssh-identities" name="nest_ssh_identities" class="form-input form-textarea"
+                  rows="8" spellcheck="false">{{ nest_ssh_identities_json }}</textarea>
+      </div>
     </div>
   </section>
 
@@ -96,4 +146,85 @@
   </div>
 
 </form>
+
+<template id="nest-tier-row-template">
+  <div class="settings-tier-row">
+    <div class="form-group">
+      <label class="form-label">Days before</label>
+      <input type="number" name="nest_tier_days_before" class="form-input"
+             min="0" step="1" inputmode="numeric" required value="30">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Alerts per day</label>
+      <input type="number" name="nest_tier_alerts_per_day" class="form-input"
+             min="1" step="1" inputmode="numeric" required value="1">
+    </div>
+    <button type="button" class="btn-icon settings-tier-remove" title="Remove tier"
+            aria-label="Remove alert tier">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const rows = document.getElementById('nest-tier-rows');
+  const empty = document.getElementById('nest-tier-rows-empty');
+  const tpl = document.getElementById('nest-tier-row-template');
+  const addBtn = document.getElementById('add-nest-tier-btn');
+  if (!rows || !tpl || !addBtn) return;
+
+  function syncEmpty() {
+    if (empty) empty.hidden = rows.children.length > 0;
+  }
+
+  function reindexLabels() {
+    Array.prototype.forEach.call(rows.children, function (row, i) {
+      const days = row.querySelector('input[name="nest_tier_days_before"]');
+      const alerts = row.querySelector('input[name="nest_tier_alerts_per_day"]');
+      const dayLabel = row.querySelectorAll('.form-label')[0];
+      const alertLabel = row.querySelectorAll('.form-label')[1];
+      if (days) {
+        days.id = 'nest-tier-days-' + i;
+        if (dayLabel) dayLabel.setAttribute('for', days.id);
+      }
+      if (alerts) {
+        alerts.id = 'nest-tier-alerts-' + i;
+        if (alertLabel) alertLabel.setAttribute('for', alerts.id);
+      }
+    });
+  }
+
+  function addRow(days, alertsPerDay) {
+    const node = tpl.content.cloneNode(true);
+    const row = node.querySelector('.settings-tier-row');
+    const daysInput = row.querySelector('input[name="nest_tier_days_before"]');
+    const alertsInput = row.querySelector('input[name="nest_tier_alerts_per_day"]');
+    if (days != null) daysInput.value = days;
+    if (alertsPerDay != null) alertsInput.value = alertsPerDay;
+    rows.appendChild(node);
+    reindexLabels();
+    syncEmpty();
+    daysInput.focus();
+  }
+
+  addBtn.addEventListener('click', function () { addRow(30, 1); });
+
+  rows.addEventListener('click', function (e) {
+    const btn = e.target.closest('.settings-tier-remove');
+    if (!btn) return;
+    const row = btn.closest('.settings-tier-row');
+    if (row) row.remove();
+    reindexLabels();
+    syncEmpty();
+  });
+
+  syncEmpty();
+})();
+</script>
 {% endblock %}
