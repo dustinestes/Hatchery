@@ -87,12 +87,15 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows  
-- **Clutches / Scripts / Media** — binding rows (connection picker filtered by kind + path/filter)
+- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow — for later alerting). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
+- **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
+- **Clutches / Media** — binding rows land in follow-on issues
+
+Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library Settings while the feature is off redirect to General with an enable hint.
 
-Pull copies selected items into the normal data-dir paths so inventory, Used-by, and provisioning keep using local files by default.
+Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts) so inventory, Used-by, and provisioning keep using local files by default.
 
 <br>
 

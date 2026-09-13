@@ -533,6 +533,9 @@ hatchery.vmRows = (function () {
   /**
    * Bind an Import button + hidden file input to POST multipart uploads.
    * opts: { button, input, url, acceptLabel }
+   * Optional library dropdown: libraryEnabled, menu, fromFile, fromLibrary,
+   *   libraryModal, libraryList, libraryEmpty, libraryStatus, libraryCancel,
+   *   libraryConfirm, catalogUrl, pullUrl
    * Reloads the page after any successful import. Conflicts use showToast.
    */
   hatchery.bindImportControl = function (opts) {
@@ -542,11 +545,203 @@ hatchery.vmRows = (function () {
     if (!button || !input || !url) return;
 
     var idleLabel = button.textContent;
+    var menu = opts.menu;
+    var libraryEnabled = !!opts.libraryEnabled && menu;
 
-    button.addEventListener('click', function () {
+    function closeMenu() {
+      if (!menu) return;
+      menu.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    }
+
+    function openMenu() {
+      if (!menu) return;
+      menu.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+    }
+
+    button.addEventListener('click', function (e) {
       if (button.disabled) return;
+      if (libraryEnabled) {
+        e.stopPropagation();
+        if (menu.hidden) openMenu();
+        else closeMenu();
+        return;
+      }
       input.click();
     });
+
+    if (libraryEnabled) {
+      document.addEventListener('click', function () { closeMenu(); });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && menu && !menu.hidden) {
+          closeMenu();
+          button.focus();
+        }
+      });
+      if (opts.fromFile) {
+        opts.fromFile.addEventListener('click', function () {
+          closeMenu();
+          input.click();
+        });
+      }
+      if (opts.fromLibrary) {
+        opts.fromLibrary.addEventListener('click', function () {
+          closeMenu();
+          openLibraryModal();
+        });
+      }
+    }
+
+    function setLibraryStatus(message, ok) {
+      var el = opts.libraryStatus;
+      if (!el) return;
+      el.textContent = message || '';
+      el.classList.toggle('library-test-result--ok', ok === true);
+      el.classList.toggle('library-test-result--err', ok === false);
+    }
+
+    function syncLibraryConfirm() {
+      var confirm = opts.libraryConfirm;
+      var list = opts.libraryList;
+      if (!confirm || !list) return;
+      var checked = list.querySelectorAll('input[type="checkbox"]:checked');
+      confirm.disabled = checked.length === 0;
+    }
+
+    function openLibraryModal() {
+      var backdrop = opts.libraryModal;
+      var list = opts.libraryList;
+      var empty = opts.libraryEmpty;
+      var confirm = opts.libraryConfirm;
+      if (!backdrop || !list || !opts.catalogUrl) {
+        showToast('Library import is not available on this page.', 'warning', 4000);
+        return;
+      }
+      list.innerHTML = '';
+      if (empty) empty.hidden = true;
+      if (confirm) confirm.disabled = true;
+      setLibraryStatus('Loading library…', true);
+      backdrop.hidden = false;
+      fetch(opts.catalogUrl)
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, data: data };
+          });
+        })
+        .then(function (res) {
+          var items = (res.data && res.data.items) || [];
+          if (!res.ok) {
+            setLibraryStatus((res.data && res.data.error) || 'Failed to load library', false);
+            return;
+          }
+          setLibraryStatus('', true);
+          if (!items.length) {
+            if (empty) empty.hidden = false;
+            return;
+          }
+          items.forEach(function (item, idx) {
+            var id = 'library-import-item-' + idx;
+            var label = document.createElement('label');
+            label.className = 'library-import-item';
+            label.setAttribute('for', id);
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.id = id;
+            cb.value = item.relative_path;
+            cb.dataset.connectionId = item.connection_id || '';
+            cb.dataset.name = item.name || '';
+            var text = document.createElement('span');
+            text.className = 'library-import-item-text';
+            text.textContent = item.name +
+              (item.connection_label ? (' — ' + item.connection_label) : '') +
+              (item.relative_path && item.relative_path !== item.name
+                ? (' (' + item.relative_path + ')')
+                : '');
+            label.appendChild(cb);
+            label.appendChild(text);
+            list.appendChild(label);
+          });
+          syncLibraryConfirm();
+        })
+        .catch(function () {
+          setLibraryStatus('Network or server error', false);
+        });
+    }
+
+    function closeLibraryModal() {
+      if (opts.libraryModal) opts.libraryModal.hidden = true;
+    }
+
+    if (opts.libraryCancel) {
+      opts.libraryCancel.addEventListener('click', closeLibraryModal);
+    }
+    if (opts.libraryModal) {
+      opts.libraryModal.addEventListener('click', function (e) {
+        if (e.target === opts.libraryModal) closeLibraryModal();
+      });
+    }
+    if (opts.libraryList) {
+      opts.libraryList.addEventListener('change', syncLibraryConfirm);
+    }
+    if (opts.libraryConfirm) {
+      opts.libraryConfirm.addEventListener('click', function () {
+        var list = opts.libraryList;
+        if (!list || !opts.pullUrl) return;
+        var checked = Array.prototype.slice.call(
+          list.querySelectorAll('input[type="checkbox"]:checked')
+        );
+        if (!checked.length) return;
+        opts.libraryConfirm.disabled = true;
+        setLibraryStatus('Pulling…', true);
+        var imported = [];
+        var errors = [];
+        var chain = Promise.resolve();
+        checked.forEach(function (cb) {
+          chain = chain.then(function () {
+            return fetch(opts.pullUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                connection_id: cb.dataset.connectionId,
+                relative_path: cb.value,
+              }),
+            }).then(function (r) {
+              return r.json().then(function (data) {
+                return { ok: r.ok, status: r.status, data: data };
+              });
+            }).then(function (res) {
+              if (res.ok && res.data && res.data.imported && res.data.imported.length) {
+                imported = imported.concat(res.data.imported);
+              } else {
+                errors.push({
+                  name: cb.dataset.name || cb.value,
+                  reason: (res.data && res.data.error) || 'pull failed',
+                });
+              }
+            }).catch(function () {
+              errors.push({ name: cb.dataset.name || cb.value, reason: 'network error' });
+            });
+          });
+        });
+        chain.then(function () {
+          errors.forEach(function (err) {
+            showToast(err.name + ': ' + err.reason, 'warning', 5000);
+          });
+          if (imported.length) {
+            var msg = imported.length === 1
+              ? ('Pulled ' + imported[0])
+              : ('Pulled ' + imported.length + ' scripts');
+            showToast(msg + ' — ready to use.', 'info', 3200);
+            closeLibraryModal();
+            window.setTimeout(function () { window.location.reload(); }, 400);
+            return;
+          }
+          setLibraryStatus(errors.length ? 'Pull finished with errors' : 'Nothing pulled', false);
+          syncLibraryConfirm();
+        });
+      });
+    }
 
     input.addEventListener('change', function () {
       if (!input.files || !input.files.length) return;

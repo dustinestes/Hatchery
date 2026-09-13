@@ -21,6 +21,8 @@ def isolated_config(monkeypatch, tmp_path):
             "show_passwords": False,
             "display_timezone": "UTC",
             "library_enabled": False,
+            "library_connections": [],
+            "library_script_bindings": [],
             "nest_key_alert_tiers": [
                 {"days_before": 30, "alerts_per_day": 1},
                 {"days_before": 7, "alerts_per_day": 2},

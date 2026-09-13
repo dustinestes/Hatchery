@@ -38,6 +38,8 @@ _DB_SETTING_KEYS = frozenset(
         "nest_key_alert_tiers",
         "nest_ssh_identities",
         "library_enabled",
+        "library_connections",
+        "library_script_bindings",
     }
 )
 
@@ -61,6 +63,8 @@ _DEFAULTS: dict = {
     "show_passwords": False,
     "display_timezone": "UTC",
     "library_enabled": False,
+    "library_connections": [],
+    "library_script_bindings": [],
     # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
     "nest_key_alert_tiers": [
         {"days_before": 30, "alerts_per_day": 1},
@@ -186,6 +190,16 @@ def nest_ssh_identities() -> list:
 def library_enabled() -> bool:
     """Return whether the Library feature (Settings section + Import-from-library) is on."""
     return bool(get().get("library_enabled", False))
+
+
+def library_connections() -> list:
+    """Return Library connection registry (list of dicts)."""
+    return list(get().get("library_connections") or [])
+
+
+def library_script_bindings() -> list:
+    """Return Scripts domain bindings (list of dicts)."""
+    return list(get().get("library_script_bindings") or [])
 
 
 def init_data_dir() -> None:

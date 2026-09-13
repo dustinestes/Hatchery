@@ -22,32 +22,163 @@
   <div class="alert alert-error" role="alert">{{ form_error }}</div>
 {% endif %}
 
+<form method="post" action="{{ url_for('settings_section_post', section=section) }}">
+
 {% if section == 'library' %}
   <section class="form-section">
     <h2 class="form-section-title">Connections</h2>
     <p class="form-help-text">
-      Connections are named endpoints (git, share, HTTPS, and later artifact APIs) with base URI and credentials.
-      Domain bindings pick a connection and add path or filter rules. Full CRUD lands in follow-on work.
+      Named endpoints (path/share, HTTPS, git) with base URI and token.
+      Choose artifact types so domain bindings only offer relevant connections.
+      Path connections support test, list, and pull today; HTTPS pulls an explicit relative file; git is stored for later.
     </p>
-    <p class="empty-state">No connections yet.</p>
+    <div class="section-header">
+      <span class="form-label" id="library-conn-label">Connection rows</span>
+      <button type="button" id="add-library-conn-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add connection">+ Add connection</button>
+    </div>
+    <div id="library-conn-rows" class="library-conn-rows" role="group" aria-labelledby="library-conn-label">
+      {% for conn in (cfg.get('library_connections') or []) %}
+      <div class="library-conn-row" data-conn-id="{{ conn.id }}">
+        <input type="hidden" name="library_conn_id" value="{{ conn.id }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle" aria-expanded="false"
+                  aria-label="Expand connection {{ conn.label }}">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary">{{ conn.label }} · {{ conn.type }} · {{ conn.base_uri }}</span>
+          </button>
+          <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
+                  aria-label="Remove connection {{ conn.label }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="library-conn-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Label <span class="required">*</span></label>
+              <input type="text" name="library_conn_label" class="form-input library-conn-label-input" required
+                     value="{{ conn.label }}" placeholder="e.g. Ops share">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <select name="library_conn_type" class="form-select library-conn-type-input">
+                <option value="path" {% if conn.type == 'path' %}selected{% endif %}>Path / share</option>
+                <option value="https" {% if conn.type == 'https' %}selected{% endif %}>HTTPS</option>
+                <option value="git" {% if conn.type == 'git' %}selected{% endif %}>Git</option>
+              </select>
+            </div>
+            <div class="form-group form-group-full">
+              <label class="form-label">Base URI / path <span class="required">*</span></label>
+              <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
+                     value="{{ conn.base_uri }}" placeholder="e.g. /mnt/nas/hatchery or https://example.com/files">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Token / API key</label>
+              <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
+                     value="{{ conn.token or '' }}" placeholder="Optional — used for HTTPS / git">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Token expiry</label>
+              <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input"
+                     value="{{ conn.expires_at or '' }}">
+            </div>
+            <div class="form-group form-group-full">
+              <span class="form-label" id="library-conn-kinds-{{ loop.index0 }}">Artifact types</span>
+              <input type="hidden" name="library_conn_kinds" class="library-conn-kinds-value"
+                     value="{{ (conn.kinds or []) | join(',') }}">
+              <div class="form-radio-group library-kind-checks" role="group"
+                   aria-labelledby="library-conn-kinds-{{ loop.index0 }}">
+                {% for kind in ['scripts', 'clutches', 'media', 'packages'] %}
+                <label class="form-radio">
+                  <input type="checkbox" class="library-kind-check" value="{{ kind }}"
+                         {% if kind in (conn.kinds or []) %}checked{% endif %}>
+                  <span class="form-radio-label">{{ kind | capitalize }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          <div class="library-conn-row-actions">
+            <button type="button" class="btn btn-secondary btn-sm library-test-conn-btn">Test connection</button>
+            <span class="library-test-result" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-conn-rows-empty"
+       {% if cfg.get('library_connections') %}hidden{% endif %}>
+      No connections yet. Add one above.
+    </p>
   </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title">Scripts</h2>
+    <p class="form-help-text">
+      Bindings pick a scripts-capable connection and a path/filter (glob for path connections;
+      explicit relative file paths for HTTPS).
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-script-bind-label">Script bindings</span>
+      <button type="button" id="add-library-script-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add script binding">+ Add binding</button>
+    </div>
+    <div id="library-script-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-script-bind-label">
+      {% for bind in (cfg.get('library_script_bindings') or []) %}
+      <div class="library-bind-row">
+        <input type="hidden" name="library_script_bind_id" value="{{ bind.id }}">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+            {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
+            <option value="{{ conn.id }}"
+                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_script_bind_filter" class="form-input"
+                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
+        </div>
+        <div class="library-bind-row-actions">
+          <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+          <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
+                  aria-label="Remove script binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-script-bind-rows-empty"
+       {% if cfg.get('library_script_bindings') %}hidden{% endif %}>
+      No Script bindings yet.
+    </p>
+  </section>
+
   <section class="form-section">
     <h2 class="form-section-title">Clutches</h2>
     <p class="form-help-text">Bindings: which connections supply Clutch YAML, and how to filter them.</p>
-    <p class="empty-state">No Clutch bindings yet.</p>
-  </section>
-  <section class="form-section">
-    <h2 class="form-section-title">Scripts</h2>
-    <p class="form-help-text">Bindings: which connections supply automation scripts, and how to filter them.</p>
-    <p class="empty-state">No Script bindings yet.</p>
+    <p class="empty-state">No Clutch bindings yet — lands in a follow-on issue.</p>
   </section>
   <section class="form-section">
     <h2 class="form-section-title">Media</h2>
     <p class="form-help-text">Bindings: which connections supply install media, and how to filter them.</p>
-    <p class="empty-state">No Media bindings yet.</p>
+    <p class="empty-state">No Media bindings yet — lands in a follow-on issue.</p>
   </section>
 {% else %}
-<form method="post" action="{{ url_for('settings_section_post', section=section) }}">
 
 {% if section == 'general' %}
   <section class="form-section">
@@ -199,13 +330,13 @@
     </div>
   </section>
 {% endif %}
+{% endif %}
 
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
   </div>
 
 </form>
-{% endif %}
 
 {% if section == 'security' %}
 <template id="nest-tier-row-template">
@@ -227,6 +358,115 @@
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
+  </div>
+</template>
+{% endif %}
+
+{% if section == 'library' %}
+<template id="library-conn-row-template">
+  <div class="library-conn-row" data-conn-id="">
+    <input type="hidden" name="library_conn_id" value="">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle" aria-expanded="true"
+              aria-label="Collapse connection">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary">New connection</span>
+      </button>
+      <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
+              aria-label="Remove connection">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="library-conn-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Label <span class="required">*</span></label>
+          <input type="text" name="library_conn_label" class="form-input library-conn-label-input" required
+                 value="" placeholder="e.g. Ops share">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="library_conn_type" class="form-select library-conn-type-input">
+            <option value="path" selected>Path / share</option>
+            <option value="https">HTTPS</option>
+            <option value="git">Git</option>
+          </select>
+        </div>
+        <div class="form-group form-group-full">
+          <label class="form-label">Base URI / path <span class="required">*</span></label>
+          <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
+                 value="" placeholder="e.g. /mnt/nas/hatchery or https://example.com/files">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Token / API key</label>
+          <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
+                 value="" placeholder="Optional — used for HTTPS / git">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Token expiry</label>
+          <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input">
+        </div>
+        <div class="form-group form-group-full">
+          <span class="form-label">Artifact types</span>
+          <input type="hidden" name="library_conn_kinds" class="library-conn-kinds-value" value="">
+          <div class="form-radio-group library-kind-checks" role="group" aria-label="Artifact types">
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="scripts">
+              <span class="form-radio-label">Scripts</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="clutches">
+              <span class="form-radio-label">Clutches</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="media">
+              <span class="form-radio-label">Media</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="packages">
+              <span class="form-radio-label">Packages</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="library-conn-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm library-test-conn-btn">Test connection</button>
+        <span class="library-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="library-script-bind-row-template">
+  <div class="library-bind-row">
+    <input type="hidden" name="library_script_bind_id" value="">
+    <div class="form-group">
+      <label class="form-label">Connection</label>
+      <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+        <option value="">Choose a connection</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Filter</label>
+      <input type="text" name="library_script_bind_filter" class="form-input"
+             value="*" placeholder="* or **/*.ps1 or path/file.sh">
+    </div>
+    <div class="library-bind-row-actions">
+      <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+      <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
+              aria-label="Remove script binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
   </div>
 </template>
 {% endif %}
@@ -288,6 +528,296 @@
   });
 
   syncEmpty();
+})();
+</script>
+{% endif %}
+
+{% if section == 'library' %}
+<script>
+(function () {
+  const connRows = document.getElementById('library-conn-rows');
+  const connEmpty = document.getElementById('library-conn-rows-empty');
+  const connTpl = document.getElementById('library-conn-row-template');
+  const addConnBtn = document.getElementById('add-library-conn-btn');
+  const bindRows = document.getElementById('library-script-bind-rows');
+  const bindEmpty = document.getElementById('library-script-bind-rows-empty');
+  const bindTpl = document.getElementById('library-script-bind-row-template');
+  const addBindBtn = document.getElementById('add-library-script-bind-btn');
+  if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
+
+  function newId() {
+    if (window.crypto && crypto.randomUUID) {
+      return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    }
+    return String(Date.now()) + Math.random().toString(16).slice(2, 8);
+  }
+
+  function tomorrowIso() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function typeLabel(value) {
+    if (value === 'https') return 'https';
+    if (value === 'git') return 'git';
+    return 'path';
+  }
+
+  function syncConnEmpty() {
+    if (connEmpty) connEmpty.hidden = connRows.children.length > 0;
+  }
+
+  function syncBindEmpty() {
+    if (bindEmpty) bindEmpty.hidden = bindRows.children.length > 0;
+  }
+
+  function syncKinds(row) {
+    const hidden = row.querySelector('.library-conn-kinds-value');
+    if (!hidden) return;
+    const kinds = [];
+    row.querySelectorAll('.library-kind-check:checked').forEach(function (cb) {
+      kinds.push(cb.value);
+    });
+    hidden.value = kinds.join(',');
+  }
+
+  function updateSummary(row) {
+    const summary = row.querySelector('.library-conn-summary');
+    const toggle = row.querySelector('.library-conn-toggle');
+    const label = ((row.querySelector('.library-conn-label-input') || {}).value || '').trim() || 'New connection';
+    const type = typeLabel((row.querySelector('.library-conn-type-input') || {}).value || 'path');
+    const uri = ((row.querySelector('.library-conn-uri-input') || {}).value || '').trim();
+    if (summary) {
+      summary.textContent = uri ? (label + ' · ' + type + ' · ' + uri) : (label + ' · ' + type);
+    }
+    if (toggle) {
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-label', (open ? 'Collapse' : 'Expand') + ' connection ' + label);
+    }
+  }
+
+  function setExpiryMin(row) {
+    const input = row.querySelector('.library-conn-expires-input');
+    if (!input) return;
+    input.min = tomorrowIso();
+  }
+
+  function scriptConnections() {
+    const out = [];
+    Array.prototype.forEach.call(connRows.children, function (row) {
+      const id = row.querySelector('input[name="library_conn_id"]');
+      const label = row.querySelector('input[name="library_conn_label"]');
+      const kinds = row.querySelector('.library-conn-kinds-value');
+      if (!id || !label || !kinds) return;
+      const kindList = (kinds.value || '').split(',').map(function (k) { return k.trim(); });
+      if (kindList.indexOf('scripts') === -1) return;
+      out.push({ id: id.value, label: label.value || id.value });
+    });
+    out.sort(function (a, b) {
+      return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+    });
+    return out;
+  }
+
+  function refreshBindConnectionOptions() {
+    const options = scriptConnections();
+    Array.prototype.forEach.call(bindRows.querySelectorAll('.library-bind-conn-select'), function (sel) {
+      const current = sel.value;
+      sel.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Choose a connection';
+      sel.appendChild(placeholder);
+      options.forEach(function (c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.label;
+        if (c.id === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (current && !options.some(function (c) { return c.id === current; })) {
+        sel.value = '';
+      }
+    });
+  }
+
+  function setTestResult(el, ok, message) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('library-test-result--ok', !!ok);
+    el.classList.toggle('library-test-result--err', !ok && !!message);
+  }
+
+  function connPayload(row) {
+    syncKinds(row);
+    return {
+      id: (row.querySelector('input[name="library_conn_id"]') || {}).value || '',
+      label: (row.querySelector('input[name="library_conn_label"]') || {}).value || 'connection',
+      type: (row.querySelector('select[name="library_conn_type"]') || {}).value || 'path',
+      base_uri: (row.querySelector('input[name="library_conn_base_uri"]') || {}).value || '',
+      token: (row.querySelector('input[name="library_conn_token"]') || {}).value || '',
+      expires_at: (row.querySelector('input[name="library_conn_expires_at"]') || {}).value || '',
+      kinds: ((row.querySelector('.library-conn-kinds-value') || {}).value || '')
+        .split(',').map(function (k) { return k.trim(); }).filter(Boolean),
+    };
+  }
+
+  function wireConnRow(row) {
+    setExpiryMin(row);
+    syncKinds(row);
+    updateSummary(row);
+  }
+
+  addConnBtn.addEventListener('click', function () {
+    const node = connTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-conn-row');
+    const id = newId();
+    row.dataset.connId = id;
+    row.querySelector('input[name="library_conn_id"]').value = id;
+    wireConnRow(row);
+    connRows.appendChild(node);
+    syncConnEmpty();
+    refreshBindConnectionOptions();
+    row.querySelector('input[name="library_conn_label"]').focus();
+  });
+
+  connRows.addEventListener('click', function (e) {
+    const toggle = e.target.closest('.library-conn-toggle');
+    if (toggle) {
+      const row = toggle.closest('.library-conn-row');
+      const body = row && row.querySelector('.library-conn-row-body');
+      if (!body) return;
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      body.hidden = open;
+      toggle.setAttribute('aria-expanded', String(!open));
+      updateSummary(row);
+      return;
+    }
+    const remove = e.target.closest('.library-conn-remove');
+    if (remove) {
+      const row = remove.closest('.library-conn-row');
+      if (row) row.remove();
+      syncConnEmpty();
+      refreshBindConnectionOptions();
+      return;
+    }
+    const testBtn = e.target.closest('.library-test-conn-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.library-conn-row');
+    const result = row.querySelector('.library-test-result');
+    setTestResult(result, true, 'Testing…');
+    fetch({{ url_for('api_library_test_connection') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(row) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+      });
+  });
+
+  connRows.addEventListener('input', function (e) {
+    const row = e.target.closest('.library-conn-row');
+    if (!row) return;
+    if (
+      e.target.classList.contains('library-conn-label-input') ||
+      e.target.classList.contains('library-conn-uri-input')
+    ) {
+      updateSummary(row);
+    }
+  });
+
+  connRows.addEventListener('change', function (e) {
+    const row = e.target.closest('.library-conn-row');
+    if (!row) return;
+    if (e.target.classList.contains('library-kind-check')) {
+      syncKinds(row);
+      refreshBindConnectionOptions();
+    }
+    if (
+      e.target.classList.contains('library-conn-label-input') ||
+      e.target.classList.contains('library-conn-type-input') ||
+      e.target.classList.contains('library-conn-uri-input')
+    ) {
+      updateSummary(row);
+      refreshBindConnectionOptions();
+    }
+  });
+
+  addBindBtn.addEventListener('click', function () {
+    const node = bindTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.querySelector('input[name="library_script_bind_id"]').value = newId();
+    bindRows.appendChild(node);
+    refreshBindConnectionOptions();
+    syncBindEmpty();
+    const sel = row.querySelector('.library-bind-conn-select');
+    if (sel) {
+      sel.value = '';
+      sel.focus();
+    }
+  });
+
+  bindRows.addEventListener('click', function (e) {
+    const remove = e.target.closest('.library-bind-remove');
+    if (remove) {
+      const row = remove.closest('.library-bind-row');
+      if (row) row.remove();
+      syncBindEmpty();
+      return;
+    }
+    const testBtn = e.target.closest('.library-test-filter-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.library-bind-row');
+    const result = row.querySelector('.library-bind-test-result');
+    const connId = (row.querySelector('select[name="library_script_bind_connection_id"]') || {}).value;
+    const filt = (row.querySelector('input[name="library_script_bind_filter"]') || {}).value || '*';
+    let connRow = null;
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) connRow = r;
+    });
+    if (!connId || !connRow) {
+      setTestResult(result, false, 'Choose a connection first');
+      return;
+    }
+    setTestResult(result, true, 'Testing…');
+    fetch({{ url_for('api_library_test_filter') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(connRow), filter: filt }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+      });
+  });
+
+  var form = document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function () {
+      Array.prototype.forEach.call(connRows.children, syncKinds);
+    });
+  }
+
+  Array.prototype.forEach.call(connRows.children, wireConnRow);
+  refreshBindConnectionOptions();
+  syncConnEmpty();
+  syncBindEmpty();
 })();
 </script>
 {% endif %}
