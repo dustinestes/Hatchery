@@ -367,6 +367,7 @@ class TestLibrarySettingsGate:
                 "library_enabled": True,
                 "library_connections": [],
                 "library_script_bindings": [],
+                "library_media_bindings": [],
             },
         )
         resp = client.get("/settings/library")
@@ -375,6 +376,7 @@ class TestLibrarySettingsGate:
         assert "No connections yet" in html
         assert "Add connection" in html
         assert "Script bindings" in html
+        assert "Media bindings" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
 
@@ -393,6 +395,7 @@ class TestLibrarySettingsGate:
                 "library_enabled": True,
                 "library_connections": [],
                 "library_script_bindings": [],
+                "library_media_bindings": [],
             },
         )
         monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
@@ -405,16 +408,21 @@ class TestLibrarySettingsGate:
                 "library_conn_base_uri": str(share),
                 "library_conn_token": "",
                 "library_conn_expires_at": "",
-                "library_conn_kinds": "scripts",
+                "library_conn_kinds": "scripts,media",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
                 "library_script_bind_filter": "*.ps1",
+                "library_media_bind_id": "mbind001",
+                "library_media_bind_connection_id": "abc123def456",
+                "library_media_bind_filter": "*.iso",
+                "library_media_bind_target": "iso",
             },
         )
         assert resp.status_code == 302
         assert saved["library_connections"][0]["label"] == "Ops share"
         assert saved["library_connections"][0]["expires_at"] is None
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+        assert saved["library_media_bindings"][0]["target"] == "iso"
 
     def test_library_api_test_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
@@ -508,6 +516,53 @@ class TestLibrarySettingsGate:
         items = catalog.get_json()["items"]
         assert any(i["name"] == "tool.sh" for i in items)
         assert all(i.get("connection_id") == "cpath1" for i in items)
+
+    def test_library_media_catalog_and_pull(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "win11.iso").write_bytes(b"iso")
+        data = tmp_path / "data"
+        (data / "media" / "iso").mkdir(parents=True)
+        conn = {
+            "id": "m1",
+            "label": "ISOs",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["media"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(
+            cfg,
+            "library_media_bindings",
+            lambda: [
+                {
+                    "id": "b1",
+                    "connection_id": "m1",
+                    "filter": "*",
+                    "domain": "media",
+                    "target": "iso",
+                }
+            ],
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        catalog = client.get("/api/library/media?target=iso")
+        assert catalog.status_code == 200
+        assert any(i["name"] == "win11.iso" for i in catalog.get_json()["items"])
+
+        pull = client.post(
+            "/api/library/media/pull",
+            json={
+                "connection_id": "m1",
+                "relative_path": "win11.iso",
+                "target": "iso",
+            },
+        )
+        assert pull.status_code == 200
+        assert (data / "media" / "iso" / "win11.iso").is_file()
 
     def test_general_post_saves_library_enabled(self, client, tmp_path, monkeypatch):
         saved = {}

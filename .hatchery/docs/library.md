@@ -89,7 +89,8 @@ When Library is on, Settings gains a **Library** section with:
 
 - **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow — for later alerting). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
-- **Clutches / Media** — binding rows land in follow-on issues
+- **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
+- **Clutches** — binding rows land in a follow-on issue
 
 Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 

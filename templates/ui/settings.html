@@ -173,10 +173,63 @@
     <p class="form-help-text">Bindings: which connections supply Clutch YAML, and how to filter them.</p>
     <p class="empty-state">No Clutch bindings yet — lands in a follow-on issue.</p>
   </section>
+
   <section class="form-section">
     <h2 class="form-section-title">Media</h2>
-    <p class="form-help-text">Bindings: which connections supply install media, and how to filter them.</p>
-    <p class="empty-state">No Media bindings yet — lands in a follow-on issue.</p>
+    <p class="form-help-text">
+      Bindings pick a media-capable connection, a cache target (ISO or VirtIO), and a path/filter.
+      Pull lands in <code>media/iso/</code> or <code>media/virtio/</code> under the data directory.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-media-bind-label">Media bindings</span>
+      <button type="button" id="add-library-media-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add media binding">+ Add binding</button>
+    </div>
+    <div id="library-media-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-media-bind-label">
+      {% for bind in (cfg.get('library_media_bindings') or []) %}
+      <div class="library-bind-row library-bind-row--media">
+        <input type="hidden" name="library_media_bind_id" value="{{ bind.id }}">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+            {% for conn in (cfg.get('library_connections') or []) if 'media' in (conn.kinds or []) %}
+            <option value="{{ conn.id }}"
+                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cache target</label>
+          <select name="library_media_bind_target" class="form-select">
+            <option value="iso" {% if bind.target != 'virtio' %}selected{% endif %}>ISO</option>
+            <option value="virtio" {% if bind.target == 'virtio' %}selected{% endif %}>VirtIO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_media_bind_filter" class="form-input"
+                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.iso or path/file.iso">
+        </div>
+        <div class="library-bind-row-actions">
+          <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+          <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
+                  aria-label="Remove media binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-media-bind-rows-empty"
+       {% if cfg.get('library_media_bindings') %}hidden{% endif %}>
+      No Media bindings yet.
+    </p>
   </section>
 {% else %}
 
@@ -469,6 +522,41 @@
     <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
   </div>
 </template>
+
+<template id="library-media-bind-row-template">
+  <div class="library-bind-row library-bind-row--media">
+    <input type="hidden" name="library_media_bind_id" value="">
+    <div class="form-group">
+      <label class="form-label">Connection</label>
+      <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+        <option value="">Choose a connection</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cache target</label>
+      <select name="library_media_bind_target" class="form-select">
+        <option value="iso" selected>ISO</option>
+        <option value="virtio">VirtIO</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Filter</label>
+      <input type="text" name="library_media_bind_filter" class="form-input"
+             value="*" placeholder="* or **/*.iso or path/file.iso">
+    </div>
+    <div class="library-bind-row-actions">
+      <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+      <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
+              aria-label="Remove media binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+  </div>
+</template>
 {% endif %}
 {% endblock %}
 
@@ -543,7 +631,12 @@
   const bindEmpty = document.getElementById('library-script-bind-rows-empty');
   const bindTpl = document.getElementById('library-script-bind-row-template');
   const addBindBtn = document.getElementById('add-library-script-bind-btn');
+  const mediaRows = document.getElementById('library-media-bind-rows');
+  const mediaEmpty = document.getElementById('library-media-bind-rows-empty');
+  const mediaTpl = document.getElementById('library-media-bind-row-template');
+  const addMediaBtn = document.getElementById('add-library-media-bind-btn');
   if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
+  if (!mediaRows || !mediaTpl || !addMediaBtn) return;
 
   function newId() {
     if (window.crypto && crypto.randomUUID) {
@@ -574,6 +667,10 @@
 
   function syncBindEmpty() {
     if (bindEmpty) bindEmpty.hidden = bindRows.children.length > 0;
+  }
+
+  function syncMediaEmpty() {
+    if (mediaEmpty) mediaEmpty.hidden = mediaRows.children.length > 0;
   }
 
   function syncKinds(row) {
@@ -607,7 +704,7 @@
     input.min = tomorrowIso();
   }
 
-  function scriptConnections() {
+  function kindConnections(kind) {
     const out = [];
     Array.prototype.forEach.call(connRows.children, function (row) {
       const id = row.querySelector('input[name="library_conn_id"]');
@@ -615,7 +712,7 @@
       const kinds = row.querySelector('.library-conn-kinds-value');
       if (!id || !label || !kinds) return;
       const kindList = (kinds.value || '').split(',').map(function (k) { return k.trim(); });
-      if (kindList.indexOf('scripts') === -1) return;
+      if (kindList.indexOf(kind) === -1) return;
       out.push({ id: id.value, label: label.value || id.value });
     });
     out.sort(function (a, b) {
@@ -624,9 +721,9 @@
     return out;
   }
 
-  function refreshBindConnectionOptions() {
-    const options = scriptConnections();
-    Array.prototype.forEach.call(bindRows.querySelectorAll('.library-bind-conn-select'), function (sel) {
+  function refreshBindSelects(selector, kind) {
+    const options = kindConnections(kind);
+    Array.prototype.forEach.call(document.querySelectorAll(selector), function (sel) {
       const current = sel.value;
       sel.innerHTML = '';
       const placeholder = document.createElement('option');
@@ -644,6 +741,11 @@
         sel.value = '';
       }
     });
+  }
+
+  function refreshBindConnectionOptions() {
+    refreshBindSelects('.library-bind-conn-select', 'scripts');
+    refreshBindSelects('.library-media-bind-conn-select', 'media');
   }
 
   function setTestResult(el, ok, message) {
@@ -795,7 +897,64 @@
     fetch({{ url_for('api_library_test_filter') | tojson }}, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connection: connPayload(connRow), filter: filt }),
+      body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: 'scripts' }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+      });
+  });
+
+  addMediaBtn.addEventListener('click', function () {
+    const node = mediaTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.querySelector('input[name="library_media_bind_id"]').value = newId();
+    mediaRows.appendChild(node);
+    refreshBindConnectionOptions();
+    syncMediaEmpty();
+    const sel = row.querySelector('.library-media-bind-conn-select');
+    if (sel) {
+      sel.value = '';
+      sel.focus();
+    }
+  });
+
+  mediaRows.addEventListener('click', function (e) {
+    const remove = e.target.closest('.library-media-bind-remove');
+    if (remove) {
+      const row = remove.closest('.library-bind-row');
+      if (row) row.remove();
+      syncMediaEmpty();
+      return;
+    }
+    const testBtn = e.target.closest('.library-media-test-filter-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.library-bind-row');
+    const result = row.querySelector('.library-bind-test-result');
+    const connId = (row.querySelector('select[name="library_media_bind_connection_id"]') || {}).value;
+    const filt = (row.querySelector('input[name="library_media_bind_filter"]') || {}).value || '*';
+    let connRow = null;
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) connRow = r;
+    });
+    if (!connId || !connRow) {
+      setTestResult(result, false, 'Choose a connection first');
+      return;
+    }
+    setTestResult(result, true, 'Testing…');
+    fetch({{ url_for('api_library_test_filter') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection: connPayload(connRow),
+        filter: filt,
+        domain: 'media',
+      }),
     })
       .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
       .then(function (res) {
@@ -818,6 +977,7 @@
   refreshBindConnectionOptions();
   syncConnEmpty();
   syncBindEmpty();
+  syncMediaEmpty();
 })();
 </script>
 {% endif %}

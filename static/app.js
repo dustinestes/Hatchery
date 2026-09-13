@@ -702,10 +702,10 @@ hatchery.vmRows = (function () {
             return fetch(opts.pullUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+              body: JSON.stringify(Object.assign({
                 connection_id: cb.dataset.connectionId,
                 relative_path: cb.value,
-              }),
+              }, opts.pullExtra || {})),
             }).then(function (r) {
               return r.json().then(function (data) {
                 return { ok: r.ok, status: r.status, data: data };
