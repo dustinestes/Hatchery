@@ -18,6 +18,7 @@ from lib import media_inspect as media_inspect_lib
 from lib import import_files as import_files_lib
 from lib import provision as provision_lib
 from lib import requirements as req_lib
+from lib import nest_key_expiry as nest_key_expiry_lib
 from lib.clutch import VMConfig, GuestOS
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
@@ -390,11 +391,19 @@ def _sync_hatch_status() -> None:
                     )
 
 
+def _sync_nest_key_expiry() -> None:
+    """Evaluate Nest SSH identity expiry and sync Alerts (#219)."""
+    identities = nest_key_expiry_lib.parse_identities(config.nest_ssh_identities())
+    tiers = nest_key_expiry_lib.parse_tiers(config.nest_key_alert_tiers())
+    nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
+
+
 def _background_loop(stop_event: threading.Event) -> None:
     while not stop_event.wait(config.bg_interval()):
         _sync_requirements()
         _sync_clutches()
         _sync_hatch_status()
+        _sync_nest_key_expiry()
 
 
 def _start_background_thread() -> threading.Event:
@@ -621,12 +630,16 @@ def _host_timezone() -> str:
 
 @app.route("/settings")
 def settings():
+    import json
+
+    cfg = config.get()
     return render_template(
         "settings.html",
         active_pane="settings",
-        cfg=config.get(),
+        cfg=cfg,
         config_file=str(config.CONFIG_FILE),
         host_timezone=_host_timezone(),
+        nest_ssh_identities_json=json.dumps(cfg.get("nest_ssh_identities") or [], indent=2),
         form_error=None,
         form_saved=request.args.get("saved") == "1",
     )
@@ -634,15 +647,18 @@ def settings():
 
 @app.route("/settings", methods=["POST"])
 def settings_post():
+    import json
     from pathlib import Path
 
-    def _rerender(error):
+    def _rerender(error, cfg_overlay=None):
+        cfg = {**config.get(), **(cfg_overlay or {})}
         return render_template(
             "settings.html",
             active_pane="settings",
-            cfg=config.get(),
+            cfg=cfg,
             config_file=str(config.CONFIG_FILE),
             host_timezone=_host_timezone(),
+            nest_ssh_identities_json=request.form.get("nest_ssh_identities", "[]"),
             form_error=error,
             form_saved=False,
         )
@@ -665,15 +681,55 @@ def settings_post():
     if display_timezone_raw not in ("UTC", "local"):
         display_timezone_raw = "UTC"
 
+    days_list = request.form.getlist("nest_tier_days_before")
+    alerts_list = request.form.getlist("nest_tier_alerts_per_day")
+    if len(days_list) != len(alerts_list):
+        return _rerender("Nest key alert tiers are incomplete — each row needs both fields.")
+    tiers_parsed: list[dict] = []
+    try:
+        for days_raw, alerts_raw in zip(days_list, alerts_list, strict=True):
+            days_before = int(str(days_raw).strip())
+            alerts_per_day = int(str(alerts_raw).strip())
+            if days_before < 0 or alerts_per_day < 1:
+                raise ValueError("days before must be ≥ 0 and alerts per day ≥ 1")
+            tiers_parsed.append({"days_before": days_before, "alerts_per_day": alerts_per_day})
+        nest_key_expiry_lib.parse_tiers(tiers_parsed or None)
+    except (ValueError, TypeError) as exc:
+        return _rerender(
+            f"Nest key alert tiers are invalid: {exc}",
+            {
+                "nest_key_alert_tiers": [
+                    {
+                        "days_before": d,
+                        "alerts_per_day": a,
+                    }
+                    for d, a in zip(days_list, alerts_list, strict=False)
+                    if str(d).strip().isdigit() and str(a).strip().isdigit()
+                ]
+            },
+        )
+
+    identities_raw = request.form.get("nest_ssh_identities", "").strip() or "[]"
+    try:
+        identities_parsed = json.loads(identities_raw)
+        if not isinstance(identities_parsed, list):
+            raise ValueError("identities must be a JSON array")
+        nest_key_expiry_lib.parse_identities(identities_parsed)
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        return _rerender(f"Nest SSH identities JSON is invalid: {exc}")
+
     new_cfg = {
         **config.get(),
         "data_dir": str(Path(data_dir_raw).expanduser()),
         "bg_interval": bg_interval,
         "show_passwords": "show_passwords" in request.form,
         "display_timezone": display_timezone_raw,
+        "nest_key_alert_tiers": tiers_parsed,
+        "nest_ssh_identities": identities_parsed,
     }
     config.save(new_cfg)
     config.init_data_dir()
+    _sync_nest_key_expiry()
     return redirect(url_for("settings", saved="1"))
 
 

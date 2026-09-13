@@ -32,6 +32,12 @@ _DEFAULTS: dict = {
     "bg_interval": 60,
     "show_passwords": False,
     "display_timezone": "UTC",
+    # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
+    "nest_key_alert_tiers": [
+        {"days_before": 30, "alerts_per_day": 1},
+        {"days_before": 7, "alerts_per_day": 2},
+    ],
+    "nest_ssh_identities": [],
 }
 _config: dict = {}
 
@@ -82,6 +88,16 @@ def display_timezone() -> str:
     """Return the timestamp timezone preference: 'UTC' or 'local'."""
     val = str(get().get("display_timezone", "UTC"))
     return val if val in ("UTC", "local") else "UTC"
+
+
+def nest_key_alert_tiers() -> list:
+    """Return Nest SSH key expiry alert tiers (list of dicts)."""
+    return list(get().get("nest_key_alert_tiers") or [])
+
+
+def nest_ssh_identities() -> list:
+    """Return tracked Nest SSH identities for expiry alerts (list of dicts)."""
+    return list(get().get("nest_ssh_identities") or [])
 
 
 def init_data_dir() -> None:

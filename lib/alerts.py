@@ -104,6 +104,29 @@ def has_active_alert(message: str) -> bool:
         conn.close()
 
 
+def count_alerts_since(pattern: str, since_iso: str, *, like: bool = False) -> int:
+    """Count alerts created at or after ``since_iso`` matching ``pattern``.
+
+    When ``like`` is True, ``pattern`` is a SQL LIKE pattern (use ``%`` wildcards).
+    Otherwise equality is used.
+    """
+    conn = db.get_connection()
+    try:
+        if like:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM alerts WHERE created_at >= ? AND message LIKE ?",
+                (since_iso, pattern),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM alerts WHERE created_at >= ? AND message = ?",
+                (since_iso, pattern),
+            ).fetchone()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
+
+
 def count_active_alerts() -> int:
     """Return the count of unresolved alerts."""
     conn = db.get_connection()
