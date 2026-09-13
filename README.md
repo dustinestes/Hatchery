@@ -59,13 +59,13 @@ flowchart LR
   subgraph LN["Local Nest"]
     direction TB
     L1["VM · win11-dev"]
-    L2["VM · srv2022-app"]
+    L2["VM · ubuntu-server"]
   end
 
   subgraph RN["Remote Nest · SSH"]
     direction TB
-    R1["VM · win10-client"]
-    R2["VM · srv2025-build"]
+    R1["VM · macos-build"]
+    R2["VM · srv2025-app"]
   end
 
   H -->|"provider API"| LN
