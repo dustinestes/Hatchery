@@ -8,6 +8,18 @@
   <p class="pane-subtitle">{{ pane_subtitle }}</p>
 </div>
 
+<div class="section-header inventory-toolbar">
+  <h2 class="section-title">{{ pane_title }} files</h2>
+  <div class="section-header-actions">
+    <input type="file"
+           id="media-import-input"
+           accept="{{ import_accept }}"
+           multiple
+           hidden>
+    <button type="button" class="btn btn-primary btn-sm" id="media-import-btn">Import</button>
+  </div>
+</div>
+
 <div class="media-layout">
 
   <nav class="media-nav" aria-label="{{ nav_label }}" id="media-nav">
@@ -27,7 +39,7 @@
       {% endfor %}
     {% else %}
       <div class="media-nav-empty" id="media-nav-empty">
-        No files found. Place files in
+        No files found. Use <strong>Import</strong>, or place files in
         <code>{{ empty_subdir }}</code>
         under your Hatchery data directory.
       </div>
@@ -110,6 +122,14 @@
 (function () {
   const USED_BY = {{ used_by | tojson }};
   const INSPECT_URL = {{ inspect_url_prefix | tojson }};
+
+  if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
+    hatchery.bindImportControl({
+      button: document.getElementById('media-import-btn'),
+      input: document.getElementById('media-import-input'),
+      url: {{ import_url | tojson }}
+    });
+  }
 
   const nav = document.getElementById('media-nav');
   const header = document.getElementById('media-content-header');

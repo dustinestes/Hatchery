@@ -483,6 +483,76 @@ hatchery.vmRows = (function () {
   /* UI-only toasts (no Alerts tray / DB entry). Alert polling still uses showToast for unread alerts. */
   hatchery.showToast = showToast;
 
+  /**
+   * Bind an Import button + hidden file input to POST multipart uploads.
+   * opts: { button, input, url, acceptLabel }
+   * Reloads the page after any successful import. Conflicts use showToast.
+   */
+  hatchery.bindImportControl = function (opts) {
+    var button = opts.button;
+    var input = opts.input;
+    var url = opts.url;
+    if (!button || !input || !url) return;
+
+    var idleLabel = button.textContent;
+
+    button.addEventListener('click', function () {
+      if (button.disabled) return;
+      input.click();
+    });
+
+    input.addEventListener('change', function () {
+      if (!input.files || !input.files.length) return;
+
+      var form = new FormData();
+      for (var i = 0; i < input.files.length; i++) {
+        form.append('files', input.files[i]);
+      }
+
+      button.disabled = true;
+      button.textContent = 'Importing…';
+      showToast('Import started — watch Alerts for progress on large files.', 'info', 3200);
+
+      fetch(url, { method: 'POST', body: form })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, status: r.status, data: data };
+          });
+        })
+        .then(function (res) {
+          var data = res.data || {};
+          var imported = data.imported || [];
+          var errors = data.errors || [];
+
+          errors.forEach(function (err) {
+            var name = err.name || 'file';
+            showToast(name + ': ' + (err.reason || 'import failed'), 'warning', 5000);
+          });
+
+          if (imported.length) {
+            var msg = imported.length === 1
+              ? ('Imported ' + imported[0])
+              : ('Imported ' + imported.length + ' files');
+            showToast(msg + ' — ready to use.', 'info', 3200);
+            window.setTimeout(function () { window.location.reload(); }, 400);
+            return;
+          }
+
+          if (!errors.length && data.error) {
+            showToast(data.error, 'warning', 5000);
+          }
+        })
+        .catch(function () {
+          showToast('Import failed — network or server error.', 'alert', 5000);
+        })
+        .finally(function () {
+          input.value = '';
+          button.disabled = false;
+          button.textContent = idleLabel;
+        });
+    });
+  };
+
   function updateBadge(items, unresolvedAlertCount) {
     var badge = document.getElementById('notif-badge');
     if (!badge) return;

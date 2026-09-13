@@ -1,4 +1,5 @@
 import threading
+import io
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -1894,6 +1895,50 @@ class TestBackgroundThread:
         assert mock_thread_cls.call_args.kwargs.get("daemon") is True
         mock_t.start.assert_called_once()
         assert isinstance(stop, threading.Event)
+
+
+class TestApiImport:
+    def test_import_clutch_yaml(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        data = {"files": (io.BytesIO(b"name: lab\nvms: []\n"), "lab.yaml")}
+        resp = client.post(
+            "/api/import/clutches",
+            data=data,
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["imported"] == ["lab.yaml"]
+        assert (tmp_path / "clutches" / "lab.yaml").is_file()
+        html = client.get("/clutches").data.decode()
+        assert "lab.yaml" in html
+        assert 'id="clutch-import-btn"' in html
+
+    def test_import_conflict_returns_error(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win.iso").write_bytes(b"old")
+        resp = client.post(
+            "/api/import/media/iso",
+            data={"files": (io.BytesIO(b"new"), "win.iso")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["imported"] == []
+        assert body["errors"][0]["reason"] == "already exists (refuse overwrite)"
+        assert (iso_dir / "win.iso").read_bytes() == b"old"
+
+    def test_media_and_scripts_pages_have_import(self, client):
+        assert 'id="media-import-btn"' in client.get("/media/iso").data.decode()
+        assert 'id="media-import-btn"' in client.get("/media/virtio").data.decode()
+        assert 'id="scripts-import-btn"' in client.get("/automation/scripts").data.decode()
+
+    def test_import_requires_files(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.post("/api/import/automation/scripts", data={})
+        assert resp.status_code == 400
 
 
 class TestAlertsAPI:

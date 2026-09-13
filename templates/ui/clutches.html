@@ -11,7 +11,15 @@
 <section class="dashboard-section">
   <div class="section-header">
     <h2 class="section-title">Clutch Files</h2>
-    <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
+    <div class="section-header-actions">
+      <input type="file"
+             id="clutch-import-input"
+             accept=".yaml,application/x-yaml,text/yaml"
+             multiple
+             hidden>
+      <button type="button" class="btn btn-primary btn-sm" id="clutch-import-btn">Import</button>
+      <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
+    </div>
   </div>
   {% if clutch_files %}
     <ul class="file-list">
@@ -34,7 +42,7 @@
       {% endfor %}
     </ul>
   {% else %}
-    <p class="empty-state">No Clutch files yet. <a href="{{ url_for('build') }}" class="link">Build a Clutch</a> to define and hatch an environment.</p>
+    <p class="empty-state">No Clutch files yet. Use <strong>Import</strong> for an existing <code>.yaml</code>, or <a href="{{ url_for('build') }}" class="link">Build a Clutch</a>. You can also place files in <code>clutches/</code> under your Hatchery data directory.</p>
   {% endif %}
 </section>
 
@@ -61,6 +69,14 @@
   var backdrop = document.getElementById('delete-modal-backdrop');
   var filenameEl = document.getElementById('delete-modal-filename');
   var form = document.getElementById('delete-confirm-form');
+
+  if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
+    hatchery.bindImportControl({
+      button: document.getElementById('clutch-import-btn'),
+      input: document.getElementById('clutch-import-input'),
+      url: {{ url_for('api_import_clutches') | tojson }}
+    });
+  }
 
   function openModal(filename, action) {
     filenameEl.textContent = filename;

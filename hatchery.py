@@ -15,6 +15,7 @@ from lib import clutch as clutch_lib
 from lib import hatch as hatch_lib
 from lib import alerts as alerts_lib
 from lib import media_inspect as media_inspect_lib
+from lib import import_files as import_files_lib
 from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib.clutch import VMConfig, GuestOS
@@ -581,6 +582,8 @@ def media_iso():
         nav_label="ISO media files",
         stub_text="Select an ISO to inspect",
         inspect_url_prefix="/api/media/iso/",
+        import_url=url_for("api_import_media_iso"),
+        import_accept=".iso",
         items=media_inspect_lib.scan_media_dir("iso"),
         used_by=media_inspect_lib.media_used_by("os_media"),
         empty_subdir="media/iso/",
@@ -597,6 +600,8 @@ def media_virtio():
         nav_label="VirtIO media files",
         stub_text="Select a VirtIO file to inspect",
         inspect_url_prefix="/api/media/virtio/",
+        import_url=url_for("api_import_media_virtio"),
+        import_accept=".iso",
         items=media_inspect_lib.scan_media_dir("virtio"),
         used_by=media_inspect_lib.media_used_by("virtio_drivers"),
         empty_subdir="media/virtio/",
@@ -1134,6 +1139,38 @@ def edit_post():
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
+
+
+@app.route("/api/import/clutches", methods=["POST"])
+def api_import_clutches():
+    return _api_import("clutches")
+
+
+@app.route("/api/import/media/iso", methods=["POST"])
+def api_import_media_iso():
+    return _api_import("media/iso")
+
+
+@app.route("/api/import/media/virtio", methods=["POST"])
+def api_import_media_virtio():
+    return _api_import("media/virtio")
+
+
+@app.route("/api/import/automation/scripts", methods=["POST"])
+def api_import_automation_scripts():
+    return _api_import("automation/scripts")
+
+
+def _api_import(kind: str):
+    uploads = request.files.getlist("files")
+    if not uploads or all(not f.filename for f in uploads):
+        return jsonify({"error": "no files provided", "imported": [], "errors": []}), 400
+    try:
+        result = import_files_lib.import_uploads(kind, uploads)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "imported": [], "errors": []}), 400
+    status = 200 if result["imported"] else 400
+    return jsonify(result), status
 
 
 @app.route("/api/media/iso")
