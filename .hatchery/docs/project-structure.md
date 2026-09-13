@@ -99,7 +99,7 @@ Hypervisor abstraction layer. All VM operations go through the interface defined
 
 ### `lib/nest_transport.py`
 
-Nest **control plane** — Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). See [Nest transport](nest-transport.md). Guest WinRM stays in `provision.py`.
+Nest **control plane** — Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). WinRM is an explicit Nest fallback for Windows hosts. See [Nest transport](nest-transport.md). Guest WinRM stays in `provision.py`.
 
 ### `lib/answerfile.py`
 

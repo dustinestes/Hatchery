@@ -24,9 +24,9 @@ class TestNestConnectionConfig:
         with pytest.raises(ValueError, match="NestSshConfig"):
             nt.NestConnectionConfig(location="remote", transport="ssh", ssh=None)
 
-    def test_remote_winrm_not_implemented(self):
-        with pytest.raises(nt.NestTransportError, match="#220"):
-            nt.NestConnectionConfig(location="remote", transport="winrm")
+    def test_remote_winrm_requires_winrm_config(self):
+        with pytest.raises(ValueError, match="NestWinrmConfig"):
+            nt.NestConnectionConfig(location="remote", transport="winrm", winrm=None)
 
     def test_local_needs_no_ssh(self):
         cfg = nt.NestConnectionConfig(location="local")
@@ -159,3 +159,75 @@ class TestSshNestTransport:
         )
         transport = nt.get_nest_transport(conn)
         assert isinstance(transport, nt.SshNestTransport)
+
+
+class TestNestWinrmConfig:
+    def test_requires_host_and_user(self):
+        with pytest.raises(ValueError, match="host"):
+            nt.NestWinrmConfig(host="", username="a", password="b")
+        with pytest.raises(ValueError, match="username"):
+            nt.NestWinrmConfig(host="n", username="", password="b")
+
+    def test_endpoint_url_http_https(self):
+        http = nt.NestWinrmConfig(host="nest", username="u", password="p")
+        assert http.endpoint_url == "http://nest:5985/wsman"
+        https = nt.NestWinrmConfig(host="nest", username="u", password="p", use_ssl=True, port=5986)
+        assert https.endpoint_url == "https://nest:5986/wsman"
+
+
+class TestWinrmNestTransport:
+    def _cfg(self) -> nt.NestWinrmConfig:
+        return nt.NestWinrmConfig(host="win-nest", username="Admin", password="secret")
+
+    def test_run_success(self):
+        mock_result = MagicMock(status_code=0, std_out=b"ok\n", std_err=b"")
+        mock_session = MagicMock()
+        mock_session.run_ps.return_value = mock_result
+        mock_winrm = MagicMock()
+        mock_winrm.Session.return_value = mock_session
+        with patch.dict("sys.modules", {"winrm": mock_winrm}):
+            out = nt.WinrmNestTransport(self._cfg()).run("Get-Date")
+        assert out == "ok\n"
+        mock_winrm.Session.assert_called_once()
+        assert mock_winrm.Session.call_args.args[0] == "http://win-nest:5985/wsman"
+        mock_session.run_ps.assert_called_once_with("Get-Date")
+
+    def test_run_nonzero_raises(self):
+        mock_result = MagicMock(status_code=1, std_out=b"", std_err=b"Access denied")
+        mock_session = MagicMock()
+        mock_session.run_ps.return_value = mock_result
+        mock_winrm = MagicMock()
+        mock_winrm.Session.return_value = mock_session
+        with patch.dict("sys.modules", {"winrm": mock_winrm}):
+            with pytest.raises(nt.NestTransportError, match="Access denied"):
+                nt.WinrmNestTransport(self._cfg()).run("bad")
+
+    def test_test_connection_ok(self):
+        mock_result = MagicMock(status_code=0, std_out=b"hatchery-nest-ok\r\n", std_err=b"")
+        mock_session = MagicMock()
+        mock_session.run_ps.return_value = mock_result
+        mock_winrm = MagicMock()
+        mock_winrm.Session.return_value = mock_session
+        with patch.dict("sys.modules", {"winrm": mock_winrm}):
+            result = nt.WinrmNestTransport(self._cfg()).test_connection()
+        assert result.ok is True
+        assert result.detail == "reachable"
+
+    def test_test_connection_failure(self):
+        mock_session = MagicMock()
+        mock_session.run_ps.side_effect = RuntimeError("connection refused")
+        mock_winrm = MagicMock()
+        mock_winrm.Session.return_value = mock_session
+        with patch.dict("sys.modules", {"winrm": mock_winrm}):
+            result = nt.WinrmNestTransport(self._cfg()).test_connection()
+        assert result.ok is False
+        assert "connection refused" in result.detail
+
+    def test_get_nest_transport_winrm(self):
+        conn = nt.NestConnectionConfig(
+            location="remote",
+            transport="winrm",
+            winrm=self._cfg(),
+        )
+        transport = nt.get_nest_transport(conn)
+        assert isinstance(transport, nt.WinrmNestTransport)
