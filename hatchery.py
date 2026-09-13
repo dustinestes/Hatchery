@@ -884,20 +884,18 @@ def _library_require_enabled():
     return None
 
 
-def _connection_from_request_body(data: dict, *, require_expiry: bool = True) -> dict:
+def _connection_from_request_body(data: dict) -> dict:
     """Normalize a connection object from JSON (Settings test or pull)."""
     raw = data.get("connection")
     if isinstance(raw, dict):
-        parsed = library_lib.parse_connections([raw], require_expiry=require_expiry)
+        parsed = library_lib.parse_connections([raw])
         return parsed[0]
     conn_id = str(data.get("connection_id") or "").strip()
     if not conn_id:
         raise ValueError("connection or connection_id is required")
     for conn in config.library_connections():
         if conn.get("id") == conn_id:
-            return library_lib.parse_connections(
-                [conn], require_expiry=require_expiry
-            )[0]
+            return library_lib.parse_connections([conn])[0]
     raise ValueError(f"Unknown connection id: {conn_id}")
 
 
@@ -908,7 +906,7 @@ def api_library_test_connection():
         return denied
     data = request.get_json(silent=True) or {}
     try:
-        conn = _connection_from_request_body(data, require_expiry=False)
+        conn = _connection_from_request_body(data)
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 400
     result = library_lib.test_connection(conn)
@@ -923,7 +921,7 @@ def api_library_test_filter():
         return denied
     data = request.get_json(silent=True) or {}
     try:
-        conn = _connection_from_request_body(data, require_expiry=False)
+        conn = _connection_from_request_body(data)
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc), "hits": []}), 400
     filt = str(data.get("filter") or "*")
@@ -937,11 +935,11 @@ def api_library_scripts():
     denied = _library_require_enabled()
     if denied:
         return denied
+    raw_connections = config.library_connections()
+    raw_bindings = config.library_script_bindings()
     try:
-        connections = library_lib.parse_connections(config.library_connections())
-        bindings = library_lib.parse_script_bindings(
-            config.library_script_bindings(), connections
-        )
+        connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+        bindings = library_lib.parse_script_bindings(raw_bindings, connections)
     except ValueError as exc:
         return jsonify({"error": str(exc), "items": []}), 400
     items = library_lib.catalog_scripts(connections, bindings)

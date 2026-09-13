@@ -83,9 +83,9 @@
                      value="{{ conn.token or '' }}" placeholder="Optional — used for HTTPS / git">
             </div>
             <div class="form-group">
-              <label class="form-label">Token expiry <span class="required">*</span></label>
+              <label class="form-label">Token expiry</label>
               <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input"
-                     required value="{{ conn.expires_at or '' }}">
+                     value="{{ conn.expires_at or '' }}">
             </div>
             <div class="form-group form-group-full">
               <span class="form-label" id="library-conn-kinds-{{ loop.index0 }}">Artifact types</span>
@@ -408,8 +408,8 @@
                  value="" placeholder="Optional — used for HTTPS / git">
         </div>
         <div class="form-group">
-          <label class="form-label">Token expiry <span class="required">*</span></label>
-          <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input" required>
+          <label class="form-label">Token expiry</label>
+          <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input">
         </div>
         <div class="form-group form-group-full">
           <span class="form-label">Artifact types</span>
@@ -604,9 +604,7 @@
   function setExpiryMin(row) {
     const input = row.querySelector('.library-conn-expires-input');
     if (!input) return;
-    const min = tomorrowIso();
-    input.min = min;
-    if (!input.value || input.value < min) input.value = min;
+    input.min = tomorrowIso();
   }
 
   function scriptConnections() {

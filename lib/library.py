@@ -35,12 +35,16 @@ def min_expires_at() -> date:
     return date.today() + timedelta(days=1)
 
 
-def parse_expires_at(raw: object, *, label: str, required: bool = True) -> str | None:
-    """Parse a calendar day (YYYY-MM-DD). When required, must be >= tomorrow."""
+def parse_expires_at(
+    raw: object, *, label: str, enforce_future: bool = True
+) -> str | None:
+    """Parse an optional calendar day (YYYY-MM-DD).
+
+    Empty means no expiry tracked. When set and ``enforce_future`` is true
+    (Settings save), the day must be on or after tomorrow.
+    """
     text = str(raw or "").strip()
     if not text:
-        if required:
-            raise ValueError(f"connection '{label}' needs a token expiry date")
         return None
     try:
         expires = date.fromisoformat(text[:10])
@@ -48,15 +52,18 @@ def parse_expires_at(raw: object, *, label: str, required: bool = True) -> str |
         raise ValueError(
             f"connection '{label}' has an invalid expiry date (use YYYY-MM-DD)"
         ) from exc
-    earliest = min_expires_at()
-    if expires < earliest:
-        raise ValueError(
-            f"connection '{label}' expiry must be on or after {earliest.isoformat()}"
-        )
+    if enforce_future:
+        earliest = min_expires_at()
+        if expires < earliest:
+            raise ValueError(
+                f"connection '{label}' expiry must be on or after {earliest.isoformat()}"
+            )
     return expires.isoformat()
 
 
-def parse_connections(raw: list | None, *, require_expiry: bool = True) -> list[dict]:
+def parse_connections(
+    raw: list | None, *, enforce_expiry_future: bool = True
+) -> list[dict]:
     """Validate and normalize connection dicts from Settings / app_settings."""
     if not raw:
         return []
@@ -93,7 +100,9 @@ def parse_connections(raw: list | None, *, require_expiry: bool = True) -> list[
             )
         token = str(item.get("token") or "")
         expires_at = parse_expires_at(
-            item.get("expires_at"), label=label, required=require_expiry
+            item.get("expires_at"),
+            label=label,
+            enforce_future=enforce_expiry_future,
         )
         out.append(
             {
@@ -108,6 +117,32 @@ def parse_connections(raw: list | None, *, require_expiry: bool = True) -> list[
         )
     return out
 
+
+def connections_for_bindings(
+    raw_connections: list | None,
+    raw_bindings: list | None,
+) -> list[dict]:
+    """Parse only connections referenced by the given bindings (ignore unrelated rows)."""
+    by_id: dict[str, dict] = {}
+    for item in raw_connections or []:
+        if not isinstance(item, dict):
+            continue
+        cid = str(item.get("id") or "").strip()
+        if cid:
+            by_id[cid] = item
+    needed: list[dict] = []
+    seen: set[str] = set()
+    for binding in raw_bindings or []:
+        if not isinstance(binding, dict):
+            continue
+        cid = str(binding.get("connection_id") or "").strip()
+        if not cid or cid in seen:
+            continue
+        seen.add(cid)
+        if cid in by_id:
+            needed.append(by_id[cid])
+    # Catalog/pull paths should not fail because a stored expiry is now in the past.
+    return parse_connections(needed, enforce_expiry_future=False)
 
 def parse_script_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
     """Validate Scripts domain bindings against the connection registry."""

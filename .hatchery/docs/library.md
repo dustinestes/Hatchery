@@ -87,7 +87,7 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git) with required **token expiry** (day picker, ≥ tomorrow). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
+- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow — for later alerting). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
 - **Clutches / Media** — binding rows land in follow-on issues
 

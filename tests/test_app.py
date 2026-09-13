@@ -383,9 +383,6 @@ class TestLibrarySettingsGate:
         share.mkdir()
         (share / "a.ps1").write_text("# hi\n", encoding="utf-8")
         saved = {}
-        from datetime import date, timedelta
-
-        expires = (date.today() + timedelta(days=14)).isoformat()
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         monkeypatch.setattr(
             cfg,
@@ -407,7 +404,7 @@ class TestLibrarySettingsGate:
                 "library_conn_type": "path",
                 "library_conn_base_uri": str(share),
                 "library_conn_token": "",
-                "library_conn_expires_at": expires,
+                "library_conn_expires_at": "",
                 "library_conn_kinds": "scripts",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
@@ -416,7 +413,7 @@ class TestLibrarySettingsGate:
         )
         assert resp.status_code == 302
         assert saved["library_connections"][0]["label"] == "Ops share"
-        assert saved["library_connections"][0]["expires_at"] == expires
+        assert saved["library_connections"][0]["expires_at"] is None
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
 
     def test_library_api_test_and_pull(self, client, tmp_path, monkeypatch):
@@ -425,15 +422,13 @@ class TestLibrarySettingsGate:
         (share / "tool.sh").write_text("#!/bin/sh\n", encoding="utf-8")
         data = tmp_path / "data"
         (data / "automation" / "scripts").mkdir(parents=True)
-        from datetime import date, timedelta
-
         conn = {
             "id": "cpath1",
             "label": "Share",
             "type": "path",
             "base_uri": str(share),
             "token": "",
-            "expires_at": (date.today() + timedelta(days=30)).isoformat(),
+            "expires_at": None,
             "kinds": ["scripts"],
         }
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
@@ -469,6 +464,52 @@ class TestLibrarySettingsGate:
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         resp = client.get("/api/library/scripts")
         assert resp.status_code == 403
+
+    def test_catalog_ignores_unrelated_connections(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "tool.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+        script_conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        # Media-only row that would fail strict Settings validation if incomplete —
+        # must not break Scripts catalog.
+        media_conn = {
+            "id": "artifactory",
+            "label": "Artifactory",
+            "type": "https",
+            "base_uri": "https://example.invalid/artifactory",
+            "token": "secret",
+            "expires_at": "",
+            "kinds": ["media"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(
+            cfg, "library_connections", lambda: [media_conn, script_conn]
+        )
+        monkeypatch.setattr(
+            cfg,
+            "library_script_bindings",
+            lambda: [
+                {
+                    "id": "b1",
+                    "connection_id": "cpath1",
+                    "filter": "*",
+                    "domain": "scripts",
+                }
+            ],
+        )
+        catalog = client.get("/api/library/scripts")
+        assert catalog.status_code == 200
+        items = catalog.get_json()["items"]
+        assert any(i["name"] == "tool.sh" for i in items)
+        assert all(i.get("connection_id") == "cpath1" for i in items)
 
     def test_general_post_saves_library_enabled(self, client, tmp_path, monkeypatch):
         saved = {}

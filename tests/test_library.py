@@ -25,7 +25,7 @@ def _path_conn(root: Path, *, conn_id: str = "c1") -> dict:
         "type": "path",
         "base_uri": str(root),
         "token": "",
-        "expires_at": (date.today() + timedelta(days=30)).isoformat(),
+        "expires_at": None,
         "kinds": ["scripts"],
     }
 
@@ -46,7 +46,22 @@ class TestParse:
                 ]
             )
 
-    def test_parse_connections_requires_future_expiry(self):
+    def test_parse_connections_allows_empty_expiry(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "A",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts"],
+                }
+            ]
+        )
+        assert conns[0]["expires_at"] is None
+
+    def test_parse_connections_rejects_expiry_not_after_today(self):
         with pytest.raises(ValueError, match="on or after"):
             library.parse_connections(
                 [
@@ -115,6 +130,24 @@ class TestPathLibrary:
 
         with pytest.raises(FileExistsError):
             library.pull_script(conn, "hello.ps1")
+
+    def test_connections_for_bindings_skips_unreferenced(self, script_share):
+        script = _path_conn(script_share)
+        media = {
+            "id": "media1",
+            "label": "Artifactory",
+            "type": "https",
+            "base_uri": "https://example.invalid/",
+            "token": "x",
+            "expires_at": "",
+            "kinds": ["media"],
+        }
+        parsed = library.connections_for_bindings(
+            [media, script],
+            [{"id": "b1", "connection_id": "c1", "filter": "*"}],
+        )
+        assert len(parsed) == 1
+        assert parsed[0]["id"] == "c1"
 
     def test_catalog_dedupes_by_name(self, script_share):
         conn = _path_conn(script_share)
