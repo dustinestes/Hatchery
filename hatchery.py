@@ -20,8 +20,10 @@ from lib import provision as provision_lib
 from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
+from lib import nest_cache as nest_cache_lib
 from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
+from lib.nest_transport import NestConnectionConfig
 from pydantic import ValidationError
 from lib.providers.libvirt import LibvirtProvider
 
@@ -1183,6 +1185,129 @@ def api_library_media_pull():
     return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
 
 
+def _nest_from_request(data: dict) -> NestConnectionConfig:
+    location = str(data.get("location") or "local").strip().lower()
+    if location not in ("local", "remote"):
+        raise ValueError("location must be 'local' or 'remote'")
+    if location == "remote":
+        # Registry/transport not wired yet — construct a remote config only so
+        # ensure/preflight can fail closed with a clear NestCacheError.
+        from lib.nest_transport import NestSshConfig
+
+        host = str(data.get("host") or "remote-nest").strip() or "remote-nest"
+        return NestConnectionConfig(
+            location="remote",
+            transport="ssh",
+            ssh=NestSshConfig(host=host),
+        )
+    return NestConnectionConfig(location="local")
+
+
+def _clutch_artifacts_from_request(data: dict):
+    """Load clutch by filename or accept an explicit artifacts list."""
+    from pathlib import Path
+
+    clutch_file = str(data.get("clutch_file") or "").strip()
+    if clutch_file:
+        clutch_obj = _load_clutch(clutch_file)
+        return nest_cache_lib.collect_clutch_artifacts(clutch_obj), clutch_obj
+    raw_arts = data.get("artifacts")
+    if not isinstance(raw_arts, list) or not raw_arts:
+        raise ValueError("clutch_file or artifacts[] is required")
+    arts: list[nest_cache_lib.CacheArtifact] = []
+    for item in raw_arts:
+        if not isinstance(item, dict):
+            raise ValueError("each artifact must be an object")
+        kind = str(item.get("kind") or "").strip()
+        basename = str(item.get("basename") or item.get("name") or "").strip()
+        if kind not in nest_cache_lib.ARTIFACT_KINDS:
+            raise ValueError(f"invalid artifact kind: {kind}")
+        if not basename:
+            raise ValueError("artifact basename is required")
+        sha = item.get("sha256")
+        arts.append(
+            nest_cache_lib.CacheArtifact(
+                kind=kind,  # type: ignore[arg-type]
+                basename=Path(basename).name,
+                sha256=str(sha).strip() if sha else None,
+                absolute_path=str(item["absolute_path"]).strip()
+                if item.get("absolute_path")
+                else None,
+            )
+        )
+    return arts, None
+
+
+@app.route("/api/nest-cache/preflight", methods=["POST"])
+def api_nest_cache_preflight():
+    """Verify Nest cache has required clutch/media artifacts before hatch."""
+    data = request.get_json(silent=True) or {}
+    try:
+        nest = _nest_from_request(data)
+        artifacts, _clutch = _clutch_artifacts_from_request(data)
+        result = nest_cache_lib.preflight(artifacts, nest=nest)
+    except FileNotFoundError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 404
+    except nest_cache_lib.NestCacheError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 501
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 400
+    return jsonify(
+        {
+            "ok": result.ok,
+            "error": None if result.ok else result.error_message(),
+            "issues": [
+                {
+                    "kind": i.artifact.kind,
+                    "basename": i.artifact.basename,
+                    "relative_path": i.artifact.relative_path,
+                    "reason": i.reason,
+                    "detail": i.detail,
+                    "vm_name": i.artifact.vm_name,
+                }
+                for i in result.issues
+            ],
+        }
+    )
+
+
+@app.route("/api/nest-cache/ensure", methods=["POST"])
+def api_nest_cache_ensure():
+    """Ensure Nest cache has required artifacts (local verify; remote stub)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        nest = _nest_from_request(data)
+        artifacts, _clutch = _clutch_artifacts_from_request(data)
+        result = nest_cache_lib.ensure(artifacts, nest=nest)
+    except FileNotFoundError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 404
+    except nest_cache_lib.NestCacheError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 501
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc), "issues": []}), 400
+    return jsonify(
+        {
+            "ok": result.ok,
+            "error": None if result.ok else result.error_message(),
+            "issues": [
+                {
+                    "kind": i.artifact.kind,
+                    "basename": i.artifact.basename,
+                    "relative_path": i.artifact.relative_path,
+                    "reason": i.reason,
+                    "detail": i.detail,
+                    "vm_name": i.artifact.vm_name,
+                }
+                for i in result.issues
+            ],
+        }
+    )
+
+
 @app.route("/notifications")
 def notifications_pane():
     """Redirect parent Notifications nav to the Alerts child pane."""
@@ -1343,6 +1468,36 @@ def hatch_clutch_post():
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=f"Password required for: {', '.join(missing)}",
+        )
+
+    # Local Nest today: operator data_dir is the Nest cache. Fail before create_vm
+    # when required media/scripts are missing (#245). Optional ensure flag runs the
+    # ensure path (local = verify; remote copy lands with #215).
+    run_ensure = request.form.get("ensure_cache", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    try:
+        nest_result = nest_cache_lib.preflight_clutch(
+            clutch_obj,
+            nest=NestConnectionConfig(location="local"),
+            run_ensure=run_ensure,
+        )
+    except nest_cache_lib.NestCacheError as exc:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=str(exc),
+        )
+    if not nest_result.ok:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=nest_result.error_message(),
         )
 
     session_id = hatch_lib.create_session(filename, clutch_obj.name)
