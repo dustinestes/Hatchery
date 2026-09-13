@@ -439,6 +439,7 @@ def inject_nest_status():
     return {
         "nest_has_warnings": alert_count > 0,
         "nest_warning_count": alert_count,
+        "library_enabled": config.library_enabled(),
     }
 
 
@@ -632,7 +633,7 @@ def _host_timezone() -> str:
 _SETTINGS_SECTIONS = {
     "general": (
         "General",
-        "Application paths and background validation.",
+        "Application paths, background validation, and feature toggles.",
     ),
     "security": (
         "Security",
@@ -641,6 +642,10 @@ _SETTINGS_SECTIONS = {
     "display": (
         "Display",
         "How timestamps and related values are shown in the UI.",
+    ),
+    "library": (
+        "Library",
+        "Connections and domain bindings for shared Clutches, scripts, and media.",
     ),
 }
 
@@ -652,6 +657,7 @@ def _settings_template(
     form_saved: bool = False,
     cfg_overlay: dict | None = None,
     nest_ssh_identities_json: str | None = None,
+    library_enable_hint: bool = False,
 ):
     import json
 
@@ -674,6 +680,7 @@ def _settings_template(
         nest_ssh_identities_json=identities_json,
         form_error=form_error,
         form_saved=form_saved,
+        library_enable_hint=library_enable_hint,
     )
 
 
@@ -687,7 +694,13 @@ def settings():
 def settings_section(section: str):
     if section not in _SETTINGS_SECTIONS:
         abort(404)
-    return _settings_template(section, form_saved=request.args.get("saved") == "1")
+    if section == "library" and not config.library_enabled():
+        return redirect(url_for("settings_section", section="general", library_required="1"))
+    return _settings_template(
+        section,
+        form_saved=request.args.get("saved") == "1",
+        library_enable_hint=request.args.get("library_required") == "1",
+    )
 
 
 @app.route("/settings/<section>", methods=["POST"])
@@ -697,6 +710,8 @@ def settings_section_post(section: str):
 
     if section not in _SETTINGS_SECTIONS:
         abort(404)
+    if section == "library" and not config.library_enabled():
+        return redirect(url_for("settings_section", section="general", library_required="1"))
 
     def _rerender(error, cfg_overlay=None, identities_json=None):
         return _settings_template(
@@ -726,6 +741,7 @@ def settings_section_post(section: str):
 
         new_cfg["data_dir"] = str(Path(data_dir_raw).expanduser())
         new_cfg["bg_interval"] = bg_interval
+        new_cfg["library_enabled"] = "library_enabled" in request.form
         config.save(new_cfg)
         config.init_data_dir()
         db.init_db(Path(new_cfg["data_dir"]) / "hatchery.db")
@@ -779,6 +795,10 @@ def settings_section_post(section: str):
         config.save(new_cfg)
         _sync_nest_key_expiry()
         return redirect(url_for("settings_section", section="security", saved="1"))
+
+    if section == "library":
+        # Shell only (#232) — source CRUD lands in follow-on issues.
+        return redirect(url_for("settings_section", section="library", saved="1"))
 
     # display
     display_timezone_raw = request.form.get("display_timezone", "UTC").strip()

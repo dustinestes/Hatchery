@@ -37,6 +37,7 @@ _DB_SETTING_KEYS = frozenset(
         "display_timezone",
         "nest_key_alert_tiers",
         "nest_ssh_identities",
+        "library_enabled",
     }
 )
 
@@ -59,6 +60,7 @@ _DEFAULTS: dict = {
     "bg_interval": 60,
     "show_passwords": False,
     "display_timezone": "UTC",
+    "library_enabled": False,
     # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
     "nest_key_alert_tiers": [
         {"days_before": 30, "alerts_per_day": 1},
@@ -179,6 +181,11 @@ def nest_key_alert_tiers() -> list:
 def nest_ssh_identities() -> list:
     """Return tracked Nest SSH identities for expiry alerts (list of dicts)."""
     return list(get().get("nest_ssh_identities") or [])
+
+
+def library_enabled() -> bool:
+    """Return whether the Library feature (Settings section + Import-from-library) is on."""
+    return bool(get().get("library_enabled", False))
 
 
 def init_data_dir() -> None:
