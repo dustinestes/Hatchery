@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 from lib import config
 from lib import db
@@ -628,109 +628,162 @@ def _host_timezone() -> str:
     return str(datetime.now().astimezone().tzinfo)
 
 
-@app.route("/settings")
-def settings():
+_SETTINGS_SECTIONS = {
+    "general": (
+        "General",
+        "Application paths and background validation.",
+    ),
+    "security": (
+        "Security",
+        "Password visibility and Nest SSH identity expiry alerts.",
+    ),
+    "display": (
+        "Display",
+        "How timestamps and related values are shown in the UI.",
+    ),
+}
+
+
+def _settings_template(
+    section: str,
+    *,
+    form_error: str | None = None,
+    form_saved: bool = False,
+    cfg_overlay: dict | None = None,
+    nest_ssh_identities_json: str | None = None,
+):
     import json
 
-    cfg = config.get()
+    if section not in _SETTINGS_SECTIONS:
+        abort(404)
+    title, subtitle = _SETTINGS_SECTIONS[section]
+    cfg = {**config.get(), **(cfg_overlay or {})}
+    identities_json = nest_ssh_identities_json
+    if identities_json is None:
+        identities_json = json.dumps(cfg.get("nest_ssh_identities") or [], indent=2)
     return render_template(
         "settings.html",
-        active_pane="settings",
+        active_pane=f"settings_{section}",
+        section=section,
+        pane_title=title,
+        pane_subtitle=subtitle,
         cfg=cfg,
         config_file=str(config.CONFIG_FILE),
         host_timezone=_host_timezone(),
-        nest_ssh_identities_json=json.dumps(cfg.get("nest_ssh_identities") or [], indent=2),
-        form_error=None,
-        form_saved=request.args.get("saved") == "1",
+        nest_ssh_identities_json=identities_json,
+        form_error=form_error,
+        form_saved=form_saved,
     )
 
 
-@app.route("/settings", methods=["POST"])
-def settings_post():
+@app.route("/settings")
+def settings():
+    """Redirect parent Settings nav to the General section."""
+    return redirect(url_for("settings_section", section="general"))
+
+
+@app.route("/settings/<section>")
+def settings_section(section: str):
+    if section not in _SETTINGS_SECTIONS:
+        abort(404)
+    return _settings_template(section, form_saved=request.args.get("saved") == "1")
+
+
+@app.route("/settings/<section>", methods=["POST"])
+def settings_section_post(section: str):
     import json
     from pathlib import Path
 
-    def _rerender(error, cfg_overlay=None):
-        cfg = {**config.get(), **(cfg_overlay or {})}
-        return render_template(
-            "settings.html",
-            active_pane="settings",
-            cfg=cfg,
-            config_file=str(config.CONFIG_FILE),
-            host_timezone=_host_timezone(),
-            nest_ssh_identities_json=request.form.get("nest_ssh_identities", "[]"),
+    if section not in _SETTINGS_SECTIONS:
+        abort(404)
+
+    def _rerender(error, cfg_overlay=None, identities_json=None):
+        return _settings_template(
+            section,
             form_error=error,
-            form_saved=False,
+            cfg_overlay=cfg_overlay,
+            nest_ssh_identities_json=identities_json,
         )
 
-    data_dir_raw = request.form.get("data_dir", "").strip()
-    if not data_dir_raw:
-        return _rerender("Data directory path is required.")
+    current = config.get()
+    new_cfg = {**current}
 
-    bg_interval_raw = request.form.get("bg_interval", "").strip()
-    try:
-        bg_interval = int(bg_interval_raw)
-        if bg_interval < 10:
-            raise ValueError
-    except ValueError:
-        return _rerender(
-            "Background validation interval must be a whole number of seconds (minimum 10)."
-        )
+    if section == "general":
+        data_dir_raw = request.form.get("data_dir", "").strip()
+        if not data_dir_raw:
+            return _rerender("Data directory path is required.")
 
+        bg_interval_raw = request.form.get("bg_interval", "").strip()
+        try:
+            bg_interval = int(bg_interval_raw)
+            if bg_interval < 10:
+                raise ValueError
+        except ValueError:
+            return _rerender(
+                "Background validation interval must be a whole number of seconds (minimum 10)."
+            )
+
+        new_cfg["data_dir"] = str(Path(data_dir_raw).expanduser())
+        new_cfg["bg_interval"] = bg_interval
+        config.save(new_cfg)
+        config.init_data_dir()
+        return redirect(url_for("settings_section", section="general", saved="1"))
+
+    if section == "security":
+        days_list = request.form.getlist("nest_tier_days_before")
+        alerts_list = request.form.getlist("nest_tier_alerts_per_day")
+        if len(days_list) != len(alerts_list):
+            return _rerender("Nest key alert tiers are incomplete — each row needs both fields.")
+        tiers_parsed: list[dict] = []
+        try:
+            for days_raw, alerts_raw in zip(days_list, alerts_list, strict=True):
+                days_before = int(str(days_raw).strip())
+                alerts_per_day = int(str(alerts_raw).strip())
+                if days_before < 0 or alerts_per_day < 1:
+                    raise ValueError("days before must be ≥ 0 and alerts per day ≥ 1")
+                tiers_parsed.append({"days_before": days_before, "alerts_per_day": alerts_per_day})
+            nest_key_expiry_lib.parse_tiers(tiers_parsed or None)
+        except (ValueError, TypeError) as exc:
+            return _rerender(
+                f"Nest key alert tiers are invalid: {exc}",
+                {
+                    "nest_key_alert_tiers": [
+                        {
+                            "days_before": d,
+                            "alerts_per_day": a,
+                        }
+                        for d, a in zip(days_list, alerts_list, strict=False)
+                        if str(d).strip().isdigit() and str(a).strip().isdigit()
+                    ]
+                },
+            )
+
+        identities_raw = request.form.get("nest_ssh_identities", "").strip() or "[]"
+        try:
+            identities_parsed = json.loads(identities_raw)
+            if not isinstance(identities_parsed, list):
+                raise ValueError("identities must be a JSON array")
+            nest_key_expiry_lib.parse_identities(identities_parsed)
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            return _rerender(
+                f"Nest SSH identities JSON is invalid: {exc}",
+                identities_json=identities_raw,
+            )
+
+        new_cfg["show_passwords"] = "show_passwords" in request.form
+        new_cfg["nest_key_alert_tiers"] = tiers_parsed
+        new_cfg["nest_ssh_identities"] = identities_parsed
+        config.save(new_cfg)
+        _sync_nest_key_expiry()
+        return redirect(url_for("settings_section", section="security", saved="1"))
+
+    # display
     display_timezone_raw = request.form.get("display_timezone", "UTC").strip()
     if display_timezone_raw not in ("UTC", "local"):
         display_timezone_raw = "UTC"
-
-    days_list = request.form.getlist("nest_tier_days_before")
-    alerts_list = request.form.getlist("nest_tier_alerts_per_day")
-    if len(days_list) != len(alerts_list):
-        return _rerender("Nest key alert tiers are incomplete — each row needs both fields.")
-    tiers_parsed: list[dict] = []
-    try:
-        for days_raw, alerts_raw in zip(days_list, alerts_list, strict=True):
-            days_before = int(str(days_raw).strip())
-            alerts_per_day = int(str(alerts_raw).strip())
-            if days_before < 0 or alerts_per_day < 1:
-                raise ValueError("days before must be ≥ 0 and alerts per day ≥ 1")
-            tiers_parsed.append({"days_before": days_before, "alerts_per_day": alerts_per_day})
-        nest_key_expiry_lib.parse_tiers(tiers_parsed or None)
-    except (ValueError, TypeError) as exc:
-        return _rerender(
-            f"Nest key alert tiers are invalid: {exc}",
-            {
-                "nest_key_alert_tiers": [
-                    {
-                        "days_before": d,
-                        "alerts_per_day": a,
-                    }
-                    for d, a in zip(days_list, alerts_list, strict=False)
-                    if str(d).strip().isdigit() and str(a).strip().isdigit()
-                ]
-            },
-        )
-
-    identities_raw = request.form.get("nest_ssh_identities", "").strip() or "[]"
-    try:
-        identities_parsed = json.loads(identities_raw)
-        if not isinstance(identities_parsed, list):
-            raise ValueError("identities must be a JSON array")
-        nest_key_expiry_lib.parse_identities(identities_parsed)
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
-        return _rerender(f"Nest SSH identities JSON is invalid: {exc}")
-
-    new_cfg = {
-        **config.get(),
-        "data_dir": str(Path(data_dir_raw).expanduser()),
-        "bg_interval": bg_interval,
-        "show_passwords": "show_passwords" in request.form,
-        "display_timezone": display_timezone_raw,
-        "nest_key_alert_tiers": tiers_parsed,
-        "nest_ssh_identities": identities_parsed,
-    }
+    new_cfg["display_timezone"] = display_timezone_raw
     config.save(new_cfg)
-    config.init_data_dir()
-    _sync_nest_key_expiry()
-    return redirect(url_for("settings", saved="1"))
+    return redirect(url_for("settings_section", section="display", saved="1"))
 
 
 @app.route("/notifications")

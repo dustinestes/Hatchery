@@ -1,23 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}Settings — Hatchery{% endblock %}
+{% block title %}{{ pane_title }} — Settings — Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
-  <h1 class="pane-title">Settings</h1>
-  <p class="pane-subtitle">Application configuration.</p>
+  <h1 class="pane-title">{{ pane_title }}</h1>
+  <p class="pane-subtitle">{{ pane_subtitle }}</p>
 </div>
 
 {% if form_saved %}
-  <div class="alert alert-success">Settings saved.</div>
+  <div class="alert alert-success" role="status">Settings saved.</div>
 {% endif %}
 
 {% if form_error %}
-  <div class="alert alert-error">{{ form_error }}</div>
+  <div class="alert alert-error" role="alert">{{ form_error }}</div>
 {% endif %}
 
-<form method="post" action="{{ url_for('settings_post') }}">
+<form method="post" action="{{ url_for('settings_section_post', section=section) }}">
 
+{% if section == 'general' %}
   <section class="form-section">
     <h2 class="form-section-title">Data Directory</h2>
     <div class="form-grid form-grid-1">
@@ -49,9 +50,9 @@
       </div>
     </div>
   </section>
-
+{% elif section == 'security' %}
   <section class="form-section">
-    <h2 class="form-section-title">Security</h2>
+    <h2 class="form-section-title">Password visibility</h2>
     <div class="form-grid form-grid-1">
       <div class="form-group">
         <div class="form-label-row">
@@ -64,10 +65,16 @@
           <span class="form-toggle-label">Display passwords in the Nests panel</span>
         </label>
       </div>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2 class="form-section-title">Nest SSH key expiry</h2>
+    <div class="form-grid form-grid-1">
       <div class="form-group form-group-full">
         <div class="section-header">
           <div class="form-label-row" style="margin-bottom:0">
-            <span class="form-label" id="nest-key-tiers-label">Nest SSH key expiry alert tiers</span>
+            <span class="form-label" id="nest-key-tiers-label">Alert tiers</span>
             <span class="form-help-icon" data-tip="Within N days of expiry, fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry — set expires_at on each identity.">i</span>
           </div>
           <button type="button" id="add-nest-tier-btn" class="btn btn-secondary btn-sm"
@@ -116,7 +123,7 @@
       </div>
     </div>
   </section>
-
+{% elif section == 'display' %}
   <section class="form-section">
     <h2 class="form-section-title">Events</h2>
     <div class="form-grid form-grid-1">
@@ -140,6 +147,7 @@
       </div>
     </div>
   </section>
+{% endif %}
 
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
@@ -147,6 +155,7 @@
 
 </form>
 
+{% if section == 'security' %}
 <template id="nest-tier-row-template">
   <div class="settings-tier-row">
     <div class="form-group">
@@ -168,9 +177,11 @@
     </button>
   </div>
 </template>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if section == 'security' %}
 <script>
 (function () {
   const rows = document.getElementById('nest-tier-rows');
@@ -227,4 +238,5 @@
   syncEmpty();
 })();
 </script>
+{% endif %}
 {% endblock %}
