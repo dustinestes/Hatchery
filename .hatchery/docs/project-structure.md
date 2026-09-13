@@ -48,8 +48,9 @@ Hatchery/
 │   │   ├── libvirt.py            # KVM/QEMU implementation (v1)
 │   │   └── hyperv.py             # Hyper-V remote implementation (future)
 │   ├── answerfile.py             # Unattended install file rendering (OS-aware)
+│   ├── nest_transport.py         # Nest control plane (SSH default; key reference)
 │   ├── import_files.py           # UI Import — create-only copy into data dir
-│   └── provision.py              # Post-install provisioning (WinRM / SSH)
+│   └── provision.py              # Post-install guest provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages rendered by Flask/Jinja2
 │   │   ├── index.html            # Dashboard — stub overview (content TBD)
@@ -94,7 +95,11 @@ Hypervisor abstraction layer. All VM operations go through the interface defined
 |---|---|
 | `base.py` | Abstract base class — all providers must implement this interface |
 | `libvirt.py` | KVM/QEMU via `virt-install` and `virsh` subprocess calls |
-| `hyperv.py` | Hyper-V via WinRM + PowerShell cmdlets (future) |
+| `hyperv.py` | Hyper-V via Nest transport + PowerShell (SSH default #218; WinRM Nest #220) |
+
+### `lib/nest_transport.py`
+
+Nest **control plane** — Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). See [Nest transport](nest-transport.md). Guest WinRM stays in `provision.py`.
 
 ### `lib/answerfile.py`
 

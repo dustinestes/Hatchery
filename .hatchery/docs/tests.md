@@ -26,12 +26,11 @@ pytest test suite for Hatchery.
 
 ```
 tests/
-├── test_providers/
-│   ├── test_libvirt.py       — libvirt provider (KVM/QEMU)
-│   └── test_hyperv.py        — Hyper-V remote provider (future)
+├── test_providers.py          — libvirt provider (KVM/QEMU); Hyper-V TBD
+├── test_nest_transport.py     — Nest SSH control plane (#218); mocked ssh
 ├── test_config.py             — application config and data directory
 ├── test_answerfile.py         — answer file generation (OS-aware)
-└── test_provision.py          — post-install provisioning
+└── test_provision.py          — post-install guest provisioning
 ```
 
 Tests mirror the structure of `lib/`. Every module in `lib/` should have a corresponding test file.

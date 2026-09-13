@@ -29,7 +29,7 @@
 
 ---
 
-Hatchery is a local web application for creating, provisioning, and managing VMs — Windows-first on KVM/QEMU, built to grow toward any guest OS and remote Hyper-V management. Point it at an ISO, fill in a form, and get a fully provisioned VM without touching a terminal.
+Hatchery is a local web application for creating, provisioning, and managing VMs — Windows-first on KVM/QEMU, built to grow toward any guest OS and remote Nest management (SSH control plane by default). Point it at an ISO, fill in a form, and get a fully provisioned VM without touching a terminal.
 
 ---
 
@@ -87,7 +87,7 @@ Hatchery/
 | Windows Server 2022 | KVM/QEMU | v1 |
 | Windows Server 2025 | KVM/QEMU | v1 — requires UEFI + TPM |
 | Linux guests | KVM/QEMU | Planned |
-| Windows (Hyper-V) | Remote via WinRM | Planned |
+| Windows (Hyper-V) | Remote Nest via SSH (WinRM Nest fallback planned) | Planned |
 
 ---
 
