@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,31 +8,60 @@ import pytest
 from lib.clutch import VMConfig
 from lib.providers.libvirt import LibvirtProvider, _check_media_accessible, _qemu_user, _system_env
 
+_POSIX_ONLY = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="libvirt qemu.conf / media ACL checks use POSIX mode bits",
+)
+
 
 # ── _system_env ───────────────────────────────────────────────────────────────
 
 
 class TestSystemEnv:
     def test_strips_venv_bin_from_path(self, monkeypatch):
-        monkeypatch.setenv("VIRTUAL_ENV", "/home/user/.venv")
-        monkeypatch.setenv("PATH", "/home/user/.venv/bin:/usr/local/bin:/usr/bin")
+        venv = os.path.join(os.path.sep, "home", "user", ".venv")
+        venv_bin = os.path.join(venv, "bin")
+        local_bin = os.path.join(os.path.sep, "usr", "local", "bin")
+        usr_bin = os.path.join(os.path.sep, "usr", "bin")
+        monkeypatch.setenv("VIRTUAL_ENV", venv)
+        monkeypatch.setenv("PATH", os.pathsep.join([venv_bin, local_bin, usr_bin]))
         env = _system_env()
         path_parts = env["PATH"].split(os.pathsep)
-        assert "/home/user/.venv/bin" not in path_parts
-        assert "/usr/local/bin" in path_parts
+        assert venv_bin not in path_parts
+        assert local_bin in path_parts
+
+    def test_strips_venv_scripts_on_windows_layout(self, monkeypatch):
+        venv = os.path.join(os.path.sep, "home", "user", ".venv")
+        scripts = os.path.join(venv, "Scripts")
+        local_bin = os.path.join(os.path.sep, "usr", "local", "bin")
+        monkeypatch.setenv("VIRTUAL_ENV", venv)
+        monkeypatch.setenv("PATH", os.pathsep.join([scripts, local_bin]))
+        env = _system_env()
+        path_parts = env["PATH"].split(os.pathsep)
+        assert scripts not in path_parts
+        assert local_bin in path_parts
 
     def test_noop_when_virtual_env_not_set(self, monkeypatch):
         monkeypatch.delenv("VIRTUAL_ENV", raising=False)
-        monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+        path = os.pathsep.join(
+            [
+                os.path.join(os.path.sep, "usr", "local", "bin"),
+                os.path.join(os.path.sep, "usr", "bin"),
+            ]
+        )
+        monkeypatch.setenv("PATH", path)
         env = _system_env()
-        assert env["PATH"] == "/usr/local/bin:/usr/bin"
+        assert env["PATH"] == path
 
     def test_returns_copy_not_os_environ(self, monkeypatch):
-        monkeypatch.setenv("VIRTUAL_ENV", "/home/user/.venv")
-        monkeypatch.setenv("PATH", "/home/user/.venv/bin:/usr/bin")
+        venv = os.path.join(os.path.sep, "home", "user", ".venv")
+        venv_bin = os.path.join(venv, "bin")
+        usr_bin = os.path.join(os.path.sep, "usr", "bin")
+        monkeypatch.setenv("VIRTUAL_ENV", venv)
+        monkeypatch.setenv("PATH", os.pathsep.join([venv_bin, usr_bin]))
         env = _system_env()
         assert env is not os.environ
-        assert "/home/user/.venv/bin" in os.environ["PATH"]
+        assert venv_bin in os.environ["PATH"]
 
 
 # ── _qemu_user ────────────────────────────────────────────────────────────────
@@ -68,6 +98,7 @@ class TestQemuUser:
         monkeypatch.setattr(libvirt_mod, "_QEMU_CONF", conf)
         assert _qemu_user() == "libvirt-qemu"
 
+    @_POSIX_ONLY
     def test_returns_none_when_file_permission_denied(self, tmp_path, monkeypatch):
         import lib.providers.libvirt as libvirt_mod
 
@@ -81,6 +112,7 @@ class TestQemuUser:
 # ── _check_media_accessible ───────────────────────────────────────────────────
 
 
+@_POSIX_ONLY
 class TestCheckMediaAccessible:
     @pytest.fixture(autouse=True)
     def _default_qemu_user(self, monkeypatch):

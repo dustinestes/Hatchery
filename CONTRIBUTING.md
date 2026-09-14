@@ -90,6 +90,7 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 ## Code & Style Guidelines
 
 - **Python** — formatted and linted with `ruff`. Run `uv run ruff check . && uv run ruff format --check .` before pushing.
+- **Tests** — `uv run pytest` locally. CI runs the portable suite on **Linux, macOS, and Windows** (see [`.hatchery/docs/tests.md`](.hatchery/docs/tests.md)). Do not add host-only assumptions that break another OS. Real Nest/hypervisor tests use `@pytest.mark.hypervisor` and are skipped in CI.
 - **Line length** — 100 characters.
 - **HTML/CSS/JS** — follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
 - **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`.hatchery/docs/providers.md`](.hatchery/docs/providers.md) when capability changes.

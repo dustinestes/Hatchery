@@ -26,3 +26,6 @@ exclude = [".hatchery"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov --cov-fail-under=90"
+markers = [
+    "hypervisor: requires a real Nest/hypervisor; excluded from multi-OS CI",
+]

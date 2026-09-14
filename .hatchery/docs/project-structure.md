@@ -32,7 +32,7 @@ Hatchery/
 ├── .github/
 │   ├── workflows/
 │   │   ├── lint.yml              # Ruff lint + format check
-│   │   └── test.yml              # pytest with coverage
+│   │   └── test.yml              # pytest matrix (Linux / macOS / Windows)
 │   └── dependabot.yml
 ├── .vscode/
 │   ├── launch.json               # Flask debug configuration

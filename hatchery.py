@@ -410,8 +410,14 @@ def _background_loop(stop_event: threading.Event) -> None:
         _sync_nest_key_expiry()
 
 
+_bg_stop_event: threading.Event | None = None
+
+
 def _start_background_thread() -> threading.Event:
+    """Start the periodic sync loop; store the stop event on the module for tests."""
+    global _bg_stop_event
     stop = threading.Event()
+    _bg_stop_event = stop
     t = threading.Thread(target=_background_loop, args=(stop,), daemon=True)
     t.start()
     atexit.register(stop.set)
