@@ -1,0 +1,37 @@
+---
+description: Cross-platform host and Nest support; multi-OS CI required
+alwaysApply: true
+---
+
+# Cross-platform & remote Nests
+
+Hatchery must run as a **host** on Linux, macOS, and Windows, and manage **Nests** (local or remote): libvirt/KVM, UTM, Hyper-V. Epic: [#202](https://github.com/dustinestes/Hatchery/issues/202).
+
+## Multi-OS CI (required)
+
+PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-latest**, and **windows-latest** (`.github/workflows/test.yml`). Coverage gate applies on each OS (`pyproject.toml`).
+
+- Do **not** add host-OS-only assumptions that break CI on another runner
+- Tests that need a real Nest/hypervisor use `@pytest.mark.hypervisor` and are **excluded** from CI (`-m "not hypervisor"`)
+- Mock Nest transport and provider subprocesses in the default suite
+
+```
+✅ Pathlib, mocked virsh/ssh, skipif for optional tools (e.g. pwsh)
+❌ Hard-code /usr/bin/… or apt-only checks in portable code paths under test
+❌ New “integration” tests that require KVM/UTM/Hyper-V without the hypervisor mark
+```
+
+## Always ask
+
+```
+✅ Does this work on Linux, macOS, and Windows Hatchery hosts?
+✅ Does this assume a local Nest only, or also remote?
+✅ Are OS-specific paths (apt, xdg-open, systemd, .desktop) behind a portable helper?
+✅ Did you update `.hatchery/docs/providers.md` if Nest/provider capability changed?
+```
+
+```
+❌ Bake apt/dpkg, xdg-open, or systemd as the only path
+❌ Hard-wire LibvirtProvider when the call should go through the Nest factory (#206)
+❌ Treat Mac/Windows as afterthoughts
+```

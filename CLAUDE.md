@@ -9,6 +9,7 @@ A local web application for creating, provisioning, and managing VMs on an Ubunt
 | `hatchery-core.mdc` | Always | Naming, design constraints |
 | `git-workflow.mdc` | Always | Portable issue → branch → PR |
 | `accessibility.mdc` | Always | Inclusive UI — keyboard, labels, focus, contrast |
+| `cross-platform.mdc` | Always | Host OS portability; multi-OS CI required |
 | `python-style.mdc` | `**/*.py`, `pyproject.toml` | ruff, uv, tests |
 | `providers-and-automation.mdc` | Provider / answerfile / provision paths | Hypervisor + automation patterns |
 

@@ -75,14 +75,25 @@ uv run pytest tests/test_config.py
 
 ## CI
 
-The test workflow runs on every PR and push to `main`:
+GitHub Actions runs on every PR and push to `main` (path-filtered):
 
-| Check | Tool |
-|---|---|
-| Lint | `ruff check .` + `ruff format --check .` |
-| Tests | `pytest tests/ --cov --cov-fail-under=60` |
+| Check | Where | Tool |
+|---|---|---|
+| Lint | `ubuntu-latest` | `ruff check .` + `ruff format --check .` |
+| Tests | **Matrix:** `ubuntu-latest`, `macos-latest`, `windows-latest` | `pytest -m "not hypervisor"` with coverage |
 
-Both must pass before merge.
+### Multi-OS test matrix (#203)
+
+Portable unit/integration tests must pass on **all three** host OS runners. The coverage gate is the project default (`--cov-fail-under=90` in `pyproject.toml`) on **each** OS. Coverage XML is uploaded per OS as `coverage-<runner>`.
+
+| Suite | CI | When to use |
+|---|---|---|
+| Default (no mark) | Yes — all three OSes | Mocked providers, Nest transport, Flask, library, etc. |
+| `@pytest.mark.hypervisor` | **No** — excluded via `-m "not hypervisor"` | Needs a real Nest (libvirt/UTM/Hyper-V). Run locally when the Nest is available. |
+
+Optional tools (e.g. `pwsh` for PowerShell syntax checks) may `skipif` when absent; that is fine on CI.
+
+Both lint and the full OS matrix must pass before merge.
 
 <br>
 
@@ -94,8 +105,9 @@ Both must pass before merge.
 
 1. Create or open the test file mirroring the module: `lib/foo.py` → `tests/test_foo.py`
 2. Use `pytest` fixtures for Flask app context where needed (`app.test_client()`)
-3. Mock `subprocess` calls for VM operations — tests should not require a real KVM host
-4. Use `pytest.mark.parametrize` for multiple OS type variants
+3. Mock `subprocess` calls for VM operations — default tests must not require a real Nest
+4. Mark tests that need a live hypervisor with `@pytest.mark.hypervisor` (excluded from multi-OS CI)
+5. Use `pytest.mark.parametrize` for multiple OS type variants
 
 <br>
 
