@@ -33,12 +33,22 @@ _OPTIONAL_CLI_TOOLS = [
 
 
 def _check_python3_gi() -> bool:
-    """Check via dpkg-query — bypasses venv PATH issues that fool subprocess python3."""
-    result = subprocess.run(
-        ["dpkg-query", "--show", "--showformat=${Status}", "python3-gi"],
-        capture_output=True,
-        text=True,
-    )
+    """Check via dpkg-query — bypasses venv PATH issues that fool subprocess python3.
+
+    On non-Debian hosts (macOS/Windows CI, future Hatchery hosts) ``dpkg-query`` is
+    absent — treat as not installed rather than raising. Fuller per-OS checks: #208.
+    """
+    if shutil.which("dpkg-query") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "--show", "--showformat=${Status}", "python3-gi"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
     return result.stdout.strip() == "install ok installed"
 
 
