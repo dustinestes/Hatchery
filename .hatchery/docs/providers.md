@@ -8,6 +8,8 @@
 
 Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × local and remote. Update this file whenever provider capability changes.
 
+**Architecture:** Hatchery is one app with a **Host plane** (where the app runs) and a **Nest plane** (where VMs live). Nest backends are modular first-class adapters — see [Host plane vs Nest plane](architecture-nests.md).
+
 <br>
 
 ## Contents

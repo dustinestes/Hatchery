@@ -7,6 +7,17 @@ alwaysApply: true
 
 Hatchery must run as a **host** on Linux, macOS, and Windows, and manage **Nests** (local or remote): libvirt/KVM, UTM, Hyper-V. Epic: [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
+**Architecture (locked):** [Host plane vs Nest plane](../../.hatchery/docs/architecture-nests.md) — one product shell; Nest providers are first-class optional modules. Do not fork into three apps; do not bypass Nest registry/factory once they land (#207 / #206).
+
+## Two planes
+
+| Plane | Own |
+|---|---|
+| **Host** | App runtime, UI, Settings, DB, Library, orchestration, Nest transport client |
+| **Nest** | Hypervisor lifecycle via `BaseProvider` (libvirt / UTM / Hyper-V × local or remote) |
+
+Host requirements ≠ Nest-local tool requirements (#208). Libvirt-only rules stay in the libvirt adapter.
+
 ## Multi-OS CI (required)
 
 PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-latest**, and **windows-latest** (`.github/workflows/test.yml`). Coverage gate applies on each OS (`pyproject.toml`).
@@ -28,10 +39,12 @@ PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-l
 ✅ Does this assume a local Nest only, or also remote?
 ✅ Are OS-specific paths (apt, xdg-open, systemd, .desktop) behind a portable helper?
 ✅ Did you update `.hatchery/docs/providers.md` if Nest/provider capability changed?
+✅ Does this go through Nest id → factory once #206/#207 exist (not hard-wired libvirt)?
 ```
 
 ```
 ❌ Bake apt/dpkg, xdg-open, or systemd as the only path
 ❌ Hard-wire LibvirtProvider when the call should go through the Nest factory (#206)
-❌ Treat Mac/Windows as afterthoughts
+❌ Treat Mac/Windows as afterthoughts or permanent sys.platform product shims
+❌ Three divergent products instead of modular Nest adapters
 ```
