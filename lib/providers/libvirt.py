@@ -25,9 +25,13 @@ def _system_env() -> dict[str, str]:
     env = os.environ.copy()
     venv = env.get("VIRTUAL_ENV", "")
     if venv:
-        venv_bin = os.path.join(venv, "bin")
+        # Unix venvs use ``bin``; Windows uses ``Scripts``.
+        strip = {
+            os.path.join(venv, "bin"),
+            os.path.join(venv, "Scripts"),
+        }
         env["PATH"] = os.pathsep.join(
-            p for p in env.get("PATH", "").split(os.pathsep) if p != venv_bin
+            p for p in env.get("PATH", "").split(os.pathsep) if p and p not in strip
         )
     return env
 

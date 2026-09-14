@@ -93,6 +93,8 @@ Portable unit/integration tests must pass on **all three** host OS runners. The 
 
 Optional tools (e.g. `pwsh` for PowerShell syntax checks) may `skipif` when absent; that is fine on CI.
 
+Some **libvirt-only** unit tests that assert POSIX file mode bits (`chmod` world-read/execute for `libvirt-qemu`) are skipped on Windows (`sys.platform == "win32"`). macOS/Linux runners still execute them. Broader per-OS requirements live in [#208](https://github.com/dustinestes/Hatchery/issues/208).
+
 Both lint and the full OS matrix must pass before merge.
 
 <br>
