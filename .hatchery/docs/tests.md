@@ -95,6 +95,8 @@ Optional tools (e.g. `pwsh` for PowerShell syntax checks) may `skipif` when abse
 
 Some **libvirt-only** unit tests that assert POSIX file mode bits (`chmod` world-read/execute for `libvirt-qemu`) are skipped on Windows (`sys.platform == "win32"`). macOS/Linux runners still execute them. Broader per-OS requirements live in [#208](https://github.com/dustinestes/Hatchery/issues/208).
 
+The import-time background sync thread is stopped in `tests/conftest.py` so long Windows runs do not race host requirement alerts into the test DB after `bg_interval`.
+
 Both lint and the full OS matrix must pass before merge.
 
 <br>
