@@ -21,6 +21,7 @@ from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
 from lib import nest_cache as nest_cache_lib
+from lib import nests as nests_lib
 from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
 from lib.nest_transport import NestConnectionConfig
@@ -396,8 +397,8 @@ def _sync_hatch_status() -> None:
 
 
 def _sync_nest_key_expiry() -> None:
-    """Evaluate Nest SSH identity expiry and sync Alerts (#219)."""
-    identities = nest_key_expiry_lib.parse_identities(config.nest_ssh_identities())
+    """Evaluate Nest SSH identity expiry from Nest rows and sync Alerts (#219 / #207)."""
+    identities = nests_lib.identities_for_expiry()
     tiers = nest_key_expiry_lib.parse_tiers(config.nest_key_alert_tiers())
     nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
 
@@ -437,9 +438,12 @@ config.load()
 config.init_data_dir()
 db.init_db(config.data_dir() / "hatchery.db")
 config.bind_db()
+nests_lib.ensure_local_nest()
+nests_lib.migrate_legacy_ssh_identities()
 _sync_requirements()
 _sync_clutches()
 _sync_hatch_status()
+_sync_nest_key_expiry()
 _start_background_thread()
 
 
@@ -564,7 +568,14 @@ def dashboard():
 
 @app.route("/nests")
 def nests():
-    return render_template("nests.html", active_pane="nests")
+    nests_lib.ensure_local_nest()
+    registered = nests_lib.list_nests()
+    return render_template(
+        "nests.html",
+        active_pane="nests",
+        nests=registered,
+        selected_nest_id=registered[0]["id"] if registered else nests_lib.LOCAL_NEST_ID,
+    )
 
 
 @app.route("/clutches")
@@ -653,11 +664,15 @@ _SETTINGS_SECTIONS = {
     ),
     "security": (
         "Security",
-        "Password visibility and Nest SSH identity expiry alerts.",
+        "Password visibility and Nest SSH identity expiry alert tiers.",
     ),
     "display": (
         "Display",
         "How timestamps and related values are shown in the UI.",
+    ),
+    "nests": (
+        "Nests",
+        "Local and remote Nest endpoints where VMs live.",
     ),
     "library": (
         "Library",
@@ -674,6 +689,7 @@ def _settings_template(
     cfg_overlay: dict | None = None,
     nest_ssh_identities_json: str | None = None,
     library_enable_hint: bool = False,
+    nests_overlay: list | None = None,
 ):
     import json
 
@@ -684,6 +700,10 @@ def _settings_template(
     identities_json = nest_ssh_identities_json
     if identities_json is None:
         identities_json = json.dumps(cfg.get("nest_ssh_identities") or [], indent=2)
+    registered_nests = nests_overlay
+    if registered_nests is None and section == "nests":
+        nests_lib.ensure_local_nest()
+        registered_nests = nests_lib.list_nests()
     return render_template(
         "settings.html",
         active_pane=f"settings_{section}",
@@ -697,6 +717,7 @@ def _settings_template(
         form_error=form_error,
         form_saved=form_saved,
         library_enable_hint=library_enable_hint,
+        nests=registered_nests or [],
     )
 
 
@@ -721,7 +742,6 @@ def settings_section(section: str):
 
 @app.route("/settings/<section>", methods=["POST"])
 def settings_section_post(section: str):
-    import json
     from pathlib import Path
 
     if section not in _SETTINGS_SECTIONS:
@@ -729,12 +749,13 @@ def settings_section_post(section: str):
     if section == "library" and not config.library_enabled():
         return redirect(url_for("settings_section", section="general", library_required="1"))
 
-    def _rerender(error, cfg_overlay=None, identities_json=None):
+    def _rerender(error, cfg_overlay=None, identities_json=None, nests_overlay=None):
         return _settings_template(
             section,
             form_error=error,
             cfg_overlay=cfg_overlay,
             nest_ssh_identities_json=identities_json,
+            nests_overlay=nests_overlay,
         )
 
     current = config.get()
@@ -793,21 +814,15 @@ def settings_section_post(section: str):
                 },
             )
 
-        identities_raw = request.form.get("nest_ssh_identities", "").strip() or "[]"
-        try:
-            identities_parsed = json.loads(identities_raw)
-            if not isinstance(identities_parsed, list):
-                raise ValueError("identities must be a JSON array")
-            nest_key_expiry_lib.parse_identities(identities_parsed)
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            return _rerender(
-                f"Nest SSH identities JSON is invalid: {exc}",
-                identities_json=identities_raw,
-            )
+        identities_raw = request.form.get("nest_ssh_identities", "").strip()
+        if identities_raw:
+            # Legacy field removed from UI — ignore non-empty posts after Nest-row colocation.
+            pass
 
         new_cfg["show_passwords"] = "show_passwords" in request.form
         new_cfg["nest_key_alert_tiers"] = tiers_parsed
-        new_cfg["nest_ssh_identities"] = identities_parsed
+        # SSH identity paths/expiry live on Nest rows (Settings → Nests).
+        new_cfg["nest_ssh_identities"] = []
         config.save(new_cfg)
         _sync_nest_key_expiry()
         return redirect(url_for("settings_section", section="security", saved="1"))
@@ -960,6 +975,52 @@ def settings_section_post(section: str):
         new_cfg["library_media_bindings"] = media_bindings
         config.save(new_cfg)
         return redirect(url_for("settings_section", section="library", saved="1"))
+
+    if section == "nests":
+        nest_ids = request.form.getlist("nest_id")
+        nest_names = request.form.getlist("nest_name")
+        nest_providers = request.form.getlist("nest_provider_type")
+        nest_locations = request.form.getlist("nest_location")
+        nest_transports = request.form.getlist("nest_transport")
+        nest_hosts = request.form.getlist("nest_host")
+        nest_ports = request.form.getlist("nest_port")
+        nest_ssh_users = request.form.getlist("nest_ssh_user")
+        nest_identity_files = request.form.getlist("nest_identity_file")
+        nest_cert_paths = request.form.getlist("nest_cert_path")
+        nest_identity_expires = request.form.getlist("nest_identity_expires_at")
+        nest_known_hosts = request.form.getlist("nest_known_hosts")
+        nest_winrm_users = request.form.getlist("nest_winrm_user")
+        nest_credential_refs = request.form.getlist("nest_credential_ref")
+        raw_nests: list[dict] = []
+        for i, nid in enumerate(nest_ids):
+            raw_nests.append(
+                {
+                    "id": nid,
+                    "name": nest_names[i] if i < len(nest_names) else "",
+                    "provider_type": nest_providers[i] if i < len(nest_providers) else "libvirt",
+                    "location": nest_locations[i] if i < len(nest_locations) else "local",
+                    "transport": nest_transports[i] if i < len(nest_transports) else "",
+                    "host": nest_hosts[i] if i < len(nest_hosts) else "",
+                    "port": nest_ports[i] if i < len(nest_ports) else "",
+                    "ssh_user": nest_ssh_users[i] if i < len(nest_ssh_users) else "",
+                    "identity_file": nest_identity_files[i] if i < len(nest_identity_files) else "",
+                    "cert_path": nest_cert_paths[i] if i < len(nest_cert_paths) else "",
+                    "identity_expires_at": nest_identity_expires[i]
+                    if i < len(nest_identity_expires)
+                    else "",
+                    "known_hosts": nest_known_hosts[i] if i < len(nest_known_hosts) else "default",
+                    "winrm_user": nest_winrm_users[i] if i < len(nest_winrm_users) else "",
+                    "credential_ref": nest_credential_refs[i]
+                    if i < len(nest_credential_refs)
+                    else "",
+                }
+            )
+        try:
+            nests_lib.replace_nests(raw_nests)
+        except ValueError as exc:
+            return _rerender(str(exc), nests_overlay=raw_nests)
+        _sync_nest_key_expiry()
+        return redirect(url_for("settings_section", section="nests", saved="1"))
 
     # display
     display_timezone_raw = request.form.get("display_timezone", "UTC").strip()
@@ -1192,12 +1253,23 @@ def api_library_media_pull():
 
 
 def _nest_from_request(data: dict) -> NestConnectionConfig:
+    """Build NestConnectionConfig from JSON — prefer nest_id from the registry."""
+    nest_id = str(data.get("nest_id") or data.get("nest") or "").strip()
+    if nest_id:
+        nest = nests_lib.get_nest(nest_id)
+        if nest is None:
+            raise ValueError(f"Unknown Nest id: {nest_id}")
+        winrm_password = data.get("winrm_password")
+        return nests_lib.to_connection_config(
+            nest,
+            winrm_password=str(winrm_password) if winrm_password is not None else None,
+        )
+
     location = str(data.get("location") or "local").strip().lower()
     if location not in ("local", "remote"):
         raise ValueError("location must be 'local' or 'remote'")
     if location == "remote":
-        # Registry/transport not wired yet — construct a remote config only so
-        # ensure/preflight can fail closed with a clear NestCacheError.
+        # Ad-hoc remote (no nest_id) — construct config so ensure/preflight can fail closed.
         from lib.nest_transport import NestSshConfig
 
         host = str(data.get("host") or "remote-nest").strip() or "remote-nest"
@@ -1207,6 +1279,40 @@ def _nest_from_request(data: dict) -> NestConnectionConfig:
             ssh=NestSshConfig(host=host),
         )
     return NestConnectionConfig(location="local")
+
+
+def _nest_payload_from_request_body(data: dict) -> dict:
+    """Normalize a Nest object from JSON (Settings Test Nest connection)."""
+    raw = data.get("nest")
+    if isinstance(raw, dict):
+        nid = str(raw.get("id") or "").strip() or nests_lib.new_id()
+        return nests_lib.normalize_nest({**raw, "id": nid})
+    nest_id = str(data.get("nest_id") or "").strip()
+    if not nest_id:
+        raise ValueError("nest or nest_id is required")
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        raise ValueError(f"Unknown Nest id: {nest_id}")
+    return nest
+
+
+@app.route("/api/nests/test-connection", methods=["POST"])
+def api_nests_test_connection():
+    """Test Nest connection (local ack or remote transport check)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        nest = _nest_payload_from_request_body(data)
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    winrm_password = data.get("winrm_password")
+    nest_body = data.get("nest")
+    if isinstance(nest_body, dict) and nest_body.get("winrm_password") is not None:
+        winrm_password = nest_body.get("winrm_password")
+    result = nests_lib.test_connection(
+        nest,
+        winrm_password=str(winrm_password) if winrm_password is not None else None,
+    )
+    return jsonify(result)
 
 
 def _clutch_artifacts_from_request(data: dict):
@@ -1506,7 +1612,7 @@ def hatch_clutch_post():
             form_error=nest_result.error_message(),
         )
 
-    session_id = hatch_lib.create_session(filename, clutch_obj.name)
+    session_id = hatch_lib.create_session(filename, clutch_obj.name, nest=nests_lib.LOCAL_NEST_ID)
     for vm in clutch_obj.vms:
         hatch_lib.add_vm(
             session_id,
@@ -2060,7 +2166,19 @@ def clutch_delete(filename):
 
 @app.route("/api/nests/<nest>/vms")
 def api_nest_vms(nest: str):
-    """Return the enriched VM inventory for a nest: provider data + metadata + DB records."""
+    """Return the enriched VM inventory for a nest: provider data + metadata + DB records.
+
+    Until the provider factory (#206), only local Nests use the libvirt provider.
+    Remote Nest ids return an empty inventory (connection is still registry-backed).
+    """
+    nests_lib.ensure_local_nest()
+    nest_row = nests_lib.get_nest(nest)
+    if nest_row is None:
+        return jsonify({"error": f"Unknown Nest id: {nest}"}), 404
+
+    if nest_row["location"] != "local":
+        return jsonify([])
+
     provider = _provider()
     show_pw = config.show_passwords()
 
@@ -2091,6 +2209,11 @@ def api_nest_vms(nest: str):
             tag = None
 
         if tag:
+            session = hatch_lib.get_session(tag["session_id"])
+            if session is not None and session.get("nest") != nest:
+                record["scripts"] = []
+                result.append(record)
+                continue
             record["session_id"] = tag["session_id"]
             record["clutch_file"] = tag["clutch_file"]
             db_row = hatch_lib.get_vm_record(tag["session_id"], name)

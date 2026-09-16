@@ -81,7 +81,8 @@ The file is not included in the Hatchery source repository.
 |---|---|---|
 | Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
 | Application Settings | `app_settings` | Operational knobs (intervals, display, Nest key expiry) — see [Settings storage](settings.md); bootstrap file keeps only `data_dir` |
-| Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps |
+| Nest connections | `nests` | Nest registry — name, provider type, local/remote endpoint, credential refs (not key bytes) |
+| Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps; `nest` column stores a Nest id |
 | VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH — see note below |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |
 

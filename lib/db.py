@@ -73,6 +73,26 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nests (
+    id                    TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    provider_type         TEXT NOT NULL,
+    location              TEXT NOT NULL DEFAULT 'local',
+    transport             TEXT,
+    host                  TEXT,
+    port                  INTEGER,
+    ssh_user              TEXT,
+    identity_file         TEXT,
+    cert_path             TEXT,
+    identity_expires_at   TEXT,
+    known_hosts           TEXT,
+    winrm_user            TEXT,
+    credential_ref        TEXT,
+    extra_json            TEXT,
+    created_at            TEXT NOT NULL,
+    updated_at            TEXT NOT NULL
+);
 """
 
 _db_path: Path | None = None
@@ -96,6 +116,61 @@ def _migrate(conn: sqlite3.Connection) -> None:
     alert_cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts)").fetchall()}
     if "tier" not in alert_cols:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
+    _migrate_nests_columns(conn)
+    _seed_local_nest(conn)
+
+
+def _migrate_nests_columns(conn: sqlite3.Connection) -> None:
+    """Add Nest SSH identity columns; copy legacy ``identity_ref`` paths when present."""
+    nest_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='nests'"
+    ).fetchone()
+    if not nest_table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(nests)").fetchall()}
+    if "identity_file" not in cols:
+        conn.execute("ALTER TABLE nests ADD COLUMN identity_file TEXT")
+    if "cert_path" not in cols:
+        conn.execute("ALTER TABLE nests ADD COLUMN cert_path TEXT")
+    if "identity_expires_at" not in cols:
+        conn.execute("ALTER TABLE nests ADD COLUMN identity_expires_at TEXT")
+    # Pre-colocation drafts used identity_ref (path or Security id). Prefer path-like values.
+    if "identity_ref" in cols:
+        conn.execute(
+            """
+            UPDATE nests
+            SET identity_file = identity_ref
+            WHERE (identity_file IS NULL OR identity_file = '')
+              AND identity_ref IS NOT NULL
+              AND identity_ref != ''
+              AND (
+                identity_ref LIKE '/%'
+                OR identity_ref LIKE '~%'
+                OR identity_ref LIKE '.%'
+              )
+            """
+        )
+
+
+def _seed_local_nest(conn: sqlite3.Connection) -> None:
+    """Ensure the built-in local libvirt Nest exists (id ``local``)."""
+    from datetime import datetime, timezone
+
+    row = conn.execute("SELECT id FROM nests WHERE id = 'local'").fetchone()
+    if row:
+        return
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn.execute(
+        """
+        INSERT INTO nests (
+            id, name, provider_type, location, transport,
+            host, port, ssh_user, identity_file, cert_path, identity_expires_at,
+            known_hosts, winrm_user, credential_ref, extra_json, created_at, updated_at
+        ) VALUES ('local', 'Local', 'libvirt', 'local', NULL,
+                  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
+        """,
+        (now, now),
+    )
 
 
 def is_initialized() -> bool:

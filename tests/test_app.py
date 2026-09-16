@@ -124,6 +124,15 @@ class TestActivePane:
         assert 'href="/settings/library"' in html
         assert ">Library</span>" in html or 'sidebar-label">Library' in html
 
+    def test_settings_nests_nav_always_present(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert 'href="/settings/nests"' in html
+
+    def test_nests_pane_lists_local_nest(self, client):
+        html = client.get("/nests").data.decode()
+        assert 'data-nest="local"' in html
+        assert "Local" in html
+
     def test_settings_security_marks_group_and_child(self, client):
         html = client.get("/settings/security").data.decode()
         assert "sidebar-item--group active open" in html
@@ -340,6 +349,76 @@ class TestSettingsRoute:
         assert "/settings/display" in resp.headers["Location"]
         assert saved["display_timezone"] == "local"
         assert saved["data_dir"] == str(tmp_path)
+
+
+class TestNestSettings:
+    def test_nests_settings_returns_200(self, client):
+        resp = client.get("/settings/nests")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "Connections" in html
+        assert 'name="nest_id"' in html
+        assert "Test Nest connection" in html
+
+    def test_nests_post_adds_remote(self, client):
+        import lib.nests as nests_lib
+
+        resp = client.post(
+            "/settings/nests",
+            data={
+                "nest_id": ["local", "lab1"],
+                "nest_name": ["Local", "Lab"],
+                "nest_provider_type": ["libvirt", "hyperv"],
+                "nest_location": ["local", "remote"],
+                "nest_transport": ["ssh", "ssh"],
+                "nest_host": ["", "nest.example"],
+                "nest_port": ["", "22"],
+                "nest_ssh_user": ["", "ops"],
+                "nest_identity_file": ["", "~/.ssh/id"],
+                "nest_cert_path": ["", ""],
+                "nest_identity_expires_at": ["", "2026-12-01"],
+                "nest_known_hosts": ["default", "default"],
+                "nest_winrm_user": ["", ""],
+                "nest_credential_ref": ["", ""],
+            },
+        )
+        assert resp.status_code == 302
+        assert "/settings/nests" in resp.headers["Location"]
+        assert nests_lib.get_nest("lab1")["host"] == "nest.example"
+        assert nests_lib.get_nest("lab1")["identity_file"] == "~/.ssh/id"
+        assert nests_lib.get_nest("lab1")["identity_expires_at"].startswith("2026-12-01")
+
+    def test_api_test_local_nest(self, client):
+        resp = client.post(
+            "/api/nests/test-connection",
+            json={"nest_id": "local"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+    def test_api_nest_vms_unknown_404(self, client):
+        resp = client.get("/api/nests/no-such-nest/vms")
+        assert resp.status_code == 404
+
+    def test_api_nest_vms_remote_empty(self, client):
+        import lib.nests as nests_lib
+
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "r.example",
+                },
+            ]
+        )
+        resp = client.get("/api/nests/remote1/vms")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
 
 
 class TestLibrarySettingsGate:

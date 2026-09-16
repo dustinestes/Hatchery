@@ -27,11 +27,11 @@ How Hatchery alerts when a Nest SSH identity is nearing expiry — without stori
 
 | Material | Expiry in file? |
 |---|---|
-| Normal OpenSSH private/public key | **No** — set `expires_at` manually |
+| Normal OpenSSH private/public key | **No** — set Identity expiry on the Nest row |
 | OpenSSH **certificate** | **Yes** — `Valid before` via `ssh-keygen -L` |
-| Operator policy date | **Yes** — `expires_at` on the tracked identity |
+| Operator policy date | **Yes** — `identity_expires_at` on the Nest |
 
-Hatchery never invents an expiry for a plain key. If `expires_at` is omitted and a certificate path is available (`cert_path` or `identity_file-cert.pub`), Valid-before may be used.
+Hatchery never invents an expiry for a plain key. If Identity expiry is omitted and a certificate path is available (`cert_path` or `identity_file-cert.pub`), Valid-before may be used.
 
 <br>
 
@@ -45,27 +45,15 @@ Example: within 30 days, once per day; within 7 days, twice per day.
 
 ## Tracked Identities
 
-Until the Nest registry ships, identities are listed in Settings as JSON (`nest_ssh_identities`):
+SSH identity **paths** and optional **expiry** live on each Nest under Settings → Nests (`identity_file`, `cert_path`, `identity_expires_at`). Hatchery is the SSH client: point the Nest row at a private key path on the Hatchery host, and trust the matching public key on the Nest (`authorized_keys`).
 
-```json
-[
-  {
-    "id": "hyperv-lab",
-    "label": "Hyper-V lab Nest",
-    "identity_file": "~/.ssh/nest_ed25519",
-    "expires_at": "2026-12-01T00:00:00+00:00",
-    "expires_source": "manual"
-  }
-]
-```
-
-Private key bytes are not stored — only paths and policy dates.
+Private key bytes are not stored — only paths and policy dates. The legacy Security JSON list (`nest_ssh_identities`) is cleared on upgrade; alert evaluation reads Nest rows via `lib/nests.identities_for_expiry()`.
 
 <br>
 
 ## Alerts
 
-Messages use a stable prefix: `Nest SSH identity expiry:`. They appear in the Alerts pane. Updating `expires_at` past all tier windows resolves prior alerts for that identity id.
+Messages use a stable prefix: `Nest SSH identity expiry:`. They appear in the Alerts pane. Updating Identity expiry past all tier windows resolves prior alerts for that Nest id.
 
 Module: [`lib/nest_key_expiry.py`](../../lib/nest_key_expiry.py).
 
@@ -73,62 +61,18 @@ Module: [`lib/nest_key_expiry.py`](../../lib/nest_key_expiry.py).
 
 ## Testing
 
-You do not need a special key file for a quick test. Plain OpenSSH keys have no in-file expiry — setting `expires_at` in Settings is enough.
+You do not need a special key file for a quick test. Plain OpenSSH keys have no in-file expiry — setting Identity expiry on a remote Nest row is enough.
 
-### Fast path (manual `expires_at`)
+### Fast path (manual Identity expiry)
 
-1. Open **Settings → Security**.
-2. Keep or add alert tiers (for example 30 days / 1 per day, and 7 days / 2 per day).
-3. In **Nest SSH identities (JSON)**, use an identity whose `expires_at` falls inside a tier window:
+1. Settings → Nests → expand a remote Nest (or add one)
+2. Set **Identity file** to any path string (need not exist for alert-only tests)
+3. Set **Identity expiry** to a day inside a Security tier window
+4. Save; wait for the background interval (or restart Hatchery)
 
-```json
-[
-  {
-    "id": "test-nest",
-    "label": "Test Nest",
-    "expires_at": "2026-09-20T00:00:00+00:00",
-    "expires_source": "manual"
-  }
-]
-```
+### Certificate Valid-before
 
-Choose a date within your configured **Days before** windows (for example about a week out if you have a 7-day tier).
-
-4. Save. Expiry sync runs on save and again on the background validation interval.
-5. Open **Notifications → Alerts** and look for a message starting with `Nest SSH identity expiry:`.
-
-No `identity_file` is required for this path.
-
-### Optional: OpenSSH certificate Valid-before
-
-Use this only to exercise cert parsing (omit `expires_at`, set `cert_path` or rely on `identity_file-cert.pub`):
-
-```bash
-# One-time CA + Nest key
-ssh-keygen -t ed25519 -f /tmp/hatchery-test-ca -N "" -C "test-ca"
-ssh-keygen -t ed25519 -f /tmp/hatchery-test-nest -N "" -C "test-nest"
-
-# Certificate valid for 14 days (adjust -V as needed)
-ssh-keygen -s /tmp/hatchery-test-ca -I hatchery-test -n hatchery \
-  -V +14d /tmp/hatchery-test-nest.pub
-# Writes /tmp/hatchery-test-nest-cert.pub
-```
-
-Then in identities JSON:
-
-```json
-[
-  {
-    "id": "cert-nest",
-    "label": "Cert Nest",
-    "identity_file": "/tmp/hatchery-test-nest",
-    "cert_path": "/tmp/hatchery-test-nest-cert.pub",
-    "expires_source": "cert"
-  }
-]
-```
-
-Omit `expires_at` so Hatchery reads **Valid before** via `ssh-keygen -L`.
+Omit Identity expiry and set **Certificate path** (or rely on `identity_file-cert.pub` beside the key). Hatchery reads **Valid before** via `ssh-keygen -L` when available.
 
 <br>
 

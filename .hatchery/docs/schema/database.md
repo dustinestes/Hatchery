@@ -16,6 +16,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
 - [Tables](#tables)
   - [alerts](#alerts)
   - [app\_settings](#app_settings)
+  - [nests](#nests)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
@@ -66,6 +67,36 @@ Key/value store for operational Settings (JSON-encoded values). The external boo
 
 <br>
 
+### nests
+
+Registered Nest connections (where VMs live). The built-in row `id = 'local'` is seeded on `init_db` / migrate and cannot be removed. Remote Nests store endpoint and credential **references** — not private key bytes or long-lived WinRM passwords (those wait on [#110](https://github.com/dustinestes/Hatchery/issues/110)).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `TEXT` | `PRIMARY KEY` | Stable Nest id (e.g. `local`); referenced by `hatch_sessions.nest` |
+| `name` | `TEXT` | `NOT NULL` | Display label in Settings and the Nests pane |
+| `provider_type` | `TEXT` | `NOT NULL` | `libvirt`, `utm`, or `hyperv` (factory routing is [#206](https://github.com/dustinestes/Hatchery/issues/206)) |
+| `location` | `TEXT` | `NOT NULL DEFAULT 'local'` | `local` or `remote` |
+| `transport` | `TEXT` | | `ssh` or `winrm` when remote; `NULL` when local |
+| `host` | `TEXT` | | Remote hostname or IP |
+| `port` | `INTEGER` | | SSH/WinRM port |
+| `ssh_user` | `TEXT` | | Optional SSH username |
+| `identity_file` | `TEXT` | | Path to OpenSSH private key **on the Hatchery host** (never key bytes) |
+| `cert_path` | `TEXT` | | Optional OpenSSH certificate path for Valid-before expiry |
+| `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601); plain keys have no in-file expiry |
+| `known_hosts` | `TEXT` | | `default`, `accept-new`, or `skip` |
+| `winrm_user` | `TEXT` | | WinRM username when transport is `winrm` |
+| `credential_ref` | `TEXT` | | Placeholder for secrets store (#110) — not a password |
+| `extra_json` | `TEXT` | | Optional JSON object |
+| `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+| `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+
+#### Managed by
+
+`lib/nests.py` — `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()`, `test_connection()`, `identities_for_expiry()`
+
+<br>
+
 ### hatch_sessions
 
 One row per Clutch hatch initiated by the user. Groups the VMs hatched together and tracks the session lifecycle. Sessions are archived (not deleted) when they reach a terminal state.
@@ -73,7 +104,7 @@ One row per Clutch hatch initiated by the user. Groups the VMs hatched together 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | UUID v4 assigned at session creation |
-| `nest` | `TEXT` | `NOT NULL DEFAULT 'local'` | Nest identifier; `'local'` for the host running Hatchery |
+| `nest` | `TEXT` | `NOT NULL DEFAULT 'local'` | Nest registry id (see [nests](#nests)); `'local'` for the built-in host Nest |
 | `clutch_file` | `TEXT` | `NOT NULL` | Filename of the Clutch that was hatched |
 | `clutch_name` | `TEXT` | `NOT NULL` | Human-readable name from the Clutch definition |
 | `hatched_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) when the session was initiated |
