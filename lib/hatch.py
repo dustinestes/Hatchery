@@ -320,6 +320,19 @@ def reset_scripts_for_retry(session_id: str, vm_name: str) -> None:
         conn.close()
 
 
+def get_session(session_id: str) -> dict | None:
+    """Return a hatch session row by id, or None."""
+    conn = db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM hatch_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
 def list_sessions(nest: str = "local") -> list[dict]:
     """Return active (non-archived) sessions for a nest, each with its VMs and computed status."""
     conn = db.get_connection()

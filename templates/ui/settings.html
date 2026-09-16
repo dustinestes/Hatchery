@@ -290,6 +290,163 @@
       No Media bindings yet.
     </p>
   </section>
+{% elif section == 'nests' %}
+  <section class="form-section">
+    <h2 class="form-section-title">Nest connections</h2>
+    <p class="form-help-text">
+      Register Nest hosts (where VMs live). Exactly one <strong>local</strong> Nest exists
+      (stable id <code>local</code> on this Hatchery host). Additional Nests are always remote —
+      even when the host is localhost or a subsystem such as WSL.
+      Point each remote row at an identity <strong>file on this Hatchery host</strong>
+      (trust that public key on the Nest). Identity expiry drives alerts using Security tiers.
+      WinRM passwords are not stored — enter them only for Test Nest connection until secrets land (#110).
+      Provider routing for inventory is #206. Display <strong>Name</strong> is editable; Nest <strong>id</strong> is stable.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="nest-conn-label">Nest rows</span>
+      <button type="button" id="add-nest-conn-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add Nest">+ Add Nest</button>
+    </div>
+    <div id="nest-conn-rows" class="library-conn-rows nest-conn-rows" role="group" aria-labelledby="nest-conn-label">
+      {% for nest in nests %}
+      <div class="library-conn-row nest-conn-row" data-nest-id="{{ nest.id }}"
+           data-builtin="{% if nest.id == 'local' %}1{% else %}0{% endif %}">
+        <input type="hidden" name="nest_id" value="{{ nest.id }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle nest-conn-toggle" aria-expanded="false"
+                  aria-label="Expand Nest {{ nest.name }}">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="nest-conn-title">
+              <span class="library-conn-summary nest-conn-summary">{{ nest.name }} · {{ nest.provider_type }} · {{ nest.location }}{% if nest.host %} · {{ nest.host }}{% endif %}</span>
+              <span class="nest-conn-id" title="Stable Nest id">{{ nest.id }}</span>
+            </span>
+          </button>
+          {% if nest.id != 'local' %}
+          <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
+                  aria-label="Remove Nest {{ nest.name }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+          {% endif %}
+        </div>
+        <div class="library-conn-row-body nest-conn-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group form-group-full">
+              <span class="form-label">Nest id</span>
+              <p class="form-help-text nest-id-readonly">
+                <code>{{ nest.id }}</code> — stable reference (sessions and APIs). Change the display Name freely.
+              </p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Name <span class="required">*</span></label>
+              <input type="text" name="nest_name" class="form-input nest-name-input" required
+                     value="{{ nest.name }}" placeholder="e.g. Lab Hyper-V">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Provider</label>
+              <select name="nest_provider_type" class="form-select nest-provider-input"
+                      {% if nest.id == 'local' %}aria-describedby="nest-local-provider-hint"{% endif %}>
+                <option value="libvirt" {% if nest.provider_type == 'libvirt' %}selected{% endif %}>libvirt</option>
+                <option value="utm" {% if nest.provider_type == 'utm' %}selected{% endif %}>UTM</option>
+                <option value="hyperv" {% if nest.provider_type == 'hyperv' %}selected{% endif %}>Hyper-V</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              {% if nest.id == 'local' %}
+              <select name="nest_location" class="form-select nest-location-input" disabled>
+                <option value="local" selected>Local</option>
+              </select>
+              <input type="hidden" name="nest_location" value="local">
+              {% else %}
+              <select name="nest_location" class="form-select nest-location-input">
+                <option value="remote" selected>Remote</option>
+              </select>
+              <p class="form-help-text">Added Nests are always remote.</p>
+              {% endif %}
+            </div>
+            <div class="form-group nest-remote-only" {% if nest.location != 'remote' %}hidden{% endif %}>
+              <label class="form-label">Transport</label>
+              <select name="nest_transport" class="form-select nest-transport-input">
+                <option value="ssh" {% if (nest.transport or 'ssh') == 'ssh' %}selected{% endif %}>SSH</option>
+                <option value="winrm" {% if nest.transport == 'winrm' %}selected{% endif %}>WinRM</option>
+              </select>
+            </div>
+            <div class="form-group nest-remote-only" {% if nest.location != 'remote' %}hidden{% endif %}>
+              <label class="form-label">Host <span class="required">*</span></label>
+              <input type="text" name="nest_host" class="form-input nest-host-input"
+                     value="{{ nest.host or '' }}" placeholder="hostname or IP">
+            </div>
+            <div class="form-group nest-remote-only" {% if nest.location != 'remote' %}hidden{% endif %}>
+              <label class="form-label">Port</label>
+              <input type="number" name="nest_port" class="form-input nest-port-input" min="1" max="65535"
+                     value="{{ nest.port or '' }}" placeholder="22 or 5985">
+            </div>
+            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
+              <label class="form-label">SSH user</label>
+              <input type="text" name="nest_ssh_user" class="form-input nest-ssh-user-input"
+                     value="{{ nest.ssh_user or '' }}"
+                     placeholder="Remote login name (or leave blank for ssh defaults)">
+            </div>
+            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
+              <label class="form-label">Identity file</label>
+              <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
+                     value="{{ nest.identity_file or '' }}"
+                     placeholder="~/.ssh/id_ed25519 — Hatchery host path (never key bytes)">
+            </div>
+            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
+              <label class="form-label">Certificate path</label>
+              <input type="text" name="nest_cert_path" class="form-input nest-cert-path-input"
+                     value="{{ nest.cert_path or '' }}"
+                     placeholder="OpenSSH cert (or identity_file-cert.pub)">
+            </div>
+            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
+              <label class="form-label">Identity expiry</label>
+              <input type="date" name="nest_identity_expires_at" class="form-input nest-identity-expires-input"
+                     value="{{ (nest.identity_expires_at or '')[:10] }}">
+              <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+            </div>
+            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
+              <label class="form-label">Known hosts</label>
+              <select name="nest_known_hosts" class="form-select nest-known-hosts-input">
+                <option value="default" {% if (nest.known_hosts or 'default') == 'default' %}selected{% endif %}>Default</option>
+                <option value="accept-new" {% if nest.known_hosts == 'accept-new' %}selected{% endif %}>Accept new</option>
+                <option value="skip" {% if nest.known_hosts == 'skip' %}selected{% endif %}>Skip (lab only)</option>
+              </select>
+            </div>
+            <div class="form-group nest-winrm-only" {% if nest.transport != 'winrm' %}hidden{% endif %}>
+              <label class="form-label">WinRM user <span class="required">*</span></label>
+              <input type="text" name="nest_winrm_user" class="form-input nest-winrm-user-input"
+                     value="{{ nest.winrm_user or '' }}" placeholder="Administrator">
+            </div>
+            <div class="form-group nest-winrm-only" {% if nest.transport != 'winrm' %}hidden{% endif %}>
+              <label class="form-label">Credential ref</label>
+              <input type="text" name="nest_credential_ref" class="form-input nest-credential-ref-input"
+                     value="{{ nest.credential_ref or '' }}"
+                     placeholder="Optional label until secrets (#110)">
+            </div>
+            <div class="form-group nest-winrm-only" {% if nest.transport != 'winrm' %}hidden{% endif %}>
+              <label class="form-label">WinRM password (test only)</label>
+              <input type="password" class="form-input nest-winrm-password-input" autocomplete="off"
+                     value="" placeholder="Not saved — used for Test Nest connection">
+            </div>
+          </div>
+          <div class="library-conn-row-actions">
+            <button type="button" class="btn btn-secondary btn-sm nest-test-conn-btn">Test Nest connection</button>
+            <span class="library-test-result nest-test-result" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="nest-conn-rows-empty" {% if nests %}hidden{% endif %}>
+      No Nests yet. The built-in local Nest is seeded automatically.
+    </p>
+  </section>
 {% else %}
 
 {% if section == 'general' %}
@@ -369,7 +526,7 @@
         <div class="section-header">
           <div class="form-label-row" style="margin-bottom:0">
             <span class="form-label" id="nest-key-tiers-label">Alert tiers</span>
-            <span class="form-help-icon" data-tip="Within N days of expiry, fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry — set expires_at on each identity.">i</span>
+            <span class="form-help-icon" data-tip="Within N days of Nest identity expiry (set on each Nest row under Settings → Nests), fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry — set Identity expiry on the Nest.">i</span>
           </div>
           <button type="button" id="add-nest-tier-btn" class="btn btn-secondary btn-sm"
                   aria-label="Add alert tier">+ Add tier</button>
@@ -405,15 +562,7 @@
            {% if cfg.get('nest_key_alert_tiers') %}hidden{% endif %}>
           No tiers yet. Add one above.
         </p>
-        <p class="form-help-text">Checked on the background validation interval.</p>
-      </div>
-      <div class="form-group">
-        <div class="form-label-row">
-          <label class="form-label" for="nest-ssh-identities">Nest SSH identities (JSON)</label>
-          <span class="form-help-icon" data-tip="List of {id, label?, identity_file?, cert_path?, expires_at?, expires_source?}. expires_at is ISO-8601. Omit expires_at to try OpenSSH certificate Valid-before from cert_path or identity_file-cert.pub. Nest registry (#207) will replace this list later.">i</span>
-        </div>
-        <textarea id="nest-ssh-identities" name="nest_ssh_identities" class="form-input form-textarea"
-                  rows="8" spellcheck="false">{{ nest_ssh_identities_json }}</textarea>
+        <p class="form-help-text">Checked on the background validation interval. Configure identity file and optional expiry on each Nest under Settings → Nests.</p>
       </div>
     </div>
   </section>
@@ -1227,6 +1376,291 @@
   syncBindEmpty();
   syncClutchEmpty();
   syncMediaEmpty();
+})();
+</script>
+{% endif %}
+
+{% if section == 'nests' %}
+<template id="nest-conn-row-template">
+  <div class="library-conn-row nest-conn-row" data-nest-id="" data-builtin="0">
+    <input type="hidden" name="nest_id" value="">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle nest-conn-toggle" aria-expanded="true"
+              aria-label="Collapse Nest">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="nest-conn-title">
+          <span class="library-conn-summary nest-conn-summary">New Nest</span>
+          <span class="nest-conn-id" title="Stable Nest id"></span>
+        </span>
+      </button>
+      <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
+              aria-label="Remove Nest">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="library-conn-row-body nest-conn-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group form-group-full">
+          <span class="form-label">Nest id</span>
+          <p class="form-help-text nest-id-readonly">
+            <code class="nest-id-code"></code> — stable reference (sessions and APIs). Change the display Name freely.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input type="text" name="nest_name" class="form-input nest-name-input" required
+                 value="" placeholder="e.g. Lab Hyper-V">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Provider</label>
+          <select name="nest_provider_type" class="form-select nest-provider-input">
+            <option value="libvirt" selected>libvirt</option>
+            <option value="utm">UTM</option>
+            <option value="hyperv">Hyper-V</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <select name="nest_location" class="form-select nest-location-input">
+            <option value="remote" selected>Remote</option>
+          </select>
+          <p class="form-help-text">Added Nests are always remote.</p>
+        </div>
+        <div class="form-group nest-remote-only">
+          <label class="form-label">Transport</label>
+          <select name="nest_transport" class="form-select nest-transport-input">
+            <option value="ssh" selected>SSH</option>
+            <option value="winrm">WinRM</option>
+          </select>
+        </div>
+        <div class="form-group nest-remote-only">
+          <label class="form-label">Host <span class="required">*</span></label>
+          <input type="text" name="nest_host" class="form-input nest-host-input"
+                 value="" placeholder="hostname or IP">
+        </div>
+        <div class="form-group nest-remote-only">
+          <label class="form-label">Port</label>
+          <input type="number" name="nest_port" class="form-input nest-port-input" min="1" max="65535"
+                 value="22" placeholder="22 or 5985">
+        </div>
+        <div class="form-group nest-ssh-only">
+          <label class="form-label">SSH user</label>
+          <input type="text" name="nest_ssh_user" class="form-input nest-ssh-user-input"
+                 value="" placeholder="Remote login name (or leave blank for ssh defaults)">
+        </div>
+        <div class="form-group nest-ssh-only">
+          <label class="form-label">Identity file</label>
+          <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
+                 value="" placeholder="~/.ssh/id_ed25519 — Hatchery host path (never key bytes)">
+        </div>
+        <div class="form-group nest-ssh-only">
+          <label class="form-label">Certificate path</label>
+          <input type="text" name="nest_cert_path" class="form-input nest-cert-path-input"
+                 value="" placeholder="OpenSSH cert (or identity_file-cert.pub)">
+        </div>
+        <div class="form-group nest-ssh-only">
+          <label class="form-label">Identity expiry</label>
+          <input type="date" name="nest_identity_expires_at" class="form-input nest-identity-expires-input"
+                 value="">
+          <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+        </div>
+        <div class="form-group nest-ssh-only">
+          <label class="form-label">Known hosts</label>
+          <select name="nest_known_hosts" class="form-select nest-known-hosts-input">
+            <option value="default" selected>Default</option>
+            <option value="accept-new">Accept new</option>
+            <option value="skip">Skip (lab only)</option>
+          </select>
+        </div>
+        <div class="form-group nest-winrm-only" hidden>
+          <label class="form-label">WinRM user <span class="required">*</span></label>
+          <input type="text" name="nest_winrm_user" class="form-input nest-winrm-user-input"
+                 value="" placeholder="Administrator">
+        </div>
+        <div class="form-group nest-winrm-only" hidden>
+          <label class="form-label">Credential ref</label>
+          <input type="text" name="nest_credential_ref" class="form-input nest-credential-ref-input"
+                 value="" placeholder="Optional label until secrets (#110)">
+        </div>
+        <div class="form-group nest-winrm-only" hidden>
+          <label class="form-label">WinRM password (test only)</label>
+          <input type="password" class="form-input nest-winrm-password-input" autocomplete="off"
+                 value="" placeholder="Not saved — used for Test Nest connection">
+        </div>
+      </div>
+      <div class="library-conn-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm nest-test-conn-btn">Test Nest connection</button>
+        <span class="library-test-result nest-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+</template>
+<script>
+(function () {
+  const rows = document.getElementById('nest-conn-rows');
+  const empty = document.getElementById('nest-conn-rows-empty');
+  const tpl = document.getElementById('nest-conn-row-template');
+  const addBtn = document.getElementById('add-nest-conn-btn');
+  if (!rows || !tpl || !addBtn) return;
+
+  function newId() {
+    return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 6);
+  }
+
+  function setTestResult(el, ok, message) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('library-test-result--ok', !!ok);
+    el.classList.toggle('library-test-result--err', !ok);
+  }
+
+  function syncEmpty() {
+    if (!empty) return;
+    empty.hidden = rows.children.length > 0;
+  }
+
+  function updateSummary(row) {
+    const name = (row.querySelector('.nest-name-input') || {}).value || 'Nest';
+    const provider = (row.querySelector('.nest-provider-input') || {}).value || 'libvirt';
+    const location = (row.querySelector('.nest-location-input') || {}).value || 'remote';
+    const host = (row.querySelector('.nest-host-input') || {}).value || '';
+    const nestId = (row.querySelector('input[name="nest_id"]') || {}).value
+      || row.dataset.nestId || '';
+    const summary = row.querySelector('.nest-conn-summary');
+    if (summary) {
+      summary.textContent = name + ' · ' + provider + ' · ' + location
+        + (location === 'remote' && host ? ' · ' + host : '');
+    }
+    const idEl = row.querySelector('.nest-conn-id');
+    if (idEl) idEl.textContent = nestId;
+    const idCode = row.querySelector('.nest-id-code');
+    if (idCode) idCode.textContent = nestId;
+    const toggle = row.querySelector('.nest-conn-toggle');
+    if (toggle) toggle.setAttribute('aria-label',
+      (toggle.getAttribute('aria-expanded') === 'true' ? 'Collapse' : 'Expand')
+      + ' Nest ' + name + (nestId ? ' (' + nestId + ')' : ''));
+  }
+
+  function syncVisibility(row) {
+    const locationEl = row.querySelector('.nest-location-input');
+    const location = locationEl ? locationEl.value : 'local';
+    const transport = (row.querySelector('.nest-transport-input') || {}).value || 'ssh';
+    const remote = location === 'remote';
+    const winrm = remote && transport === 'winrm';
+    row.querySelectorAll('.nest-remote-only').forEach(function (el) { el.hidden = !remote; });
+    row.querySelectorAll('.nest-ssh-only').forEach(function (el) { el.hidden = !remote || winrm; });
+    row.querySelectorAll('.nest-winrm-only').forEach(function (el) { el.hidden = !winrm; });
+    const port = row.querySelector('.nest-port-input');
+    if (port && remote && !port.value) {
+      port.value = winrm ? '5985' : '22';
+    }
+    updateSummary(row);
+  }
+
+  function nestPayload(row) {
+    return {
+      id: (row.querySelector('input[name="nest_id"]') || {}).value || '',
+      name: (row.querySelector('.nest-name-input') || {}).value || '',
+      provider_type: (row.querySelector('.nest-provider-input') || {}).value || 'libvirt',
+      location: (row.querySelector('.nest-location-input') || {}).value || 'local',
+      transport: (row.querySelector('.nest-transport-input') || {}).value || '',
+      host: (row.querySelector('.nest-host-input') || {}).value || '',
+      port: (row.querySelector('.nest-port-input') || {}).value || '',
+      ssh_user: (row.querySelector('.nest-ssh-user-input') || {}).value || '',
+      identity_file: (row.querySelector('.nest-identity-file-input') || {}).value || '',
+      cert_path: (row.querySelector('.nest-cert-path-input') || {}).value || '',
+      identity_expires_at: (row.querySelector('.nest-identity-expires-input') || {}).value || '',
+      known_hosts: (row.querySelector('.nest-known-hosts-input') || {}).value || 'default',
+      winrm_user: (row.querySelector('.nest-winrm-user-input') || {}).value || '',
+      credential_ref: (row.querySelector('.nest-credential-ref-input') || {}).value || '',
+      winrm_password: (row.querySelector('.nest-winrm-password-input') || {}).value || '',
+    };
+  }
+
+  addBtn.addEventListener('click', function () {
+    const node = tpl.content.cloneNode(true);
+    const row = node.querySelector('.nest-conn-row');
+    const id = newId();
+    row.dataset.nestId = id;
+    row.querySelector('input[name="nest_id"]').value = id;
+    const idEl = row.querySelector('.nest-conn-id');
+    if (idEl) idEl.textContent = id;
+    const idCode = row.querySelector('.nest-id-code');
+    if (idCode) idCode.textContent = id;
+    syncVisibility(row);
+    rows.appendChild(node);
+    syncEmpty();
+    row.querySelector('.nest-name-input').focus();
+  });
+
+  rows.addEventListener('click', function (e) {
+    const toggle = e.target.closest('.nest-conn-toggle');
+    if (toggle) {
+      const row = toggle.closest('.nest-conn-row');
+      const body = row && row.querySelector('.nest-conn-row-body');
+      if (!body) return;
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      body.hidden = open;
+      toggle.setAttribute('aria-expanded', String(!open));
+      updateSummary(row);
+      return;
+    }
+    const remove = e.target.closest('.nest-conn-remove');
+    if (remove) {
+      const row = remove.closest('.nest-conn-row');
+      if (row && row.dataset.builtin === '1') return;
+      if (row) row.remove();
+      syncEmpty();
+      return;
+    }
+    const testBtn = e.target.closest('.nest-test-conn-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.nest-conn-row');
+    const result = row.querySelector('.nest-test-result');
+    setTestResult(result, true, 'Testing…');
+    const payload = nestPayload(row);
+    fetch({{ url_for('api_nests_test_connection') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nest: payload, winrm_password: payload.winrm_password }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+      });
+  });
+
+  rows.addEventListener('input', function (e) {
+    const row = e.target.closest('.nest-conn-row');
+    if (!row) return;
+    if (e.target.classList.contains('nest-name-input') || e.target.classList.contains('nest-host-input')) {
+      updateSummary(row);
+    }
+  });
+
+  rows.addEventListener('change', function (e) {
+    const row = e.target.closest('.nest-conn-row');
+    if (!row) return;
+    if (
+      e.target.classList.contains('nest-location-input') ||
+      e.target.classList.contains('nest-transport-input') ||
+      e.target.classList.contains('nest-provider-input')
+    ) {
+      syncVisibility(row);
+    }
+  });
+
+  Array.prototype.forEach.call(rows.children, syncVisibility);
+  syncEmpty();
 })();
 </script>
 {% endif %}

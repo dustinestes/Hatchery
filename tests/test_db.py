@@ -105,6 +105,22 @@ class TestInitDb:
         finally:
             conn.close()
 
+    def test_creates_nests_table_and_seeds_local(self):
+        conn = db_module.get_connection()
+        try:
+            names = [
+                r["name"]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            assert "nests" in names
+            row = conn.execute("SELECT id, name, location FROM nests WHERE id='local'").fetchone()
+            assert row["name"] == "Local"
+            assert row["location"] == "local"
+        finally:
+            conn.close()
+
     def test_creates_hatch_sessions_table(self):
         conn = db_module.get_connection()
         try:

@@ -12,22 +12,40 @@
 
   <!-- Left: nest navigator -->
   <nav class="nests-nav" aria-label="Nests">
-    <div class="nests-nav-item active" data-nest="local">
-      <span class="nest-status-dot nest-status-dot--green"></span>
-      <span class="nests-nav-label">local</span>
-    </div>
+    {% for nest in nests %}
+    <button type="button"
+            class="nests-nav-item{% if nest.id == selected_nest_id %} active{% endif %}"
+            data-nest="{{ nest.id }}"
+            data-nest-name="{{ nest.name }}"
+            data-nest-location="{{ nest.location }}"
+            aria-pressed="{% if nest.id == selected_nest_id %}true{% else %}false{% endif %}"
+            aria-label="{{ nest.name }} ({{ nest.id }}, {{ nest.location }} {{ nest.provider_type }})">
+      <span class="nest-status-dot nest-status-dot--green" aria-hidden="true"></span>
+      <span class="nests-nav-text">
+        <span class="nests-nav-label">{{ nest.name }}</span>
+        <span class="nests-nav-id">{{ nest.id }}</span>
+      </span>
+    </button>
+    {% else %}
+    <p class="empty-state">No Nests registered. Add one under Settings → Nests.</p>
+    {% endfor %}
   </nav>
 
   <!-- Right: VM inventory for the selected nest -->
   <div class="nests-content" id="nests-content">
     <div class="nests-content-header">
-      <span class="nests-content-title">local</span>
+      <span class="nests-content-title" id="nests-content-title">
+        {% for nest in nests if nest.id == selected_nest_id %}{{ nest.name }}{% endfor %}
+      </span>
       <span class="nests-refresh-label" id="nests-refresh-label"></span>
     </div>
 
     <div id="vm-list" class="vm-inventory">
       <div class="vm-inventory-empty" id="vm-empty" style="display:none">
         No VMs found on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
+      </div>
+      <div class="vm-inventory-empty" id="vm-remote-empty" style="display:none" role="status">
+        Remote Nest inventory requires the provider factory (#206). Use Settings → Nests to Test Nest connection.
       </div>
     </div>
   </div>
@@ -40,7 +58,15 @@
 (function () {
   const vmList      = document.getElementById('vm-list');
   const emptyMsg    = document.getElementById('vm-empty');
+  const remoteEmpty = document.getElementById('vm-remote-empty');
   const refreshLabel = document.getElementById('nests-refresh-label');
+  const titleEl     = document.getElementById('nests-content-title');
+  const navItems    = Array.prototype.slice.call(document.querySelectorAll('.nests-nav-item'));
+
+  let selectedNestId = {{ selected_nest_id | tojson }};
+  let selectedLocation = 'local';
+  const initial = navItems.find(function (el) { return el.dataset.nest === selectedNestId; });
+  if (initial) selectedLocation = initial.dataset.nestLocation || 'local';
 
   const VM_STATUS_LABEL = {
     'running':     'Running',
@@ -247,9 +273,20 @@
     }
   }
 
+  function clearCards() {
+    vmList.querySelectorAll('.vm-card').forEach(r => r.remove());
+  }
+
   function render(vms) {
+    if (selectedLocation !== 'local') {
+      clearCards();
+      emptyMsg.style.display = 'none';
+      remoteEmpty.style.display = '';
+      return;
+    }
+    remoteEmpty.style.display = 'none';
     if (!vms.length) {
-      vmList.querySelectorAll('.vm-card').forEach(r => r.remove());
+      clearCards();
       emptyMsg.style.display = '';
       return;
     }
@@ -281,10 +318,36 @@
     });
   }
 
+  function selectNest(btn) {
+    selectedNestId = btn.dataset.nest;
+    selectedLocation = btn.dataset.nestLocation || 'local';
+    if (titleEl) titleEl.textContent = btn.dataset.nestName || selectedNestId;
+    navItems.forEach(function (el) {
+      const on = el === btn;
+      el.classList.toggle('active', on);
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    poll();
+  }
+
+  navItems.forEach(function (btn) {
+    btn.addEventListener('click', function () { selectNest(btn); });
+  });
+
   function poll() {
-    fetch('/api/nests/local/vms')
-      .then(r => r.json())
+    if (!selectedNestId) return;
+    if (selectedLocation !== 'local') {
+      render([]);
+      refreshLabel.textContent = 'Remote Nest — inventory pending #206';
+      return;
+    }
+    fetch('/api/nests/' + encodeURIComponent(selectedNestId) + '/vms')
+      .then(r => {
+        if (!r.ok) throw new Error('bad status');
+        return r.json();
+      })
       .then(vms => {
+        if (!Array.isArray(vms)) throw new Error('bad payload');
         render(vms);
         refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       })

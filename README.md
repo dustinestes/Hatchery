@@ -114,6 +114,21 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 <br/>
 
+## Remote Nest SSH (quick start)
+
+Hatchery talks to remote Nests as an **SSH client**. Keys stay on the Hatchery host; Nests trust Hatchery’s public key.
+
+1. Create (or reuse) an OpenSSH key pair on the machine running Hatchery
+2. Install the **public** key in the Nest’s `authorized_keys` (or equivalent)
+3. Settings → **Nests** → add a remote Nest → set **Identity file** to the private key path (e.g. `~/.ssh/id_ed25519`)
+4. Use **Test Nest connection**
+
+Best effort today: Hatchery stores **paths only** (never private key bytes). WinRM Nest passwords are entered for tests only and not persisted. Deeper setup and troubleshooting → [#260](https://github.com/dustinestes/Hatchery/issues/260).
+
+---
+
+<br/>
+
 ## What It Requires
 
 | Requirement | Notes |

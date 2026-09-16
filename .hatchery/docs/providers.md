@@ -100,14 +100,14 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 
 | Capability | Status |
 |---|---|
-| SSH Nest transport (key **reference**) | Works (library seam; Nest registry wiring [#207](https://github.com/dustinestes/Hatchery/issues/207)) |
-| WinRM Nest transport fallback | Works (library seam; same registry wiring) |
-| Nest connectivity check | Works (library seam) |
+| SSH Nest transport (key **reference**) | Works (wired via Nest registry [#207](https://github.com/dustinestes/Hatchery/issues/207)) |
+| WinRM Nest transport fallback | Works (same registry; passwords session-only until [#110](https://github.com/dustinestes/Hatchery/issues/110)) |
+| Nest connectivity check | Works (Settings → Nests → Test Nest connection) |
 | Nest SSH identity expiry alerts | Works ([Nest SSH identity expiry](nest-key-expiry.md)) |
-| Nest connection registry / Settings | Planned ([#207](https://github.com/dustinestes/Hatchery/issues/207), [#214](https://github.com/dustinestes/Hatchery/issues/214)) |
+| Nest connection registry / Settings | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Settings → Nests) |
 | Provider factory by Nest id | Planned ([#206](https://github.com/dustinestes/Hatchery/issues/206)) |
 
-Today Hatchery still hard-wires local libvirt for VM ops; transport helpers are ready for remote Nests once the factory and registry land.
+Today Hatchery still hard-wires local libvirt for VM ops on local Nests; remote inventory waits on the provider factory. Transport + registry are ready for remote Nests.
 
 <br>
 
