@@ -27,6 +27,7 @@ pytest test suite for Hatchery.
 ```
 tests/
 ├── test_providers.py          — libvirt provider (KVM/QEMU); Hyper-V TBD
+├── test_factory.py            — Nest id → BaseProvider factory (#206)
 ├── test_nest_transport.py     — Nest SSH control plane (#218); mocked ssh
 ├── test_config.py             — application config and data directory
 ├── test_answerfile.py         — answer file generation (OS-aware)

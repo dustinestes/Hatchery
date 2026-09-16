@@ -75,7 +75,7 @@ Registered Nest connections (where VMs live). The built-in row `id = 'local'` is
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | Stable Nest id (e.g. `local`); referenced by `hatch_sessions.nest` |
 | `name` | `TEXT` | `NOT NULL` | Display label in Settings and the Nests pane |
-| `provider_type` | `TEXT` | `NOT NULL` | `libvirt`, `utm`, or `hyperv` (factory routing is [#206](https://github.com/dustinestes/Hatchery/issues/206)) |
+| `provider_type` | `TEXT` | `NOT NULL` | `libvirt`, `utm`, or `hyperv` (routed by [`lib/providers/factory.py`](../../../lib/providers/factory.py); only local libvirt is instantiable today) |
 | `location` | `TEXT` | `NOT NULL DEFAULT 'local'` | `local` or `remote` |
 | `transport` | `TEXT` | | `ssh` or `winrm` when remote; `NULL` when local |
 | `host` | `TEXT` | | Remote hostname or IP |

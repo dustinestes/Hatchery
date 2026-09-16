@@ -400,8 +400,9 @@ class TestNestSettings:
     def test_api_nest_vms_unknown_404(self, client):
         resp = client.get("/api/nests/no-such-nest/vms")
         assert resp.status_code == 404
+        assert "Unknown Nest" in resp.get_json()["error"]
 
-    def test_api_nest_vms_remote_empty(self, client):
+    def test_api_nest_vms_remote_501(self, client):
         import lib.nests as nests_lib
 
         nests_lib.replace_nests(
@@ -417,8 +418,8 @@ class TestNestSettings:
             ]
         )
         resp = client.get("/api/nests/remote1/vms")
-        assert resp.status_code == 200
-        assert resp.get_json() == []
+        assert resp.status_code == 501
+        assert "remote1" in resp.get_json()["error"]
 
 
 class TestLibrarySettingsGate:
@@ -2221,6 +2222,53 @@ class TestProvider:
         assert provider.iso_dir == tmp_path / "media" / "iso"
         assert provider.virtio_dir == tmp_path / "media" / "virtio"
         assert provider.automation_dir == tmp_path / "automation" / "os_config"
+
+    def test_provider_honors_nest_id(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        import lib.nests as nests_lib
+
+        nests_lib.ensure_local_nest()
+        provider = app_module._provider("local")
+        assert isinstance(provider, LibvirtProvider)
+
+    def test_hatch_form_shows_nest_select(self, client):
+        html = client.get("/hatch-clutch").data.decode()
+        assert 'name="nest"' in html
+        assert 'id="hatch-nest-select"' in html
+
+    def test_hatch_rejects_unknown_nest(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        resp = client.post(
+            "/hatch-clutch",
+            data={"clutch_file": "my-lab.yaml", "nest": "no-such-nest"},
+        )
+        assert resp.status_code == 200
+        assert "Unknown Nest" in resp.data.decode()
+
+    def test_hatch_rejects_remote_nest(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        import lib.nests as nests_lib
+
+        _make_clutch(tmp_path)
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "r.example",
+                },
+            ]
+        )
+        resp = client.post(
+            "/hatch-clutch",
+            data={"clutch_file": "my-lab.yaml", "nest": "remote1"},
+        )
+        assert resp.status_code == 200
+        assert "not available" in resp.data.decode()
 
 
 class TestScanDir:

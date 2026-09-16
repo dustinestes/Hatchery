@@ -44,8 +44,8 @@
       <div class="vm-inventory-empty" id="vm-empty" style="display:none">
         No VMs found on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
       </div>
-      <div class="vm-inventory-empty" id="vm-remote-empty" style="display:none" role="status">
-        Remote Nest inventory requires the provider factory (#206). Use Settings → Nests to Test Nest connection.
+      <div class="vm-inventory-empty" id="vm-provider-empty" style="display:none" role="status">
+        Provider not available for this Nest yet. Use Settings → Nests to Test Nest connection.
       </div>
     </div>
   </div>
@@ -58,15 +58,12 @@
 (function () {
   const vmList      = document.getElementById('vm-list');
   const emptyMsg    = document.getElementById('vm-empty');
-  const remoteEmpty = document.getElementById('vm-remote-empty');
+  const providerEmpty = document.getElementById('vm-provider-empty');
   const refreshLabel = document.getElementById('nests-refresh-label');
   const titleEl     = document.getElementById('nests-content-title');
   const navItems    = Array.prototype.slice.call(document.querySelectorAll('.nests-nav-item'));
 
   let selectedNestId = {{ selected_nest_id | tojson }};
-  let selectedLocation = 'local';
-  const initial = navItems.find(function (el) { return el.dataset.nest === selectedNestId; });
-  if (initial) selectedLocation = initial.dataset.nestLocation || 'local';
 
   const VM_STATUS_LABEL = {
     'running':     'Running',
@@ -277,14 +274,16 @@
     vmList.querySelectorAll('.vm-card').forEach(r => r.remove());
   }
 
+  function showProviderUnavailable(message) {
+    clearCards();
+    emptyMsg.style.display = 'none';
+    providerEmpty.style.display = '';
+    providerEmpty.textContent = message
+      || 'Provider not available for this Nest yet. Use Settings → Nests to Test Nest connection.';
+  }
+
   function render(vms) {
-    if (selectedLocation !== 'local') {
-      clearCards();
-      emptyMsg.style.display = 'none';
-      remoteEmpty.style.display = '';
-      return;
-    }
-    remoteEmpty.style.display = 'none';
+    providerEmpty.style.display = 'none';
     if (!vms.length) {
       clearCards();
       emptyMsg.style.display = '';
@@ -320,7 +319,6 @@
 
   function selectNest(btn) {
     selectedNestId = btn.dataset.nest;
-    selectedLocation = btn.dataset.nestLocation || 'local';
     if (titleEl) titleEl.textContent = btn.dataset.nestName || selectedNestId;
     navItems.forEach(function (el) {
       const on = el === btn;
@@ -336,17 +334,19 @@
 
   function poll() {
     if (!selectedNestId) return;
-    if (selectedLocation !== 'local') {
-      render([]);
-      refreshLabel.textContent = 'Remote Nest — inventory pending #206';
-      return;
-    }
     fetch('/api/nests/' + encodeURIComponent(selectedNestId) + '/vms')
-      .then(r => {
+      .then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 404 || r.status === 501) {
+          showProviderUnavailable(data.error || 'Provider not available for this Nest.');
+          refreshLabel.textContent = 'Unavailable';
+          return null;
+        }
         if (!r.ok) throw new Error('bad status');
-        return r.json();
+        return data;
       })
       .then(vms => {
+        if (vms === null) return;
         if (!Array.isArray(vms)) throw new Error('bad payload');
         render(vms);
         refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
