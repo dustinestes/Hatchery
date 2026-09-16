@@ -292,18 +292,15 @@
   </section>
 {% elif section == 'nests' %}
   <section class="form-section">
-    <h2 class="form-section-title">Nest connections</h2>
+    <h2 class="form-section-title">Connections</h2>
     <p class="form-help-text">
-      Register Nest hosts (where VMs live). Exactly one <strong>local</strong> Nest exists
-      (stable id <code>local</code> on this Hatchery host). Additional Nests are always remote —
-      even when the host is localhost or a subsystem such as WSL.
-      Point each remote row at an identity <strong>file on this Hatchery host</strong>
-      (trust that public key on the Nest). Identity expiry drives alerts using Security tiers.
-      WinRM passwords are not stored — enter them only for Test Nest connection until secrets land (#110).
-      Provider routing for inventory is #206. Display <strong>Name</strong> is editable; Nest <strong>id</strong> is stable.
+      Named Nest endpoints (local or remote) with provider and transport.
+      Exactly one local Nest (id <code>local</code>) is required; added Nests are always remote.
+      SSH uses an identity file on this Hatchery host; Test Nest connection checks reachability.
+      Display Name is editable; Nest id is stable for sessions and APIs.
     </p>
     <div class="section-header">
-      <span class="form-label" id="nest-conn-label">Nest rows</span>
+      <span class="form-label" id="nest-conn-label">Connection rows</span>
       <button type="button" id="add-nest-conn-btn" class="btn btn-secondary btn-sm"
               aria-label="Add Nest">+ Add Nest</button>
     </div>

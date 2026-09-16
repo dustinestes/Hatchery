@@ -672,7 +672,7 @@ _SETTINGS_SECTIONS = {
     ),
     "nests": (
         "Nests",
-        "Registered Nest connections — local and remote hypervisor endpoints.",
+        "Local and remote Nest endpoints where VMs live.",
     ),
     "library": (
         "Library",

@@ -356,7 +356,7 @@ class TestNestSettings:
         resp = client.get("/settings/nests")
         assert resp.status_code == 200
         html = resp.data.decode()
-        assert "Nest connections" in html
+        assert "Connections" in html
         assert 'name="nest_id"' in html
         assert "Test Nest connection" in html
 
