@@ -26,7 +26,8 @@ from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
 from lib.nest_transport import NestConnectionConfig
 from pydantic import ValidationError
-from lib.providers.libvirt import LibvirtProvider
+from lib.providers.base import BaseProvider
+from lib.providers.factory import UnknownNestError, UnsupportedProviderError, get_provider
 
 # Tracks (session_id, vm_name) pairs currently being provisioned so the sync
 # loop does not spawn duplicate threads.
@@ -260,9 +261,18 @@ def _spawn_provision_thread(
 
 def _sync_hatch_status() -> None:
     """Monitor active VMs: advance through hatching→provisioning→fledged, cull if gone."""
-    sessions = hatch_lib.list_sessions()
+    nests_lib.ensure_local_nest()
+    sessions: list[dict] = []
+    for nest in nests_lib.list_nests():
+        sessions.extend(hatch_lib.list_sessions(nest["id"]))
     monitored = [
-        (s["id"], v["vm_name"], v.get("libvirt_uuid"), v["status"])
+        (
+            s["id"],
+            s.get("nest") or nests_lib.LOCAL_NEST_ID,
+            v["vm_name"],
+            v.get("libvirt_uuid"),
+            v["status"],
+        )
         for s in sessions
         for v in s["vms"]
         if v["status"] in ("hatching", "provisioning", "fledged")
@@ -270,10 +280,21 @@ def _sync_hatch_status() -> None:
     if not monitored:
         return
 
-    provider = _provider()
+    providers: dict[str, BaseProvider | None] = {}
 
-    for session_id, vm_name, libvirt_uuid, vm_status in monitored:
+    def _provider_for(nest_id: str) -> BaseProvider | None:
+        if nest_id not in providers:
+            try:
+                providers[nest_id] = _provider(nest_id)
+            except (UnknownNestError, UnsupportedProviderError):
+                providers[nest_id] = None
+        return providers[nest_id]
+
+    for session_id, nest_id, vm_name, libvirt_uuid, vm_status in monitored:
         if not libvirt_uuid:
+            continue
+        provider = _provider_for(nest_id)
+        if provider is None:
             continue
 
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
@@ -425,13 +446,9 @@ def _start_background_thread() -> threading.Event:
     return stop
 
 
-def _provider() -> LibvirtProvider:
-    data = config.data_dir()
-    return LibvirtProvider(
-        iso_dir=data / "media" / "iso",
-        virtio_dir=data / "media" / "virtio",
-        automation_dir=data / "automation" / "os_config",
-    )
+def _provider(nest_id: str | None = None) -> BaseProvider:
+    """Return the Nest provider for ``nest_id`` (default: local libvirt)."""
+    return get_provider(nest_id)
 
 
 config.load()
@@ -1474,7 +1491,17 @@ def _run_hatch_session(
     session_id: str, vms: list, passwords: dict, clutch_file: str, storage_path: str | None = None
 ) -> None:
     """Background thread: create each VM sequentially and track state in DB."""
-    provider = _provider()
+    session = hatch_lib.get_session(session_id)
+    nest_id = (session or {}).get("nest") or nests_lib.LOCAL_NEST_ID
+    try:
+        provider = _provider(nest_id)
+    except (UnknownNestError, UnsupportedProviderError) as exc:
+        for vm in vms:
+            hatch_lib.add_event(
+                session_id, vm.name, "hatchery", "ERROR", f"VM creation failed: {exc}"
+            )
+            hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
+        return
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
@@ -1520,7 +1547,17 @@ def _run_hatch_session(
 # ── Hatch Clutch ─────────────────────────────────────────────────────────────
 
 
-def _render_hatch_clutch_form(clutch_files, preselected="", clutch_obj=None, form_error=None):
+def _render_hatch_clutch_form(
+    clutch_files,
+    preselected="",
+    clutch_obj=None,
+    form_error=None,
+    nests=None,
+    selected_nest_id=None,
+):
+    nests_lib.ensure_local_nest()
+    registered = nests if nests is not None else nests_lib.list_nests()
+    nest_id = selected_nest_id or nests_lib.LOCAL_NEST_ID
     return render_template(
         "hatch_clutch.html",
         active_pane="dashboard",
@@ -1528,6 +1565,8 @@ def _render_hatch_clutch_form(clutch_files, preselected="", clutch_obj=None, for
         preselected=preselected,
         clutch_obj=clutch_obj,
         form_error=form_error,
+        nests=registered,
+        selected_nest_id=nest_id,
     )
 
 
@@ -1557,8 +1596,11 @@ def hatch_clutch():
 def hatch_clutch_post():
     clutch_files = _scan_dir("clutches", [".yaml"])
     filename = request.form.get("clutch_file", "").strip()
+    nest_id = request.form.get("nest", "").strip() or nests_lib.LOCAL_NEST_ID
     if not filename:
-        return _render_hatch_clutch_form(clutch_files, form_error="Select a Clutch file to hatch.")
+        return _render_hatch_clutch_form(
+            clutch_files, form_error="Select a Clutch file to hatch.", selected_nest_id=nest_id
+        )
     try:
         clutch_obj = _load_clutch(filename)
     except FileNotFoundError:
@@ -1566,9 +1608,12 @@ def hatch_clutch_post():
             clutch_files,
             preselected=filename,
             form_error=f"Clutch file '{filename}' not found.",
+            selected_nest_id=nest_id,
         )
     except Exception as exc:
-        return _render_hatch_clutch_form(clutch_files, preselected=filename, form_error=str(exc))
+        return _render_hatch_clutch_form(
+            clutch_files, preselected=filename, form_error=str(exc), selected_nest_id=nest_id
+        )
 
     passwords = {
         vm.name: request.form.get(f"credentials[{vm.name}]") or None for vm in clutch_obj.vms
@@ -1580,9 +1625,32 @@ def hatch_clutch_post():
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=f"Password required for: {', '.join(missing)}",
+            selected_nest_id=nest_id,
         )
 
-    # Local Nest today: operator data_dir is the Nest cache. Fail before create_vm
+    nests_lib.ensure_local_nest()
+    nest_row = nests_lib.get_nest(nest_id)
+    if nest_row is None:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=f"Unknown Nest id: {nest_id}",
+            selected_nest_id=nests_lib.LOCAL_NEST_ID,
+        )
+
+    try:
+        _provider(nest_id)
+    except UnsupportedProviderError as exc:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error=str(exc),
+            selected_nest_id=nest_id,
+        )
+
+    # Operator data_dir is Nest cache for local Nests. Fail before create_vm
     # when required media/scripts are missing (#245). Optional ensure flag runs the
     # ensure path (local = verify; remote copy lands with #215).
     run_ensure = request.form.get("ensure_cache", "").strip().lower() in (
@@ -1594,7 +1662,7 @@ def hatch_clutch_post():
     try:
         nest_result = nest_cache_lib.preflight_clutch(
             clutch_obj,
-            nest=NestConnectionConfig(location="local"),
+            nest=nests_lib.to_connection_config(nest_row),
             run_ensure=run_ensure,
         )
     except nest_cache_lib.NestCacheError as exc:
@@ -1603,6 +1671,7 @@ def hatch_clutch_post():
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=str(exc),
+            selected_nest_id=nest_id,
         )
     if not nest_result.ok:
         return _render_hatch_clutch_form(
@@ -1610,9 +1679,10 @@ def hatch_clutch_post():
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=nest_result.error_message(),
+            selected_nest_id=nest_id,
         )
 
-    session_id = hatch_lib.create_session(filename, clutch_obj.name, nest=nests_lib.LOCAL_NEST_ID)
+    session_id = hatch_lib.create_session(filename, clutch_obj.name, nest=nest_id)
     for vm in clutch_obj.vms:
         hatch_lib.add_vm(
             session_id,
@@ -2166,20 +2236,17 @@ def clutch_delete(filename):
 
 @app.route("/api/nests/<nest>/vms")
 def api_nest_vms(nest: str):
-    """Return the enriched VM inventory for a nest: provider data + metadata + DB records.
-
-    Until the provider factory (#206), only local Nests use the libvirt provider.
-    Remote Nest ids return an empty inventory (connection is still registry-backed).
-    """
+    """Return the enriched VM inventory for a nest: provider data + metadata + DB records."""
     nests_lib.ensure_local_nest()
     nest_row = nests_lib.get_nest(nest)
     if nest_row is None:
         return jsonify({"error": f"Unknown Nest id: {nest}"}), 404
 
-    if nest_row["location"] != "local":
-        return jsonify([])
+    try:
+        provider = _provider(nest)
+    except UnsupportedProviderError as exc:
+        return jsonify({"error": str(exc)}), 501
 
-    provider = _provider()
     show_pw = config.show_passwords()
 
     vms = provider.list_vms()
@@ -2260,7 +2327,13 @@ def api_retry_vm(session_id, vm_name):
     hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
     hatch_lib.add_event(session_id, vm_name, "hatchery", "INFO", "Retry initiated")
 
-    provider = _provider()
+    session = hatch_lib.get_session(session_id)
+    nest_id = (session or {}).get("nest") or nests_lib.LOCAL_NEST_ID
+    try:
+        provider = _provider(nest_id)
+    except (UnknownNestError, UnsupportedProviderError) as exc:
+        return jsonify({"error": str(exc)}), 501
+
     try:
         ip = provider.get_vm_ip(vm_name)
     except Exception:

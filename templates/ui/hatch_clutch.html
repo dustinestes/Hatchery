@@ -16,6 +16,7 @@
 
   <section class="form-section">
     <h2 class="form-section-title">Clutch</h2>
+    <div class="form-grid">
     <div class="form-group form-group-half">
       <label class="form-label" for="clutch-file-select">Clutch File <span class="required">*</span></label>
       <select id="clutch-file-select" name="clutch_file" class="form-select" required>
@@ -27,6 +28,21 @@
       {% if not clutch_files %}
         <p class="form-hint">No Clutch files found. <a href="{{ url_for('build') }}" class="link">Build one</a> first.</p>
       {% endif %}
+    </div>
+    <div class="form-group form-group-half">
+      <label class="form-label" for="hatch-nest-select">Nest <span class="required">*</span></label>
+      <select id="hatch-nest-select" name="nest" class="form-select" required>
+        {% for nest in nests %}
+          <option value="{{ nest.id }}"
+            {% if nest.id == selected_nest_id %}selected{% endif %}
+            {% if nest.location != 'local' or nest.provider_type != 'libvirt' %}disabled{% endif %}>
+            {{ nest.name }} ({{ nest.id }})
+            {%- if nest.location != 'local' or nest.provider_type != 'libvirt' %} — not available yet{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      <p class="form-hint">VMs hatch on the selected Nest. Only local libvirt is available until more providers register.</p>
+    </div>
     </div>
   </section>
 

@@ -68,7 +68,7 @@ v1 shipped as Linux host + local libvirt Nest. Cross-platform work **does not** 
 |---|---|
 | Shared Flask/UI/DB/Library/orchestration | Three independent products that diverge forever |
 | Each Nest type implements `BaseProvider` | Scatter `sys.platform` checks as the compatibility story |
-| Select Nest via **registry** + **provider factory** | Hard-wire `LibvirtProvider` in app routes once factory lands |
+| Select Nest via **registry** + **provider factory** | Hard-wire `LibvirtProvider` in app routes |
 | Declare capabilities in the [provider matrix](providers.md) | Assume every Nest supports every action |
 
 Libvirt-specific rules (e.g. world-readable media for `libvirt-qemu`) belong **in the libvirt Nest adapter**, not in host-plane code paths used for every Nest.
