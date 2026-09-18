@@ -121,6 +121,43 @@ class TestSnapshotAndAlerts:
         nr.sync_alert_for_probe(nest, NestHealthCheckResult(ok=True, detail="ok"))
         assert alerts_lib.count_active_alerts() == 0
 
+    def test_sync_alert_collapses_duplicates_by_nest_id(self):
+        """Rename / detail churn must not leave multiple active reachability Alerts."""
+        from lib import alerts as alerts_lib
+
+        alerts_lib.record_alert("Nest reachability: 'UTM Box' (r1): endpoint not reachable — a")
+        alerts_lib.record_alert("Nest reachability: 'Lab' (r1): endpoint not reachable — b")
+        nest = {"id": "r1", "name": "Lab", "location": "remote"}
+        nr.sync_alert_for_probe(
+            nest,
+            NestHealthCheckResult(
+                ok=False,
+                detail="endpoint not reachable — still down",
+                failure_class="endpoint",
+            ),
+        )
+        active = [
+            a
+            for a in alerts_lib.list_recent()
+            if not a["resolved"] and "Nest reachability:" in a["message"]
+        ]
+        assert len(active) == 1
+        assert "(r1)" in active[0]["message"]
+
+    def test_sync_alert_does_not_reopen_when_one_active(self):
+        from lib import alerts as alerts_lib
+
+        nest = {"id": "r1", "name": "Lab", "location": "remote"}
+        nr.sync_alert_for_probe(
+            nest,
+            NestHealthCheckResult(ok=False, detail="down-1", failure_class="endpoint"),
+        )
+        nr.sync_alert_for_probe(
+            nest,
+            NestHealthCheckResult(ok=False, detail="down-2-different", failure_class="endpoint"),
+        )
+        assert alerts_lib.count_active_alerts() == 1
+
     def test_label_uses_failure_class(self):
         nest = {"id": "r1", "name": "Lab", "location": "remote"}
         nr.record_probe(

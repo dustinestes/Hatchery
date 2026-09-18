@@ -51,6 +51,9 @@ class TestRecordAlert:
         alerts.record_alert("disk full")
         row = alerts.list_recent()[0]
         assert row["created_at"] not in ("", None)
+        # Zulu form so JS toast last-read compare matches Date.toISOString (#288)
+        assert str(row["created_at"]).endswith("Z")
+        assert "+" not in str(row["created_at"])
 
     def test_keeps_all_rows_on_insert(self):
         for i in range(5):
@@ -174,10 +177,14 @@ class TestResolveAlertsForNestId:
         row = next(r for r in alerts.list_recent() if r["id"] == nid)
         assert row["resolved"] == 0
 
-    def test_noop_on_empty_id(self):
-        alerts.record_alert("Nest reachability: 'Lab' (lab1): down")
-        alerts.resolve_alerts_for_nest_id("")
-        assert alerts.count_active_alerts() == 1
+    def test_resolves_nest_id_with_like_metacharacters(self):
+        """Underscore in nest id must be matched literally (LIKE escape)."""
+        a = alerts.record_alert("Nest reachability: 'Lab' (lab_1): down")
+        b = alerts.record_alert("Nest reachability: 'Other' (labX1): down")
+        alerts.resolve_alerts_for_nest_id("lab_1")
+        rows = {r["id"]: r for r in alerts.list_recent()}
+        assert rows[a]["resolved"] == 1
+        assert rows[b]["resolved"] == 0
 
 
 class TestCountActiveByPrefixes:

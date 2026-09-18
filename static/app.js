@@ -465,6 +465,12 @@ hatchery.vmRows = (function () {
     return Math.floor(diff / 86400) + 'd ago';
   }
 
+  /** Parse alert / last-read ISO times; avoid string compare of +00:00 vs Z (#288). */
+  function alertTimeMs(iso) {
+    var t = Date.parse(String(iso || ''));
+    return isNaN(t) ? 0 : t;
+  }
+
   function showToast(message, tier, durationMs) {
     var container = document.getElementById('toast-container');
     if (!container) return;
@@ -798,9 +804,9 @@ hatchery.vmRows = (function () {
   function updateBadge(items) {
     var badge = document.getElementById('notif-badge');
     if (!badge) return;
-    var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
+    var lastReadMs = alertTimeMs(localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z');
     var hasUnseen = (items || []).some(function (n) {
-      return !n.resolved && n.created_at > lastRead;
+      return !n.resolved && alertTimeMs(n.created_at) > lastReadMs;
     });
     if (hasUnseen) {
       badge.textContent = '';
@@ -866,14 +872,21 @@ hatchery.vmRows = (function () {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var items = data.items || [];
-        var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
+        var lastReadMs = alertTimeMs(localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z');
         var toasted = loadToastedIds();
         items.forEach(function (n) {
           var id = String(n.id);
           if (toasted[id]) return;
-          toasted[id] = true;
-          if (!n.resolved && n.created_at > lastRead) {
+          // Only mark toasted after we toast, or when the alert is older than
+          // last tray-open (acked without toast). Do not poison new ids when
+          // timestamp compare used to fail (#288).
+          if (n.resolved) {
+            toasted[id] = true;
+            return;
+          }
+          if (alertTimeMs(n.created_at) > lastReadMs) {
             showToast(n.message, n.tier || 'alert');
+            toasted[id] = true;
           }
         });
         saveToastedIds(toasted);
