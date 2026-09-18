@@ -19,6 +19,7 @@ Foundational decision for cross-platform Hatchery ([epic #202](https://github.co
 - [One product, modular Nests](#one-product-modular-nests)
 - [Requirements](#requirements)
 - [Supporting a subset of Nest types](#supporting-a-subset-of-nest-types)
+- [Distribution north star](#distribution-north-star)
 - [Implementation order](#implementation-order)
 - [Non-goals](#non-goals)
 - [Related](#related)
@@ -117,6 +118,38 @@ Same rule for host OS: Hatchery host must run on all three OSes in CI for the po
 
 <br>
 
+## Distribution north star
+
+**Finish-line goal** ([#273](https://github.com/dustinestes/Hatchery/issues/273)): consumers install Hatchery with a familiar OS package manager and get only the **Hatchery Controller** — not Nest hypervisors, and not a preconfigured Nest.
+
+```text
+brew install hatchery    # or winget / apt (PPA or .deb)
+→ hatchery               # start Controller
+→ open UI                # empty Nest registry
+→ add Nest(s); docs + validators guide readiness
+```
+
+| Ships in the consumer package | Does **not** ship or configure |
+|---|---|
+| Controller app (UI, API, SQLite settings, Library, hatch orchestration, Nest transport *client*) | Nest hypervisors (libvirt/KVM, UTM, Hyper-V) |
+| Stable CLI entrypoint (e.g. `hatchery` / `hatchery serve`) | Pre-registered Nests or Nest credentials |
+| OS-standard config + data dirs | Auto-setup of Nest machines |
+
+Call the artifact **Controller** (not “static web UI only”) so API/DB/transport stay in scope. A fresh install with **zero Nests** is the intended empty state ([#266](https://github.com/dustinestes/Hatchery/issues/266)).
+
+**Nest onboarding** after install is documentation plus [validators](validators.md): reachability → Nest transport → Nest-side hypervisor usability. Install hints stay per Controller OS (apt / brew / winget-style).
+
+| Path | Role |
+|---|---|
+| **Consumer** | Package manager → CLI → UI. No git clone. No user-facing gunicorn. |
+| **Contributor / tests** | Clone, `uv`, gunicorn (or equivalent) remain first-class for development and CI |
+
+v1 helpers that assume a git checkout (e.g. `scripts/install-service.sh`) are a **proof-of-concept** consumer path. Long term they give way to an installable app contract and optional OS service adapters around the CLI — not checkout-coupled scripts.
+
+**Sequencing:** lock this north star now so cross-platform work (#202) does not reintroduce clone-coupled install assumptions; ship brew / winget / apt (and optional PyPI / `pipx` middle) **after** the Controller is Nest-optional and multi-OS. Packaging formulas are implementation of [#273](https://github.com/dustinestes/Hatchery/issues/273), not a prerequisite for every Nest feature.
+
+<br>
+
 ## Implementation order
 
 Before building more Nest-specific tooling on top of hard-wired libvirt:
@@ -136,6 +169,9 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 - Big-bang rewrite of `LibvirtProvider` before factory/registry exist  
 - Full feature parity across all Nest cells on day one (matrix tracks gaps)  
 - Replacing guest WinRM with Nest transport  
+- One mega-package that installs Nest hypervisors with the Controller  
+- Flatpak/Snap as the primary Local Nest distribution story (sandbox vs hypervisor access)  
+- Treating clone + gunicorn as the long-term **consumer** install path (contributor path stays)  
 
 <br>
 
@@ -146,10 +182,13 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 | [Provider matrix](providers.md) | Feature × Nest capability contract |
 | [Nest transport](nest-transport.md) | Control plane to Nest host |
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |
+| [Validators](validators.md) | Pluggable checks — Nest onboarding feedback after Controller install |
 | Epic [#202](https://github.com/dustinestes/Hatchery/issues/202) | Cross-platform & remote Nests |
+| [#273](https://github.com/dustinestes/Hatchery/issues/273) | Distribution north star — Controller-only via OS package managers |
 | [#206](https://github.com/dustinestes/Hatchery/issues/206) / [#207](https://github.com/dustinestes/Hatchery/issues/207) / [#208](https://github.com/dustinestes/Hatchery/issues/208) | Phase A foundation |
 | [#266](https://github.com/dustinestes/Hatchery/issues/266) | Optional Local Nest (Controller-only) |
 | [#267](https://github.com/dustinestes/Hatchery/issues/267) | Real-host Nest testing on macOS / Windows |
+| [#268](https://github.com/dustinestes/Hatchery/issues/268) | Validator framework |
 
 <br>
 
