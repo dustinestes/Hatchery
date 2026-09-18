@@ -2626,12 +2626,18 @@ class TestAlertsRoute:
     def test_shows_empty_state_when_no_items(self, client):
         html = client.get("/notifications/alerts").data.decode()
         assert "No alerts yet" in html
-        assert 'class="stub"' in html
+        assert 'id="alert-empty"' in html
 
     def test_shows_active_status(self, client):
         alerts_lib.record_alert("an environment alert")
         html = client.get("/notifications/alerts").data.decode()
         assert "notif-status-badge--active" in html
+
+    def test_subscribes_to_status_tick(self, client):
+        html = client.get("/notifications/alerts").data.decode()
+        assert "alert-tbody" in html
+        assert "hatchery.onStatusTick" in html
+        assert html.index("app.js") < html.index("hatchery.onStatusTick")
 
 
 class TestValidatorsPane:
@@ -2855,6 +2861,14 @@ class TestAlertsAPI:
         alerts_lib.record_alert("Missing requirement: some tool")
         data = client.get("/api/alerts").get_json()
         assert data["active_alert_count"] >= 1
+
+    def test_limit_query_caps_items(self, client):
+        for i in range(5):
+            alerts_lib.record_alert(f"limit-test-{i}")
+        data = client.get("/api/alerts?limit=2").get_json()
+        assert len(data["items"]) == 2
+        data500 = client.get("/api/alerts?limit=500").get_json()
+        assert len(data500["items"]) >= 5
 
 
 class TestAPIRoutes:

@@ -2433,9 +2433,14 @@ def api_retry_vm(session_id, vm_name):
 
 @app.route("/api/alerts")
 def api_alerts():
+    try:
+        limit = int(request.args.get("limit", "10"))
+    except ValueError:
+        limit = 10
+    limit = max(1, min(limit, 500))
     return jsonify(
         {
-            "items": alerts_lib.list_recent(10),
+            "items": alerts_lib.list_recent(limit),
             "active_alert_count": alerts_lib.count_active_alerts(),
         }
     )

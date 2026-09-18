@@ -8,8 +8,9 @@
   <p class="pane-subtitle">Environment and validation issues that need attention.</p>
 </div>
 
-{% if items %}
-<table class="notif-table" id="alert-table">
+<div id="alert-empty" class="stub" role="status"{% if items %} hidden{% endif %}>No alerts yet</div>
+
+<table class="notif-table" id="alert-table"{% if not items %} hidden{% endif %}>
   <thead>
     <tr>
       <th data-col="created_at">Time</th>
@@ -38,7 +39,91 @@
     {% endfor %}
   </tbody>
 </table>
-{% else %}
-<div class="stub">No alerts yet</div>
-{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  /* Same status-surfaces bus as Validators (#282) — Alerts pane was SSR-only. */
+  if (!window.hatchery || typeof hatchery.onStatusTick !== 'function') return;
+
+  var table = document.getElementById('alert-table');
+  var tbody = document.getElementById('alert-tbody');
+  var empty = document.getElementById('alert-empty');
+  if (!table || !tbody) return;
+
+  function cell(text, className) {
+    var td = document.createElement('td');
+    if (className) td.className = className;
+    td.textContent = text == null ? '' : String(text);
+    return td;
+  }
+
+  function tierCell(tier) {
+    var t = String(tier || 'alert').toLowerCase();
+    if (t === 'error') t = 'alert';
+    if (t !== 'info' && t !== 'warning' && t !== 'alert') t = 'alert';
+    var td = document.createElement('td');
+    td.className = 'notif-table-tier';
+    var span = document.createElement('span');
+    span.className = 'notif-tier-badge notif-tier-badge--' + t;
+    span.textContent = t;
+    td.appendChild(span);
+    return td;
+  }
+
+  function statusCell(item) {
+    var td = document.createElement('td');
+    td.className = 'notif-table-status';
+    var span = document.createElement('span');
+    if (item.resolved) {
+      span.className = 'notif-status-badge notif-status-badge--resolved';
+      span.textContent = 'Resolved';
+      td.appendChild(span);
+      if (item.resolved_at) {
+        td.appendChild(document.createElement('br'));
+        var at = document.createElement('span');
+        at.className = 'notif-resolved-at';
+        at.textContent = String(item.resolved_at);
+        td.appendChild(at);
+      }
+    } else {
+      span.className = 'notif-status-badge notif-status-badge--active';
+      span.textContent = 'Active';
+      td.appendChild(span);
+    }
+    return td;
+  }
+
+  function renderItems(items) {
+    tbody.textContent = '';
+    if (!items.length) {
+      table.hidden = true;
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    table.hidden = false;
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.setAttribute('data-id', String(item.id));
+      tr.appendChild(cell(item.created_at || '', 'notif-table-time'));
+      tr.appendChild(tierCell(item.tier));
+      tr.appendChild(cell(item.message || '', 'notif-table-msg'));
+      tr.appendChild(statusCell(item));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refreshAlerts() {
+    fetch('/api/alerts?limit=500')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderItems(data.items || []); })
+      .catch(function () {});
+  }
+
+  hatchery.onStatusTick(refreshAlerts);
+  refreshAlerts();
+})();
+</script>
 {% endblock %}

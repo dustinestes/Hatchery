@@ -256,19 +256,29 @@ def _recompute_summary(nests: dict[str, Any]) -> dict[str, Any]:
 
 
 def sync_alert_for_probe(nest: dict, result: NestHealthCheckResult) -> None:
-    """Open or clear the reachability alert for one Nest."""
-    prefix = alert_prefix_for_nest(nest)
+    """Open or clear the reachability alert for one Nest.
+
+    Keys off Nest **id** (not display name) so renames / detail text changes cannot
+    leave multiple active reachability Alerts for the same Nest (#288).
+    """
+    nest_id = str(nest.get("id") or "").strip() or "?"
     if result.ok:
-        alerts_lib.resolve_alerts_by_prefix(prefix)
+        alerts_lib.resolve_alerts_for_prefix_and_nest_id(ALERT_PREFIX, nest_id)
         return
     detail = result.detail or "Unreachable"
     if result.failure_class == "config" and "WinRM password required" in detail:
-        alerts_lib.resolve_alerts_by_prefix(prefix)
+        alerts_lib.resolve_alerts_for_prefix_and_nest_id(ALERT_PREFIX, nest_id)
         return
-    msg = alert_message(nest, detail)
-    if not alerts_lib.has_active_alert(msg):
-        alerts_lib.resolve_alerts_by_prefix(prefix)
-        alerts_lib.record_alert(msg)
+
+    active = alerts_lib.list_active_for_prefix_and_nest_id(ALERT_PREFIX, nest_id)
+    if len(active) > 1:
+        # Collapse rename / detail churn duplicates — keep newest.
+        for row in active[1:]:
+            alerts_lib.resolve(int(row["id"]))
+        return
+    if len(active) == 1:
+        return
+    alerts_lib.record_alert(alert_message(nest, detail))
 
 
 def run_probes(

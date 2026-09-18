@@ -83,7 +83,7 @@ Surfaces **do not** invent health logic or re-run checks. They call APIs over st
 | `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
 | `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
 
-Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**. Planned on the same bus:
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**, **Alerts pane** table, **Validators** pane run history. Planned on the same bus:
 
 - [#254](https://github.com/dustinestes/Hatchery/issues/254) — Libraries footer chip (visibility + plane-status fields)
 - [#280](https://github.com/dustinestes/Hatchery/issues/280) — Validators pane filters / finding tiers (pane subscribes to the tick)
@@ -146,12 +146,12 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 
 ### UI surfaces
 
-**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert id is toasted at most once (persisted in `localStorage`) so navigation does not re-fire toasts. Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
+**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert **row** is toasted at most once (persisted in `localStorage` as id → `created_at`) so navigation does not re-fire toasts, and wiping `hatchery.db` (sqlite id reuse) still toasts the new row ([#288](https://github.com/dustinestes/Hatchery/issues/288)). “New” means unresolved and newer than the last tray-open time (parsed timestamps), or the same numeric id with a different `created_at`. Nest reachability keeps **one** active Alert per Nest id (renames / detail text must not stack duplicates). Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
 
 **Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
-**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Filters: Active / Resolved only. Route: `/notifications/alerts`.
+**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Subscribes to `hatchery.onStatusTick` and refreshes from `GET /api/alerts?limit=500` so new rows appear without a full page reload (same bus as Validators — [#282](https://github.com/dustinestes/Hatchery/issues/282)). Route: `/notifications/alerts`.
 
 ![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
 
@@ -159,7 +159,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 
 Alerts are written by calling `lib.alerts.record_alert(message, tier="alert")`. This inserts a row into the `alerts` table with:
 
-- `created_at` — UTC ISO 8601 timestamp
+- `created_at` — UTC ISO 8601 timestamp ending in `Z` (e.g. `2026-09-18T20:55:01Z`)
 - `message` — human-readable description
 - `tier` — `info` \| `warning` \| `alert` (same as `hatchery.showToast`; default `alert`)
 - `resolved = 0`, `resolved_at = NULL`
