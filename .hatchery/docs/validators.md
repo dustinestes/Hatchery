@@ -32,7 +32,15 @@ Pluggable background health checks for the Hatchery Controller, Nests, and conte
 | **Alerts** | Findings that need attention (missing tool, invalid Clutch) — bell / tray |
 | **Validator runs** (`validator_runs`) | History of each validation execution — Notifications → Validators |
 
-A successful run that opens Alerts still records `status=ok` on the run (the validator completed). `status=error` means the validator itself failed.
+Run row **status** ([#280](https://github.com/dustinestes/Hatchery/issues/280)):
+
+| `status` | Meaning |
+|---|---|
+| `ok` | Validator completed; no findings this run |
+| `findings` | Validator completed; recorded one or more findings (Alerts opened or conditions still unhealthy) |
+| `error` | Validator itself crashed |
+
+**Tier** on the run reflects severity: `info` when `ok`; otherwise the highest finding tier (`warning` / `alert`). `findings_count` is the number of findings noted this run.
 
 <br>
 
@@ -63,7 +71,7 @@ When adding pane UI that should stay fresh (Validators filters [#280](https://gi
 
 ## Notifications
 
-**Notifications → Validators** lists recent runs (time, validator, status, tier, trigger, message). Does not drive the Alerts bell.
+**Notifications → Validators** lists recent runs (time, validator, status, tier, trigger, message). Filters: validator, status (`ok` / `findings` / `error`), tier. Does not drive the Alerts bell — findings still appear under Alerts.
 
 <br>
 

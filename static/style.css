@@ -1847,6 +1847,11 @@ body {
   color: #4CAF50;
 }
 
+.notif-status-badge--findings {
+  background: color-mix(in srgb, #FB8C00 14%, var(--color-surface));
+  color: #E65100;
+}
+
 .notif-status-badge--dismissed {
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
@@ -1976,8 +1981,15 @@ body {
 /* ── Alerts pane ── */
 .notif-filters {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
   margin-bottom: 20px;
+}
+
+.notif-filter-field {
+  margin: 0;
+  min-width: 10rem;
 }
 
 .notif-filter-btn {

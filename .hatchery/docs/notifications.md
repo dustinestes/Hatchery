@@ -177,7 +177,7 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 ### Background sync
 
-Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators**.
+Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators** (filters: validator / status / tier). Runs that detect problems use `status=findings` and a non-`info` tier ([#280](https://github.com/dustinestes/Hatchery/issues/280)).
 
 **Findings** still use the Alerts table (bell / tray). Examples:
 

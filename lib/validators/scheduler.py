@@ -36,17 +36,22 @@ def run_validator(
     started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     started_mono = time.monotonic()
     ctx = ValidatorContext(nest_id=nest_id, trigger=trigger, winrm_password=winrm_password)
-    findings = 0
     try:
         summary = validator.run(ctx) or "Completed"
-        status = "ok"
-        tier = "info"
+        findings = int(ctx.findings_count)
+        if findings > 0:
+            status = "findings"
+            tier = ctx.max_finding_tier or "alert"
+        else:
+            status = "ok"
+            tier = "info"
         detail = None
         message = str(summary)
     except Exception as exc:
         logger.exception("validator %s failed", validator_id)
         status = "error"
         tier = "alert"
+        findings = 0
         message = f"Validator error: {exc}"
         detail = str(exc)
         summary = message
@@ -69,6 +74,8 @@ def run_validator(
         "id": run_id,
         "validator_id": validator_id,
         "status": status,
+        "tier": tier,
+        "findings_count": findings,
         "message": message,
         "started_at": started,
         "finished_at": finished,

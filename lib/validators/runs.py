@@ -29,7 +29,7 @@ def record_run(
     """Insert a run row and trim retention. Returns new id."""
     started = started_at or _now()
     finished = finished_at or _now()
-    status_norm = status if status in ("ok", "error") else "error"
+    status_norm = status if status in ("ok", "findings", "error") else "error"
     tier_norm = alerts_lib.normalize_tier(tier or ("alert" if status_norm == "error" else "info"))
     trigger_norm = trigger if trigger in ("schedule", "manual", "connection") else "schedule"
     conn = db.get_connection()
@@ -83,6 +83,7 @@ def list_runs(
     limit: int = 100,
     validator_id: str | None = None,
     status: str | None = None,
+    tier: str | None = None,
 ) -> list[dict]:
     conn = db.get_connection()
     try:
@@ -91,9 +92,13 @@ def list_runs(
         if validator_id:
             clauses.append("validator_id = ?")
             params.append(validator_id)
-        if status in ("ok", "error"):
+        if status in ("ok", "findings", "error"):
             clauses.append("status = ?")
             params.append(status)
+        tier_norm = alerts_lib.normalize_tier(tier) if tier else None
+        if tier and tier_norm in ("info", "warning", "alert"):
+            clauses.append("tier = ?")
+            params.append(tier_norm)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         params.append(max(1, min(500, int(limit))))
         rows = conn.execute(
