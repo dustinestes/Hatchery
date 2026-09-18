@@ -229,12 +229,18 @@
 
   </div>
 
-  <!-- Footer -->
+  <!-- Footer: Nest reachability (Local + Remotes). Alerts stay on the bell. -->
   <footer class="footer">
     <div class="footer-left">
-      <div class="nest-status" title="{% if nest_has_warnings %}{{ nest_warning_count }} active alert{{ 's' if nest_warning_count != 1 else '' }} — see Alerts{% else %}All systems operational{% endif %}">
-        <span class="nest-status-dot {% if nest_has_warnings %}nest-status-dot--red{% else %}nest-status-dot--green{% endif %}"></span>
-        <span class="nest-status-label">Nest</span>
+      <div class="nest-status" title="{{ local_nest_title }}">
+        <span class="nest-status-dot {% if local_nest_ok %}nest-status-dot--green{% else %}nest-status-dot--red{% endif %}" aria-hidden="true"></span>
+        <span class="nest-status-label">Local</span>
+        <span class="visually-hidden">{{ local_nest_title }}</span>
+      </div>
+      <div class="nest-status" title="{{ remotes_title }}">
+        <span class="nest-status-dot {% if remotes_ok %}nest-status-dot--green{% else %}nest-status-dot--red{% endif %}" aria-hidden="true"></span>
+        <span class="nest-status-label">Remotes</span>
+        <span class="visually-hidden">{{ remotes_title }}</span>
       </div>
     </div>
     <div class="footer-right">

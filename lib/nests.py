@@ -21,10 +21,8 @@ from lib import db as db_module
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib.nest_transport import (
     NestConnectionConfig,
-    NestHealthCheckResult,
     NestSshConfig,
     NestWinrmConfig,
-    get_nest_transport,
 )
 
 PROVIDER_TYPES = frozenset({"libvirt", "utm", "hyperv"})
@@ -431,35 +429,35 @@ def test_connection(
 ) -> dict:
     """Run Test Nest connection; return ``{ok, message}`` for the UI.
 
-    Remote Nests: Nest transport reachability first, then Nest capability tools
-    via the ``nest_capability`` validator (#208). Local Nests: capability only.
+    Remote Nests: Nest transport reachability first (updates #263 status/alerts),
+    then Nest capability tools via the ``nest_capability`` validator (#208).
+    Local Nests: mark reachable, then capability.
     """
-    nest = _normalize_one(nest)
-    reach_msg = "Local Nest — no remote transport."
+    from lib import nest_reachability as nr
+    from lib import requirements as req_lib
+    from lib.validators.scheduler import run_validator
 
-    if nest["location"] == "remote":
+    nest = _normalize_one(nest)
+    reach_msg = "Local Nest — co-located with the Controller."
+
+    if nest["location"] == "local":
+        local_result = nr.probe_nest(nest)
+        nr.record_probe(nest, local_result)
+        nr.sync_alert_for_probe(nest, local_result)
+        reach_msg = local_result.detail or reach_msg
+    else:
         if nest["transport"] == "winrm" and not (winrm_password or "").strip():
             return {
                 "ok": False,
                 "message": "WinRM password is required for Test Nest connection (not stored — #110).",
             }
 
-        try:
-            connection = to_connection_config(nest, winrm_password=winrm_password)
-            transport = get_nest_transport(connection)
-        except (ValueError, TypeError) as exc:
-            return {"ok": False, "message": str(exc)}
-
-        if transport is None:
-            reach_msg = "Local Nest — no remote transport."
-        else:
-            result: NestHealthCheckResult = transport.test_connection()
-            if not result.ok:
-                return {"ok": False, "message": result.detail}
-            reach_msg = result.detail or "Nest transport OK."
-
-    from lib import requirements as req_lib
-    from lib.validators.scheduler import run_validator
+        result = nr.probe_nest(nest, winrm_password=winrm_password)
+        nr.record_probe(nest, result)
+        nr.sync_alert_for_probe(nest, result)
+        if not result.ok:
+            return {"ok": False, "message": result.detail}
+        reach_msg = result.detail or "Nest transport OK."
 
     try:
         run_validator(

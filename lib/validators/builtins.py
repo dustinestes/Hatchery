@@ -152,6 +152,32 @@ class NestCapabilityValidator(BaseValidator):
         return f"Nest capability OK ({checked_nests} Nest(s))"
 
 
+class NestReachabilityValidator(BaseValidator):
+    id = "nest_reachability"
+    title = "Nest reachability"
+    description = "Probe Nest transport connectivity (Local co-located; Remote via Nest transport)."
+    scope = "nest"
+    default_interval_seconds = 60
+    default_enabled = True
+
+    def run(self, ctx: ValidatorContext) -> str:
+        from lib import nest_reachability as nr
+
+        snap = nr.run_probes(
+            nest_id=ctx.nest_id,
+            winrm_password=ctx.winrm_password,
+            sync_alerts=True,
+        )
+        last = snap.get("last_run") or {}
+        checked = int(last.get("checked") or 0)
+        down = int(last.get("down") or 0)
+        if checked == 0:
+            return "No Nests probed"
+        if down:
+            return f"{down} of {checked} Nest(s) unreachable"
+        return f"All {checked} Nest(s) reachable"
+
+
 class _StubValidator(BaseValidator):
     stub = True
     default_enabled = False
@@ -159,13 +185,6 @@ class _StubValidator(BaseValidator):
 
     def run(self, ctx: ValidatorContext) -> str:
         return "Not implemented yet"
-
-
-class NestReachabilityValidator(_StubValidator):
-    id = "nest_reachability"
-    title = "Nest reachability"
-    description = "Test Nest transport connectivity (can reach). Follow-up #263."
-    scope = "nest"
 
 
 class LibraryConnectionsValidator(_StubValidator):

@@ -2333,18 +2333,63 @@ class TestScanDir:
 
 
 class TestNestStatus:
-    def test_dot_green_when_no_alerts(self, client):
-        with patch("lib.alerts.count_active_alerts", return_value=0):
+    def test_footer_shows_local_and_remotes(self, client):
+        with patch(
+            "lib.nest_reachability.get_snapshot",
+            return_value={
+                "local_ok": True,
+                "remotes_ok": True,
+                "remote_total": 0,
+                "remote_down": 0,
+                "nests": {},
+            },
+        ):
             html = client.get("/").data.decode()
+        assert ">Local<" in html or "Local</span>" in html
+        assert ">Remotes<" in html or "Remotes</span>" in html
         assert "nest-status-dot--green" in html
 
-    def test_dot_red_when_has_alerts(self, client):
-        with patch("lib.alerts.count_active_alerts", return_value=2):
+    def test_local_red_when_local_down(self, client):
+        with patch(
+            "lib.nest_reachability.get_snapshot",
+            return_value={
+                "local_ok": False,
+                "remotes_ok": True,
+                "remote_total": 0,
+                "remote_down": 0,
+                "nests": {},
+            },
+        ):
             html = client.get("/").data.decode()
+        assert "Local Nest unreachable" in html
+        assert "nest-status-dot--red" in html
+
+    def test_remotes_red_when_any_down(self, client):
+        with patch(
+            "lib.nest_reachability.get_snapshot",
+            return_value={
+                "local_ok": True,
+                "remotes_ok": False,
+                "remote_total": 2,
+                "remote_down": 1,
+                "nests": {},
+            },
+        ):
+            html = client.get("/").data.decode()
+        assert "1 of 2 Remote Nest(s) unreachable" in html
         assert "nest-status-dot--red" in html
 
     def test_status_present_on_all_panes(self, client):
-        with patch("lib.alerts.count_active_alerts", return_value=0):
+        with patch(
+            "lib.nest_reachability.get_snapshot",
+            return_value={
+                "local_ok": True,
+                "remotes_ok": True,
+                "remote_total": 0,
+                "remote_down": 0,
+                "nests": {},
+            },
+        ):
             for path in [
                 "/",
                 "/nests",
@@ -2357,22 +2402,11 @@ class TestNestStatus:
                 "/build",
                 "/notifications/alerts",
                 "/notifications/events",
-                # /edit redirects without ?clutch= — skip it here
-                # /automation redirects to /automation/scripts
-                # /settings redirects to /settings/general
             ]:
                 html = client.get(path).data.decode()
                 assert "nest-status" in html, f"Expected nest status on {path}"
-
-    def test_tooltip_all_ok_when_no_alerts(self, client):
-        with patch("lib.alerts.count_active_alerts", return_value=0):
-            html = client.get("/").data.decode()
-        assert "All systems operational" in html
-
-    def test_tooltip_shows_alert_count(self, client):
-        with patch("lib.alerts.count_active_alerts", return_value=3):
-            html = client.get("/").data.decode()
-        assert "3 active alert" in html
+                assert "Local" in html
+                assert "Remotes" in html
 
 
 class TestRequirementsSync:

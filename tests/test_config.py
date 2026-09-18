@@ -20,6 +20,7 @@ def isolated_config(monkeypatch, tmp_path):
             "bg_interval": 60,
             "validators": {},
             "validators_run_retention": 50,
+            "nest_reachability_status": {},
             "show_passwords": False,
             "display_timezone": "UTC",
             "library_enabled": False,

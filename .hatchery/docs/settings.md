@@ -68,6 +68,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `bg_interval` | General | Hatch status poll interval seconds (minimum 10) |
 | `validators` | General | Per-validator `{enabled, interval_seconds}` map (JSON) |
 | `validators_run_retention` | General | Max run history rows per validator (10–500, default 50) |
+| `nest_reachability_status` | (runtime) | Last Nest reachability snapshot — not Settings-exportable |
 | `show_passwords` | Security | VM inventory password visibility |
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
