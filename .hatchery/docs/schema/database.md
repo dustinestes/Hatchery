@@ -52,6 +52,30 @@ Stores active and resolved environment alerts. An alert is created when a host c
 
 <br>
 
+### validator_runs
+
+History of pluggable validator executions (Notifications → Validators). Separate from **alerts** (findings). See [validators.md](../validators.md).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
+| `validator_id` | `TEXT` | `NOT NULL` | Registry id (e.g. `clutch_files`) |
+| `started_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+| `finished_at` | `TEXT` | | ISO 8601 UTC when complete |
+| `status` | `TEXT` | `NOT NULL` | `ok` or `error` (validator execution) |
+| `tier` | `TEXT` | `NOT NULL DEFAULT 'info'` | `info` / `warning` / `alert` |
+| `trigger` | `TEXT` | `NOT NULL` | `schedule`, `manual`, or `connection` |
+| `message` | `TEXT` | `NOT NULL` | Short summary |
+| `detail` | `TEXT` | | Optional error detail |
+| `nest_id` | `TEXT` | | Optional Nest scope |
+| `findings_count` | `INTEGER` | `NOT NULL DEFAULT 0` | Optional findings signal |
+
+#### Managed by
+
+`lib/validators/runs.py` — `record_run()`, `list_runs()`, `latest_by_validator()`
+
+<br>
+
 ### app_settings
 
 Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` — see [Settings storage](../settings.md).

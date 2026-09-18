@@ -93,6 +93,20 @@ CREATE TABLE IF NOT EXISTS nests (
     created_at            TEXT NOT NULL,
     updated_at            TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS validator_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    validator_id    TEXT    NOT NULL,
+    started_at      TEXT    NOT NULL,
+    finished_at     TEXT,
+    status          TEXT    NOT NULL,
+    tier            TEXT    NOT NULL DEFAULT 'info',
+    trigger         TEXT    NOT NULL,
+    message         TEXT    NOT NULL,
+    detail          TEXT,
+    nest_id         TEXT,
+    findings_count  INTEGER NOT NULL DEFAULT 0
+);
 """
 
 _db_path: Path | None = None

@@ -34,6 +34,8 @@ _BOOTSTRAP_KEYS = frozenset({"data_dir"})
 _DB_SETTING_KEYS = frozenset(
     {
         "bg_interval",
+        "validators",
+        "validators_run_retention",
         "show_passwords",
         "display_timezone",
         "nest_key_alert_tiers",
@@ -63,6 +65,8 @@ DEFAULT_DATA_DIR: Path = _default_data_dir()
 _DEFAULTS: dict = {
     "data_dir": str(DEFAULT_DATA_DIR),
     "bg_interval": 60,
+    "validators": {},
+    "validators_run_retention": 50,
     "show_passwords": False,
     "display_timezone": "UTC",
     "library_enabled": False,
@@ -167,7 +171,7 @@ def data_dir() -> Path:
 
 
 def bg_interval() -> int:
-    """Return the background re-evaluation interval in seconds."""
+    """Return the Hatch status poll interval in seconds."""
     return int(get()["bg_interval"])
 
 

@@ -65,7 +65,9 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 
 | Key | Settings section | Notes |
 |---|---|---|
-| `bg_interval` | General | Background validation seconds (minimum 10) |
+| `bg_interval` | General | Hatch status poll interval seconds (minimum 10) |
+| `validators` | General | Per-validator `{enabled, interval_seconds}` map (JSON) |
+| `validators_run_retention` | General | Max run history rows per validator (10–500, default 50) |
 | `show_passwords` | Security | VM inventory password visibility |
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
@@ -95,7 +97,7 @@ Existing installs keep their Settings without manual edits.
 
 ## Settings UI
 
-- **General** — edits `data_dir` (bootstrap) and `bg_interval` / Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch — property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
+- **General** — edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch — property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
 - **Security** / **Display** — write only to SQLite; bootstrap is unchanged. Security holds password visibility and Nest SSH **alert tiers** (identity paths/expiry are on Nest rows).
 - **Nests** — Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
 - **Library** — connections and domain bindings (when Library is enabled).

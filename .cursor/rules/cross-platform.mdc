@@ -1,22 +1,31 @@
 ---
-description: Cross-platform host and Nest support; multi-OS CI required
+description: Cross-platform Controller and Nest support; multi-OS CI required
 alwaysApply: true
 ---
 
 # Cross-platform & remote Nests
 
-Hatchery must run as a **host** on Linux, macOS, and Windows, and manage **Nests** (local or remote): libvirt/KVM, UTM, Hyper-V. Epic: [#202](https://github.com/dustinestes/Hatchery/issues/202).
+Hatchery must run as a **Hatchery Controller** on Linux, macOS, and Windows, and manage **Local Nests** and/or **Remote Nests** (libvirt/KVM, UTM, Hyper-V). Epic: [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
-**Architecture (locked):** [Host plane vs Nest plane](../../.hatchery/docs/architecture-nests.md) — one product shell; Nest providers are first-class optional modules. Do not fork into three apps; do not bypass Nest registry/factory once they land (#207 / #206).
+**Architecture (locked):** [Controller plane vs Nest plane](../../.hatchery/docs/architecture-nests.md) — one product shell; Nest providers are first-class optional modules. Do not fork into three apps; do not bypass Nest registry/factory (#207 / #206).
+
+## Architecture nouns
+
+| Noun | Meaning |
+|---|---|
+| **Hatchery Controller** (Controller) | Device where the Hatchery UI runs; responsible for controlling the Nest(s). May have only Remote Nests ([#266](https://github.com/dustinestes/Hatchery/issues/266)). |
+| **Nest** | Hypervisor the Controller communicates with to manage guest VMs |
+| **Local Nest** | Nest on the same device as the Controller (`location=local`). Nest-local tools (`virsh`, `utmctl`, Hyper-V) apply only here. |
+| **Remote Nest** | Nest the Controller reaches across the control plane (`location=remote`). Nest-side hypervisor tools live on the Nest; the Controller needs transport client tools. |
 
 ## Two planes
 
 | Plane | Own |
 |---|---|
-| **Host** | App runtime, UI, Settings, DB, Library, orchestration, Nest transport client |
-| **Nest** | Hypervisor lifecycle via `BaseProvider` (libvirt / UTM / Hyper-V × local or remote) |
+| **Controller** | App runtime, UI, Settings, DB, Library, orchestration, Nest transport client |
+| **Nest** | Hypervisor lifecycle via `BaseProvider` (libvirt / UTM / Hyper-V × Local or Remote) |
 
-Host requirements ≠ Nest-local tool requirements (#208). Libvirt-only rules stay in the libvirt adapter.
+Controller requirements ≠ Nest-local tool requirements ([#208](https://github.com/dustinestes/Hatchery/issues/208)). New health checks register as **validators** ([#268](https://github.com/dustinestes/Hatchery/issues/268); [validators.md](../../.hatchery/docs/validators.md)) — do not extend a private catch-all loop in `hatchery.py`. Libvirt-only rules stay in the libvirt adapter.
 
 ## Multi-OS CI (required)
 
@@ -35,16 +44,17 @@ PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-l
 ## Always ask
 
 ```
-✅ Does this work on Linux, macOS, and Windows Hatchery hosts?
-✅ Does this assume a local Nest only, or also remote?
+✅ Does this work on Linux, macOS, and Windows Controllers?
+✅ Does this assume a Local Nest only, or also Remote Nest / Controller-only?
 ✅ Are OS-specific paths (apt, xdg-open, systemd, .desktop) behind a portable helper?
 ✅ Did you update `.hatchery/docs/providers.md` if Nest/provider capability changed?
-✅ Does this go through Nest id → factory once #206/#207 exist (not hard-wired libvirt)?
+✅ Does this go through Nest id → factory (#206/#207), not hard-wired libvirt?
 ```
 
 ```
 ❌ Bake apt/dpkg, xdg-open, or systemd as the only path
 ❌ Hard-wire LibvirtProvider when the call should go through the Nest factory (#206)
+❌ Demand Local Nest hypervisor packages on a Controller that only has Remote Nests
 ❌ Treat Mac/Windows as afterthoughts or permanent sys.platform product shims
 ❌ Three divergent products instead of modular Nest adapters
 ```

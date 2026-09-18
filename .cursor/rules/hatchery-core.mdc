@@ -5,15 +5,21 @@ alwaysApply: true
 
 # Hatchery Core
 
-Windows-first VM manager; **Host plane** runs on Linux / macOS / Windows, **Nest plane** is libvirt / UTM / Hyper-V (local or remote). See `.hatchery/docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
+Windows-first VM manager; **Hatchery Controller** (Controller plane) runs on Linux / macOS / Windows; **Nests** (Nest plane) are libvirt / UTM / Hyper-V (**Local Nest** or **Remote Nest**). See `.hatchery/docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
 
 ## Naming (1:1:1 — UI, docs, code)
 
-Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood".
+Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood". Avoid “host” in product copy — say **Controller** or **Nest**.
+
+| Term | Meaning |
+|---|---|
+| **Hatchery Controller** (Controller for short) | Device where the Hatchery UI runs; responsible for controlling the Nest(s) |
+| **Nest** | Hypervisor the Controller communicates with to manage guest VMs |
+| **Local Nest** | Nest on the same device as the Controller (Controller also manages guest VMs on that device) |
+| **Remote Nest** | Nest the Controller reaches across the control plane to manage guest VMs |
 
 | Use | Not |
 |---|---|
-| Nest | host / hypervisor (in product language) |
 | Clutch | stack / blueprint / compose file |
 | Hatch | deploy / provision (for create+boot) |
 | Cull | destroy / delete / terminate (VM remove) |
@@ -45,7 +51,7 @@ Provider method names already use snapshot language — keep them. Do not rename
 - Surface errors in the UI, not only logs
 - Prefer editing existing files; no new abstraction layers beyond the task
 - Project meta belongs in `.hatchery/` (not required to run the app)
-- No devcontainers — needs host libvirt/KVM
+- No devcontainers — Local Nest libvirt/KVM still needs a real Nest environment when used
 
 When adding VM features, read `lib/providers/base.py` before extending the provider interface.
 
