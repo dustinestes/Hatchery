@@ -92,10 +92,15 @@ def resolve_alerts_by_prefix(prefix: str) -> None:
 
 
 # Nest-scoped findings embed a stable ``(nest_id)`` token in the message.
-_NEST_SCOPED_ALERT_PREFIXES = (
+NEST_SCOPED_ALERT_PREFIXES = (
     "Nest reachability:",
     "Nest capability:",
     "Nest SSH identity expiry:",
+)
+
+CONTROLLER_ALERT_PREFIXES = (
+    "Controller requirement:",
+    "Invalid Clutch file:",
 )
 
 
@@ -111,7 +116,7 @@ def resolve_alerts_for_nest_id(nest_id: str) -> None:
     id_token = f"%({nid})%"
     conn = db.get_connection()
     try:
-        for prefix in _NEST_SCOPED_ALERT_PREFIXES:
+        for prefix in NEST_SCOPED_ALERT_PREFIXES:
             conn.execute(
                 """
                 UPDATE alerts SET resolved = 1, resolved_at = ?
@@ -120,6 +125,39 @@ def resolve_alerts_for_nest_id(nest_id: str) -> None:
                 (now, f"{prefix}%", id_token),
             )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def count_active_by_prefixes(
+    prefixes: tuple[str, ...] | list[str],
+    *,
+    exclude_tiers: tuple[str, ...] | list[str] = (),
+) -> int:
+    """Count unresolved alerts whose message starts with any of ``prefixes``.
+
+    ``exclude_tiers`` drops matching tiers (e.g. ``info`` import noise) from the count.
+    """
+    if not prefixes:
+        return 0
+    excluded = {normalize_tier(t) for t in exclude_tiers}
+    conn = db.get_connection()
+    try:
+        total = 0
+        for prefix in prefixes:
+            rows = conn.execute(
+                """
+                SELECT COALESCE(tier, 'alert') AS tier
+                FROM alerts
+                WHERE resolved = 0 AND message LIKE ?
+                """,
+                (f"{prefix}%",),
+            ).fetchall()
+            for row in rows:
+                if normalize_tier(row["tier"]) in excluded:
+                    continue
+                total += 1
+        return total
     finally:
         conn.close()
 

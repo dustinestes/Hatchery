@@ -180,6 +180,25 @@ class TestResolveAlertsForNestId:
         assert alerts.count_active_alerts() == 1
 
 
+class TestCountActiveByPrefixes:
+    def test_counts_matching_prefixes(self):
+        alerts.record_alert("Controller requirement: 'ssh' is not installed — x")
+        alerts.record_alert("Invalid Clutch file: bad.yaml — err")
+        alerts.record_alert("Nest reachability: 'Lab' (lab1): down")
+        assert alerts.count_active_by_prefixes(alerts.CONTROLLER_ALERT_PREFIXES) == 2
+        assert alerts.count_active_by_prefixes(alerts.NEST_SCOPED_ALERT_PREFIXES) == 1
+
+    def test_exclude_info_tier(self):
+        alerts.record_alert("Controller requirement: noise", tier="info")
+        alerts.record_alert("Controller requirement: real — x", tier="alert")
+        assert (
+            alerts.count_active_by_prefixes(
+                alerts.CONTROLLER_ALERT_PREFIXES, exclude_tiers=("info",)
+            )
+            == 1
+        )
+
+
 class TestHasActiveAlert:
     def test_returns_false_when_no_alerts(self):
         assert alerts.has_active_alert("some alert") is False

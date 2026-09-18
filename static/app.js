@@ -848,6 +848,31 @@ hatchery.vmRows = (function () {
       .catch(function () {});
   }
 
+  function applyPlaneStatus(status) {
+    function apply(id, title, dot) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var safeDot = (dot === 'red' || dot === 'green' || dot === 'muted') ? dot : 'muted';
+      el.title = title || '';
+      el.setAttribute('data-dot', safeDot);
+      var dotEl = el.querySelector('.nest-status-dot');
+      if (dotEl) {
+        dotEl.className = 'nest-status-dot nest-status-dot--' + safeDot;
+      }
+      var sr = document.getElementById(id + '-sr');
+      if (sr) sr.textContent = title || '';
+    }
+    apply('footer-hatchery', status.hatchery_title, status.hatchery_dot);
+    apply('footer-nests', status.nests_title, status.nests_dot);
+  }
+
+  function pollPlaneStatus() {
+    fetch('/api/plane-status')
+      .then(function (r) { return r.json(); })
+      .then(applyPlaneStatus)
+      .catch(function () {});
+  }
+
   /* Bell tray toggle */
   var bellBtn = document.getElementById('notif-bell');
   var tray = document.getElementById('notif-tray');
@@ -867,6 +892,8 @@ hatchery.vmRows = (function () {
   }
 
   pollAlerts();
+  pollPlaneStatus();
+  setInterval(pollPlaneStatus, 15000);
 })();
 
 /* Dropdown refresh — repopulate media/automation selects without a page reload.

@@ -34,7 +34,7 @@ Use **notifications** only where grouping the concerns makes sense (sidebar pare
 
 | Concern | What belongs | Surface |
 |---|---|---|
-| **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts (when new alerts arrive), Alerts pane, footer Nest indicator |
+| **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts (when new alerts arrive), Alerts pane, footer Hatchery chip |
 | **Toasts** | Ephemeral UI feedback (copy succeeded, import conflict, etc.) — **not** persisted | Bottom-right overlay via `hatchery.showToast` |
 | **Events** | Under-the-hood hatch/provision transcript (`hatch_events`, including `Write-HatchEvent` script lines) | Events pane ([#114](https://github.com/dustinestes/Hatchery/issues/114)) |
 | **Audit (v2)** | Who/what changed Clutches; VM removed/renamed; session archived | Not implemented yet — not toast spam |
@@ -124,7 +124,7 @@ An alert is **active** while `resolved = 0`. It is **resolved** by the system (n
 
 Resolved alerts remain as historical records. They appear in the Alerts pane with a “Resolved” status badge and are excluded from the active alert count used by the bell badge and footer indicator. Hatchery does not auto-delete alert rows by count or age.
 
-**Nest removed from Settings** ([#275](https://github.com/dustinestes/Hatchery/issues/275)): saving the Nest registry after deleting a Nest resolves Nest-scoped findings that embed that Nest’s id (`Nest reachability:`, `Nest capability:`, `Nest SSH identity expiry:`). Rows stay resolved for history; the bell clears. Reachability snapshot entries for removed Nest ids are pruned so the footer does not keep counting them.
+**Nest removed from Settings** ([#275](https://github.com/dustinestes/Hatchery/issues/275)): saving the Nest registry after deleting a Nest resolves Nest-scoped findings that embed that Nest’s id (`Nest reachability:`, `Nest capability:`, `Nest SSH identity expiry:`). Rows stay resolved for history; the bell clears. Reachability snapshot entries for removed Nest ids are pruned so Nest plane rollups stay honest.
 
 | State | Rendered as |
 |---|---|
@@ -145,12 +145,15 @@ Health and content checks run as **pluggable validators** ([validators.md](valid
 
 The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the **Hatch status poll** interval (`bg_interval`).
 
-### Footer vs Alerts (#263)
+### Footer vs Alerts (#277)
 
 | Surface | Meaning |
 |---|---|
 | **Bell / Alerts pane** | All active findings (Controller, Nest reachability, Nest capability, Clutches, …) |
-| **Footer Local + Remotes** | Nest **reachability** only (last probe snapshot) — not the aggregate alert count |
+| **Footer Hatchery** | Controller-plane rollup — green when no Controller-scoped alerts (excl. info); red when requirements / invalid Clutches / etc. need attention |
+| **Footer Nests** | Nest-plane rollup — muted when no Nests registered; green when all registered Nests are OK; red when any unreachable or Nest-scoped alert is active |
+
+Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts), polled by the UI so counts do not depend on the page URL.
 
 ### Observability decision (#263)
 
