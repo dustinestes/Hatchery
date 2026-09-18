@@ -1524,11 +1524,21 @@ def api_validator_runs():
 
     validator_id = request.args.get("validator_id") or None
     status = request.args.get("status") or None
+    tier = request.args.get("tier") or None
     try:
         limit = int(request.args.get("limit", "100"))
     except ValueError:
         limit = 100
-    return jsonify({"runs": list_runs(limit=limit, validator_id=validator_id, status=status)})
+    return jsonify(
+        {
+            "runs": list_runs(
+                limit=limit,
+                validator_id=validator_id,
+                status=status,
+                tier=tier,
+            )
+        }
+    )
 
 
 # ── Hatch orchestration ───────────────────────────────────────────────────────

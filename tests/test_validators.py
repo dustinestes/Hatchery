@@ -87,7 +87,56 @@ class TestSchedulerRun:
     def test_run_validator_records_ok(self):
         result = run_validator("clutch_files", trigger="manual")
         assert result["status"] == "ok"
+        assert result["tier"] == "info"
+        assert result["findings_count"] == 0
         assert list_runs(validator_id="clutch_files")
+
+    def test_run_validator_records_findings_tier(self):
+        from unittest.mock import patch
+
+        from lib.requirements import Requirement
+
+        with patch(
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement(
+                    "ssh",
+                    "openssh-client",
+                    "Nest transport",
+                    False,
+                    role="controller",
+                )
+            ],
+        ):
+            result = run_validator("controller_requirements", trigger="manual")
+        assert result["status"] == "findings"
+        assert result["tier"] == "alert"
+        assert result["findings_count"] >= 1
+        rows = list_runs(validator_id="controller_requirements", status="findings")
+        assert rows
+        assert rows[0]["findings_count"] >= 1
+
+
+class TestListRunsFilters:
+    def test_filter_by_status_and_tier(self):
+        record_run(
+            validator_id="clutch_files",
+            status="findings",
+            message="bad",
+            tier="alert",
+            findings_count=2,
+            trigger="manual",
+        )
+        record_run(
+            validator_id="clutch_files",
+            status="ok",
+            message="good",
+            tier="info",
+            trigger="manual",
+        )
+        assert len(list_runs(status="findings")) == 1
+        assert len(list_runs(tier="alert")) == 1
+        assert list_runs(status="findings", tier="alert")[0]["message"] == "bad"
 
 
 class TestSettings:

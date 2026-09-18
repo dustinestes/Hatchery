@@ -8,8 +8,41 @@
   <p class="pane-subtitle">History of background and on-demand validation runs. Findings still appear under Alerts.</p>
 </div>
 
+<div class="notif-filters" role="search" aria-label="Filter validator runs">
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="validator-filter-id">Validator</label>
+    <select id="validator-filter-id" class="form-select" aria-controls="validator-runs-table">
+      <option value="">All validators</option>
+      {% for vid, title in validator_titles|dictsort %}
+      <option value="{{ vid }}">{{ title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="validator-filter-status">Status</label>
+    <select id="validator-filter-status" class="form-select" aria-controls="validator-runs-table">
+      <option value="">All statuses</option>
+      <option value="ok">ok</option>
+      <option value="findings">findings</option>
+      <option value="error">error</option>
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="validator-filter-tier">Tier</label>
+    <select id="validator-filter-tier" class="form-select" aria-controls="validator-runs-table">
+      <option value="">All tiers</option>
+      <option value="info">info</option>
+      <option value="warning">warning</option>
+      <option value="alert">alert</option>
+    </select>
+  </div>
+</div>
+
 <div id="validator-runs-empty" class="stub" role="status"{% if runs %} hidden{% endif %}>
   No validator runs recorded yet. Configure intervals under Settings → General.
+</div>
+<div id="validator-runs-filtered-empty" class="stub" role="status" hidden>
+  No runs match these filters.
 </div>
 
 <table class="notif-table" id="validator-runs-table"{% if not runs %} hidden{% endif %}>
@@ -29,7 +62,7 @@
       <td class="notif-table-time">{{ run.finished_at or run.started_at }}</td>
       <td>{{ validator_titles.get(run.validator_id, run.validator_id) }}</td>
       <td class="notif-table-status">
-        <span class="notif-status-badge notif-status-badge--{% if run.status == 'ok' %}resolved{% else %}active{% endif %}">
+        <span class="notif-status-badge notif-status-badge--{% if run.status == 'ok' %}resolved{% elif run.status == 'findings' %}findings{% else %}active{% endif %}">
           {{ run.status }}
         </span>
       </td>
@@ -55,6 +88,10 @@
   var table = document.getElementById('validator-runs-table');
   var tbody = document.getElementById('validator-runs-tbody');
   var empty = document.getElementById('validator-runs-empty');
+  var filteredEmpty = document.getElementById('validator-runs-filtered-empty');
+  var filterId = document.getElementById('validator-filter-id');
+  var filterStatus = document.getElementById('validator-filter-status');
+  var filterTier = document.getElementById('validator-filter-tier');
   if (!table || !tbody) return;
 
   var titles = {};
@@ -82,26 +119,35 @@
     return td;
   }
 
-  function renderRuns(runs) {
+  function statusBadgeClass(status) {
+    if (status === 'ok') return 'notif-status-badge--resolved';
+    if (status === 'findings') return 'notif-status-badge--findings';
+    return 'notif-status-badge--active';
+  }
+
+  function renderRuns(runs, hasFilters) {
     tbody.textContent = '';
     if (!runs.length) {
       table.hidden = true;
-      if (empty) empty.hidden = false;
+      if (empty) empty.hidden = !!hasFilters;
+      if (filteredEmpty) filteredEmpty.hidden = !hasFilters;
       return;
     }
     if (empty) empty.hidden = true;
+    if (filteredEmpty) filteredEmpty.hidden = true;
     table.hidden = false;
     runs.forEach(function (run) {
       var tr = document.createElement('tr');
       var tier = String(run.tier || 'info').toLowerCase();
       if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'info';
-      var status = run.status === 'ok' ? 'ok' : 'error';
+      var status = String(run.status || 'error');
+      if (status !== 'ok' && status !== 'findings' && status !== 'error') status = 'error';
       tr.appendChild(cell(run.finished_at || run.started_at || '', 'notif-table-time'));
       tr.appendChild(cell(titles[run.validator_id] || run.validator_id || ''));
       tr.appendChild(badgeCell(
         status,
         'notif-table-status',
-        'notif-status-badge notif-status-badge--' + (status === 'ok' ? 'resolved' : 'active')
+        'notif-status-badge ' + statusBadgeClass(status)
       ));
       tr.appendChild(badgeCell(
         tier,
@@ -114,12 +160,33 @@
     });
   }
 
+  function currentFilters() {
+    return {
+      validator_id: (filterId && filterId.value) || '',
+      status: (filterStatus && filterStatus.value) || '',
+      tier: (filterTier && filterTier.value) || '',
+    };
+  }
+
+  function hasActiveFilters(f) {
+    return !!(f.validator_id || f.status || f.tier);
+  }
+
   function refreshRuns() {
-    fetch('/api/validators/runs?limit=200')
+    var f = currentFilters();
+    var qs = ['limit=200'];
+    if (f.validator_id) qs.push('validator_id=' + encodeURIComponent(f.validator_id));
+    if (f.status) qs.push('status=' + encodeURIComponent(f.status));
+    if (f.tier) qs.push('tier=' + encodeURIComponent(f.tier));
+    fetch('/api/validators/runs?' + qs.join('&'))
       .then(function (r) { return r.json(); })
-      .then(function (data) { renderRuns(data.runs || []); })
+      .then(function (data) { renderRuns(data.runs || [], hasActiveFilters(f)); })
       .catch(function () {});
   }
+
+  [filterId, filterStatus, filterTier].forEach(function (sel) {
+    if (sel) sel.addEventListener('change', refreshRuns);
+  });
 
   hatchery.onStatusTick(refreshRuns);
   refreshRuns();

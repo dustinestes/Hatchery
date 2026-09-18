@@ -2646,6 +2646,9 @@ class TestValidatorsPane:
         assert "Validators" in html
         assert "validator-runs-tbody" in html
         assert "hatchery.onStatusTick" in html
+        assert "validator-filter-id" in html
+        assert "validator-filter-status" in html
+        assert "validator-filter-tier" in html
         # Pane script must load after app.js via scripts block (not content).
         assert html.index("app.js") < html.index("hatchery.onStatusTick")
 
@@ -2661,6 +2664,21 @@ class TestValidatorsPane:
         data = client.get("/api/validators/runs").get_json()
         assert "runs" in data
         assert any(r["validator_id"] == "clutch_files" for r in data["runs"])
+
+    def test_api_filters_status_and_tier(self, client):
+        from lib.validators.runs import record_run
+
+        record_run(
+            validator_id="clutch_files",
+            status="findings",
+            message="has findings",
+            tier="warning",
+            findings_count=1,
+            trigger="manual",
+        )
+        data = client.get("/api/validators/runs?status=findings&tier=warning").get_json()
+        assert len(data["runs"]) == 1
+        assert data["runs"][0]["status"] == "findings"
 
 
 class TestEventsRoute:

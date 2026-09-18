@@ -62,7 +62,7 @@ History of pluggable validator executions (Notifications → Validators). Separa
 | `validator_id` | `TEXT` | `NOT NULL` | Registry id (e.g. `clutch_files`) |
 | `started_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 | `finished_at` | `TEXT` | | ISO 8601 UTC when complete |
-| `status` | `TEXT` | `NOT NULL` | `ok` or `error` (validator execution) |
+| `status` | `TEXT` | `NOT NULL` | `ok`, `findings`, or `error` (execution outcome — [#280](https://github.com/dustinestes/Hatchery/issues/280)) |
 | `tier` | `TEXT` | `NOT NULL DEFAULT 'info'` | `info` / `warning` / `alert` |
 | `trigger` | `TEXT` | `NOT NULL` | `schedule`, `manual`, or `connection` |
 | `message` | `TEXT` | `NOT NULL` | Short summary |

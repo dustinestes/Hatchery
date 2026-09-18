@@ -41,6 +41,8 @@ class ControllerRequirementsValidator(BaseValidator):
                 if not ctx.has_active_alert(msg):
                     ctx.resolve_alerts_by_prefix(base)
                     ctx.record_alert(msg)
+                else:
+                    ctx.note_finding("alert")
             else:
                 ctx.resolve_alerts_by_prefix(base)
         if missing:
@@ -75,6 +77,8 @@ class ClutchFilesValidator(BaseValidator):
                 if not ctx.has_active_alert(msg):
                     ctx.resolve_alerts_by_prefix(prefix)
                     ctx.record_alert(msg)
+                else:
+                    ctx.note_finding("alert")
         if invalid:
             return f"{invalid} of {checked} Clutch file(s) invalid"
         return f"{checked} Clutch file(s) valid"
@@ -104,7 +108,12 @@ class NestKeyExpiryValidator(BaseValidator):
     def run(self, ctx: ValidatorContext) -> str:
         identities = nests_lib.identities_for_expiry()
         tiers = nest_key_expiry_lib.parse_tiers(config.nest_key_alert_tiers())
-        nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
+        recorded = nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
+        if recorded:
+            # Newly filed expiry Alerts — warning unless already expired (alert tier).
+            for msg in recorded:
+                tier = "alert" if "expired" in msg.lower() else "warning"
+                ctx.note_finding(tier)
         return f"Checked {len(identities)} Nest SSH identities"
 
 
@@ -155,6 +164,8 @@ class NestCapabilityValidator(BaseValidator):
                     if not ctx.has_active_alert(msg):
                         ctx.resolve_alerts_by_prefix(tool_prefix)
                         ctx.record_alert(msg)
+                    else:
+                        ctx.note_finding("alert")
                 else:
                     ctx.resolve_alerts_by_prefix(tool_prefix)
 
@@ -192,6 +203,7 @@ class NestReachabilityValidator(BaseValidator):
         if checked == 0:
             return "No Nests probed"
         if down:
+            ctx.note_findings(down, "alert")
             return f"{down} of {checked} Nest(s) unreachable"
         return f"All {checked} Nest(s) reachable"
 
