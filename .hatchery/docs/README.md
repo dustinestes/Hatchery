@@ -24,7 +24,7 @@ Reference documentation for Hatchery.
 | Document | Description |
 |---|---|
 | [`project-structure.md`](project-structure.md) | Root directory layout — every file and folder explained |
-| [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane — cross-platform foundation (epic #202) |
+| [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane — cross-platform foundation (epic #202); Controller-only package-manager distribution north star (#273) |
 | [`validators.md`](validators.md) | Pluggable background validators — Settings, run history, Alerts vs runs |
 | [`providers.md`](providers.md) | Provider × feature support matrix (libvirt, UTM, Hyper-V; local/remote) |
 | [`settings.md`](settings.md) | Bootstrap file vs SQLite Settings storage |

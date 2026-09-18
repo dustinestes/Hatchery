@@ -52,6 +52,7 @@ Provider method names already use snapshot language — keep them. Do not rename
 - Prefer editing existing files; no new abstraction layers beyond the task
 - Project meta belongs in `.hatchery/` (not required to run the app)
 - No devcontainers — Local Nest libvirt/KVM still needs a real Nest environment when used
+- **Consumer distribution north star ([#273](https://github.com/dustinestes/Hatchery/issues/273)):** OS package managers install **Controller only** (empty Nest registry); Nest setup is docs + validators. Contributor paths may keep `uv` / gunicorn for development and tests.
 
 When adding VM features, read `lib/providers/base.py` before extending the provider interface.
 
