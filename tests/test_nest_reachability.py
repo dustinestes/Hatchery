@@ -128,3 +128,18 @@ class TestSnapshotAndAlerts:
             NestHealthCheckResult(ok=False, detail="x", failure_class="endpoint"),
         )
         assert nr.nest_reachability_label("r1") == "Endpoint not reachable"
+
+    def test_prune_removed_nests_updates_snapshot(self):
+        from lib import nests as nests_lib
+
+        nest = {"id": "r1", "name": "Lab", "location": "remote"}
+        nr.record_probe(
+            nest,
+            NestHealthCheckResult(ok=False, detail="x", failure_class="endpoint"),
+        )
+        assert nr.get_snapshot()["remote_down"] == 1
+        nr.prune_removed_nests({nests_lib.LOCAL_NEST_ID})
+        snap = nr.get_snapshot()
+        assert "r1" not in (snap.get("nests") or {})
+        assert snap["remote_down"] == 0
+        assert snap["remotes_ok"] is True

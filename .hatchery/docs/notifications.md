@@ -124,6 +124,8 @@ An alert is **active** while `resolved = 0`. It is **resolved** by the system (n
 
 Resolved alerts remain as historical records. They appear in the Alerts pane with a “Resolved” status badge and are excluded from the active alert count used by the bell badge and footer indicator. Hatchery does not auto-delete alert rows by count or age.
 
+**Nest removed from Settings** ([#275](https://github.com/dustinestes/Hatchery/issues/275)): saving the Nest registry after deleting a Nest resolves Nest-scoped findings that embed that Nest’s id (`Nest reachability:`, `Nest capability:`, `Nest SSH identity expiry:`). Rows stay resolved for history; the bell clears. Reachability snapshot entries for removed Nest ids are pruned so the footer does not keep counting them.
+
 | State | Rendered as |
 |---|---|
 | `resolved = 0` | Active badge |

@@ -91,6 +91,39 @@ def resolve_alerts_by_prefix(prefix: str) -> None:
         conn.close()
 
 
+# Nest-scoped findings embed a stable ``(nest_id)`` token in the message.
+_NEST_SCOPED_ALERT_PREFIXES = (
+    "Nest reachability:",
+    "Nest capability:",
+    "Nest SSH identity expiry:",
+)
+
+
+def resolve_alerts_for_nest_id(nest_id: str) -> None:
+    """Resolve active Nest-scoped alerts that reference ``(nest_id)``.
+
+    Keeps rows for history (sets ``resolved`` / ``resolved_at``); clears bell/tray.
+    """
+    nid = str(nest_id or "").strip()
+    if not nid:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    id_token = f"%({nid})%"
+    conn = db.get_connection()
+    try:
+        for prefix in _NEST_SCOPED_ALERT_PREFIXES:
+            conn.execute(
+                """
+                UPDATE alerts SET resolved = 1, resolved_at = ?
+                WHERE resolved = 0 AND message LIKE ? AND message LIKE ?
+                """,
+                (now, f"{prefix}%", id_token),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def has_active_alert(message: str) -> bool:
     """Return True if an unresolved alert with this exact message already exists."""
     conn = db.get_connection()

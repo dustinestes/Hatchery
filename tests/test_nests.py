@@ -95,6 +95,36 @@ class TestReplaceNests:
                 ]
             )
 
+    def test_removing_nest_resolves_scoped_alerts(self):
+        import lib.alerts as alerts_lib
+
+        local = nests_lib.get_nest("local")
+        nests_lib.replace_nests(
+            [
+                local,
+                {
+                    "id": "lab1",
+                    "name": "Lab",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "nest.example",
+                    "port": 22,
+                    "ssh_user": "ops",
+                    "identity_file": "~/.ssh/nest",
+                },
+            ]
+        )
+        alerts_lib.record_alert("Nest reachability: 'Lab' (lab1): endpoint not reachable")
+        alerts_lib.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available — x")
+        assert alerts_lib.count_active_alerts() == 2
+        nests_lib.replace_nests([local])
+        assert [n["id"] for n in nests_lib.list_nests()] == ["local"]
+        assert alerts_lib.count_active_alerts() == 0
+        history = alerts_lib.list_recent()
+        assert len(history) == 2
+        assert all(r["resolved"] == 1 for r in history)
+
 
 class TestConnectionConfig:
     def test_local_has_no_transport(self):
