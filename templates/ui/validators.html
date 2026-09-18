@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Validators — Hatchery{% endblock %}
+
+{% block content %}
+<div class="pane-header">
+  <h1 class="pane-title">Validators</h1>
+  <p class="pane-subtitle">History of background and on-demand validation runs. Findings still appear under Alerts.</p>
+</div>
+
+{% if runs %}
+<table class="notif-table" id="validator-runs-table">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Validator</th>
+      <th>Status</th>
+      <th>Tier</th>
+      <th>Trigger</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td class="notif-table-time">{{ run.finished_at or run.started_at }}</td>
+      <td>{{ validator_titles.get(run.validator_id, run.validator_id) }}</td>
+      <td class="notif-table-status">
+        <span class="notif-status-badge notif-status-badge--{% if run.status == 'ok' %}resolved{% else %}active{% endif %}">
+          {{ run.status }}
+        </span>
+      </td>
+      <td class="notif-table-tier">
+        <span class="notif-tier-badge notif-tier-badge--{{ run.tier | default('info') }}">{{ run.tier | default('info') }}</span>
+      </td>
+      <td>{{ run.trigger }}</td>
+      <td class="notif-table-msg">{{ run.message }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="stub" role="status">No validator runs recorded yet. Configure intervals under Settings → General.</div>
+{% endif %}
+{% endblock %}

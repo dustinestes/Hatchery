@@ -131,22 +131,15 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 ### Background sync
 
-Hatchery runs two sync functions at startup and then on every background cycle (controlled by the **Background Validation Interval** setting, default 60 seconds):
+Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators**.
 
-#### Requirements sync (`_sync_requirements`)
+**Findings** still use the Alerts table (bell / tray). Examples:
 
-1. Checks which required host tools are currently present via `lib.requirements.check_all()`.
-2. For each missing tool, records an alert prefixed with `"Missing requirement:"` if one is not already active.
-3. For each present tool, resolves any active alert with that same prefix.
+- `controller_requirements` — missing host tools (`Missing requirement:`)
+- `clutch_files` — invalid Clutch YAML (`Invalid Clutch file:`)
+- `nest_key_expiry` — Nest SSH identity windows
 
-#### Clutch file sync (`_sync_clutches`)
-
-1. Iterates every `.yaml` file in the clutches directory.
-2. For each file, runs full schema and dependency validation via `clutch_lib.load()`.
-3. On failure, records an alert prefixed with `"Invalid Clutch file: '<filename>'"` if one is not already active.
-4. On success, resolves any active alert for that file.
-
-Alerts for a deleted Clutch file are resolved immediately at delete time — not waiting for the next sync cycle.
+The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the **Hatch status poll** interval (`bg_interval`).
 
 #### Import copies (`lib/import_files.py`)
 

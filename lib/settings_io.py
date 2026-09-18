@@ -123,6 +123,16 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("bg_interval must be at least 10 seconds")
     new_cfg["bg_interval"] = bg
 
+    retention = int(new_cfg.get("validators_run_retention", 50))
+    if retention < 10 or retention > 500:
+        raise ValueError("validators_run_retention must be between 10 and 500")
+    new_cfg["validators_run_retention"] = retention
+
+    validators = new_cfg.get("validators") or {}
+    if not isinstance(validators, dict):
+        raise ValueError("validators must be an object map")
+    new_cfg["validators"] = validators
+
     tz = str(new_cfg.get("display_timezone") or "UTC")
     if tz not in ("UTC", "local"):
         raise ValueError("display_timezone must be UTC or local")
@@ -148,6 +158,20 @@ def _normalize_setting(key: str, value: Any) -> Any:
         if n < 10:
             raise ValueError("bg_interval must be at least 10 seconds")
         return n
+    if key == "validators_run_retention":
+        try:
+            n = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("validators_run_retention must be an integer") from exc
+        if n < 10 or n > 500:
+            raise ValueError("validators_run_retention must be between 10 and 500")
+        return n
+    if key == "validators":
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("validators must be an object")
+        return value
     if key == "show_passwords":
         return bool(value)
     if key == "library_enabled":

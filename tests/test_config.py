@@ -18,6 +18,8 @@ def isolated_config(monkeypatch, tmp_path):
         {
             "data_dir": str(tmp_path / "data"),
             "bg_interval": 60,
+            "validators": {},
+            "validators_run_retention": 50,
             "show_passwords": False,
             "display_timezone": "UTC",
             "library_enabled": False,

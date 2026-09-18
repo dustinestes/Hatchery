@@ -17,7 +17,6 @@ from lib import alerts as alerts_lib
 from lib import media_inspect as media_inspect_lib
 from lib import import_files as import_files_lib
 from lib import provision as provision_lib
-from lib import requirements as req_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
 from lib import nest_cache as nest_cache_lib
@@ -28,6 +27,9 @@ from lib.nest_transport import NestConnectionConfig
 from pydantic import ValidationError
 from lib.providers.base import BaseProvider
 from lib.providers.factory import UnknownNestError, UnsupportedProviderError, get_provider
+from lib.validators.builtins import register_builtins
+from lib.validators.scheduler import run_validator, start_scheduler
+from lib.validators.settings import list_validator_configs, migrate_bg_interval
 
 # Tracks (session_id, vm_name) pairs currently being provisioned so the sync
 # loop does not spawn duplicate threads.
@@ -42,14 +44,10 @@ _CLUTCH_ALERT_PREFIX = "Invalid Clutch file:"
 
 
 def _sync_requirements() -> None:
-    """Re-evaluate host requirements and sync alerts."""
-    for req in req_lib.check_all():
-        msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
-        if not req.present:
-            if not alerts_lib.has_active_alert(msg):
-                alerts_lib.record_alert(msg)
-        else:
-            alerts_lib.resolve_alerts_by_prefix(msg)
+    """Re-evaluate host requirements via the controller_requirements validator."""
+    from lib.validators.scheduler import run_validator
+
+    run_validator("controller_requirements", trigger="schedule")
 
 
 def _clutch_error_detail(filename: str, error: str) -> str:
@@ -67,19 +65,10 @@ def _clutch_error_detail(filename: str, error: str) -> str:
 
 
 def _sync_clutches() -> None:
-    """Validate all Clutch files and sync alerts for any that fail."""
-    clutches_dir = config.data_dir() / "clutches"
-    if not clutches_dir.exists():
-        return
-    for path in sorted(clutches_dir.glob("*.yaml")):
-        prefix = f"{_CLUTCH_ALERT_PREFIX} '{path.name}'"
-        try:
-            clutch_lib.load(path)
-            alerts_lib.resolve_alerts_by_prefix(prefix)
-        except Exception as exc:
-            msg = f"{prefix} — {_clutch_error_detail(path.name, str(exc))}"
-            if not alerts_lib.has_active_alert(msg):
-                alerts_lib.record_alert(msg)
+    """Validate Clutch files via the clutch_files validator."""
+    from lib.validators.scheduler import run_validator
+
+    run_validator("clutch_files", trigger="schedule")
 
 
 def _check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
@@ -418,25 +407,23 @@ def _sync_hatch_status() -> None:
 
 
 def _sync_nest_key_expiry() -> None:
-    """Evaluate Nest SSH identity expiry from Nest rows and sync Alerts (#219 / #207)."""
-    identities = nests_lib.identities_for_expiry()
-    tiers = nest_key_expiry_lib.parse_tiers(config.nest_key_alert_tiers())
-    nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
+    """Evaluate Nest SSH identity expiry via the nest_key_expiry validator."""
+    from lib.validators.scheduler import run_validator
+
+    run_validator("nest_key_expiry", trigger="schedule")
 
 
 def _background_loop(stop_event: threading.Event) -> None:
+    """Hatch lifecycle poller only — validators run on their own scheduler (#268)."""
     while not stop_event.wait(config.bg_interval()):
-        _sync_requirements()
-        _sync_clutches()
         _sync_hatch_status()
-        _sync_nest_key_expiry()
 
 
 _bg_stop_event: threading.Event | None = None
 
 
 def _start_background_thread() -> threading.Event:
-    """Start the periodic sync loop; store the stop event on the module for tests."""
+    """Start the hatch status poller; store the stop event on the module for tests."""
     global _bg_stop_event
     stop = threading.Event()
     _bg_stop_event = stop
@@ -457,11 +444,18 @@ db.init_db(config.data_dir() / "hatchery.db")
 config.bind_db()
 nests_lib.ensure_local_nest()
 nests_lib.migrate_legacy_ssh_identities()
-_sync_requirements()
-_sync_clutches()
+
+register_builtins()
+migrate_bg_interval()
+for _vcfg in list_validator_configs():
+    if _vcfg.get("enabled") and not _vcfg.get("stub"):
+        try:
+            run_validator(_vcfg["id"], trigger="schedule")
+        except Exception:
+            pass
 _sync_hatch_status()
-_sync_nest_key_expiry()
 _start_background_thread()
+start_scheduler()
 
 
 @app.context_processor
@@ -677,7 +671,7 @@ def _host_timezone() -> str:
 _SETTINGS_SECTIONS = {
     "general": (
         "General",
-        "Application paths, background validation, and feature toggles.",
+        "Application paths, Hatch poll interval, validators, and feature toggles.",
     ),
     "security": (
         "Security",
@@ -721,6 +715,14 @@ def _settings_template(
     if registered_nests is None and section == "nests":
         nests_lib.ensure_local_nest()
         registered_nests = nests_lib.list_nests()
+
+    from lib.validators.runs import latest_by_validator
+    from lib.validators.settings import get_run_retention, list_validator_configs
+
+    validator_configs = list_validator_configs() if section == "general" else []
+    validator_latest = latest_by_validator() if section == "general" else {}
+    validators_run_retention = get_run_retention() if section == "general" else 50
+
     return render_template(
         "settings.html",
         active_pane=f"settings_{section}",
@@ -735,6 +737,9 @@ def _settings_template(
         form_saved=form_saved,
         library_enable_hint=library_enable_hint,
         nests=registered_nests or [],
+        validator_configs=validator_configs,
+        validator_latest=validator_latest,
+        validators_run_retention=validators_run_retention,
     )
 
 
@@ -790,12 +795,42 @@ def settings_section_post(section: str):
                 raise ValueError
         except ValueError:
             return _rerender(
-                "Background validation interval must be a whole number of seconds (minimum 10)."
+                "Hatch status poll interval must be a whole number of seconds (minimum 10)."
             )
 
         new_cfg["data_dir"] = str(Path(data_dir_raw).expanduser())
         new_cfg["bg_interval"] = bg_interval
         new_cfg["library_enabled"] = "library_enabled" in request.form
+
+        retention_raw = request.form.get("validators_run_retention", "50").strip()
+        try:
+            retention = int(retention_raw)
+            if retention < 10 or retention > 500:
+                raise ValueError
+        except ValueError:
+            return _rerender(
+                "Validator run history retention must be a whole number from 10 to 500."
+            )
+
+        from lib.validators.registry import all_validators
+        from lib.validators.settings import cleaned_validator_settings
+
+        configs: dict[str, dict] = {}
+        for vid in request.form.getlist("validator_id"):
+            stub = any(getattr(v, "stub", False) and v.id == vid for v in all_validators())
+            interval_raw = request.form.get(f"validator_interval_{vid}", "60").strip()
+            try:
+                interval = int(interval_raw)
+                if interval < 10:
+                    raise ValueError
+            except ValueError:
+                return _rerender(
+                    f"Validator interval for '{vid}' must be a whole number of seconds (minimum 10)."
+                )
+            enabled = (not stub) and (f"validator_enabled_{vid}" in request.form)
+            configs[vid] = {"enabled": enabled, "interval_seconds": interval}
+
+        new_cfg.update(cleaned_validator_settings(configs, retention=retention))
         config.save(new_cfg)
         config.init_data_dir()
         db.init_db(Path(new_cfg["data_dir"]) / "hatchery.db")
@@ -1452,6 +1487,34 @@ def alerts_pane():
 @app.route("/notifications/events")
 def events_pane():
     return render_template("events.html", active_pane="events")
+
+
+@app.route("/notifications/validators")
+def validators_pane():
+    from lib.validators.registry import all_validators
+    from lib.validators.runs import list_runs
+
+    runs = list_runs(limit=200)
+    titles = {v.id: v.title for v in all_validators()}
+    return render_template(
+        "validators.html",
+        active_pane="validators",
+        runs=runs,
+        validator_titles=titles,
+    )
+
+
+@app.route("/api/validators/runs")
+def api_validator_runs():
+    from lib.validators.runs import list_runs
+
+    validator_id = request.args.get("validator_id") or None
+    status = request.args.get("status") or None
+    try:
+        limit = int(request.args.get("limit", "100"))
+    except ValueError:
+        limit = 100
+    return jsonify({"runs": list_runs(limit=limit, validator_id=validator_id, status=status)})
 
 
 # ── Hatch orchestration ───────────────────────────────────────────────────────

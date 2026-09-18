@@ -125,7 +125,7 @@ The "Creating VM" message contains the complete command as it will be run, inclu
 
 ### Windows Setup
 
-Emitted in `_sync_hatch_status` (background sync loop, runs every `bg_interval` seconds). These events track the Windows unattended install phase after `virt-install` returns.
+Emitted in `_sync_hatch_status` (Hatch status poller, runs every `bg_interval` seconds). These events track the Windows unattended install phase after `virt-install` returns.
 
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|

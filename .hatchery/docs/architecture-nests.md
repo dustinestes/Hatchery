@@ -3,7 +3,7 @@
   <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
   <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
-<h1>Architecture: Host plane vs Nest plane</h1>
+<h1>Architecture: Controller plane vs Nest plane</h1>
 <br clear="both">
 
 Foundational decision for cross-platform Hatchery ([epic #202](https://github.com/dustinestes/Hatchery/issues/202), [#257](https://github.com/dustinestes/Hatchery/issues/257)). Locked before Nest/provider features expand beyond the Linux + local libvirt v1 shape.
@@ -14,6 +14,7 @@ Foundational decision for cross-platform Hatchery ([epic #202](https://github.co
 
 - [Contents](#contents)
 - [Decision](#decision)
+- [Architecture nouns](#architecture-nouns)
 - [Two planes](#two-planes)
 - [One product, modular Nests](#one-product-modular-nests)
 - [Requirements](#requirements)
@@ -30,10 +31,25 @@ Foundational decision for cross-platform Hatchery ([epic #202](https://github.co
 
 Hatchery is **one application** with two first-class planes:
 
-1. **Host plane** — where Hatchery runs  
-2. **Nest plane** — where VMs are created and managed  
+1. **Controller plane** — the **Hatchery Controller** (where the UI runs; controls Nest(s))  
+2. **Nest plane** — hypervisors the Controller talks to for guest VMs (**Local Nest** and/or **Remote Nest**)  
 
-v1 shipped as Linux host + local libvirt Nest. Cross-platform work **does not** fork the product into three apps, and **does not** treat Windows/macOS as “skip Linux code.” It **decouples Nest backends** behind a shared shell so each Nest type can evolve independently and optionally.
+v1 shipped as Linux Controller + Local Nest (libvirt). Cross-platform work **does not** fork the product into three apps, and **does not** treat Windows/macOS as “skip Linux code.” It **decouples Nest backends** behind a shared shell so each Nest type can evolve independently and optionally. A Controller may eventually have **no Local Nest** (only Remotes — [#266](https://github.com/dustinestes/Hatchery/issues/266)).
+
+<br>
+
+## Architecture nouns
+
+Use these terms in UI copy, docs, issues, and agent rules. Prefer **Controller** / **Nest** over “host”.
+
+| Noun | Definition |
+|---|---|
+| **Hatchery Controller** (Controller) | Device where the Hatchery UI runs; responsible for controlling the Nest(s) |
+| **Nest** | Hypervisor the Controller communicates with to manage guest VMs |
+| **Local Nest** | Nest on the same device as the Controller (`location=local`) — the Controller also manages guest VMs on that device |
+| **Remote Nest** | Nest the Controller reaches across the control plane (`location=remote`) to manage guest VMs |
+
+Today the registry still seeds a built-in Local Nest id `local` and forbids removing it ([#207](https://github.com/dustinestes/Hatchery/issues/207)). Making Local Nest optional (Controller with only Remote Nests) is [#266](https://github.com/dustinestes/Hatchery/issues/266).
 
 <br>
 
@@ -41,12 +57,12 @@ v1 shipped as Linux host + local libvirt Nest. Cross-platform work **does not** 
 
 | Plane | Responsibility | Examples |
 |---|---|---|
-| **Hatchery host** | Process, UI, Settings, SQLite, Library, hatch orchestration, Nest transport *client* | Linux, macOS, or Windows machine running Hatchery |
-| **Nest** | Hypervisor control, VM lifecycle, Nest-local media/cache layout | libvirt/KVM, UTM, Hyper-V — each **local** or **remote** |
+| **Controller** (Controller plane) | Process, UI, Settings, SQLite, Library, hatch orchestration, Nest transport *client* | Linux, macOS, or Windows device running Hatchery |
+| **Nest** (Nest plane) | Hypervisor control, VM lifecycle, Nest-local media/cache layout | libvirt/KVM, UTM, Hyper-V — each **Local Nest** or **Remote Nest** |
 
 ```
 ┌─────────────────────────────────────────┐
-│           Hatchery host (any OS)        │
+│     Hatchery Controller (any OS)        │
 │  UI · Settings · DB · Library · Hatch   │
 │         Nest transport client           │
 └───────────────┬─────────────────────────┘
@@ -54,11 +70,11 @@ v1 shipped as Linux host + local libvirt Nest. Cross-platform work **does not** 
      ┌──────────┼──────────┐
      ▼          ▼          ▼
  libvirt      UTM       Hyper-V
- (local/      (local/   (local/
-  remote)      remote)   remote)
+ (Local /   (Local /   (Local /
+  Remote)    Remote)    Remote)
 ```
 
-**Nest transport** (SSH default, WinRM fallback) talks to the Nest *host*. **Guest provision** (WinRM for Windows guests) stays separate — see [Nest transport](nest-transport.md).
+**Nest transport** (SSH default, WinRM fallback) talks to the Nest *machine*. **Guest provision** (WinRM for Windows guests) stays separate — see [Nest transport](nest-transport.md).
 
 <br>
 
@@ -71,21 +87,21 @@ v1 shipped as Linux host + local libvirt Nest. Cross-platform work **does not** 
 | Select Nest via **registry** + **provider factory** | Hard-wire `LibvirtProvider` in app routes |
 | Declare capabilities in the [provider matrix](providers.md) | Assume every Nest supports every action |
 
-Libvirt-specific rules (e.g. world-readable media for `libvirt-qemu`) belong **in the libvirt Nest adapter**, not in host-plane code paths used for every Nest.
+Libvirt-specific rules (e.g. world-readable media for `libvirt-qemu`) belong **in the libvirt Nest adapter**, not in Controller-plane code paths used for every Nest.
 
 <br>
 
 ## Requirements
 
-Split requirement reporting by plane:
+Split requirement reporting by role (see [#208](https://github.com/dustinestes/Hatchery/issues/208); module `lib/requirements.py`):
 
 | Kind | When | Examples |
 |---|---|---|
-| **Host-plane** | Always (app can start) | Python runtime, data dir, optional OpenSSH client for remote Nest transport |
-| **Nest-local** | Only when that Nest is **local** and selected | `virsh` / `virt-install` (libvirt), `utmctl` (UTM), Hyper-V PowerShell modules |
-| **Remote Nest** | Reachability via Nest transport + Nest-side tools on the Nest | SSH/WinRM to Nest; tools live on Nest, not necessarily on Hatchery host |
+| **Controller** | Always on the Controller | Python runtime, data dir; OpenSSH client when any **Remote Nest** is registered |
+| **Local Nest** | Only for registered Nests with `location=local` | `virsh` / `virt-install` (libvirt), `utmctl` (UTM), Hyper-V tools — declared per provider |
+| **Remote Nest** | Reachability via Nest transport; Nest-side hypervisor tools on the Nest | Controller does **not** need local `virsh` for a remote libvirt Nest |
 
-Tracked in [#208](https://github.com/dustinestes/Hatchery/issues/208). apt/`dpkg-query` checks are a v1 Linux convenience — not the long-term model.
+Alerts distinguish Controller vs Local Nest missing tools. Install hints are per Controller OS (apt / brew / winget-style), not apt-only. Real Mac/Windows Nest lab validation (beyond mocked CI): [#267](https://github.com/dustinestes/Hatchery/issues/267).
 
 <br>
 
@@ -132,6 +148,8 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |
 | Epic [#202](https://github.com/dustinestes/Hatchery/issues/202) | Cross-platform & remote Nests |
 | [#206](https://github.com/dustinestes/Hatchery/issues/206) / [#207](https://github.com/dustinestes/Hatchery/issues/207) / [#208](https://github.com/dustinestes/Hatchery/issues/208) | Phase A foundation |
+| [#266](https://github.com/dustinestes/Hatchery/issues/266) | Optional Local Nest (Controller-only) |
+| [#267](https://github.com/dustinestes/Hatchery/issues/267) | Real-host Nest testing on macOS / Windows |
 
 <br>
 

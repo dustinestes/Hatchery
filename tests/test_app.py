@@ -231,6 +231,10 @@ class TestPageTitles:
         html = client.get("/notifications/events").data.decode()
         assert "Events" in html
 
+    def test_validators_title(self, client):
+        html = client.get("/notifications/validators").data.decode()
+        assert "Validators" in html
+
 
 class TestSettingsRoute:
     def test_get_shows_current_data_dir(self, client, tmp_path, monkeypatch):
@@ -308,13 +312,42 @@ class TestSettingsRoute:
         assert resp.status_code == 200
         assert "10" in resp.data.decode()
 
-    def test_post_bg_interval_non_numeric_shows_error(self, client, monkeypatch):
-        monkeypatch.setattr(cfg, "get", lambda: {"data_dir": "/old", "bg_interval": 60})
-        resp = client.post(
-            "/settings/general", data={"data_dir": "/some/path", "bg_interval": "abc"}
+    def test_get_shows_validators_section(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert "Validators" in html
+        assert "Controller requirements" in html
+        assert "validators_run_retention" in html
+
+    def test_post_saves_validator_interval(self, client, tmp_path, monkeypatch):
+        saved = {}
+        monkeypatch.setattr(
+            cfg,
+            "get",
+            lambda: {
+                "data_dir": str(tmp_path),
+                "bg_interval": 60,
+                "validators": {},
+                "validators_run_retention": 50,
+            },
         )
-        assert resp.status_code == 200
-        assert "interval" in resp.data.decode().lower()
+        monkeypatch.setattr(cfg, "save", lambda c: saved.update(c))
+        monkeypatch.setattr(cfg, "init_data_dir", lambda: None)
+        monkeypatch.setattr(cfg, "bind_db", lambda: None)
+        monkeypatch.setattr(db_module, "init_db", lambda path: None)
+        client.post(
+            "/settings/general",
+            data={
+                "data_dir": str(tmp_path),
+                "bg_interval": "60",
+                "validators_run_retention": "25",
+                "validator_id": "clutch_files",
+                "validator_enabled_clutch_files": "on",
+                "validator_interval_clutch_files": "180",
+            },
+        )
+        assert saved["validators_run_retention"] == 25
+        assert saved["validators"]["clutch_files"]["interval_seconds"] == 180
+        assert saved["validators"]["clutch_files"]["enabled"] is True
 
     def test_general_post_preserves_security_keys(self, client, tmp_path, monkeypatch):
         saved = {}
@@ -2477,6 +2510,25 @@ class TestAlertsRoute:
         assert "notif-status-badge--active" in html
 
 
+class TestValidatorsPane:
+    def test_pane_renders(self, client):
+        html = client.get("/notifications/validators").data.decode()
+        assert "Validators" in html
+
+    def test_api_lists_runs(self, client):
+        from lib.validators.runs import record_run
+
+        record_run(
+            validator_id="clutch_files",
+            status="ok",
+            message="ok",
+            trigger="manual",
+        )
+        data = client.get("/api/validators/runs").get_json()
+        assert "runs" in data
+        assert any(r["validator_id"] == "clutch_files" for r in data["runs"])
+
+
 class TestEventsRoute:
     def test_returns_200(self, client):
         assert client.get("/notifications/events").status_code == 200
@@ -2523,43 +2575,25 @@ class TestApiVmEvents:
 
 
 class TestBackgroundThread:
-    def test_loop_calls_sync_on_timeout(self):
+    def test_loop_calls_hatch_sync_on_timeout(self):
         stop = MagicMock()
         stop.wait.side_effect = [False, True]
-        with (
-            patch.object(app_module, "_sync_requirements") as mock_req,
-            patch.object(app_module, "_sync_clutches") as mock_clutch,
-            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
-        ):
+        with patch.object(app_module, "_sync_hatch_status") as mock_hatch:
             app_module._background_loop(stop)
-        mock_req.assert_called_once()
-        mock_clutch.assert_called_once()
         mock_hatch.assert_called_once()
 
-    def test_loop_calls_sync_multiple_ticks(self):
+    def test_loop_calls_hatch_sync_multiple_ticks(self):
         stop = MagicMock()
         stop.wait.side_effect = [False, False, False, True]
-        with (
-            patch.object(app_module, "_sync_requirements") as mock_req,
-            patch.object(app_module, "_sync_clutches") as mock_clutch,
-            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
-        ):
+        with patch.object(app_module, "_sync_hatch_status") as mock_hatch:
             app_module._background_loop(stop)
-        assert mock_req.call_count == 3
-        assert mock_clutch.call_count == 3
         assert mock_hatch.call_count == 3
 
     def test_loop_exits_without_sync_when_stopped_immediately(self):
         stop = MagicMock()
         stop.wait.return_value = True
-        with (
-            patch.object(app_module, "_sync_requirements") as mock_req,
-            patch.object(app_module, "_sync_clutches") as mock_clutch,
-            patch.object(app_module, "_sync_hatch_status") as mock_hatch,
-        ):
+        with patch.object(app_module, "_sync_hatch_status") as mock_hatch:
             app_module._background_loop(stop)
-        mock_req.assert_not_called()
-        mock_clutch.assert_not_called()
         mock_hatch.assert_not_called()
 
     def test_start_background_thread_spawns_daemon_thread(self):
