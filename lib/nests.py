@@ -429,31 +429,56 @@ def test_connection(
     *,
     winrm_password: str | None = None,
 ) -> dict:
-    """Run Test Nest connection; return ``{ok, message}`` for the UI."""
-    nest = _normalize_one(nest)
-    if nest["location"] == "local":
-        return {
-            "ok": True,
-            "message": "Local Nest — no remote transport (inventory uses the Nest provider).",
-        }
+    """Run Test Nest connection; return ``{ok, message}`` for the UI.
 
-    if nest["transport"] == "winrm" and not (winrm_password or "").strip():
-        return {
-            "ok": False,
-            "message": "WinRM password is required for Test Nest connection (not stored — #110).",
-        }
+    Remote Nests: Nest transport reachability first, then Nest capability tools
+    via the ``nest_capability`` validator (#208). Local Nests: capability only.
+    """
+    nest = _normalize_one(nest)
+    reach_msg = "Local Nest — no remote transport."
+
+    if nest["location"] == "remote":
+        if nest["transport"] == "winrm" and not (winrm_password or "").strip():
+            return {
+                "ok": False,
+                "message": "WinRM password is required for Test Nest connection (not stored — #110).",
+            }
+
+        try:
+            connection = to_connection_config(nest, winrm_password=winrm_password)
+            transport = get_nest_transport(connection)
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "message": str(exc)}
+
+        if transport is None:
+            reach_msg = "Local Nest — no remote transport."
+        else:
+            result: NestHealthCheckResult = transport.test_connection()
+            if not result.ok:
+                return {"ok": False, "message": result.detail}
+            reach_msg = result.detail or "Nest transport OK."
+
+    from lib import requirements as req_lib
+    from lib.validators.scheduler import run_validator
 
     try:
-        connection = to_connection_config(nest, winrm_password=winrm_password)
-        transport = get_nest_transport(connection)
-    except (ValueError, TypeError) as exc:
-        return {"ok": False, "message": str(exc)}
+        run_validator(
+            "nest_capability",
+            nest_id=nest["id"],
+            trigger="connection",
+            winrm_password=winrm_password,
+        )
+    except Exception as exc:
+        return {"ok": False, "message": f"{reach_msg} Nest capability check failed: {exc}"}
 
-    if transport is None:
-        return {"ok": True, "message": "Local Nest — no remote transport."}
-
-    result: NestHealthCheckResult = transport.test_connection()
-    return {"ok": result.ok, "message": result.detail}
+    missing = req_lib.missing(req_lib.check_nest(nest, winrm_password=winrm_password))
+    if missing:
+        names = ", ".join(r.name for r in missing)
+        return {
+            "ok": False,
+            "message": f"{reach_msg} Missing Nest tools: {names}.",
+        }
+    return {"ok": True, "message": f"{reach_msg} Nest capability OK."}
 
 
 def identities_for_expiry() -> list[nest_key_expiry_lib.NestSshIdentity]:

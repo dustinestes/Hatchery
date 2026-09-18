@@ -41,7 +41,7 @@ class TestRegistry:
         assert "library_connections" in ids
 
     def test_stubs_marked(self):
-        v = get_validator("nest_capability")
+        v = get_validator("nest_reachability")
         assert v is not None
         assert getattr(v, "stub", False) is True
 
@@ -113,11 +113,56 @@ class TestControllerRequirements:
         from lib.requirements import Requirement
 
         with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", False)],
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement(
+                    "ssh",
+                    "openssh-client",
+                    "Nest transport",
+                    False,
+                    role="controller",
+                    install_hint="sudo apt install openssh-client",
+                )
+            ],
         ):
             ctx = ValidatorContext(trigger="manual")
             get_validator("controller_requirements").run(ctx)
         from lib import alerts as alerts_lib
 
-        assert any("virsh" in a["message"] for a in alerts_lib.list_recent() if not a["resolved"])
+        assert any(
+            "ssh" in a["message"] and "Controller requirement:" in a["message"]
+            for a in alerts_lib.list_recent()
+            if not a["resolved"]
+        )
+
+
+class TestNestCapability:
+    def test_not_stub(self):
+        v = get_validator("nest_capability")
+        assert v is not None
+        assert getattr(v, "stub", False) is False
+
+    def test_run_alerts_missing_local_tools(self, monkeypatch):
+        from unittest.mock import patch
+
+        from lib.requirements import Requirement
+
+        nest = {"id": "local", "name": "Local", "location": "local", "provider_type": "libvirt"}
+        with (
+            patch("lib.nests.list_nests", return_value=[nest]),
+            patch(
+                "lib.requirements.check_nest",
+                return_value=[
+                    Requirement("virsh", "libvirt-clients", "ops", False, role="nest"),
+                ],
+            ),
+        ):
+            ctx = ValidatorContext(trigger="manual")
+            get_validator("nest_capability").run(ctx)
+        from lib import alerts as alerts_lib
+
+        assert any(
+            "Nest capability:" in a["message"] and "virsh" in a["message"]
+            for a in alerts_lib.list_recent()
+            if not a["resolved"]
+        )

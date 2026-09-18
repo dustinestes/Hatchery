@@ -62,11 +62,11 @@ Package: [`lib/validators/`](../../lib/validators/).
 
 | Id | Status |
 |---|---|
-| `controller_requirements` | Active — host package checks (body refined in [#208](https://github.com/dustinestes/Hatchery/issues/208)) |
+| `controller_requirements` | Active — Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active |
+| `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport) |
 | `nest_reachability` | Stub — [#263](https://github.com/dustinestes/Hatchery/issues/263) |
-| `nest_capability` | Stub — [#208](https://github.com/dustinestes/Hatchery/issues/208) |
 | `library_connections` | Stub — [#254](https://github.com/dustinestes/Hatchery/issues/254) |
 
 <br>

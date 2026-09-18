@@ -26,6 +26,7 @@ def run_validator(
     *,
     nest_id: str | None = None,
     trigger: str = "manual",
+    winrm_password: str | None = None,
 ) -> dict:
     """Run one validator and persist a ``validator_runs`` row. Returns run summary dict."""
     validator = get_validator(validator_id)
@@ -34,7 +35,7 @@ def run_validator(
 
     started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     started_mono = time.monotonic()
-    ctx = ValidatorContext(nest_id=nest_id, trigger=trigger)
+    ctx = ValidatorContext(nest_id=nest_id, trigger=trigger, winrm_password=winrm_password)
     findings = 0
     try:
         summary = validator.run(ctx) or "Completed"

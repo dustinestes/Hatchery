@@ -422,10 +422,11 @@ class TestNestSettings:
         assert nests_lib.get_nest("lab1")["identity_expires_at"].startswith("2026-12-01")
 
     def test_api_test_local_nest(self, client):
-        resp = client.post(
-            "/api/nests/test-connection",
-            json={"nest_id": "local"},
-        )
+        with patch("lib.requirements.check_nest", return_value=[]):
+            resp = client.post(
+                "/api/nests/test-connection",
+                json={"nest_id": "local"},
+            )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
@@ -2375,36 +2376,75 @@ class TestNestStatus:
 
 
 class TestRequirementsSync:
-    def test_records_alert_for_missing_tool(self):
+    def test_records_alert_for_missing_controller_tool(self):
         with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", False)],
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement(
+                    "ssh",
+                    "openssh-client",
+                    "Nest transport client for Remote Nests",
+                    False,
+                    role="controller",
+                    install_hint="sudo apt install openssh-client",
+                )
+            ],
         ):
             app_module._sync_requirements()
         alerts = [n for n in alerts_lib.list_recent() if n["tier"] == "alert"]
-        assert any("virsh" in a["message"] for a in alerts)
+        assert any(
+            "ssh" in a["message"] and "Controller requirement:" in a["message"] for a in alerts
+        )
 
     def test_no_alerts_when_all_tools_present(self):
         with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "ops", True)],
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement("ssh", "openssh-client", "ops", True, role="controller"),
+            ],
         ):
             app_module._sync_requirements()
         assert alerts_lib.count_active_alerts() == 0
 
-    def test_resolves_stale_alert_when_tool_now_present(self):
+    def test_resolves_legacy_nest_tool_alerts(self):
         alerts_lib.record_alert("Missing requirement: 'virsh' is not installed — VM lifecycle")
         assert alerts_lib.count_active_alerts() == 1
+        with patch("lib.requirements.check_controller", return_value=[]):
+            app_module._sync_requirements()
+        assert alerts_lib.count_active_alerts() == 0
+
+    def test_resolves_stale_alert_when_tool_now_present(self):
+        alerts_lib.record_alert(
+            "Controller requirement: 'ssh' is not installed — Nest transport client for Remote Nests"
+        )
+        assert alerts_lib.count_active_alerts() == 1
         with patch(
-            "lib.requirements.check_all",
-            return_value=[Requirement("virsh", "libvirt-clients", "VM lifecycle", True)],
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement(
+                    "ssh",
+                    "openssh-client",
+                    "Nest transport client for Remote Nests",
+                    True,
+                    role="controller",
+                )
+            ],
         ):
             app_module._sync_requirements()
         assert alerts_lib.count_active_alerts() == 0
 
     def test_does_not_duplicate_alert_on_repeated_calls(self):
-        missing = [Requirement("virsh", "libvirt-clients", "VM lifecycle", False)]
-        with patch("lib.requirements.check_all", return_value=missing):
+        missing = [
+            Requirement(
+                "ssh",
+                "openssh-client",
+                "Nest transport client for Remote Nests",
+                False,
+                role="controller",
+                install_hint="sudo apt install openssh-client",
+            )
+        ]
+        with patch("lib.requirements.check_controller", return_value=missing):
             app_module._sync_requirements()
             app_module._sync_requirements()
             app_module._sync_requirements()
@@ -2412,6 +2452,18 @@ class TestRequirementsSync:
             n for n in alerts_lib.list_recent() if n["tier"] == "alert" and n["resolved"] == 0
         ]
         assert len(warnings) == 1
+
+    def test_optional_pwsh_does_not_alert(self):
+        with patch(
+            "lib.requirements.check_controller",
+            return_value=[
+                Requirement(
+                    "pwsh", "powershell", "scripts", False, optional=True, role="controller"
+                ),
+            ],
+        ):
+            app_module._sync_requirements()
+        assert alerts_lib.count_active_alerts() == 0
 
 
 class TestClutchesSync:

@@ -28,10 +28,10 @@ from lib import alerts, config, db
 SEED_MARKER = "[seed]"
 
 ALERT_SAMPLES = [
-    "Missing requirement: 'virsh' is not installed — VM lifecycle",
-    "Missing requirement: 'virt-install' is not installed — VM creation",
-    "Missing requirement: 'swtpm' is not installed — TPM emulation (Win11, Server 2025)",
-    "Missing requirement: 'qemu-img' is not installed — disk image management",
+    "Controller requirement: 'ssh' is not installed — Nest transport client for Remote Nests",
+    "Nest capability: 'Local' (local): 'virsh' is not available — VM lifecycle operations",
+    "Nest capability: 'Local' (local): 'swtpm' is not available — TPM 2.0 emulation (Win11 / Server 2025)",
+    "Invalid Clutch file: 'broken.yaml' — Field required: vms",
 ]
 
 
