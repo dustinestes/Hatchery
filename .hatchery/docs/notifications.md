@@ -83,7 +83,7 @@ Surfaces **do not** invent health logic or re-run checks. They call APIs over st
 | `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
 | `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
 
-Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**. Planned on the same bus:
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**, **Alerts pane** table, **Validators** pane run history. Planned on the same bus:
 
 - [#254](https://github.com/dustinestes/Hatchery/issues/254) — Libraries footer chip (visibility + plane-status fields)
 - [#280](https://github.com/dustinestes/Hatchery/issues/280) — Validators pane filters / finding tiers (pane subscribes to the tick)
@@ -151,7 +151,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 **Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
-**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Filters: Active / Resolved only. Route: `/notifications/alerts`.
+**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Subscribes to `hatchery.onStatusTick` and refreshes from `GET /api/alerts?limit=500` so new rows appear without a full page reload (same bus as Validators — [#282](https://github.com/dustinestes/Hatchery/issues/282)). Route: `/notifications/alerts`.
 
 ![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
 
