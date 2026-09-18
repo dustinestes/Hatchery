@@ -862,7 +862,7 @@ hatchery.vmRows = (function () {
   }
 
   function pollAlerts() {
-    fetch('/api/alerts')
+    return fetch('/api/alerts')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var items = data.items || [];
@@ -880,8 +880,9 @@ hatchery.vmRows = (function () {
         lastAlertItems = items;
         updateBadge(items);
         populateTray(items);
+        return data;
       })
-      .catch(function () {});
+      .catch(function () { return null; });
   }
 
   function applyPlaneStatus(status) {
@@ -903,21 +904,52 @@ hatchery.vmRows = (function () {
   }
 
   function pollPlaneStatus() {
-    fetch('/api/plane-status')
+    return fetch('/api/plane-status')
       .then(function (r) { return r.json(); })
-      .then(applyPlaneStatus)
-      .catch(function () {});
+      .then(function (status) {
+        applyPlaneStatus(status);
+        return status;
+      })
+      .catch(function () { return null; });
   }
 
   var STATUS_POLL_MS = 15000;
+  var statusTickListeners = [];
 
-  function refreshStatusSurfaces() {
-    pollAlerts();
-    pollPlaneStatus();
+  /**
+   * Status surfaces bus (#282): one refresh entrypoint for bell / tray / footer
+   * (and later Libraries). Surfaces read stored health — they do not re-run checks.
+   * Pane code may subscribe via hatchery.onStatusTick instead of a new setInterval.
+   */
+  function notifyStatusTick(payload) {
+    statusTickListeners.slice().forEach(function (fn) {
+      try {
+        fn(payload);
+      } catch (e) { /* listener errors must not break the bus */ }
+    });
   }
 
-  /** Immediate alerts + footer refresh (e.g. after Test Nest connection). */
+  function refreshStatusSurfaces() {
+    return Promise.all([pollAlerts(), pollPlaneStatus()]).then(function (parts) {
+      var payload = { alerts: parts[0], planeStatus: parts[1] };
+      notifyStatusTick(payload);
+      return payload;
+    });
+  }
+
+  function onStatusTick(fn) {
+    if (typeof fn !== 'function') {
+      return function () {};
+    }
+    statusTickListeners.push(fn);
+    return function offStatusTick() {
+      var i = statusTickListeners.indexOf(fn);
+      if (i >= 0) statusTickListeners.splice(i, 1);
+    };
+  }
+
   hatchery.refreshStatusSurfaces = refreshStatusSurfaces;
+  hatchery.onStatusTick = onStatusTick;
 
   /* Bell tray toggle */
   var bellBtn = document.getElementById('notif-bell');

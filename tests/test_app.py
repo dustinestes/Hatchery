@@ -2638,6 +2638,10 @@ class TestValidatorsPane:
     def test_pane_renders(self, client):
         html = client.get("/notifications/validators").data.decode()
         assert "Validators" in html
+        assert "validator-runs-tbody" in html
+        assert "hatchery.onStatusTick" in html
+        # Pane script must load after app.js via scripts block (not content).
+        assert html.index("app.js") < html.index("hatchery.onStatusTick")
 
     def test_api_lists_runs(self, client):
         from lib.validators.runs import record_run

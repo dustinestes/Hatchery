@@ -8,8 +8,11 @@
   <p class="pane-subtitle">History of background and on-demand validation runs. Findings still appear under Alerts.</p>
 </div>
 
-{% if runs %}
-<table class="notif-table" id="validator-runs-table">
+<div id="validator-runs-empty" class="stub" role="status"{% if runs %} hidden{% endif %}>
+  No validator runs recorded yet. Configure intervals under Settings → General.
+</div>
+
+<table class="notif-table" id="validator-runs-table"{% if not runs %} hidden{% endif %}>
   <thead>
     <tr>
       <th>Time</th>
@@ -20,7 +23,7 @@
       <th>Message</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody id="validator-runs-tbody">
     {% for run in runs %}
     <tr>
       <td class="notif-table-time">{{ run.finished_at or run.started_at }}</td>
@@ -39,7 +42,87 @@
     {% endfor %}
   </tbody>
 </table>
-{% else %}
-<div class="stub" role="status">No validator runs recorded yet. Configure intervals under Settings → General.</div>
-{% endif %}
+
+<script type="application/json" id="validator-titles-json">{{ validator_titles | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  /* Must run after app.js (base.html scripts block) so onStatusTick exists (#282). */
+  if (!window.hatchery || typeof hatchery.onStatusTick !== 'function') return;
+
+  var table = document.getElementById('validator-runs-table');
+  var tbody = document.getElementById('validator-runs-tbody');
+  var empty = document.getElementById('validator-runs-empty');
+  if (!table || !tbody) return;
+
+  var titles = {};
+  try {
+    var el = document.getElementById('validator-titles-json');
+    titles = JSON.parse((el && el.textContent) || '{}') || {};
+  } catch (e) {
+    titles = {};
+  }
+
+  function cell(text, className) {
+    var td = document.createElement('td');
+    if (className) td.className = className;
+    td.textContent = text == null ? '' : String(text);
+    return td;
+  }
+
+  function badgeCell(text, kind, badgeClass) {
+    var td = document.createElement('td');
+    td.className = kind;
+    var span = document.createElement('span');
+    span.className = badgeClass;
+    span.textContent = text;
+    td.appendChild(span);
+    return td;
+  }
+
+  function renderRuns(runs) {
+    tbody.textContent = '';
+    if (!runs.length) {
+      table.hidden = true;
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    table.hidden = false;
+    runs.forEach(function (run) {
+      var tr = document.createElement('tr');
+      var tier = String(run.tier || 'info').toLowerCase();
+      if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'info';
+      var status = run.status === 'ok' ? 'ok' : 'error';
+      tr.appendChild(cell(run.finished_at || run.started_at || '', 'notif-table-time'));
+      tr.appendChild(cell(titles[run.validator_id] || run.validator_id || ''));
+      tr.appendChild(badgeCell(
+        status,
+        'notif-table-status',
+        'notif-status-badge notif-status-badge--' + (status === 'ok' ? 'resolved' : 'active')
+      ));
+      tr.appendChild(badgeCell(
+        tier,
+        'notif-table-tier',
+        'notif-tier-badge notif-tier-badge--' + tier
+      ));
+      tr.appendChild(cell(run.trigger || ''));
+      tr.appendChild(cell(run.message || '', 'notif-table-msg'));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refreshRuns() {
+    fetch('/api/validators/runs?limit=200')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderRuns(data.runs || []); })
+      .catch(function () {});
+  }
+
+  hatchery.onStatusTick(refreshRuns);
+  refreshRuns();
+})();
+</script>
 {% endblock %}

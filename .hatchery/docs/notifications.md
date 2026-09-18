@@ -15,6 +15,7 @@ Umbrella for operator-facing signals in Hatchery: **Alerts** (conditions that ne
 - [Contents](#contents)
 - [Overview](#overview)
 - [Separation of concerns](#separation-of-concerns)
+- [Status surfaces](#status-surfaces)
 - [Toasts](#toasts)
 - [Alerts](#alerts)
   - [UI surfaces](#ui-surfaces)
@@ -63,6 +64,50 @@ Umbrella routes stay under `/notifications/...`. Alert CRUD lives in `lib/alerts
 
 <br>
 
+## Status surfaces
+
+Controller UI health display is a three-layer contract ([#282](https://github.com/dustinestes/Hatchery/issues/282)) — not a SPA framework and not WebSockets in v1:
+
+| Layer | Role | Examples |
+|---|---|---|
+| **Gather** | Probe / check the world | Validators ([validators.md](validators.md)); Hatch lifecycle poller stays separate |
+| **Store** | Persist findings and thin status | `alerts` table; `validator_runs`; Nest reachability snapshot in settings (`nest_reachability_status`) |
+| **Surface** | Read/poll stored state; decide what to show | Bell, tray, toasts-on-new-alert, footer chips, later Libraries |
+
+Surfaces **do not** invent health logic or re-run checks. They call APIs over stored state (`GET /api/alerts`, `GET /api/plane-status`, …) and ask whether anything related to them should be shown.
+
+### Client bus (`static/app.js`)
+
+| API | Purpose |
+|---|---|
+| `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
+| `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
+
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**. Planned on the same bus:
+
+- [#254](https://github.com/dustinestes/Hatchery/issues/254) — Libraries footer chip (visibility + plane-status fields)
+- [#280](https://github.com/dustinestes/Hatchery/issues/280) — Validators pane filters / finding tiers (pane subscribes to the tick)
+
+```js
+// Pane example — no new timer
+var off = hatchery.onStatusTick(function (payload) {
+  // payload.alerts, payload.planeStatus — or fetch pane-specific APIs here
+});
+// off() when leaving the pane if needed
+```
+
+### Rollups and shadow state
+
+Footer rollups prefer **Alerts** (+ live Nest registry) where practical (`lib/plane_status.py`). Nest reachability also keeps a thin **snapshot** so the Nests chip can show unreachable counts between validator ticks — document that dual read; do not invent a third store for new chips. A future `GET /api/status-bundle` or SSE is optional and not required for v1.
+
+Non-goals: JS framework rewrite; WebSockets as the first step; folding hatch lifecycle Events into validators; making validators push to the DOM.
+
+<br>
+
+---
+
+<br>
+
 ## Toasts
 
 Fixed bottom-right stack (`#toast-container` in `templates/ui/base.html`). Implemented in `static/app.js` as `hatchery.showToast` and styled in `static/style.css` (`.toast*`).
@@ -97,7 +142,7 @@ Each toast shows a **tier label** (Info / Warning / Alert) plus an icon so meani
 
 ## Alerts
 
-Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and `GET /api/plane-status` together every **15 seconds** (`hatchery.refreshStatusSurfaces` in `static/app.js`) so the bell, tray, toasts, and footer stay in sync without a full page refresh ([#278](https://github.com/dustinestes/Hatchery/issues/278)). Settings → Test Nest connection also triggers an immediate refresh. Test Nest connection does **not** open reachability Alerts for draft/unsaved Nest rows, and does not open them on failure for saved Nests either — only the `nest_reachability` validator opens those; a successful Test **resolves** an open reachability Alert for that Nest ([#283](https://github.com/dustinestes/Hatchery/issues/283)).
+Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes Alerts and plane status together via `hatchery.refreshStatusSurfaces` every **15 seconds** ([#278](https://github.com/dustinestes/Hatchery/issues/278), [#282](https://github.com/dustinestes/Hatchery/issues/282)) so the bell, tray, toasts, and footer stay in sync without a full page refresh. Settings → Test Nest connection also triggers an immediate refresh. Test Nest connection does **not** open reachability Alerts for draft/unsaved Nest rows, and does not open them on failure for saved Nests either — only the `nest_reachability` validator opens those; a successful Test **resolves** an open reachability Alert for that Nest ([#283](https://github.com/dustinestes/Hatchery/issues/283)).
 
 ### UI surfaces
 
@@ -152,7 +197,7 @@ The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the 
 | **Footer Hatchery** | Controller-plane rollup — green when no Controller-scoped alerts (excl. info); red when requirements / invalid Clutches / etc. need attention |
 | **Footer Nests** | Nest-plane rollup — muted when no Nests registered; green when all registered Nests are OK; red when any unreachable or Nest-scoped alert is active |
 
-Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts). The same 15s UI poll as Alerts (`refreshStatusSurfaces`) keeps footer and bell aligned ([#278](https://github.com/dustinestes/Hatchery/issues/278)).
+Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts + reachability snapshot). The same status-surfaces bus as Alerts (`refreshStatusSurfaces` / `onStatusTick`) keeps footer and bell aligned ([#278](https://github.com/dustinestes/Hatchery/issues/278), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
 
 ### Observability decision (#263)
 

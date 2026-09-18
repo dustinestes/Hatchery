@@ -2,6 +2,9 @@
 
 Glanceable status only. Counts come from the live Nest registry and active
 Alerts, not from the page URL. Drill-down stays on the Alerts bell and Nests pane.
+
+Part of the status-surfaces contract (#282): validators gather, Alerts/snapshot
+store, UI polls ``GET /api/plane-status`` via ``hatchery.refreshStatusSurfaces``.
 """
 
 from __future__ import annotations
