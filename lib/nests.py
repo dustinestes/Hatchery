@@ -435,6 +435,22 @@ def to_connection_config(
     )
 
 
+def _apply_manual_reachability(nest: dict, result, *, registered: bool) -> None:
+    """Persist Test Nest connection reachability for registered Nests only (#283).
+
+    Draft / unsaved rows stay out of the snapshot and Alerts. Saved Nests update
+    the snapshot so UI surfaces can refresh immediately; success resolves any open
+    reachability Alert. Failures do not open Alerts — ``nest_reachability`` owns that.
+    """
+    if not registered:
+        return
+    from lib import nest_reachability as nr
+
+    nr.record_probe(nest, result)
+    if result.ok:
+        nr.sync_alert_for_probe(nest, result)
+
+
 def test_connection(
     nest: dict,
     *,
@@ -442,21 +458,22 @@ def test_connection(
 ) -> dict:
     """Run Test Nest connection; return ``{ok, message}`` for the UI.
 
-    Remote Nests: Nest transport reachability first (updates #263 status/alerts),
-    then Nest capability tools via the ``nest_capability`` validator (#208).
-    Local Nests: mark reachable, then capability.
+    Remote Nests: Nest transport reachability first, then Nest capability tools via
+    the ``nest_capability`` validator (#208). Local Nests: mark reachable, then
+    capability. Snapshot / Alert side effects apply only to Nests already in the
+    registry (#283); the inline message always reflects the probe.
     """
     from lib import nest_reachability as nr
     from lib import requirements as req_lib
     from lib.validators.scheduler import run_validator
 
     nest = _normalize_one(nest)
+    registered = get_nest(nest["id"]) is not None
     reach_msg = "Local Nest — co-located with the Controller."
 
     if nest["location"] == "local":
         local_result = nr.probe_nest(nest)
-        nr.record_probe(nest, local_result)
-        nr.sync_alert_for_probe(nest, local_result)
+        _apply_manual_reachability(nest, local_result, registered=registered)
         reach_msg = local_result.detail or reach_msg
     else:
         if nest["transport"] == "winrm" and not (winrm_password or "").strip():
@@ -466,21 +483,21 @@ def test_connection(
             }
 
         result = nr.probe_nest(nest, winrm_password=winrm_password)
-        nr.record_probe(nest, result)
-        nr.sync_alert_for_probe(nest, result)
+        _apply_manual_reachability(nest, result, registered=registered)
         if not result.ok:
             return {"ok": False, "message": result.detail}
         reach_msg = result.detail or "Nest transport OK."
 
-    try:
-        run_validator(
-            "nest_capability",
-            nest_id=nest["id"],
-            trigger="connection",
-            winrm_password=winrm_password,
-        )
-    except Exception as exc:
-        return {"ok": False, "message": f"{reach_msg} Nest capability check failed: {exc}"}
+    if registered:
+        try:
+            run_validator(
+                "nest_capability",
+                nest_id=nest["id"],
+                trigger="connection",
+                winrm_password=winrm_password,
+            )
+        except Exception as exc:
+            return {"ok": False, "message": f"{reach_msg} Nest capability check failed: {exc}"}
 
     missing = req_lib.missing(req_lib.check_nest(nest, winrm_password=winrm_password))
     if missing:

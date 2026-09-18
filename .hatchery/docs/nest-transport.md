@@ -84,6 +84,16 @@ Guest WinRM in `lib/provision.py` is separate and unchanged.
 
 Local Nests skip both (co-located). Alerts and Test connection messages carry the class label so operators know whether to fix network/address vs Nest SSH/WinRM setup — hard contracts documented here, not transient magic.
 
+**Test Nest connection** side effects ([#283](https://github.com/dustinestes/Hatchery/issues/283)):
+
+| Nest row | Snapshot | Reachability Alerts |
+|---|---|---|
+| **Draft / unsaved** (id not in registry) | no write | no open / no resolve |
+| **Saved** — failure | update (footer / Nests status) | **do not open** (validator owns opens) |
+| **Saved** — success | update | **resolve** open Alert for that Nest |
+
+The Settings button always refreshes UI status surfaces after the request so bell/footer catch up without waiting for the next poll.
+
 `SshNestTransport` / `WinrmNestTransport.test_connection()` remain the transport-session probe. UI label: **Test Nest connection**.
 
 <br>
