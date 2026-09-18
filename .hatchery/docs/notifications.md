@@ -146,7 +146,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 
 ### UI surfaces
 
-**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert id is toasted at most once (persisted in `localStorage`) so navigation does not re-fire toasts. “New” means unresolved and newer than the last tray-open time, compared via parsed timestamps (not raw string compare of `+00:00` vs `Z` — [#288](https://github.com/dustinestes/Hatchery/issues/288)). Nest reachability keeps **one** active Alert per Nest id (renames / detail text must not stack duplicates). Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
+**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert **row** is toasted at most once (persisted in `localStorage` as id → `created_at`) so navigation does not re-fire toasts, and wiping `hatchery.db` (sqlite id reuse) still toasts the new row ([#288](https://github.com/dustinestes/Hatchery/issues/288)). “New” means unresolved and newer than the last tray-open time (parsed timestamps), or the same numeric id with a different `created_at`. Nest reachability keeps **one** active Alert per Nest id (renames / detail text must not stack duplicates). Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
 
 **Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
