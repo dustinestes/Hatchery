@@ -100,7 +100,7 @@ class TestSshNestTransport:
         ):
             result = nt.SshNestTransport(self._cfg()).test_connection()
         assert result.ok is True
-        assert result.detail == "reachable"
+        assert result.detail == "Nest transport OK"
 
     def test_test_connection_failure(self):
         mock_result = MagicMock(returncode=255, stdout="", stderr="Connection refused")
@@ -211,7 +211,7 @@ class TestWinrmNestTransport:
         with patch.dict("sys.modules", {"winrm": mock_winrm}):
             result = nt.WinrmNestTransport(self._cfg()).test_connection()
         assert result.ok is True
-        assert result.detail == "reachable"
+        assert result.detail == "Nest transport OK"
 
     def test_test_connection_failure(self):
         mock_session = MagicMock()

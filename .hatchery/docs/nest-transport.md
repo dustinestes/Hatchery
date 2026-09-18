@@ -75,7 +75,16 @@ Guest WinRM in `lib/provision.py` is separate and unchanged.
 
 ## Connectivity Check
 
-`SshNestTransport` / `WinrmNestTransport.test_connection()` run a trivial remote command. UI label: **Test Nest connection**.
+`nest_reachability` (validator) and **Test Nest connection** use one contract with a **diagnostic split** on the result (not two validators):
+
+| Stage | Meaning | ``failure_class`` |
+|---|---|---|
+| **Endpoint** | TCP connect to Nest `host:port` succeeds | `endpoint` when it fails |
+| **Nest transport** | Authenticated SSH / WinRM session runs a trivial command | `transport` when endpoint is up but session fails |
+
+Local Nests skip both (co-located). Alerts and Test connection messages carry the class label so operators know whether to fix network/address vs Nest SSH/WinRM setup — hard contracts documented here, not transient magic.
+
+`SshNestTransport` / `WinrmNestTransport.test_connection()` remain the transport-session probe. UI label: **Test Nest connection**.
 
 <br>
 

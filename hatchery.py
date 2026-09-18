@@ -459,10 +459,26 @@ start_scheduler()
 
 @app.context_processor
 def inject_nest_status():
-    alert_count = alerts_lib.count_active_alerts()
+    from lib import nest_reachability as nr
+
+    snap = nr.get_snapshot()
+    local_ok = bool(snap.get("local_ok", True))
+    remotes_ok = bool(snap.get("remotes_ok", True))
+    remote_total = int(snap.get("remote_total") or 0)
+    remote_down = int(snap.get("remote_down") or 0)
+    if remote_total == 0:
+        remotes_title = "No Remote Nests registered"
+    elif remotes_ok:
+        remotes_title = f"All {remote_total} Remote Nest(s) reachable"
+    else:
+        remotes_title = f"{remote_down} of {remote_total} Remote Nest(s) unreachable"
+    local_title = "Local Nest reachable" if local_ok else "Local Nest unreachable"
     return {
-        "nest_has_warnings": alert_count > 0,
-        "nest_warning_count": alert_count,
+        "local_nest_ok": local_ok,
+        "local_nest_title": local_title,
+        "remotes_ok": remotes_ok,
+        "remotes_title": remotes_title,
+        "remote_nest_total": remote_total,
         "library_enabled": config.library_enabled(),
     }
 
@@ -578,8 +594,16 @@ def dashboard():
 
 @app.route("/nests")
 def nests():
+    from lib import nest_reachability as nr
+
     nests_lib.ensure_local_nest()
     registered = nests_lib.list_nests()
+    for nest in registered:
+        nest["reachability_ok"] = (
+            (nr.get_snapshot().get("nests") or {}).get(nest["id"], {}).get("ok", True)
+        )
+        nest["reachability_label"] = nr.nest_reachability_label(nest["id"])
+        nest["reachability_dot"] = nr.nest_dot_class(nest["id"])
     return render_template(
         "nests.html",
         active_pane="nests",

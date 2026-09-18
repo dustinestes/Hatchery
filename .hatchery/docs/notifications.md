@@ -135,12 +135,24 @@ Health and content checks run as **pluggable validators** ([validators.md](valid
 
 **Findings** still use the Alerts table (bell / tray). Examples:
 
-- `controller_requirements` — Controller-plane tools (`Controller requirement:`) — e.g. OpenSSH client when Remote Nests exist; not Nest hypervisor packages
-- `nest_capability` — Nest-plane hypervisor tools (`Nest capability:`) — Local on-box, Remote over Nest transport
+- `controller_requirements` — Controller-plane tools (`Controller requirement:`)
+- `nest_reachability` — Nest endpoint / transport (`Nest reachability:` with `endpoint` vs `transport` reason on the result)
+- `nest_capability` — Nest hypervisor tools (`Nest capability:`)
 - `clutch_files` — invalid Clutch YAML (`Invalid Clutch file:`)
 - `nest_key_expiry` — Nest SSH identity windows
 
 The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the **Hatch status poll** interval (`bg_interval`).
+
+### Footer vs Alerts (#263)
+
+| Surface | Meaning |
+|---|---|
+| **Bell / Alerts pane** | All active findings (Controller, Nest reachability, Nest capability, Clutches, …) |
+| **Footer Local + Remotes** | Nest **reachability** only (last probe snapshot) — not the aggregate alert count |
+
+### Observability decision (#263)
+
+Keep health checks as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)) rather than a second Host-plane registry. Nest reachability is `nest_reachability`; do not extend a private `_background_loop` catch-all. Hatch status polling stays a separate orchestration poller.
 
 #### Import copies (`lib/import_files.py`)
 

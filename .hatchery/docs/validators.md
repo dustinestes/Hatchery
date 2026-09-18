@@ -65,8 +65,8 @@ Package: [`lib/validators/`](../../lib/validators/).
 | `controller_requirements` | Active — Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active |
+| `nest_reachability` | Active — endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
 | `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport) |
-| `nest_reachability` | Stub — [#263](https://github.com/dustinestes/Hatchery/issues/263) |
 | `library_connections` | Stub — [#254](https://github.com/dustinestes/Hatchery/issues/254) |
 
 <br>

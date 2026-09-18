@@ -41,9 +41,14 @@ class TestRegistry:
         assert "library_connections" in ids
 
     def test_stubs_marked(self):
-        v = get_validator("nest_reachability")
+        v = get_validator("library_connections")
         assert v is not None
         assert getattr(v, "stub", False) is True
+
+    def test_nest_reachability_active(self):
+        v = get_validator("nest_reachability")
+        assert v is not None
+        assert getattr(v, "stub", False) is False
 
 
 class TestRuns:
@@ -166,3 +171,67 @@ class TestNestCapability:
             for a in alerts_lib.list_recent()
             if not a["resolved"]
         )
+
+
+class TestNestReachability:
+    def test_run_alerts_unreachable_remote(self):
+        from unittest.mock import patch
+
+        from lib.nest_transport import NestHealthCheckResult
+
+        nest = {
+            "id": "r1",
+            "name": "Lab",
+            "location": "remote",
+            "provider_type": "libvirt",
+            "transport": "ssh",
+            "host": "nest.example",
+        }
+        with (
+            patch("lib.nests.list_nests", return_value=[nest]),
+            patch("lib.nests.ensure_local_nest", return_value=None),
+            patch(
+                "lib.nest_reachability.probe_nest",
+                return_value=NestHealthCheckResult(
+                    ok=False,
+                    detail="endpoint not reachable — Connection refused",
+                    failure_class="endpoint",
+                ),
+            ),
+        ):
+            ctx = ValidatorContext(trigger="manual")
+            summary = get_validator("nest_reachability").run(ctx)
+        from lib import alerts as alerts_lib
+
+        assert "unreachable" in summary.lower()
+        assert any(
+            "Nest reachability:" in a["message"] and "endpoint not reachable" in a["message"]
+            for a in alerts_lib.list_recent()
+            if not a["resolved"]
+        )
+
+    def test_run_resolves_when_reachable(self):
+        from unittest.mock import patch
+
+        from lib import alerts as alerts_lib
+        from lib.nest_transport import NestHealthCheckResult
+
+        nest = {
+            "id": "r1",
+            "name": "Lab",
+            "location": "remote",
+            "provider_type": "libvirt",
+            "transport": "ssh",
+            "host": "nest.example",
+        }
+        alerts_lib.record_alert("Nest reachability: 'Lab' (r1): Connection refused")
+        with (
+            patch("lib.nests.list_nests", return_value=[nest]),
+            patch("lib.nests.ensure_local_nest", return_value=None),
+            patch(
+                "lib.nest_reachability.probe_nest",
+                return_value=NestHealthCheckResult(ok=True, detail="OK"),
+            ),
+        ):
+            get_validator("nest_reachability").run(ValidatorContext(trigger="manual"))
+        assert alerts_lib.count_active_alerts() == 0

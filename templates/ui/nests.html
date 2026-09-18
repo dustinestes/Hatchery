@@ -19,11 +19,11 @@
             data-nest-name="{{ nest.name }}"
             data-nest-location="{{ nest.location }}"
             aria-pressed="{% if nest.id == selected_nest_id %}true{% else %}false{% endif %}"
-            aria-label="{{ nest.name }} ({{ nest.id }}, {{ nest.location }} {{ nest.provider_type }})">
-      <span class="nest-status-dot nest-status-dot--green" aria-hidden="true"></span>
+            aria-label="{{ nest.name }} ({{ nest.id }}, {{ nest.location }} {{ nest.provider_type }}, {{ nest.reachability_label }})">
+      <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
       <span class="nests-nav-text">
         <span class="nests-nav-label">{{ nest.name }}</span>
-        <span class="nests-nav-id">{{ nest.id }}</span>
+        <span class="nests-nav-id">{{ nest.id }} · {{ nest.reachability_label }}</span>
       </span>
     </button>
     {% else %}

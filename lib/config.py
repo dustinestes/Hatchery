@@ -36,6 +36,7 @@ _DB_SETTING_KEYS = frozenset(
         "bg_interval",
         "validators",
         "validators_run_retention",
+        "nest_reachability_status",
         "show_passwords",
         "display_timezone",
         "nest_key_alert_tiers",
@@ -67,6 +68,7 @@ _DEFAULTS: dict = {
     "bg_interval": 60,
     "validators": {},
     "validators_run_retention": 50,
+    "nest_reachability_status": {},
     "show_passwords": False,
     "display_timezone": "UTC",
     "library_enabled": False,
@@ -222,8 +224,12 @@ def library_media_bindings() -> list:
 
 
 def exportable_setting_keys() -> frozenset[str]:
-    """Keys included in Settings export/import (not bootstrap ``data_dir``)."""
-    return _DB_SETTING_KEYS
+    """Keys included in Settings export/import (not bootstrap ``data_dir``).
+
+    Runtime caches such as ``nest_reachability_status`` stay in SQLite but are
+    not exported.
+    """
+    return _DB_SETTING_KEYS - {"nest_reachability_status"}
 
 
 def default_for(key: str):
@@ -233,7 +239,7 @@ def default_for(key: str):
 
 def defaults_for_exportable_settings() -> dict:
     """Return a copy of all exportable (DB) setting defaults — excludes ``data_dir``."""
-    return {k: deepcopy(_DEFAULTS[k]) for k in _DB_SETTING_KEYS}
+    return {k: deepcopy(_DEFAULTS[k]) for k in exportable_setting_keys()}
 
 
 def init_data_dir() -> None:

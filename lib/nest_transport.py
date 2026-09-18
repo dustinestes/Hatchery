@@ -105,10 +105,18 @@ class NestConnectionConfig:
 
 @dataclass(frozen=True)
 class NestHealthCheckResult:
-    """Result of a Nest connectivity check (UI: Test Nest connection)."""
+    """Result of a Nest connectivity check (UI: Test Nest connection).
+
+    ``failure_class`` (when ``ok`` is False):
+
+    - ``endpoint`` — host:port not reachable (nothing listening / filtered / wrong address)
+    - ``transport`` — endpoint accepts TCP but Nest transport session failed (auth, protocol, …)
+    - ``config`` — Nest row / client setup cannot run a probe (missing password, invalid fields)
+    """
 
     ok: bool
     detail: str
+    failure_class: str | None = None
 
 
 class NestTransport(Protocol):
@@ -166,12 +174,17 @@ class SshNestTransport:
         try:
             out = self.run("echo hatchery-nest-ok")
         except NestTransportError as exc:
-            return NestHealthCheckResult(ok=False, detail=str(exc))
+            return NestHealthCheckResult(
+                ok=False,
+                detail=str(exc),
+                failure_class="transport",
+            )
         if "hatchery-nest-ok" in out:
-            return NestHealthCheckResult(ok=True, detail="reachable")
+            return NestHealthCheckResult(ok=True, detail="Nest transport OK")
         return NestHealthCheckResult(
             ok=False,
             detail=f"unexpected response: {out.strip()!r}",
+            failure_class="transport",
         )
 
     def run(self, remote_command: str, *, timeout: float | None = None) -> str:
@@ -227,12 +240,17 @@ class WinrmNestTransport:
         try:
             out = self.run("Write-Output 'hatchery-nest-ok'")
         except NestTransportError as exc:
-            return NestHealthCheckResult(ok=False, detail=str(exc))
+            return NestHealthCheckResult(
+                ok=False,
+                detail=str(exc),
+                failure_class="transport",
+            )
         if "hatchery-nest-ok" in out:
-            return NestHealthCheckResult(ok=True, detail="reachable")
+            return NestHealthCheckResult(ok=True, detail="Nest transport OK")
         return NestHealthCheckResult(
             ok=False,
             detail=f"unexpected response: {out.strip()!r}",
+            failure_class="transport",
         )
 
     def run(self, remote_command: str, *, timeout: float | None = None) -> str:
