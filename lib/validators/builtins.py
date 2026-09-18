@@ -117,6 +117,8 @@ class NestCapabilityValidator(BaseValidator):
     default_enabled = True
 
     def run(self, ctx: ValidatorContext) -> str:
+        from lib import nest_reachability as nr
+
         nests = nests_lib.list_nests()
         if ctx.nest_id:
             nests = [n for n in nests if n.get("id") == ctx.nest_id]
@@ -125,15 +127,24 @@ class NestCapabilityValidator(BaseValidator):
 
         missing_total = 0
         checked_nests = 0
+        skipped_unreachable = 0
         for nest in nests:
             nest_id = nest.get("id") or "?"
             nest_name = nest.get("name") or nest_id
             location = nest.get("location") or "local"
+            nest_prefix = f"{_NEST_ALERT_PREFIX} '{nest_name}' ({nest_id}):"
+
+            # Reachability gates capability on Remotes (#286): failed transport
+            # must not become "missing Nest tools" Alerts.
+            if not nr.is_reachable_for_capability(nest):
+                skipped_unreachable += 1
+                ctx.resolve_alerts_by_prefix(nest_prefix)
+                continue
+
             results = req_lib.check_nest(nest, winrm_password=ctx.winrm_password)
             if not results and location == "remote" and (nest.get("transport") or "ssh") == "winrm":
                 continue
             checked_nests += 1
-            nest_prefix = f"{_NEST_ALERT_PREFIX} '{nest_name}' ({nest_id}):"
             for req in results:
                 tool_prefix = f"{nest_prefix} '{req.name}'"
                 if not req.present:
@@ -147,9 +158,16 @@ class NestCapabilityValidator(BaseValidator):
                 else:
                     ctx.resolve_alerts_by_prefix(tool_prefix)
 
+        parts: list[str] = []
         if missing_total:
-            return f"{missing_total} missing Nest tool(s) across {checked_nests} Nest(s)"
-        return f"Nest capability OK ({checked_nests} Nest(s))"
+            parts.append(f"{missing_total} missing Nest tool(s) across {checked_nests} Nest(s)")
+        elif checked_nests:
+            parts.append(f"Nest capability OK ({checked_nests} Nest(s))")
+        if skipped_unreachable:
+            parts.append(f"skipped {skipped_unreachable} unreachable Nest(s)")
+        if not parts:
+            return "No Nests to check"
+        return "; ".join(parts)
 
 
 class NestReachabilityValidator(BaseValidator):

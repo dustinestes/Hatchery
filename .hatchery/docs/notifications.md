@@ -183,7 +183,7 @@ Health and content checks run as **pluggable validators** ([validators.md](valid
 
 - `controller_requirements` — Controller-plane tools (`Controller requirement:`)
 - `nest_reachability` — Nest endpoint / transport (`Nest reachability:` with `endpoint` vs `transport` reason on the result)
-- `nest_capability` — Nest hypervisor tools (`Nest capability:`)
+- `nest_capability` — Nest hypervisor tools (`Nest capability:`). On Remotes, gated by reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)) — unreachable Nests skip capability and clear those Alerts
 - `clutch_files` — invalid Clutch YAML (`Invalid Clutch file:`)
 - `nest_key_expiry` — Nest SSH identity windows
 

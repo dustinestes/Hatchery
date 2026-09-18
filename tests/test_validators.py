@@ -172,6 +172,84 @@ class TestNestCapability:
             if not a["resolved"]
         )
 
+    def test_skips_unreachable_remote_and_clears_capability_alerts(self):
+        """Unreachable Remotes must not invent missing-tool Alerts (#286)."""
+        from unittest.mock import patch
+
+        from lib import alerts as alerts_lib
+        from lib.nest_transport import NestHealthCheckResult
+        from lib import nest_reachability as nr
+
+        nest = {
+            "id": "r1",
+            "name": "Lab",
+            "location": "remote",
+            "provider_type": "libvirt",
+            "transport": "ssh",
+            "host": "nest.example",
+        }
+        nr.record_probe(
+            nest,
+            NestHealthCheckResult(
+                ok=False,
+                detail="endpoint not reachable — down",
+                failure_class="endpoint",
+            ),
+        )
+        alerts_lib.record_alert(
+            "Nest capability: 'Lab' (r1): 'virsh' is not available — VM lifecycle"
+        )
+        with (
+            patch("lib.nests.list_nests", return_value=[nest]),
+            patch("lib.requirements.check_nest") as check_nest,
+        ):
+            summary = get_validator("nest_capability").run(ValidatorContext(trigger="manual"))
+        check_nest.assert_not_called()
+        assert "skipped" in summary.lower()
+        assert "unreachable" in summary.lower()
+        active_cap = [
+            a
+            for a in alerts_lib.list_recent()
+            if not a["resolved"] and "Nest capability:" in a["message"]
+        ]
+        assert active_cap == []
+
+    def test_checks_reachable_remote(self):
+        from unittest.mock import patch
+
+        from lib import nest_reachability as nr
+        from lib.nest_transport import NestHealthCheckResult
+        from lib.requirements import Requirement
+
+        nest = {
+            "id": "r1",
+            "name": "Lab",
+            "location": "remote",
+            "provider_type": "libvirt",
+            "transport": "ssh",
+            "host": "nest.example",
+        }
+        nr.record_probe(nest, NestHealthCheckResult(ok=True, detail="OK"))
+        with (
+            patch("lib.nests.list_nests", return_value=[nest]),
+            patch(
+                "lib.requirements.check_nest",
+                return_value=[
+                    Requirement("virsh", "libvirt-clients", "ops", False, role="nest"),
+                ],
+            ) as check_nest,
+        ):
+            summary = get_validator("nest_capability").run(ValidatorContext(trigger="manual"))
+        check_nest.assert_called_once()
+        assert "missing" in summary.lower()
+        from lib import alerts as alerts_lib
+
+        assert any(
+            "Nest capability:" in a["message"] and "virsh" in a["message"]
+            for a in alerts_lib.list_recent()
+            if not a["resolved"]
+        )
+
 
 class TestNestReachability:
     def test_run_alerts_unreachable_remote(self):

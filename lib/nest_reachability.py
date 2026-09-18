@@ -332,6 +332,25 @@ def nest_dot_class(nest_id: str) -> str:
     return "nest-status-dot--green" if entry.get("ok") else "nest-status-dot--red"
 
 
+def is_reachable_for_capability(nest: dict) -> bool:
+    """Whether Nest capability checks may run for this Nest (#286).
+
+    Local Nests are co-located — always True. Remote Nests require a successful
+    reachability snapshot entry; unreachable or never-probed Remotes must not
+    invent "missing tool" findings from failed transport probes.
+    """
+    location = nest.get("location") or "local"
+    if location == "local":
+        return True
+    nest_id = nest.get("id")
+    if not nest_id:
+        return False
+    entry = (get_snapshot().get("nests") or {}).get(nest_id)
+    if not isinstance(entry, dict):
+        return False
+    return bool(entry.get("ok"))
+
+
 def nest_reachability_label(nest_id: str) -> str:
     """Accessible text for reachability (not color-only)."""
     snap = get_snapshot()
