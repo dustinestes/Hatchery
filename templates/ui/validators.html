@@ -44,9 +44,12 @@
 </table>
 
 <script type="application/json" id="validator-titles-json">{{ validator_titles | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
 <script>
 (function () {
-  /* Subscribe to the status-surfaces bus — no pane-local setInterval (#282). */
+  /* Must run after app.js (base.html scripts block) so onStatusTick exists (#282). */
   if (!window.hatchery || typeof hatchery.onStatusTick !== 'function') return;
 
   var table = document.getElementById('validator-runs-table');
@@ -111,12 +114,15 @@
     });
   }
 
-  hatchery.onStatusTick(function () {
+  function refreshRuns() {
     fetch('/api/validators/runs?limit=200')
       .then(function (r) { return r.json(); })
       .then(function (data) { renderRuns(data.runs || []); })
       .catch(function () {});
-  });
+  }
+
+  hatchery.onStatusTick(refreshRuns);
+  refreshRuns();
 })();
 </script>
 {% endblock %}
