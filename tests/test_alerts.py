@@ -152,6 +152,34 @@ class TestResolveAlertsByPrefix:
         assert row["resolved"] == 1
 
 
+class TestResolveAlertsForNestId:
+    def test_resolves_nest_scoped_prefixes(self):
+        a = alerts.record_alert("Nest reachability: 'Lab' (lab1): endpoint not reachable")
+        b = alerts.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available — x")
+        c = alerts.record_alert(
+            "Nest SSH identity expiry: 'Lab' (lab1) expires in 3 day(s) (2026-09-20)"
+        )
+        other = alerts.record_alert("Nest reachability: 'Other' (lab2): down")
+        alerts.resolve_alerts_for_nest_id("lab1")
+        rows = {r["id"]: r for r in alerts.list_recent()}
+        assert rows[a]["resolved"] == 1
+        assert rows[b]["resolved"] == 1
+        assert rows[c]["resolved"] == 1
+        assert rows[other]["resolved"] == 0
+        assert rows[a]["resolved_at"] is not None
+
+    def test_leaves_unrelated_prefixes(self):
+        nid = alerts.record_alert("Controller requirement: 'ssh' is not installed — x")
+        alerts.resolve_alerts_for_nest_id("ssh")
+        row = next(r for r in alerts.list_recent() if r["id"] == nid)
+        assert row["resolved"] == 0
+
+    def test_noop_on_empty_id(self):
+        alerts.record_alert("Nest reachability: 'Lab' (lab1): down")
+        alerts.resolve_alerts_for_nest_id("")
+        assert alerts.count_active_alerts() == 1
+
+
 class TestHasActiveAlert:
     def test_returns_false_when_no_alerts(self):
         assert alerts.has_active_alert("some alert") is False

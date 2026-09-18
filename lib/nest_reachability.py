@@ -311,6 +311,18 @@ def run_probes(
     return snap
 
 
+def prune_removed_nests(kept_ids: set[str]) -> None:
+    """Drop snapshot entries for Nest ids no longer in the registry; recompute footer."""
+    snap = get_snapshot()
+    nests = dict(snap.get("nests") or {})
+    if not nests:
+        return
+    pruned = {nid: entry for nid, entry in nests.items() if nid in kept_ids}
+    if pruned.keys() == nests.keys():
+        return
+    _save_snapshot(_recompute_summary(pruned))
+
+
 def nest_dot_class(nest_id: str) -> str:
     """CSS modifier for Nests pane status dot (green/red only — amber deferred)."""
     snap = get_snapshot()

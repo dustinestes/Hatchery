@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from lib import alerts as alerts_lib
 from lib import config
 from lib import db as db_module
 from lib import nest_key_expiry as nest_key_expiry_lib
@@ -326,9 +327,15 @@ def _optional_int(value: object, *, label: str) -> int | None:
 
 
 def replace_nests(raw: list | None) -> list[dict]:
-    """Replace the Nest registry with a validated list (Settings save)."""
+    """Replace the Nest registry with a validated list (Settings save).
+
+    Removed Nest ids resolve Nest-scoped Alerts (history retained) and are
+    dropped from the reachability snapshot (#275).
+    """
     nests = parse_nests(raw)
     existing = {n["id"]: n for n in list_nests()}
+    kept_ids = {n["id"] for n in nests}
+    removed_ids = set(existing) - kept_ids
     now = _now()
     conn = db_module.get_connection()
     try:
@@ -368,6 +375,12 @@ def replace_nests(raw: list | None) -> list[dict]:
         conn.commit()
     finally:
         conn.close()
+    if removed_ids:
+        for nest_id in removed_ids:
+            alerts_lib.resolve_alerts_for_nest_id(nest_id)
+        from lib import nest_reachability as nest_reachability_lib
+
+        nest_reachability_lib.prune_removed_nests(kept_ids)
     return list_nests()
 
 
