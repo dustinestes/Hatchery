@@ -101,10 +101,9 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET
 
 ### UI surfaces
 
-**Toast overlay** — brief banner in the bottom-right when new alerts arrive (via `hatchery.showToast(..., 'alert')`). Each alert id is toasted at most once per page session so continuous polling does not spam. Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
+**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert id is toasted at most once (persisted in `localStorage`) so navigation does not re-fire toasts. Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
 
-**Bell badge** — topbar control labeled **Alerts**; shows the **active** (unresolved) alert count (not blank when the tray was opened / unread is zero).
-
+**Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
 **Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Filters: Active / Resolved only. Route: `/notifications/alerts`.
