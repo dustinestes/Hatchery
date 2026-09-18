@@ -2392,7 +2392,9 @@ class TestRequirementsSync:
         ):
             app_module._sync_requirements()
         alerts = [n for n in alerts_lib.list_recent() if n["tier"] == "alert"]
-        assert any("ssh" in a["message"] and "Controller requirement:" in a["message"] for a in alerts)
+        assert any(
+            "ssh" in a["message"] and "Controller requirement:" in a["message"] for a in alerts
+        )
 
     def test_no_alerts_when_all_tools_present(self):
         with patch(
@@ -2455,7 +2457,9 @@ class TestRequirementsSync:
         with patch(
             "lib.requirements.check_controller",
             return_value=[
-                Requirement("pwsh", "powershell", "scripts", False, optional=True, role="controller"),
+                Requirement(
+                    "pwsh", "powershell", "scripts", False, optional=True, role="controller"
+                ),
             ],
         ):
             app_module._sync_requirements()
