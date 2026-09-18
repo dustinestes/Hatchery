@@ -1682,9 +1682,15 @@
       .then(function (res) {
         const data = res.data || {};
         setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
       })
       .catch(function () {
         setTestResult(result, false, 'Network or server error');
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
       });
   });
 
