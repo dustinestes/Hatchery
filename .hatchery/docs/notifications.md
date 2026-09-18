@@ -97,14 +97,13 @@ Each toast shows a **tier label** (Info / Warning / Alert) plus an icon so meani
 
 ## Alerts
 
-Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and updates toast overlay, bell badge, tray dropdown, and the Alerts pane without a full page refresh.
+Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and `GET /api/plane-status` together every **15 seconds** (`hatchery.refreshStatusSurfaces` in `static/app.js`) so the bell, tray, toasts, and footer stay in sync without a full page refresh ([#278](https://github.com/dustinestes/Hatchery/issues/278)). Settings → Test Nest connection also triggers an immediate refresh.
 
 ### UI surfaces
 
-**Toast overlay** — brief banner in the bottom-right when new alerts arrive (via `hatchery.showToast(..., 'alert')`). Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
+**Toast overlay** — brief banner in the bottom-right when a *new* alert arrives (via `hatchery.showToast`). Each alert id is toasted at most once (persisted in `localStorage`) so navigation does not re-fire toasts. Auto-dismiss uses the alert-tier default (~5s). Same component as UI-only toasts.
 
-**Bell badge** — topbar control labeled **Alerts**; unread count of active alerts.
-
+**Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
 **Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Filters: Active / Resolved only. Route: `/notifications/alerts`.
@@ -153,7 +152,7 @@ The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the 
 | **Footer Hatchery** | Controller-plane rollup — green when no Controller-scoped alerts (excl. info); red when requirements / invalid Clutches / etc. need attention |
 | **Footer Nests** | Nest-plane rollup — muted when no Nests registered; green when all registered Nests are OK; red when any unreachable or Nest-scoped alert is active |
 
-Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts), polled by the UI so counts do not depend on the page URL.
+Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts). The same 15s UI poll as Alerts (`refreshStatusSurfaces`) keeps footer and bell aligned ([#278](https://github.com/dustinestes/Hatchery/issues/278)).
 
 ### Observability decision (#263)
 

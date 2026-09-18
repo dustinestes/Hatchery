@@ -795,17 +795,23 @@ hatchery.vmRows = (function () {
     });
   };
 
-  function updateBadge(items, unresolvedAlertCount) {
+  function updateBadge(items) {
     var badge = document.getElementById('notif-badge');
     if (!badge) return;
     var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
-    var unread = items.filter(function (n) { return n.created_at > lastRead; }).length;
-    if (unread > 0 || unresolvedAlertCount > 0) {
-      badge.textContent = unread > 9 ? '9+' : (unread || '');
+    var hasUnseen = (items || []).some(function (n) {
+      return !n.resolved && n.created_at > lastRead;
+    });
+    if (hasUnseen) {
+      badge.textContent = '';
+      badge.setAttribute('aria-label', 'New alerts');
       badge.style.display = 'flex';
-      badge.className = 'notif-badge' + (unresolvedAlertCount > 0 ? ' notif-badge--alert' : '');
+      badge.className = 'notif-badge notif-badge--alert notif-badge--dot';
     } else {
       badge.style.display = 'none';
+      badge.textContent = '';
+      badge.removeAttribute('aria-label');
+      badge.className = 'notif-badge';
     }
   }
 
@@ -830,19 +836,49 @@ hatchery.vmRows = (function () {
     }).join('');
   }
 
+  /* Persist toasted ids across navigations so toasts do not re-fire (#278). */
+  var TOASTED_KEY = 'hatchery-toasted-alert-ids';
+  var lastAlertItems = [];
+
+  function loadToastedIds() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(TOASTED_KEY) || '[]');
+      var map = {};
+      (Array.isArray(raw) ? raw : []).forEach(function (id) {
+        map[String(id)] = true;
+      });
+      return map;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveToastedIds(map) {
+    var ids = Object.keys(map);
+    if (ids.length > 200) ids = ids.slice(ids.length - 200);
+    try {
+      localStorage.setItem(TOASTED_KEY, JSON.stringify(ids));
+    } catch (e) { /* ignore quota */ }
+  }
+
   function pollAlerts() {
     fetch('/api/alerts')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var items = data.items || [];
-        var alertCount = data.active_alert_count || 0;
         var lastRead = localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z';
+        var toasted = loadToastedIds();
         items.forEach(function (n) {
-          if (n.created_at > lastRead) {
+          var id = String(n.id);
+          if (toasted[id]) return;
+          toasted[id] = true;
+          if (!n.resolved && n.created_at > lastRead) {
             showToast(n.message, n.tier || 'alert');
           }
         });
-        updateBadge(items, alertCount);
+        saveToastedIds(toasted);
+        lastAlertItems = items;
+        updateBadge(items);
         populateTray(items);
       })
       .catch(function () {});
@@ -873,6 +909,16 @@ hatchery.vmRows = (function () {
       .catch(function () {});
   }
 
+  var STATUS_POLL_MS = 15000;
+
+  function refreshStatusSurfaces() {
+    pollAlerts();
+    pollPlaneStatus();
+  }
+
+  /** Immediate alerts + footer refresh (e.g. after Test Nest connection). */
+  hatchery.refreshStatusSurfaces = refreshStatusSurfaces;
+
   /* Bell tray toggle */
   var bellBtn = document.getElementById('notif-bell');
   var tray = document.getElementById('notif-tray');
@@ -882,6 +928,7 @@ hatchery.vmRows = (function () {
       tray.classList.toggle('open');
       if (tray.classList.contains('open')) {
         localStorage.setItem(LAST_READ_KEY, new Date().toISOString());
+        updateBadge(lastAlertItems);
       }
     });
     document.addEventListener('click', function (e) {
@@ -891,9 +938,8 @@ hatchery.vmRows = (function () {
     });
   }
 
-  pollAlerts();
-  pollPlaneStatus();
-  setInterval(pollPlaneStatus, 15000);
+  refreshStatusSurfaces();
+  setInterval(refreshStatusSurfaces, STATUS_POLL_MS);
 })();
 
 /* Dropdown refresh — repopulate media/automation selects without a page reload.
