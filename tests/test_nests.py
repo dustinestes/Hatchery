@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 import lib.config as config
@@ -98,7 +100,13 @@ class TestConnectionConfig:
     def test_local_has_no_transport(self):
         cfg = nests_lib.to_connection_config(nests_lib.get_nest("local"))
         assert cfg.location == "local"
-        assert nests_lib.test_connection(nests_lib.get_nest("local"))["ok"] is True
+        with patch(
+            "lib.requirements.check_nest",
+            return_value=[],
+        ):
+            result = nests_lib.test_connection(nests_lib.get_nest("local"))
+        assert result["ok"] is True
+        assert "capability" in result["message"].lower()
 
     def test_resolve_identity_file(self):
         nest = {

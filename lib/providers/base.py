@@ -8,6 +8,15 @@ from lib.clutch import VMConfig
 class BaseProvider(ABC):
     """Abstract interface all hypervisor providers must implement."""
 
+    @classmethod
+    def nest_tool_specs(cls) -> list:
+        """Return Nest-plane tool specs for this provider (empty if none declared).
+
+        Used by the ``nest_capability`` validator (#208). Controller-plane tools
+        do not belong here.
+        """
+        return []
+
     @abstractmethod
     def create_vm(
         self,

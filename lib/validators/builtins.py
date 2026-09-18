@@ -11,31 +11,41 @@ from lib.validators.base import BaseValidator
 from lib.validators.context import ValidatorContext
 from lib.validators.registry import register
 
-_REQ_WARNING_PREFIX = "Missing requirement:"
+_CONTROLLER_ALERT_PREFIX = req_lib.CONTROLLER_ALERT_PREFIX
+_NEST_ALERT_PREFIX = req_lib.NEST_ALERT_PREFIX
 _CLUTCH_ALERT_PREFIX = "Invalid Clutch file:"
 
 
 class ControllerRequirementsValidator(BaseValidator):
     id = "controller_requirements"
     title = "Controller requirements"
-    description = "Check tools needed on this Hatchery Controller (host packages)."
+    description = "Check tools needed on this Hatchery Controller (not Nest hypervisor packages)."
     scope = "controller"
     default_interval_seconds = 60
     default_enabled = True
 
     def run(self, ctx: ValidatorContext) -> str:
+        req_lib.resolve_legacy_requirement_alerts(ctx.resolve_alerts_by_prefix)
         missing = 0
-        for req in req_lib.check_all():
-            msg = f"{_REQ_WARNING_PREFIX} '{req.name}' is not installed — {req.required_for}"
+        for req in req_lib.check_controller():
+            base = f"{_CONTROLLER_ALERT_PREFIX} '{req.name}' is not installed"
+            msg = f"{base} — {req.required_for}"
+            if req.optional:
+                if req.present:
+                    ctx.resolve_alerts_by_prefix(base)
+                continue
             if not req.present:
                 missing += 1
+                if req.install_hint:
+                    msg = f"{msg} ({req.install_hint})"
                 if not ctx.has_active_alert(msg):
+                    ctx.resolve_alerts_by_prefix(base)
                     ctx.record_alert(msg)
             else:
-                ctx.resolve_alerts_by_prefix(msg)
+                ctx.resolve_alerts_by_prefix(base)
         if missing:
-            return f"{missing} missing requirement(s)"
-        return "All checked requirements present"
+            return f"{missing} missing Controller requirement(s)"
+        return "Controller requirements OK"
 
 
 class ClutchFilesValidator(BaseValidator):
@@ -63,7 +73,6 @@ class ClutchFilesValidator(BaseValidator):
                 detail = _clutch_error_detail(path.name, str(exc))
                 msg = f"{prefix} — {detail}"
                 if not ctx.has_active_alert(msg):
-                    # Resolve old prefix variants then record
                     ctx.resolve_alerts_by_prefix(prefix)
                     ctx.record_alert(msg)
         if invalid:
@@ -99,6 +108,50 @@ class NestKeyExpiryValidator(BaseValidator):
         return f"Checked {len(identities)} Nest SSH identities"
 
 
+class NestCapabilityValidator(BaseValidator):
+    id = "nest_capability"
+    title = "Nest capability"
+    description = "Verify each Nest can run as a hypervisor (Local on-box; Remote over transport)."
+    scope = "nest"
+    default_interval_seconds = 120
+    default_enabled = True
+
+    def run(self, ctx: ValidatorContext) -> str:
+        nests = nests_lib.list_nests()
+        if ctx.nest_id:
+            nests = [n for n in nests if n.get("id") == ctx.nest_id]
+        if not nests:
+            return "No Nests to check"
+
+        missing_total = 0
+        checked_nests = 0
+        for nest in nests:
+            nest_id = nest.get("id") or "?"
+            nest_name = nest.get("name") or nest_id
+            location = nest.get("location") or "local"
+            results = req_lib.check_nest(nest, winrm_password=ctx.winrm_password)
+            if not results and location == "remote" and (nest.get("transport") or "ssh") == "winrm":
+                continue
+            checked_nests += 1
+            nest_prefix = f"{_NEST_ALERT_PREFIX} '{nest_name}' ({nest_id}):"
+            for req in results:
+                tool_prefix = f"{nest_prefix} '{req.name}'"
+                if not req.present:
+                    missing_total += 1
+                    msg = f"{tool_prefix} is not available — {req.required_for}"
+                    if req.install_hint and location == "local":
+                        msg = f"{msg} ({req.install_hint})"
+                    if not ctx.has_active_alert(msg):
+                        ctx.resolve_alerts_by_prefix(tool_prefix)
+                        ctx.record_alert(msg)
+                else:
+                    ctx.resolve_alerts_by_prefix(tool_prefix)
+
+        if missing_total:
+            return f"{missing_total} missing Nest tool(s) across {checked_nests} Nest(s)"
+        return f"Nest capability OK ({checked_nests} Nest(s))"
+
+
 class _StubValidator(BaseValidator):
     stub = True
     default_enabled = False
@@ -112,13 +165,6 @@ class NestReachabilityValidator(_StubValidator):
     id = "nest_reachability"
     title = "Nest reachability"
     description = "Test Nest transport connectivity (can reach). Follow-up #263."
-    scope = "nest"
-
-
-class NestCapabilityValidator(_StubValidator):
-    id = "nest_capability"
-    title = "Nest capability"
-    description = "Verify Nest can run as hypervisor host (can run as Nest). Follow-up #208."
     scope = "nest"
 
 

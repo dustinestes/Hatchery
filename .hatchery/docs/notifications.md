@@ -135,7 +135,8 @@ Health and content checks run as **pluggable validators** ([validators.md](valid
 
 **Findings** still use the Alerts table (bell / tray). Examples:
 
-- `controller_requirements` — missing host tools (`Missing requirement:`)
+- `controller_requirements` — Controller-plane tools (`Controller requirement:`) — e.g. OpenSSH client when Remote Nests exist; not Nest hypervisor packages
+- `nest_capability` — Nest-plane hypervisor tools (`Nest capability:`) — Local on-box, Remote over Nest transport
 - `clutch_files` — invalid Clutch YAML (`Invalid Clutch file:`)
 - `nest_key_expiry` — Nest SSH identity windows
 
@@ -156,7 +157,7 @@ A seed script inserts sample alerts for UI validation and screenshot capture. Se
 uv run python .hatchery/tooling/seed_alerts.py seed
 
 # Insert a custom message
-uv run python .hatchery/tooling/seed_alerts.py seed "Missing requirement: 'virsh' is not installed"
+uv run python .hatchery/tooling/seed_alerts.py seed "Controller requirement: 'ssh' is not installed"
 
 # Insert all curated samples
 uv run python .hatchery/tooling/seed_alerts.py seed all

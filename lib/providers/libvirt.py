@@ -10,8 +10,52 @@ from pathlib import Path
 from lib import answerfile as answerfile_lib
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
+from lib.requirements import NestToolSpec
 
 _QEMU_CONF = Path("/etc/libvirt/qemu.conf")
+
+# Nest-plane tools for a Local or Remote libvirt Nest (#208).
+_LIBVIRT_NEST_TOOLS: tuple[NestToolSpec, ...] = (
+    NestToolSpec(
+        name="virsh",
+        required_for="VM lifecycle operations",
+        packages={
+            "linux": "libvirt-clients",
+            "macos": "libvirt",
+            "windows": "libvirt",
+        },
+    ),
+    NestToolSpec(
+        name="virt-install",
+        required_for="VM creation",
+        packages={"linux": "virtinst", "macos": "virt-manager", "windows": "virtinst"},
+    ),
+    NestToolSpec(
+        name="qemu-img",
+        required_for="Disk image operations",
+        packages={"linux": "qemu-utils", "macos": "qemu", "windows": "qemu"},
+    ),
+    NestToolSpec(
+        name="virt-make-fs",
+        required_for="Answer file floppy image creation",
+        packages={
+            "linux": "libguestfs-tools",
+            "macos": "libguestfs",
+            "windows": "libguestfs",
+        },
+    ),
+    NestToolSpec(
+        name="swtpm",
+        required_for="TPM 2.0 emulation (Win11 / Server 2025)",
+        packages={"linux": "swtpm", "macos": "swtpm", "windows": "swtpm"},
+    ),
+    NestToolSpec(
+        name="python3-gi",
+        required_for="virt-install Python runtime dependency",
+        packages={"linux": "python3-gi", "macos": "pygobject", "windows": "PyGObject"},
+        check="python3_gi",
+    ),
+)
 
 
 def _system_env() -> dict[str, str]:
@@ -140,6 +184,10 @@ class LibvirtProvider(BaseProvider):
         self.virtio_dir = Path(virtio_dir)
         self.automation_dir = Path(automation_dir)
         self.storage_pool = storage_pool
+
+    @classmethod
+    def nest_tool_specs(cls) -> list[NestToolSpec]:
+        return list(_LIBVIRT_NEST_TOOLS)
 
     # ── VM creation ───────────────────────────────────────────────────────────
 

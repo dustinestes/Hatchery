@@ -20,7 +20,7 @@ Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × 
 - [Identity, Console, and Discovery](#identity-console-and-discovery)
 - [Install and Provision](#install-and-provision)
 - [Nest Control Plane](#nest-control-plane)
-- [Guests and Host Requirements](#guests-and-host-requirements)
+- [Guests and Controller / Nest requirements](#guests-and-controller--nest-requirements)
 - [Keeping This Matrix Current](#keeping-this-matrix-current)
 
 ---
@@ -111,15 +111,15 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 
 <br>
 
-## Guests and Host Requirements
+## Guests and Controller / Nest requirements
 
-| Guest / host | libvirt local | Notes |
+| Guest / Nest | libvirt local | Notes |
 |---|---|---|
-| Windows 10 / 11 / Server 2022 / 2025 | Works | Win11 / Server 2025 need UEFI + TPM (`swtpm`) |
+| Windows 10 / 11 / Server 2022 / 2025 | Works | Win11 / Server 2025 need UEFI + TPM (`swtpm` on the Nest) |
 | Linux guests | Planned | Phase D of epic #202 |
-| Hatchery host OS | Ubuntu (v1) | macOS / Windows Hatchery hosts: [#203](https://github.com/dustinestes/Hatchery/issues/203), [#25](https://github.com/dustinestes/Hatchery/issues/25), [#208](https://github.com/dustinestes/Hatchery/issues/208) |
+| Hatchery Controller OS | Linux / macOS / Windows | Portable Controller checks vs Nest tools: [#208](https://github.com/dustinestes/Hatchery/issues/208) |
 
-UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
+Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator — not as Controller requirements. UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
 
 <br>
 

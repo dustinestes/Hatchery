@@ -1,6 +1,17 @@
 from unittest.mock import MagicMock, patch
 
-from lib.requirements import Requirement, _check_python3_gi, apt_install_command, check_all, missing
+from lib.requirements import (
+    NestToolSpec,
+    Requirement,
+    _check_python3_gi,
+    apt_install_command,
+    check_all,
+    check_controller,
+    check_nest_tools_local,
+    install_hint,
+    missing,
+    package_for_current_os,
+)
 
 
 class TestCheckPython3Gi:
@@ -28,8 +39,20 @@ class TestCheckPython3Gi:
             mock_run.return_value = MagicMock(returncode=1, stdout="")
             assert _check_python3_gi() is False
 
-    def test_absent_when_dpkg_query_missing(self):
-        with patch("shutil.which", return_value=None):
+    def test_absent_when_dpkg_query_missing_and_import_fails(self):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _import(name, *args, **kwargs):
+            if name == "gi" or name.startswith("gi."):
+                raise ImportError("no gi")
+            return real_import(name, *args, **kwargs)
+
+        with (
+            patch("shutil.which", return_value=None),
+            patch("builtins.__import__", side_effect=_import),
+        ):
             assert _check_python3_gi() is False
 
     def test_absent_when_dpkg_query_raises_oserror(self):
@@ -51,119 +74,98 @@ class TestCheckPython3Gi:
         assert "python3-gi" in cmd
 
 
-class TestCheckAll:
-    def test_returns_seven_requirements(self):
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("lib.requirements._check_python3_gi", return_value=True),
-        ):
-            results = check_all()
-        assert len(results) == 7
+class TestCheckController:
+    def test_no_ssh_when_no_remote_nests(self):
+        with patch("shutil.which", return_value=None):
+            results = check_controller(nests=[{"id": "local", "location": "local"}])
+        names = {r.name for r in results}
+        assert "ssh" not in names
+        assert "pwsh" in names
 
-    def test_all_present_when_tools_found(self):
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("lib.requirements._check_python3_gi", return_value=True),
-        ):
-            results = check_all()
-        assert all(r.present for r in results)
+    def test_ssh_required_when_remote_nest_present(self):
+        nests = [
+            {"id": "local", "location": "local"},
+            {"id": "r1", "location": "remote"},
+        ]
+        with patch("shutil.which", return_value=None):
+            results = check_controller(nests=nests)
+        ssh = next(r for r in results if r.name == "ssh")
+        assert not ssh.present
+        assert ssh.optional is False
+        assert ssh.role == "controller"
+        assert ssh.install_hint
 
-    def test_all_absent_when_tools_missing(self):
-        with (
-            patch("shutil.which", return_value=None),
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            results = check_all()
-        assert all(not r.present for r in results)
+    def test_ssh_present(self):
+        nests = [{"id": "r1", "location": "remote"}]
+        with patch("shutil.which", return_value="/usr/bin/ssh"):
+            results = check_controller(nests=nests)
+        ssh = next(r for r in results if r.name == "ssh")
+        assert ssh.present
 
-    def test_cli_tools_use_shutil_which(self):
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool") as mock_which,
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            check_all()
-        # 5 required CLI tools + pwsh
-        assert mock_which.call_count == 6
-
-    def test_python3_gi_absent_when_check_returns_false(self):
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            results = check_all()
-        gi = next(r for r in results if r.name == "python3-gi")
-        assert not gi.present
-
-    def test_python3_gi_present_when_check_returns_true(self):
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("lib.requirements._check_python3_gi", return_value=True),
-        ):
-            results = check_all()
-        gi = next(r for r in results if r.name == "python3-gi")
-        assert gi.present
-
-    def test_mixed_present_and_absent(self):
-        def which_side(name):
-            return "/usr/bin/" + name if name == "virsh" else None
-
-        with (
-            patch("shutil.which", side_effect=which_side),
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            results = check_all()
-        virsh = next(r for r in results if r.name == "virsh")
-        virt_install = next(r for r in results if r.name == "virt-install")
-        assert virsh.present
-        assert not virt_install.present
-
-    def test_requirement_fields_populated(self):
+    def test_check_all_is_controller_only(self):
         with (
             patch("shutil.which", return_value=None),
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            results = check_all()
-        for r in results:
-            assert r.name
-            assert r.package
-            assert r.required_for
-
-    def test_contains_expected_tools(self):
-        with (
-            patch("shutil.which", return_value=None),
-            patch("lib.requirements._check_python3_gi", return_value=False),
+            patch("lib.requirements.has_remote_nests", return_value=False),
         ):
             results = check_all()
         names = {r.name for r in results}
-        assert names >= {
-            "virsh",
-            "virt-install",
-            "qemu-img",
-            "virt-make-fs",
-            "swtpm",
-            "python3-gi",
-            "pwsh",
-        }
+        assert "virsh" not in names
+        assert "pwsh" in names
 
     def test_pwsh_marked_optional(self):
-        with (
-            patch("shutil.which", return_value=None),
-            patch("lib.requirements._check_python3_gi", return_value=False),
-        ):
-            results = check_all()
+        with patch("shutil.which", return_value=None):
+            results = check_controller(nests=[])
         pwsh = next(r for r in results if r.name == "pwsh")
         assert pwsh.optional is True
 
-    def test_required_tools_not_optional(self):
+
+class TestNestToolsLocal:
+    def test_libvirt_specs_evaluate(self):
+        from lib.providers.libvirt import LibvirtProvider
+
+        specs = LibvirtProvider.nest_tool_specs()
+        assert {s.name for s in specs} >= {"virsh", "virt-install", "python3-gi"}
+
         with (
-            patch("shutil.which", return_value=None),
-            patch("lib.requirements._check_python3_gi", return_value=False),
+            patch("shutil.which", return_value="/usr/bin/tool"),
+            patch("lib.requirements._check_python3_gi", return_value=True),
         ):
-            results = check_all()
-        required = [r for r in results if not r.optional]
-        assert required
-        assert all(not r.optional for r in required)
-        assert {r.name for r in results if r.optional} == {"pwsh"}
+            results = check_nest_tools_local(specs)
+        assert all(r.present for r in results)
+        assert all(r.role == "nest" for r in results)
+
+    def test_missing_virsh(self):
+        specs = [
+            NestToolSpec(
+                name="virsh",
+                required_for="ops",
+                packages={"linux": "libvirt-clients"},
+            )
+        ]
+        with patch("shutil.which", return_value=None):
+            results = check_nest_tools_local(specs)
+        assert len(results) == 1
+        assert not results[0].present
+        assert "apt install" in results[0].install_hint or results[0].install_hint
+
+
+class TestInstallHint:
+    def test_linux_apt(self):
+        with patch("lib.requirements._os_key", return_value="linux"):
+            assert install_hint("openssh-client") == "sudo apt install openssh-client"
+
+    def test_macos_brew(self):
+        with patch("lib.requirements._os_key", return_value="macos"):
+            assert install_hint("openssh") == "brew install openssh"
+
+    def test_windows_winget(self):
+        with patch("lib.requirements._os_key", return_value="windows"):
+            assert install_hint("OpenSSH.Client") == "winget install OpenSSH.Client"
+
+    def test_package_for_os(self):
+        pkgs = {"linux": "a", "macos": "b", "windows": "c"}
+        with patch("lib.requirements._os_key", return_value="macos"):
+            assert package_for_current_os(pkgs) == "b"
 
 
 class TestPwshAvailable:
@@ -181,27 +183,19 @@ class TestPwshAvailable:
 
 
 class TestMissing:
-    def test_returns_only_absent_requirements(self):
+    def test_returns_only_absent_required(self):
         checks = [
             Requirement("t1", "p1", "u1", True),
             Requirement("t2", "p2", "u2", False),
-            Requirement("t3", "p3", "u3", True),
-            Requirement("t4", "p4", "u4", False),
+            Requirement("t3", "p3", "u3", False, optional=True),
         ]
         result = missing(checks)
-        assert len(result) == 2
-        assert all(not r.present for r in result)
+        assert len(result) == 1
+        assert result[0].name == "t2"
 
     def test_empty_when_all_present(self):
         checks = [Requirement("t", "p", "u", True)]
         assert missing(checks) == []
-
-    def test_all_returned_when_all_absent(self):
-        checks = [
-            Requirement("t1", "p1", "u1", False),
-            Requirement("t2", "p2", "u2", False),
-        ]
-        assert len(missing(checks)) == 2
 
     def test_empty_input_returns_empty(self):
         assert missing([]) == []
@@ -223,7 +217,6 @@ class TestAptInstallCommand:
     def test_empty_list_returns_empty_string(self):
         assert apt_install_command([]) == ""
 
-    def test_uses_package_field_not_name(self):
-        reqs = [Requirement("python3-gi", "python3-gi", "runtime dep", False)]
-        assert "python3-gi" in apt_install_command(reqs)
-        assert apt_install_command(reqs).startswith("sudo apt install")
+    def test_skips_optional(self):
+        reqs = [Requirement("pwsh", "powershell", "scripts", False, optional=True)]
+        assert apt_install_command(reqs) == ""

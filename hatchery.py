@@ -39,12 +39,11 @@ _provisioning_lock = threading.Lock()
 app = Flask(__name__, template_folder="templates/ui")
 app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-production")
 
-_REQ_WARNING_PREFIX = "Missing requirement:"
 _CLUTCH_ALERT_PREFIX = "Invalid Clutch file:"
 
 
 def _sync_requirements() -> None:
-    """Re-evaluate host requirements via the controller_requirements validator."""
+    """Re-evaluate Controller requirements via the controller_requirements validator."""
     from lib.validators.scheduler import run_validator
 
     run_validator("controller_requirements", trigger="schedule")

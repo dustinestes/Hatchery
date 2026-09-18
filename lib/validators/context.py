@@ -15,6 +15,7 @@ class ValidatorContext:
 
     nest_id: str | None = None
     trigger: str = "schedule"  # schedule | manual | connection
+    winrm_password: str | None = None
 
     def data_dir(self) -> Path:
         return config.data_dir()
