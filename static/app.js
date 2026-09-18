@@ -842,28 +842,43 @@ hatchery.vmRows = (function () {
     }).join('');
   }
 
-  /* Persist toasted ids across navigations so toasts do not re-fire (#278). */
+  /* Persist toasted alert incarnations across navigations (#278 / #288).
+     Store id → created_at so wiping hatchery.db (id reuse) still toasts. */
   var TOASTED_KEY = 'hatchery-toasted-alert-ids';
   var lastAlertItems = [];
 
-  function loadToastedIds() {
+  function loadToastedMap() {
     try {
-      var raw = JSON.parse(localStorage.getItem(TOASTED_KEY) || '[]');
+      var raw = JSON.parse(localStorage.getItem(TOASTED_KEY) || '{}');
       var map = {};
-      (Array.isArray(raw) ? raw : []).forEach(function (id) {
-        map[String(id)] = true;
-      });
+      if (Array.isArray(raw)) {
+        // Legacy format: bare ids — treat as unknown created_at.
+        raw.forEach(function (id) {
+          map[String(id)] = '*';
+        });
+        return map;
+      }
+      if (raw && typeof raw === 'object') {
+        Object.keys(raw).forEach(function (id) {
+          map[String(id)] = String(raw[id]);
+        });
+      }
       return map;
     } catch (e) {
       return {};
     }
   }
 
-  function saveToastedIds(map) {
+  function saveToastedMap(map) {
     var ids = Object.keys(map);
-    if (ids.length > 200) ids = ids.slice(ids.length - 200);
+    if (ids.length > 200) {
+      ids = ids.slice(ids.length - 200);
+      var trimmed = {};
+      ids.forEach(function (id) { trimmed[id] = map[id]; });
+      map = trimmed;
+    }
     try {
-      localStorage.setItem(TOASTED_KEY, JSON.stringify(ids));
+      localStorage.setItem(TOASTED_KEY, JSON.stringify(map));
     } catch (e) { /* ignore quota */ }
   }
 
@@ -873,23 +888,25 @@ hatchery.vmRows = (function () {
       .then(function (data) {
         var items = data.items || [];
         var lastReadMs = alertTimeMs(localStorage.getItem(LAST_READ_KEY) || '1970-01-01T00:00:00.000Z');
-        var toasted = loadToastedIds();
+        var toasted = loadToastedMap();
         items.forEach(function (n) {
           var id = String(n.id);
-          if (toasted[id]) return;
-          // Only mark toasted after we toast, or when the alert is older than
-          // last tray-open (acked without toast). Do not poison new ids when
-          // timestamp compare used to fail (#288).
-          if (n.resolved) {
-            toasted[id] = true;
-            return;
-          }
-          if (alertTimeMs(n.created_at) > lastReadMs) {
+          var created = String(n.created_at || '');
+          var prev = toasted[id];
+          // Same row already handled (nav / next poll).
+          if (prev && prev === created) return;
+
+          var idReused = !!(prev && prev !== '*' && prev !== created);
+          toasted[id] = created || '*';
+
+          if (n.resolved) return;
+
+          // Toast new unresolved rows, or the same sqlite id after a DB wipe.
+          if (idReused || alertTimeMs(created) > lastReadMs) {
             showToast(n.message, n.tier || 'alert');
-            toasted[id] = true;
           }
         });
-        saveToastedIds(toasted);
+        saveToastedMap(toasted);
         lastAlertItems = items;
         updateBadge(items);
         populateTray(items);
