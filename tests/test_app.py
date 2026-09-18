@@ -2332,81 +2332,119 @@ class TestScanDir:
         assert "notes.txt" not in result
 
 
-class TestNestStatus:
-    def test_footer_shows_local_and_remotes(self, client):
+class TestPlaneStatus:
+    def test_footer_shows_hatchery_and_nests(self, client):
         with patch(
-            "lib.nest_reachability.get_snapshot",
+            "lib.plane_status.footer_status",
             return_value={
-                "local_ok": True,
-                "remotes_ok": True,
-                "remote_total": 0,
-                "remote_down": 0,
-                "nests": {},
+                "hatchery_ok": True,
+                "hatchery_title": "Hatchery Controller OK",
+                "hatchery_dot": "green",
+                "hatchery_issue_count": 0,
+                "nests_ok": True,
+                "nests_title": "All 1 Nest(s) OK",
+                "nests_dot": "green",
+                "nest_total": 1,
+                "nest_unreachable": 0,
+                "nest_alert_count": 0,
             },
         ):
             html = client.get("/").data.decode()
-        assert ">Local<" in html or "Local</span>" in html
-        assert ">Remotes<" in html or "Remotes</span>" in html
+        assert "Hatchery</span>" in html
+        assert "Nests</span>" in html
+        assert "footer-hatchery" in html
+        assert "footer-nests" in html
         assert "nest-status-dot--green" in html
 
-    def test_local_red_when_local_down(self, client):
+    def test_hatchery_red_when_controller_issues(self, client):
         with patch(
-            "lib.nest_reachability.get_snapshot",
+            "lib.plane_status.footer_status",
             return_value={
-                "local_ok": False,
-                "remotes_ok": True,
-                "remote_total": 0,
-                "remote_down": 0,
-                "nests": {},
+                "hatchery_ok": False,
+                "hatchery_title": "Hatchery: 1 Controller issue(s) — see Alerts",
+                "hatchery_dot": "red",
+                "hatchery_issue_count": 1,
+                "nests_ok": True,
+                "nests_title": "All 1 Nest(s) OK",
+                "nests_dot": "green",
+                "nest_total": 1,
+                "nest_unreachable": 0,
+                "nest_alert_count": 0,
             },
         ):
             html = client.get("/").data.decode()
-        assert "Local Nest unreachable" in html
+        assert "Hatchery: 1 Controller issue(s)" in html
         assert "nest-status-dot--red" in html
 
-    def test_remotes_red_when_any_down(self, client):
+    def test_nests_muted_when_none_registered(self, client):
         with patch(
-            "lib.nest_reachability.get_snapshot",
+            "lib.plane_status.footer_status",
             return_value={
-                "local_ok": True,
-                "remotes_ok": False,
-                "remote_total": 2,
-                "remote_down": 1,
-                "nests": {},
+                "hatchery_ok": True,
+                "hatchery_title": "Hatchery Controller OK",
+                "hatchery_dot": "green",
+                "hatchery_issue_count": 0,
+                "nests_ok": True,
+                "nests_title": "No Nests registered",
+                "nests_dot": "muted",
+                "nest_total": 0,
+                "nest_unreachable": 0,
+                "nest_alert_count": 0,
             },
         ):
             html = client.get("/").data.decode()
-        assert "1 of 2 Remote Nest(s) unreachable" in html
+        assert "No Nests registered" in html
+        assert "nest-status-dot--muted" in html
+
+    def test_nests_red_when_unreachable(self, client):
+        with patch(
+            "lib.plane_status.footer_status",
+            return_value={
+                "hatchery_ok": True,
+                "hatchery_title": "Hatchery Controller OK",
+                "hatchery_dot": "green",
+                "hatchery_issue_count": 0,
+                "nests_ok": False,
+                "nests_title": "Nests: 1 of 2 unreachable — see Alerts",
+                "nests_dot": "red",
+                "nest_total": 2,
+                "nest_unreachable": 1,
+                "nest_alert_count": 0,
+            },
+        ):
+            html = client.get("/").data.decode()
+        assert "1 of 2 unreachable" in html
         assert "nest-status-dot--red" in html
+
+    def test_api_plane_status(self, client):
+        resp = client.get("/api/plane-status")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "hatchery_dot" in data
+        assert "nests_dot" in data
+        assert data["hatchery_dot"] in ("green", "red")
+        assert data["nests_dot"] in ("green", "red", "muted")
 
     def test_status_present_on_all_panes(self, client):
-        with patch(
-            "lib.nest_reachability.get_snapshot",
-            return_value={
-                "local_ok": True,
-                "remotes_ok": True,
-                "remote_total": 0,
-                "remote_down": 0,
-                "nests": {},
-            },
-        ):
-            for path in [
-                "/",
-                "/nests",
-                "/clutches",
-                "/automation/scripts",
-                "/settings/general",
-                "/settings/security",
-                "/settings/display",
-                "/hatch-clutch",
-                "/build",
-                "/notifications/alerts",
-                "/notifications/events",
-            ]:
-                html = client.get(path).data.decode()
-                assert "nest-status" in html, f"Expected nest status on {path}"
-                assert "Local" in html
-                assert "Remotes" in html
+        for path in [
+            "/",
+            "/nests",
+            "/clutches",
+            "/automation/scripts",
+            "/settings/general",
+            "/settings/security",
+            "/settings/display",
+            "/hatch-clutch",
+            "/build",
+            "/notifications/alerts",
+            "/notifications/events",
+        ]:
+            html = client.get(path).data.decode()
+            assert "nest-status" in html, f"Expected nest status on {path}"
+            assert "Hatchery" in html
+            assert "Nests" in html
+            assert "footer-hatchery" in html
+            assert "footer-nests" in html
 
 
 class TestRequirementsSync:

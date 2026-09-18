@@ -458,27 +458,18 @@ start_scheduler()
 
 
 @app.context_processor
-def inject_nest_status():
-    from lib import nest_reachability as nr
+def inject_plane_status():
+    from lib import plane_status as plane_status_lib
 
-    snap = nr.get_snapshot()
-    local_ok = bool(snap.get("local_ok", True))
-    remotes_ok = bool(snap.get("remotes_ok", True))
-    remote_total = int(snap.get("remote_total") or 0)
-    remote_down = int(snap.get("remote_down") or 0)
-    if remote_total == 0:
-        remotes_title = "No Remote Nests registered"
-    elif remotes_ok:
-        remotes_title = f"All {remote_total} Remote Nest(s) reachable"
-    else:
-        remotes_title = f"{remote_down} of {remote_total} Remote Nest(s) unreachable"
-    local_title = "Local Nest reachable" if local_ok else "Local Nest unreachable"
+    status = plane_status_lib.footer_status()
     return {
-        "local_nest_ok": local_ok,
-        "local_nest_title": local_title,
-        "remotes_ok": remotes_ok,
-        "remotes_title": remotes_title,
-        "remote_nest_total": remote_total,
+        "hatchery_ok": status["hatchery_ok"],
+        "hatchery_title": status["hatchery_title"],
+        "hatchery_dot": status["hatchery_dot"],
+        "nests_ok": status["nests_ok"],
+        "nests_title": status["nests_title"],
+        "nests_dot": status["nests_dot"],
+        "nest_total": status["nest_total"],
         "library_enabled": config.library_enabled(),
     }
 
@@ -2448,6 +2439,14 @@ def api_alerts():
             "active_alert_count": alerts_lib.count_active_alerts(),
         }
     )
+
+
+@app.route("/api/plane-status")
+def api_plane_status():
+    """Footer Hatchery + Nests status — registry and alerts, not page URL (#277)."""
+    from lib import plane_status as plane_status_lib
+
+    return jsonify(plane_status_lib.footer_status())
 
 
 @app.route("/api/sessions/<session_id>/vms/<vm_name>/events")

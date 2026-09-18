@@ -1687,6 +1687,10 @@ body {
 .nest-status-dot--green { background: #4CAF50; }
 .nest-status-dot--amber { background: #D97706; }
 .nest-status-dot--red   { background: #E53935; }
+.nest-status-dot--muted {
+  background: var(--color-text-muted);
+  opacity: 0.4;
+}
 
 .nest-status-label {
   font-size: 11px;
