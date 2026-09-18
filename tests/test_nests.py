@@ -138,6 +138,112 @@ class TestConnectionConfig:
         assert result["ok"] is True
         assert "capability" in result["message"].lower()
 
+    def test_draft_failure_skips_snapshot_and_alerts(self):
+        """Unsaved Nest rows must not write reachability status or Alerts (#283)."""
+        from lib.nest_transport import NestHealthCheckResult
+
+        draft = {
+            "id": "draft-xyz",
+            "name": "Draft",
+            "provider_type": "libvirt",
+            "location": "remote",
+            "transport": "ssh",
+            "host": "nowhere.example",
+            "port": 22,
+            "ssh_user": "ops",
+            "identity_file": "~/.ssh/nest",
+        }
+        fail = NestHealthCheckResult(
+            ok=False,
+            detail="endpoint not reachable — down",
+            failure_class="endpoint",
+        )
+        with (
+            patch("lib.nest_reachability.probe_nest", return_value=fail) as probe,
+            patch("lib.nest_reachability.record_probe") as record,
+            patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
+            patch("lib.requirements.check_nest", return_value=[]),
+        ):
+            result = nests_lib.test_connection(draft)
+        assert result["ok"] is False
+        assert "endpoint not reachable" in result["message"]
+        probe.assert_called_once()
+        record.assert_not_called()
+        sync_alert.assert_not_called()
+
+    def test_saved_failure_updates_snapshot_not_alerts(self):
+        """Saved Nest Test failure updates snapshot; validators open Alerts (#283)."""
+        from lib.nest_transport import NestHealthCheckResult
+
+        local = nests_lib.get_nest("local")
+        nests_lib.replace_nests(
+            [
+                local,
+                {
+                    "id": "lab1",
+                    "name": "Lab",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "nest.example",
+                    "port": 22,
+                    "ssh_user": "ops",
+                    "identity_file": "~/.ssh/nest",
+                },
+            ]
+        )
+        nest = nests_lib.get_nest("lab1")
+        fail = NestHealthCheckResult(
+            ok=False,
+            detail="endpoint not reachable — down",
+            failure_class="endpoint",
+        )
+        with (
+            patch("lib.nest_reachability.probe_nest", return_value=fail),
+            patch("lib.nest_reachability.record_probe") as record,
+            patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
+            patch("lib.requirements.check_nest", return_value=[]),
+        ):
+            result = nests_lib.test_connection(nest)
+        assert result["ok"] is False
+        record.assert_called_once()
+        sync_alert.assert_not_called()
+
+    def test_saved_success_resolves_reachability_alert(self):
+        """Saved Nest Test success updates snapshot and resolves Alerts (#283)."""
+        from lib.nest_transport import NestHealthCheckResult
+
+        local = nests_lib.get_nest("local")
+        nests_lib.replace_nests(
+            [
+                local,
+                {
+                    "id": "lab1",
+                    "name": "Lab",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "nest.example",
+                    "port": 22,
+                    "ssh_user": "ops",
+                    "identity_file": "~/.ssh/nest",
+                },
+            ]
+        )
+        nest = nests_lib.get_nest("lab1")
+        ok = NestHealthCheckResult(ok=True, detail="endpoint reachable; Nest transport OK")
+        with (
+            patch("lib.nest_reachability.probe_nest", return_value=ok),
+            patch("lib.nest_reachability.record_probe") as record,
+            patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
+            patch("lib.requirements.check_nest", return_value=[]),
+            patch("lib.validators.scheduler.run_validator", return_value=None),
+        ):
+            result = nests_lib.test_connection(nest)
+        assert result["ok"] is True
+        record.assert_called_once()
+        sync_alert.assert_called_once()
+
     def test_resolve_identity_file(self):
         nest = {
             "id": "r1",

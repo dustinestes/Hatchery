@@ -97,7 +97,7 @@ Each toast shows a **tier label** (Info / Warning / Alert) plus an icon so meani
 
 ## Alerts
 
-Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and `GET /api/plane-status` together every **15 seconds** (`hatchery.refreshStatusSurfaces` in `static/app.js`) so the bell, tray, toasts, and footer stay in sync without a full page refresh ([#278](https://github.com/dustinestes/Hatchery/issues/278)). Settings → Test Nest connection also triggers an immediate refresh.
+Alerts are stored in the `alerts` table in `hatchery.db`. The browser polls `GET /api/alerts` and `GET /api/plane-status` together every **15 seconds** (`hatchery.refreshStatusSurfaces` in `static/app.js`) so the bell, tray, toasts, and footer stay in sync without a full page refresh ([#278](https://github.com/dustinestes/Hatchery/issues/278)). Settings → Test Nest connection also triggers an immediate refresh. Test Nest connection does **not** open reachability Alerts for draft/unsaved Nest rows, and does not open them on failure for saved Nests either — only the `nest_reachability` validator opens those; a successful Test **resolves** an open reachability Alert for that Nest ([#283](https://github.com/dustinestes/Hatchery/issues/283)).
 
 ### UI surfaces
 
