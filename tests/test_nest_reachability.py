@@ -143,3 +143,19 @@ class TestSnapshotAndAlerts:
         assert "r1" not in (snap.get("nests") or {})
         assert snap["remote_down"] == 0
         assert snap["remotes_ok"] is True
+
+
+class TestCapabilityGate:
+    def test_local_always_reachable(self):
+        assert nr.is_reachable_for_capability({"id": "local", "location": "local"}) is True
+
+    def test_remote_requires_ok_snapshot(self):
+        nest = {"id": "r1", "name": "Lab", "location": "remote"}
+        assert nr.is_reachable_for_capability(nest) is False
+        nr.record_probe(
+            nest,
+            NestHealthCheckResult(ok=False, detail="down", failure_class="endpoint"),
+        )
+        assert nr.is_reachable_for_capability(nest) is False
+        nr.record_probe(nest, NestHealthCheckResult(ok=True, detail="OK"))
+        assert nr.is_reachable_for_capability(nest) is True

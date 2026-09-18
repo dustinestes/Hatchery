@@ -75,7 +75,7 @@ When adding pane UI that should stay fresh (Validators filters [#280](https://gi
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active |
 | `nest_reachability` | Active — endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
-| `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport) |
+| `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport). **Gated by reachability** on Remotes ([#286](https://github.com/dustinestes/Hatchery/issues/286)): unreachable / never-probed Nests skip capability and clear Nest capability Alerts |
 | `library_connections` | Stub — [#254](https://github.com/dustinestes/Hatchery/issues/254) |
 
 <br>
