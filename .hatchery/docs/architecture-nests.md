@@ -183,6 +183,7 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 | [Nest transport](nest-transport.md) | Control plane to Nest host |
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |
 | [Validators](validators.md) | Pluggable checks — Nest onboarding feedback after Controller install |
+| [Notifications — Status surfaces](notifications.md#status-surfaces) | Gather → store → UI poll; `refreshStatusSurfaces` / `onStatusTick` (#282) |
 | Epic [#202](https://github.com/dustinestes/Hatchery/issues/202) | Cross-platform & remote Nests |
 | [#273](https://github.com/dustinestes/Hatchery/issues/273) | Distribution north star — Controller-only via OS package managers |
 | [#206](https://github.com/dustinestes/Hatchery/issues/206) / [#207](https://github.com/dustinestes/Hatchery/issues/207) / [#208](https://github.com/dustinestes/Hatchery/issues/208) | Phase A foundation |

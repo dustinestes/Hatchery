@@ -2638,6 +2638,8 @@ class TestValidatorsPane:
     def test_pane_renders(self, client):
         html = client.get("/notifications/validators").data.decode()
         assert "Validators" in html
+        assert "validator-runs-tbody" in html
+        assert "hatchery.onStatusTick" in html
 
     def test_api_lists_runs(self, client):
         from lib.validators.runs import record_run

@@ -15,6 +15,7 @@ Pluggable background health checks for the Hatchery Controller, Nests, and conte
 - [Contents](#contents)
 - [Two channels](#two-channels)
 - [Contract](#contract)
+- [Status surfaces](#status-surfaces)
 - [Settings](#settings)
 - [Notifications](#notifications)
 - [Built-in validators](#built-in-validators)
@@ -43,6 +44,14 @@ Package: [`lib/validators/`](../../lib/validators/).
 - `ValidatorContext` — data dir, alert helpers, optional `nest_id` / `trigger`
 - Registry + scheduler — per-validator enable / interval; hatch lifecycle polling stays separate (`bg_interval`)
 - `run_validator(id, trigger=…)` — schedule, manual, or connection
+
+<br>
+
+## Status surfaces
+
+Validators are the **gather** layer only. They must not push to the DOM. Findings land in Alerts (and run history in `validator_runs`); the Controller UI **surfaces** poll stored state through `hatchery.refreshStatusSurfaces` / `onStatusTick` ([notifications.md — Status surfaces](notifications.md#status-surfaces), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
+
+When adding pane UI that should stay fresh (Validators filters [#280](https://github.com/dustinestes/Hatchery/issues/280), Libraries chip [#254](https://github.com/dustinestes/Hatchery/issues/254)), subscribe to the status tick — do not add another `setInterval` for health.
 
 <br>
 
