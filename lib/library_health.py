@@ -97,19 +97,11 @@ def sync_connection_alerts(
 ) -> dict[str, int]:
     """Probe connections via ``library.test_connection``; open/resolve Alerts.
 
-    Git connections are skipped (test/list/pull not implemented yet — #251).
-    Returns ``{checked, down, skipped_git}``.
+    Returns ``{checked, down}``.
     """
     checked = 0
     down = 0
-    skipped_git = 0
     for conn in connections:
-        ctype = (conn.get("type") or "").strip().lower()
-        if ctype == "git":
-            skipped_git += 1
-            # Do not leave stale reachability Alerts if type flipped to git.
-            resolve_connection_alert(str(conn.get("id") or ""))
-            continue
         checked += 1
         result = library_lib.test_connection(conn)
         cid = str(conn.get("id") or "")
@@ -127,7 +119,7 @@ def sync_connection_alerts(
         alerts_lib.record_alert(msg, tier="alert")
         if note_finding:
             note_finding("alert")
-    return {"checked": checked, "down": down, "skipped_git": skipped_git}
+    return {"checked": checked, "down": down}
 
 
 def sync_token_expiry_alerts(

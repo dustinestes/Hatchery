@@ -251,8 +251,6 @@ class LibraryConnectionsValidator(BaseValidator):
             parts.append(f"All {probe['checked']} connection(s) reachable")
         if recorded_expiry:
             parts.append(f"{len(recorded_expiry)} token expiry finding(s)")
-        if probe["skipped_git"]:
-            parts.append(f"skipped {probe['skipped_git']} git connection(s)")
         return "; ".join(parts) if parts else "Library connections OK"
 
 

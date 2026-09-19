@@ -1,5 +1,8 @@
 """Unit tests for lib.library — path connections, list, pull, identity."""
 
+import os
+import shutil
+import subprocess
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -222,6 +225,107 @@ class TestClutchLibrary:
         names = [i["name"] for i in items]
         assert names.count("lab.yaml") == 1
         assert "prod.yaml" in names
+
+
+class TestGitLibrary:
+    @pytest.fixture
+    def git_remote(self, tmp_path: Path) -> Path:
+        if not shutil.which("git"):
+            pytest.skip("git not installed")
+        repo = tmp_path / "remote.git-work"
+        (repo / "nested").mkdir(parents=True)
+        (repo / "hello.ps1").write_text("Write-Host hi\n", encoding="utf-8")
+        (repo / "nested" / "setup.sh").write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
+        (repo / "lab.yaml").write_text("name: lab\n", encoding="utf-8")
+        (repo / "readme.txt").write_text("ignore\n", encoding="utf-8")
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        return repo
+
+    def _git_conn(self, root: Path, *, conn_id: str = "g1") -> dict:
+        return {
+            "id": conn_id,
+            "label": "Ops git",
+            "type": "git",
+            "base_uri": str(root),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts", "clutches"],
+        }
+
+    def test_remote_url_embeds_token_for_https(self):
+        url = library.git_remote_url("https://github.com/org/repo.git", "sekret")
+        assert url.startswith("https://x-access-token:")
+        assert "sekret" in url
+        assert "@github.com/org/repo.git" in url
+        gitlab = library.git_remote_url("https://gitlab.example/g/r.git", "tok")
+        assert gitlab.startswith("https://oauth2:")
+
+    def test_remote_url_ignores_token_for_ssh_and_path(self, tmp_path):
+        assert library.git_remote_url("git@github.com:org/repo.git", "tok") == (
+            "git@github.com:org/repo.git"
+        )
+        local = str(tmp_path / "repo")
+        assert library.git_remote_url(local, "tok") == local
+
+    def test_connection_ok(self, git_remote):
+        result = library.test_connection(self._git_conn(git_remote))
+        assert result["ok"] is True
+        assert "Git remote OK" in result["message"]
+
+    def test_connection_missing(self, tmp_path):
+        if not shutil.which("git"):
+            pytest.skip("git not installed")
+        result = library.test_connection(self._git_conn(tmp_path / "missing-repo"))
+        assert result["ok"] is False
+
+    def test_list_filter_and_pull(self, git_remote, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "scripts").mkdir(parents=True)
+        conn = self._git_conn(git_remote)
+        hits = library.list_script_hits(conn, "*", limit=None)
+        names = {h["name"] for h in hits}
+        assert names == {"hello.ps1", "setup.sh"}
+        assert all(h["source_type"] == "git" for h in hits)
+        assert all(h["sha256"] for h in hits)
+
+        sample = library.test_filter(conn, "*.ps1")
+        assert sample["ok"] is True
+        assert len(sample["hits"]) == 1
+
+        pulled = library.pull_script(conn, "hello.ps1")
+        assert pulled["name"] == "hello.ps1"
+        dest = tmp_path / "data" / "automation" / "scripts" / "hello.ps1"
+        assert dest.is_file()
+        assert pulled["sha256"] == library.sha256_file(dest)
+
+        with pytest.raises(FileExistsError):
+            library.pull_script(conn, "hello.ps1")
+
+        clutch_hits = library.list_clutch_hits(conn, "*")
+        assert {h["name"] for h in clutch_hits} == {"lab.yaml"}
 
 
 class TestMediaLibrary:
