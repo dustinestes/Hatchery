@@ -21,7 +21,7 @@ Maintaining both a full standalone browser and per-domain quick import adds IA/r
 3. Keep the tab strip **always visible**: Cached stays labeled; Library is interactive when Settings enables Library, otherwise dimmed/disabled (stable chrome for later tabs)
 4. Library rows reuse Cached’s **name + muted path** pattern; connection column; SHA as copy-to-clipboard when known; no Source column in the browse table (connection type stays Settings/config)
 
-Shared UI: `hatchery.bindInventoryTabs` / `hatchery.bindLibraryBrowser` (+ ByPrefix). Overlay of Library hits inside the Cached list remains [#250](https://github.com/dustinestes/Hatchery/issues/250).
+Shared UI: `hatchery.bindInventoryTabs` / `hatchery.bindLibraryBrowser` (+ ByPrefix). An optional overlay of Library hits inside the Cached list ([#250](https://github.com/dustinestes/Hatchery/issues/250)) was later **closed as superseded** by this tab model.
 
 ## Consequences
 
@@ -34,7 +34,7 @@ Shared UI: `hatchery.bindInventoryTabs` / `hatchery.bindLibraryBrowser` (+ ByPre
 **Neutral / follow-on**
 
 - Media/Clutches parity landed with Scripts (#297)
-- Optional cache+catalog overlay (#250) is separate from this browse decision
+- Cache+catalog overlay (#250) closed as superseded — no longer planned
 
 **Bad / accepted cost**
 
