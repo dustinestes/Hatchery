@@ -2,7 +2,7 @@
 
 Short records of decisions that constrain future Hatchery code.
 
-Product docs under [`.hatchery/docs/`](../) explain **how** things work for operators and contributors. ADRs explain **why** a shape was chosen so the same debate is not reopened into a conflicting design.
+Product docs under [`docs/`](../) explain **how** things work for operators and contributors. ADRs explain **why** a shape was chosen so the same debate is not reopened into a conflicting design.
 
 <br>
 
@@ -57,8 +57,8 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 ---
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../../.hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img align="left" src="../../.hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
 <div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

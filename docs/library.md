@@ -1,7 +1,7 @@
 <br><br>
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/icons/hatchery-icon-dark.svg">
+  <img align="right" src="../.hatchery/branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Library and Nest Cache</h1>
 <br clear="both">
@@ -149,7 +149,7 @@ Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named
 | **Filter** | `repoKey[/path/glob]` — e.g. `media-isos/**/*.iso`, `scripts/*.ps1` |
 | **List** | AQL when available; Storage API walk as fallback |
 | **Pull** | Download artifact; prefer `X-Checksum-Sha256` / metadata, else hash the file |
-| **Local OSS test** | Contributor Docker harness: [`.hatchery/tooling/artifactory-oss/`](../tooling/artifactory-oss/) (`up` → change admin password → `seed` → Settings base URI `http://127.0.0.1:8082/artifactory`) |
+| **Local OSS test** | Contributor Docker harness: [`.hatchery/tooling/artifactory-oss/`](../.hatchery/tooling/artifactory-oss/) (`up` → change admin password → `seed` → Settings base URI `http://127.0.0.1:8082/artifactory`) |
 
 `https` stays explicit single/multi path GET — not a browsable API catalog.
 
@@ -262,8 +262,8 @@ Orgs with high bandwidth or all-local DC networks may later opt in so a Nest can
 ---
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img align="left" src="../.hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
 <div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

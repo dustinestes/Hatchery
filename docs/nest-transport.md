@@ -1,7 +1,7 @@
 <br><br>
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/icons/hatchery-icon-dark.svg">
+  <img align="right" src="../.hatchery/branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Nest Transport</h1>
 <br clear="both">
@@ -125,8 +125,8 @@ If OpenSSH cannot be enabled, set the Nest transport to **WinRM** and open the W
 ---
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img align="left" src="../.hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
 <div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

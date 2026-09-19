@@ -19,8 +19,8 @@ uv run pytest
 Auto-fix: `uv run ruff check --fix . && uv run ruff format .`
 
 - Coverage gate: ≥90% line coverage (`pyproject.toml`)
-- Multi-OS CI: portable tests must pass on Linux, macOS, and Windows; see `cross-platform.mdc` and `.hatchery/docs/tests.md`
-- Behavior changes → update `.hatchery/docs/`, `README.md`, or `CONTRIBUTING.md`
+- Multi-OS CI: portable tests must pass on Linux, macOS, and Windows; see `cross-platform.mdc` and `docs/tests.md`
+- Behavior changes → update `docs/`, `README.md`, or `CONTRIBUTING.md`
 
 ```
 ✅ Add/change a function and its test in the same change

@@ -7,7 +7,7 @@ alwaysApply: true
 
 Hatchery must run as a **Hatchery Controller** on Linux, macOS, and Windows, and manage **Local Nests** and/or **Remote Nests** (libvirt/KVM, UTM, Hyper-V). Epic: [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
-**Architecture (locked):** [Controller plane vs Nest plane](../../.hatchery/docs/architecture-nests.md) — one product shell; Nest providers are first-class optional modules. Do not fork into three apps; do not bypass Nest registry/factory (#207 / #206).
+**Architecture (locked):** [Controller plane vs Nest plane](../../docs/architecture-nests.md) — one product shell; Nest providers are first-class optional modules. Do not fork into three apps; do not bypass Nest registry/factory (#207 / #206).
 
 ## Architecture nouns
 
@@ -25,7 +25,7 @@ Hatchery must run as a **Hatchery Controller** on Linux, macOS, and Windows, and
 | **Controller** | App runtime, UI, Settings, DB, Library, orchestration, Nest transport client |
 | **Nest** | Hypervisor lifecycle via `BaseProvider` (libvirt / UTM / Hyper-V × Local or Remote) |
 
-Controller requirements ≠ Nest-local tool requirements ([#208](https://github.com/dustinestes/Hatchery/issues/208)). New health checks register as **validators** ([#268](https://github.com/dustinestes/Hatchery/issues/268); [validators.md](../../.hatchery/docs/validators.md)) — do not extend a private catch-all loop in `hatchery.py`. Libvirt-only rules stay in the libvirt adapter.
+Controller requirements ≠ Nest-local tool requirements ([#208](https://github.com/dustinestes/Hatchery/issues/208)). New health checks register as **validators** ([#268](https://github.com/dustinestes/Hatchery/issues/268); [validators.md](../../docs/validators.md)) — do not extend a private catch-all loop in `hatchery.py`. Libvirt-only rules stay in the libvirt adapter.
 
 ## Distribution north star ([#273](https://github.com/dustinestes/Hatchery/issues/273))
 
@@ -58,7 +58,7 @@ PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-l
 ✅ Does this work on Linux, macOS, and Windows Controllers?
 ✅ Does this assume a Local Nest only, or also Remote Nest / Controller-only?
 ✅ Are OS-specific paths (apt, xdg-open, systemd, .desktop) behind a portable helper?
-✅ Did you update `.hatchery/docs/providers.md` if Nest/provider capability changed?
+✅ Did you update `docs/providers.md` if Nest/provider capability changed?
 ✅ Does this go through Nest id → factory (#206/#207), not hard-wired libvirt?
 ✅ Would this still work if Hatchery were installed via package manager (no git checkout)? (#273)
 ✅ Does the Controller still start with zero Nests registered?
