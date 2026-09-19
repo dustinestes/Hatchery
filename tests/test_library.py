@@ -178,6 +178,12 @@ class TestParse:
         assert len(items) >= 1
         assert all(i["binding_id"] == "b-on" for i in items)
 
+    def test_annotate_cached(self):
+        items = [{"name": "a.ps1", "relative_path": "a.ps1"}, {"name": "b.ps1"}]
+        out = library.annotate_cached(items, {"a.ps1"})
+        assert out[0]["cached"] is True
+        assert out[1]["cached"] is False
+
 
 class TestPathLibrary:
     def test_connection(self, script_share):

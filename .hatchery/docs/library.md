@@ -170,9 +170,23 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 
 <br>
 
+## Product choice: in-pane Library browser (#244)
+
+**Decision:** richer **tabbed browse on the domain inventory page** (start with Scripts), not a separate Library browser route. Keep the in-pane **Import** control for file upload and a one-click jump to the Library tab (“Browse library…”).
+
+| Surface | Role |
+|---|---|
+| **Cached** tab | Operator cache inventory (existing Scripts nav + detail). Always shown so the pane keeps a stable tab chrome. |
+| **Library** tab | Binding catalog: name with muted path (same label/sub pattern as Cached), connection, copyable SHA when known, Cached vs Library-only status; filter/sort, multi-select, batch pull. When Library is disabled in Settings, the tab stays visible but dimmed/disabled. |
+| **Import** dropdown | From file… (unchanged); Browse library… switches to the Library tab (only when Library is enabled) |
+
+Media and Clutches keep the compact modal checklist until the same tab pattern is extended. Overlay of Library hits inside the Cached list remains [#250](https://github.com/dustinestes/Hatchery/issues/250).
+
+<br>
+
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache only. **From library…** browses bindings and pulls chosen items into the cache.
+**Default (cache-first):** domain panes list the operator cache only. **Browse library…** / **From library…** opens the catalog (Scripts: in-pane Library tab; other domains: modal) and pulls chosen items into the cache.
 
 **Optional:** Settings → Library knob to **show library results in inventory panes**. When on, panes may list binding hits with badges such as **Cached** vs **Library** (not cached). Visibility is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later). Actions on Library-only rows are pull/cache (and later pull-and-use), not silent remote attach.
 

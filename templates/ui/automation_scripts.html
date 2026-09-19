@@ -26,7 +26,7 @@
               aria-controls="scripts-import-menu">Import</button>
       <div class="dropdown-menu import-dropdown-menu" id="scripts-import-menu" hidden role="menu">
         <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-file">From file…</button>
-        <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-library">From library…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-library">Browse library…</button>
       </div>
     </div>
     {% else %}
@@ -35,6 +35,18 @@
   </div>
 </div>
 
+<div class="inventory-tabs" role="tablist" aria-label="Scripts inventory source">
+  <button type="button" class="inventory-tab" role="tab" id="scripts-tab-cache"
+          aria-selected="true" aria-controls="scripts-panel-cache" tabindex="0">Cached</button>
+  <button type="button" class="inventory-tab{% if not library_enabled %} inventory-tab--disabled{% endif %}"
+          role="tab" id="scripts-tab-library"
+          aria-selected="false"
+          aria-controls="scripts-panel-library"
+          tabindex="-1"
+          {% if not library_enabled %}disabled aria-disabled="true" title="Enable Library in Settings → General"{% endif %}>Library</button>
+</div>
+
+<div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
 <div class="scripts-layout">
 
   <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
@@ -142,6 +154,71 @@
   </div>
 
 </div>
+</div>
+
+{% if library_enabled %}
+<div class="scripts-panel" id="scripts-panel-library" role="tabpanel" aria-labelledby="scripts-tab-library" hidden>
+  <div class="library-browser" id="scripts-library-browser">
+    <div class="notif-filters library-browser-filters" role="search" aria-label="Filter Library scripts">
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-lib-filter-q">Search</label>
+        <input type="search" id="scripts-lib-filter-q" class="form-input" placeholder="Name or path">
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-lib-filter-conn">Connection</label>
+        <select id="scripts-lib-filter-conn" class="form-select">
+          <option value="">All connections</option>
+        </select>
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-lib-filter-cached">In cache</label>
+        <select id="scripts-lib-filter-cached" class="form-select">
+          <option value="">Any</option>
+          <option value="yes">Cached</option>
+          <option value="no">Library only</option>
+        </select>
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-lib-sort">Sort</label>
+        <select id="scripts-lib-sort" class="form-select">
+          <option value="name">Name</option>
+          <option value="connection">Connection</option>
+          <option value="path">Path</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="library-browser-toolbar">
+      <p class="library-browser-status" id="scripts-lib-status" role="status" aria-live="polite"></p>
+      <div class="library-browser-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="scripts-lib-refresh">Refresh</button>
+        <button type="button" class="btn btn-primary btn-sm" id="scripts-lib-pull" disabled>Pull selected</button>
+      </div>
+    </div>
+
+    <div class="library-browser-table-wrap">
+      <table class="notif-table library-browser-table" id="scripts-lib-table">
+        <thead>
+          <tr>
+            <th scope="col" class="library-browser-check-col">
+              <label class="visually-hidden" for="scripts-lib-select-all">Select all visible</label>
+              <input type="checkbox" id="scripts-lib-select-all" title="Select all visible">
+            </th>
+            <th scope="col">Name</th>
+            <th scope="col">Connection</th>
+            <th scope="col" class="library-browser-sha-col">SHA</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="scripts-lib-tbody"></tbody>
+      </table>
+      <p class="empty-state" id="scripts-lib-empty" hidden>
+        No script hits from your Library bindings. Configure connections under Settings → Library.
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
@@ -156,48 +233,84 @@
     </div>
   </div>
 </div>
-
-{% if library_enabled %}
-<div id="library-import-backdrop" class="modal-backdrop" hidden>
-  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="library-import-title">
-    <h2 class="modal-title" id="library-import-title">Import from library</h2>
-    <div class="modal-body">
-      <p class="form-help-text">Select scripts from your Scripts bindings. Pull copies them into the operator cache.</p>
-      <div id="library-import-status" class="library-test-result" role="status" aria-live="polite"></div>
-      <div id="library-import-list" class="library-import-list" role="group" aria-label="Library scripts"></div>
-      <p class="empty-state" id="library-import-empty" hidden>No script hits from your Library bindings. Configure connections under Settings → Library.</p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" id="library-import-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="library-import-confirm" disabled>Pull selected</button>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
   const USED_BY = {{ used_by | tojson }};
+  const libraryEnabled = {{ library_enabled | tojson }};
+
+  function showScriptsTab(which) {
+    var cacheTab = document.getElementById('scripts-tab-cache');
+    var libTab = document.getElementById('scripts-tab-library');
+    var cachePanel = document.getElementById('scripts-panel-cache');
+    var libPanel = document.getElementById('scripts-panel-library');
+    if (!cacheTab || !cachePanel) return;
+    var showLib = which === 'library';
+    if (showLib && (!libraryEnabled || !libTab || libTab.disabled || !libPanel)) {
+      return;
+    }
+    cacheTab.setAttribute('aria-selected', showLib ? 'false' : 'true');
+    cacheTab.tabIndex = showLib ? -1 : 0;
+    cachePanel.hidden = showLib;
+    if (libTab) {
+      libTab.setAttribute('aria-selected', showLib ? 'true' : 'false');
+      libTab.tabIndex = (showLib && libraryEnabled) ? 0 : -1;
+    }
+    if (libPanel) libPanel.hidden = !showLib;
+    if (showLib && window._scriptsLibraryBrowser && typeof window._scriptsLibraryBrowser.load === 'function') {
+      window._scriptsLibraryBrowser.load();
+    }
+  }
+
+  var cacheTabBtn = document.getElementById('scripts-tab-cache');
+  var libTabBtn = document.getElementById('scripts-tab-library');
+  if (cacheTabBtn) {
+    cacheTabBtn.addEventListener('click', function () { showScriptsTab('cache'); });
+  }
+  if (libTabBtn && libraryEnabled) {
+    libTabBtn.addEventListener('click', function () { showScriptsTab('library'); });
+  }
+  document.querySelector('.inventory-tabs')?.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (!libraryEnabled || !libTabBtn || libTabBtn.disabled) return;
+    e.preventDefault();
+    var selected = document.querySelector('.inventory-tab[aria-selected="true"]');
+    if (selected === cacheTabBtn) showScriptsTab('library');
+    else showScriptsTab('cache');
+    var next = document.querySelector('.inventory-tab[aria-selected="true"]');
+    if (next) next.focus();
+  });
 
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
       button: document.getElementById('scripts-import-btn'),
       input: document.getElementById('scripts-import-input'),
       url: {{ url_for('api_import_automation_scripts') | tojson }},
-      libraryEnabled: {{ library_enabled | tojson }},
+      libraryEnabled: libraryEnabled,
       menu: document.getElementById('scripts-import-menu'),
       fromFile: document.getElementById('scripts-import-from-file'),
       fromLibrary: document.getElementById('scripts-import-from-library'),
-      libraryModal: document.getElementById('library-import-backdrop'),
-      libraryList: document.getElementById('library-import-list'),
-      libraryEmpty: document.getElementById('library-import-empty'),
-      libraryStatus: document.getElementById('library-import-status'),
-      libraryCancel: document.getElementById('library-import-cancel'),
-      libraryConfirm: document.getElementById('library-import-confirm'),
+      onFromLibrary: libraryEnabled ? function () { showScriptsTab('library'); } : null,
+    });
+  }
+
+  if (libraryEnabled && window.hatchery && typeof hatchery.bindLibraryBrowser === 'function') {
+    window._scriptsLibraryBrowser = hatchery.bindLibraryBrowser({
+      root: document.getElementById('scripts-library-browser'),
       catalogUrl: {{ url_for('api_library_scripts') | tojson }},
-      pullUrl: {{ url_for('api_library_scripts_pull') | tojson }}
+      pullUrl: {{ url_for('api_library_scripts_pull') | tojson }},
+      status: document.getElementById('scripts-lib-status'),
+      tbody: document.getElementById('scripts-lib-tbody'),
+      empty: document.getElementById('scripts-lib-empty'),
+      selectAll: document.getElementById('scripts-lib-select-all'),
+      pullBtn: document.getElementById('scripts-lib-pull'),
+      refreshBtn: document.getElementById('scripts-lib-refresh'),
+      filterQ: document.getElementById('scripts-lib-filter-q'),
+      filterConn: document.getElementById('scripts-lib-filter-conn'),
+      filterCached: document.getElementById('scripts-lib-filter-cached'),
+      sort: document.getElementById('scripts-lib-sort'),
     });
   }
 
