@@ -1,0 +1,62 @@
+{# In-pane Library browser panel. Requires: id_prefix, filter_aria, empty_message #}
+{% if library_enabled %}
+<div class="scripts-panel" id="{{ id_prefix }}-panel-library" role="tabpanel" aria-labelledby="{{ id_prefix }}-tab-library" hidden>
+  <div class="library-browser" id="{{ id_prefix }}-library-browser">
+    <div class="notif-filters library-browser-filters" role="search" aria-label="{{ filter_aria }}">
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="{{ id_prefix }}-lib-filter-q">Search</label>
+        <input type="search" id="{{ id_prefix }}-lib-filter-q" class="form-input" placeholder="Name or path">
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="{{ id_prefix }}-lib-filter-conn">Connection</label>
+        <select id="{{ id_prefix }}-lib-filter-conn" class="form-select">
+          <option value="">All connections</option>
+        </select>
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="{{ id_prefix }}-lib-filter-cached">In cache</label>
+        <select id="{{ id_prefix }}-lib-filter-cached" class="form-select">
+          <option value="">Any</option>
+          <option value="yes">Cached</option>
+          <option value="no">Library only</option>
+        </select>
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="{{ id_prefix }}-lib-sort">Sort</label>
+        <select id="{{ id_prefix }}-lib-sort" class="form-select">
+          <option value="name">Name</option>
+          <option value="connection">Connection</option>
+          <option value="path">Path</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="library-browser-toolbar">
+      <p class="library-browser-status" id="{{ id_prefix }}-lib-status" role="status" aria-live="polite"></p>
+      <div class="library-browser-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="{{ id_prefix }}-lib-refresh">Refresh</button>
+        <button type="button" class="btn btn-primary btn-sm" id="{{ id_prefix }}-lib-pull" disabled>Pull selected</button>
+      </div>
+    </div>
+
+    <div class="library-browser-table-wrap">
+      <table class="notif-table library-browser-table" id="{{ id_prefix }}-lib-table">
+        <thead>
+          <tr>
+            <th scope="col" class="library-browser-check-col">
+              <label class="visually-hidden" for="{{ id_prefix }}-lib-select-all">Select all visible</label>
+              <input type="checkbox" id="{{ id_prefix }}-lib-select-all" title="Select all visible">
+            </th>
+            <th scope="col">Name</th>
+            <th scope="col">Connection</th>
+            <th scope="col" class="library-browser-sha-col">SHA</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="{{ id_prefix }}-lib-tbody"></tbody>
+      </table>
+      <p class="empty-state" id="{{ id_prefix }}-lib-empty" hidden>{{ empty_message }}</p>
+    </div>
+  </div>
+</div>
+{% endif %}

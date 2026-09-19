@@ -44,6 +44,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-library-api-adapters.md) | Library API connection type + pluggable providers | Accepted |
+| [0002](0002-library-in-pane-browser.md) | In-pane Library browser (Cached \| Library tabs) | Accepted |
 
 ### Backfill candidates (not written yet)
 

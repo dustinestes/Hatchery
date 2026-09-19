@@ -35,7 +35,7 @@ Artifactory is the **first adapter**, not the product model. Settings labels: ty
 
 **Neutral / follow-on**
 
-- Filter grammar is per-adapter (documented in `library.md`); richer browse UX (#244) consumes shared hits only
+- Filter grammar is per-adapter (documented in `library.md`); richer browse UX ([ADR-0002](0002-library-in-pane-browser.md)) consumes shared hits only
 - Token encryption remains [#110](https://github.com/dustinestes/Hatchery/issues/110)
 
 **Bad / accepted cost**

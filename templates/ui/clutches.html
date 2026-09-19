@@ -8,34 +8,39 @@
   <p class="pane-subtitle">View and manage Clutch files — create, edit, import, and delete environment definitions.</p>
 </div>
 
-<section class="dashboard-section">
-  <div class="section-header">
-    <h2 class="section-title">Clutch Files</h2>
-    <div class="section-header-actions">
-      <input type="file"
-             id="clutch-import-input"
-             accept=".yaml,application/x-yaml,text/yaml"
-             multiple
-             hidden>
-      {% if library_enabled %}
-      <div class="import-dropdown" id="clutch-import-dropdown">
-        <button type="button"
-                class="btn btn-primary btn-sm"
-                id="clutch-import-btn"
-                aria-haspopup="true"
-                aria-expanded="false"
-                aria-controls="clutch-import-menu">Import</button>
-        <div class="dropdown-menu import-dropdown-menu" id="clutch-import-menu" hidden role="menu">
-          <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-file">From file…</button>
-          <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-library">From library…</button>
-        </div>
+<div class="section-header inventory-toolbar">
+  <h2 class="section-title">Clutch Files</h2>
+  <div class="section-header-actions">
+    <input type="file"
+           id="clutch-import-input"
+           accept=".yaml,application/x-yaml,text/yaml"
+           multiple
+           hidden>
+    {% if library_enabled %}
+    <div class="import-dropdown" id="clutch-import-dropdown">
+      <button type="button"
+              class="btn btn-primary btn-sm"
+              id="clutch-import-btn"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="clutch-import-menu">Import</button>
+      <div class="dropdown-menu import-dropdown-menu" id="clutch-import-menu" hidden role="menu">
+        <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-file">From file…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-library">Browse library…</button>
       </div>
-      {% else %}
-      <button type="button" class="btn btn-primary btn-sm" id="clutch-import-btn">Import</button>
-      {% endif %}
-      <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
     </div>
+    {% else %}
+    <button type="button" class="btn btn-primary btn-sm" id="clutch-import-btn">Import</button>
+    {% endif %}
+    <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
   </div>
+</div>
+
+{% with tab_prefix='clutches', tablist_label='Clutches inventory source' %}
+  {% include "_inventory_source_tabs.html" %}
+{% endwith %}
+
+<div class="scripts-panel" id="clutches-panel-cache" role="tabpanel" aria-labelledby="clutches-tab-cache">
   {% if clutch_files %}
     <ul class="file-list">
       {% for f in clutch_files %}
@@ -59,7 +64,11 @@
   {% else %}
     <p class="empty-state">No Clutch files yet. Use <strong>Import</strong> for an existing <code>.yaml</code>, or <a href="{{ url_for('build') }}" class="link">Build a Clutch</a>. You can also place files in <code>clutches/</code> under your Hatchery data directory.</p>
   {% endif %}
-</section>
+</div>
+
+{% with id_prefix='clutches', filter_aria='Filter Library Clutches', empty_message='No Clutch hits from your Library bindings. Configure connections under Settings → Library.' %}
+  {% include "_library_browser_panel.html" %}
+{% endwith %}
 
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
@@ -76,24 +85,6 @@
     </div>
   </div>
 </div>
-
-{% if library_enabled %}
-<div id="library-import-backdrop" class="modal-backdrop" hidden>
-  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="library-import-title">
-    <h2 class="modal-title" id="library-import-title">Import from library</h2>
-    <div class="modal-body">
-      <p class="form-help-text">Select Clutches from your Clutches bindings. Pull copies them into the operator cache.</p>
-      <div id="library-import-status" class="library-test-result" role="status" aria-live="polite"></div>
-      <div id="library-import-list" class="library-import-list" role="group" aria-label="Library Clutches"></div>
-      <p class="empty-state" id="library-import-empty" hidden>No Clutch hits from your Library bindings. Configure connections under Settings → Library.</p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" id="library-import-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="library-import-confirm" disabled>Pull selected</button>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -102,24 +93,45 @@
   var backdrop = document.getElementById('delete-modal-backdrop');
   var filenameEl = document.getElementById('delete-modal-filename');
   var form = document.getElementById('delete-confirm-form');
+  var libraryEnabled = {{ library_enabled | tojson }};
+
+  var clutchTabs = null;
+  if (window.hatchery && typeof hatchery.bindInventoryTabs === 'function') {
+    clutchTabs = hatchery.bindInventoryTabs({
+      libraryEnabled: libraryEnabled,
+      cacheTab: document.getElementById('clutches-tab-cache'),
+      libTab: document.getElementById('clutches-tab-library'),
+      cachePanel: document.getElementById('clutches-panel-cache'),
+      libPanel: document.getElementById('clutches-panel-library'),
+      tabsRoot: document.querySelector('.inventory-tabs'),
+      onShowLibrary: function () {
+        if (window._clutchesLibraryBrowser && typeof window._clutchesLibraryBrowser.load === 'function') {
+          window._clutchesLibraryBrowser.load();
+        }
+      },
+    });
+  }
 
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
       button: document.getElementById('clutch-import-btn'),
       input: document.getElementById('clutch-import-input'),
       url: {{ url_for('api_import_clutches') | tojson }},
-      libraryEnabled: {{ library_enabled | tojson }},
+      libraryEnabled: libraryEnabled,
       menu: document.getElementById('clutch-import-menu'),
       fromFile: document.getElementById('clutch-import-from-file'),
       fromLibrary: document.getElementById('clutch-import-from-library'),
-      libraryModal: document.getElementById('library-import-backdrop'),
-      libraryList: document.getElementById('library-import-list'),
-      libraryEmpty: document.getElementById('library-import-empty'),
-      libraryStatus: document.getElementById('library-import-status'),
-      libraryCancel: document.getElementById('library-import-cancel'),
-      libraryConfirm: document.getElementById('library-import-confirm'),
+      onFromLibrary: libraryEnabled && clutchTabs
+        ? function () { clutchTabs.show('library'); }
+        : null,
+    });
+  }
+
+  if (libraryEnabled && window.hatchery && typeof hatchery.bindLibraryBrowserByPrefix === 'function') {
+    window._clutchesLibraryBrowser = hatchery.bindLibraryBrowserByPrefix({
+      idPrefix: 'clutches',
       catalogUrl: {{ url_for('api_library_clutches') | tojson }},
-      pullUrl: {{ url_for('api_library_clutches_pull') | tojson }}
+      pullUrl: {{ url_for('api_library_clutches_pull') | tojson }},
     });
   }
 

@@ -26,7 +26,7 @@
               aria-controls="media-import-menu">Import</button>
       <div class="dropdown-menu import-dropdown-menu" id="media-import-menu" hidden role="menu">
         <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-file">From file…</button>
-        <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-library">From library…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-library">Browse library…</button>
       </div>
     </div>
     {% else %}
@@ -35,6 +35,11 @@
   </div>
 </div>
 
+{% with tab_prefix='media', tablist_label=(pane_title ~ ' inventory source') %}
+  {% include "_inventory_source_tabs.html" %}
+{% endwith %}
+
+<div class="scripts-panel" id="media-panel-cache" role="tabpanel" aria-labelledby="media-tab-cache">
 <div class="media-layout">
 
   <nav class="media-nav" aria-label="{{ nav_label }}" id="media-nav">
@@ -144,6 +149,11 @@
   </div>
 
 </div>
+</div>
+
+{% with id_prefix='media', filter_aria=('Filter Library ' ~ pane_title), empty_message=('No media hits from your Library bindings for this target. Configure connections under Settings → Library.') %}
+  {% include "_library_browser_panel.html" %}
+{% endwith %}
 
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
@@ -158,24 +168,6 @@
     </div>
   </div>
 </div>
-
-{% if library_enabled %}
-<div id="library-import-backdrop" class="modal-backdrop" hidden>
-  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="library-import-title">
-    <h2 class="modal-title" id="library-import-title">Import from library</h2>
-    <div class="modal-body">
-      <p class="form-help-text">Select media from your Media bindings for this cache ({{ library_media_target }}). Pull copies them into the operator cache.</p>
-      <div id="library-import-status" class="library-test-result" role="status" aria-live="polite"></div>
-      <div id="library-import-list" class="library-import-list" role="group" aria-label="Library media"></div>
-      <p class="empty-state" id="library-import-empty" hidden>No media hits from your Library bindings for this target. Configure connections under Settings → Library.</p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" id="library-import-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="library-import-confirm" disabled>Pull selected</button>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -184,25 +176,46 @@
   const USED_BY = {{ used_by | tojson }};
   const INSPECT_URL = {{ inspect_url_prefix | tojson }};
   const DELETE_URL_PREFIX = {{ delete_url_prefix | tojson }};
+  const libraryEnabled = {{ library_enabled | tojson }};
+
+  var mediaTabs = null;
+  if (window.hatchery && typeof hatchery.bindInventoryTabs === 'function') {
+    mediaTabs = hatchery.bindInventoryTabs({
+      libraryEnabled: libraryEnabled,
+      cacheTab: document.getElementById('media-tab-cache'),
+      libTab: document.getElementById('media-tab-library'),
+      cachePanel: document.getElementById('media-panel-cache'),
+      libPanel: document.getElementById('media-panel-library'),
+      tabsRoot: document.querySelector('.inventory-tabs'),
+      onShowLibrary: function () {
+        if (window._mediaLibraryBrowser && typeof window._mediaLibraryBrowser.load === 'function') {
+          window._mediaLibraryBrowser.load();
+        }
+      },
+    });
+  }
 
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
       button: document.getElementById('media-import-btn'),
       input: document.getElementById('media-import-input'),
       url: {{ import_url | tojson }},
-      libraryEnabled: {{ library_enabled | tojson }},
+      libraryEnabled: libraryEnabled,
       menu: document.getElementById('media-import-menu'),
       fromFile: document.getElementById('media-import-from-file'),
       fromLibrary: document.getElementById('media-import-from-library'),
-      libraryModal: document.getElementById('library-import-backdrop'),
-      libraryList: document.getElementById('library-import-list'),
-      libraryEmpty: document.getElementById('library-import-empty'),
-      libraryStatus: document.getElementById('library-import-status'),
-      libraryCancel: document.getElementById('library-import-cancel'),
-      libraryConfirm: document.getElementById('library-import-confirm'),
+      onFromLibrary: libraryEnabled && mediaTabs
+        ? function () { mediaTabs.show('library'); }
+        : null,
+    });
+  }
+
+  if (libraryEnabled && window.hatchery && typeof hatchery.bindLibraryBrowserByPrefix === 'function') {
+    window._mediaLibraryBrowser = hatchery.bindLibraryBrowserByPrefix({
+      idPrefix: 'media',
       catalogUrl: {{ library_catalog_url | tojson }},
       pullUrl: {{ library_pull_url | tojson }},
-      pullExtra: { target: {{ library_media_target | tojson }} }
+      pullExtra: { target: {{ library_media_target | tojson }} },
     });
   }
 

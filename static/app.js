@@ -808,6 +808,87 @@ hatchery.vmRows = (function () {
   };
 
   /**
+   * Cached | Library inventory tab strip.
+   * opts: libraryEnabled, cacheTab, libTab, cachePanel, libPanel, tabsRoot,
+   *   onShowLibrary (optional callback when Library tab is shown)
+   * Returns { show: function(which) }
+   */
+  hatchery.bindInventoryTabs = function (opts) {
+    var libraryEnabled = !!opts.libraryEnabled;
+    var cacheTab = opts.cacheTab;
+    var libTab = opts.libTab;
+    var cachePanel = opts.cachePanel;
+    var libPanel = opts.libPanel;
+
+    function show(which) {
+      if (!cacheTab || !cachePanel) return;
+      var showLib = which === 'library';
+      if (showLib && (!libraryEnabled || !libTab || libTab.disabled || !libPanel)) {
+        return;
+      }
+      cacheTab.setAttribute('aria-selected', showLib ? 'false' : 'true');
+      cacheTab.tabIndex = showLib ? -1 : 0;
+      cachePanel.hidden = showLib;
+      if (libTab) {
+        libTab.setAttribute('aria-selected', showLib ? 'true' : 'false');
+        libTab.tabIndex = (showLib && libraryEnabled) ? 0 : -1;
+      }
+      if (libPanel) libPanel.hidden = !showLib;
+      if (showLib && typeof opts.onShowLibrary === 'function') {
+        opts.onShowLibrary();
+      }
+    }
+
+    if (cacheTab) {
+      cacheTab.addEventListener('click', function () { show('cache'); });
+    }
+    if (libTab && libraryEnabled) {
+      libTab.addEventListener('click', function () { show('library'); });
+    }
+    if (opts.tabsRoot) {
+      opts.tabsRoot.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        if (!libraryEnabled || !libTab || libTab.disabled) return;
+        e.preventDefault();
+        var selected = opts.tabsRoot.querySelector('.inventory-tab[aria-selected="true"]');
+        if (selected === cacheTab) show('library');
+        else show('cache');
+        var next = opts.tabsRoot.querySelector('.inventory-tab[aria-selected="true"]');
+        if (next) next.focus();
+      });
+    }
+
+    return { show: show };
+  };
+
+  /**
+   * Wire bindLibraryBrowser from a shared id prefix (see _library_browser_panel.html).
+   * opts: idPrefix, catalogUrl, pullUrl, pullExtra
+   */
+  hatchery.bindLibraryBrowserByPrefix = function (opts) {
+    var p = opts.idPrefix;
+    if (!p || !opts.catalogUrl || typeof hatchery.bindLibraryBrowser !== 'function') {
+      return null;
+    }
+    return hatchery.bindLibraryBrowser({
+      root: document.getElementById(p + '-library-browser'),
+      catalogUrl: opts.catalogUrl,
+      pullUrl: opts.pullUrl,
+      pullExtra: opts.pullExtra || {},
+      status: document.getElementById(p + '-lib-status'),
+      tbody: document.getElementById(p + '-lib-tbody'),
+      empty: document.getElementById(p + '-lib-empty'),
+      selectAll: document.getElementById(p + '-lib-select-all'),
+      pullBtn: document.getElementById(p + '-lib-pull'),
+      refreshBtn: document.getElementById(p + '-lib-refresh'),
+      filterQ: document.getElementById(p + '-lib-filter-q'),
+      filterConn: document.getElementById(p + '-lib-filter-conn'),
+      filterCached: document.getElementById(p + '-lib-filter-cached'),
+      sort: document.getElementById(p + '-lib-sort'),
+    });
+  };
+
+  /**
    * In-pane Library catalog browser (filter / sort / batch pull).
    * opts: root, catalogUrl, pullUrl, status, tbody, empty, selectAll, pullBtn,
    *   refreshBtn, filterQ, filterConn, filterCached, sort,
