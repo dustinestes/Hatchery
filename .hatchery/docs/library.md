@@ -176,9 +176,9 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 
 | Surface | Role |
 |---|---|
-| **Cached** tab | Operator cache inventory (existing Scripts nav + detail) |
-| **Library** tab | Binding catalog: name with muted path (same label/sub pattern as Cached), connection, copyable SHA when known, Cached vs Library-only status; filter/sort, multi-select, batch pull |
-| **Import** dropdown | From file… (unchanged); Browse library… switches to the Library tab |
+| **Cached** tab | Operator cache inventory (existing Scripts nav + detail). Always shown so the pane keeps a stable tab chrome. |
+| **Library** tab | Binding catalog: name with muted path (same label/sub pattern as Cached), connection, copyable SHA when known, Cached vs Library-only status; filter/sort, multi-select, batch pull. When Library is disabled in Settings, the tab stays visible but dimmed/disabled. |
+| **Import** dropdown | From file… (unchanged); Browse library… switches to the Library tab (only when Library is enabled) |
 
 Media and Clutches keep the compact modal checklist until the same tab pattern is extended. Overlay of Library hits inside the Cached list remains [#250](https://github.com/dustinestes/Hatchery/issues/250).
 

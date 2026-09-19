@@ -199,15 +199,19 @@ class TestPageTitles:
         html = client.get("/automation/scripts").data.decode()
         assert 'id="scripts-tab-cache"' in html
         assert 'id="scripts-tab-library"' in html
+        assert "inventory-tab--disabled" not in html
         assert 'id="scripts-library-browser"' in html
         assert "Browse library…" in html
         assert "bindLibraryBrowser" in html
 
-    def test_automation_scripts_no_library_tabs_when_disabled(self, client, monkeypatch):
+    def test_automation_scripts_cached_tab_when_library_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/automation/scripts").data.decode()
-        assert 'id="scripts-tab-library"' not in html
+        assert 'id="scripts-tab-cache"' in html
+        assert 'id="scripts-tab-library"' in html
+        assert "inventory-tab--disabled" in html
         assert "Browse library…" not in html
+        assert 'id="scripts-library-browser"' not in html
 
     def test_media_iso_title_and_nav(self, client):
         html = client.get("/media/iso").data.decode()

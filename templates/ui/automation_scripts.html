@@ -35,14 +35,16 @@
   </div>
 </div>
 
-{% if library_enabled %}
 <div class="inventory-tabs" role="tablist" aria-label="Scripts inventory source">
   <button type="button" class="inventory-tab" role="tab" id="scripts-tab-cache"
           aria-selected="true" aria-controls="scripts-panel-cache" tabindex="0">Cached</button>
-  <button type="button" class="inventory-tab" role="tab" id="scripts-tab-library"
-          aria-selected="false" aria-controls="scripts-panel-library" tabindex="-1">Library</button>
+  <button type="button" class="inventory-tab{% if not library_enabled %} inventory-tab--disabled{% endif %}"
+          role="tab" id="scripts-tab-library"
+          aria-selected="false"
+          aria-controls="scripts-panel-library"
+          tabindex="-1"
+          {% if not library_enabled %}disabled aria-disabled="true" title="Enable Library in Settings → General"{% endif %}>Library</button>
 </div>
-{% endif %}
 
 <div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
 <div class="scripts-layout">
@@ -244,38 +246,42 @@
     var libTab = document.getElementById('scripts-tab-library');
     var cachePanel = document.getElementById('scripts-panel-cache');
     var libPanel = document.getElementById('scripts-panel-library');
-    if (!cacheTab || !libTab || !cachePanel || !libPanel) return;
+    if (!cacheTab || !cachePanel) return;
     var showLib = which === 'library';
+    if (showLib && (!libraryEnabled || !libTab || libTab.disabled || !libPanel)) {
+      return;
+    }
     cacheTab.setAttribute('aria-selected', showLib ? 'false' : 'true');
-    libTab.setAttribute('aria-selected', showLib ? 'true' : 'false');
     cacheTab.tabIndex = showLib ? -1 : 0;
-    libTab.tabIndex = showLib ? 0 : -1;
     cachePanel.hidden = showLib;
-    libPanel.hidden = !showLib;
+    if (libTab) {
+      libTab.setAttribute('aria-selected', showLib ? 'true' : 'false');
+      libTab.tabIndex = (showLib && libraryEnabled) ? 0 : -1;
+    }
+    if (libPanel) libPanel.hidden = !showLib;
     if (showLib && window._scriptsLibraryBrowser && typeof window._scriptsLibraryBrowser.load === 'function') {
       window._scriptsLibraryBrowser.load();
     }
   }
 
-  if (libraryEnabled) {
-    var cacheTabBtn = document.getElementById('scripts-tab-cache');
-    var libTabBtn = document.getElementById('scripts-tab-library');
-    if (cacheTabBtn) {
-      cacheTabBtn.addEventListener('click', function () { showScriptsTab('cache'); });
-    }
-    if (libTabBtn) {
-      libTabBtn.addEventListener('click', function () { showScriptsTab('library'); });
-    }
-    document.querySelector('.inventory-tabs')?.addEventListener('keydown', function (e) {
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-      e.preventDefault();
-      var selected = document.querySelector('.inventory-tab[aria-selected="true"]');
-      if (selected === cacheTabBtn) showScriptsTab('library');
-      else showScriptsTab('cache');
-      var next = document.querySelector('.inventory-tab[aria-selected="true"]');
-      if (next) next.focus();
-    });
+  var cacheTabBtn = document.getElementById('scripts-tab-cache');
+  var libTabBtn = document.getElementById('scripts-tab-library');
+  if (cacheTabBtn) {
+    cacheTabBtn.addEventListener('click', function () { showScriptsTab('cache'); });
   }
+  if (libTabBtn && libraryEnabled) {
+    libTabBtn.addEventListener('click', function () { showScriptsTab('library'); });
+  }
+  document.querySelector('.inventory-tabs')?.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (!libraryEnabled || !libTabBtn || libTabBtn.disabled) return;
+    e.preventDefault();
+    var selected = document.querySelector('.inventory-tab[aria-selected="true"]');
+    if (selected === cacheTabBtn) showScriptsTab('library');
+    else showScriptsTab('cache');
+    var next = document.querySelector('.inventory-tab[aria-selected="true"]');
+    if (next) next.focus();
+  });
 
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({

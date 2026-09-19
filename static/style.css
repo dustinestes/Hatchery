@@ -3029,6 +3029,20 @@ body {
   outline-offset: 2px;
 }
 
+.inventory-tab:disabled,
+.inventory-tab.inventory-tab--disabled,
+.inventory-tab[aria-disabled="true"] {
+  color: var(--color-text-muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.inventory-tab:disabled:hover,
+.inventory-tab.inventory-tab--disabled:hover,
+.inventory-tab[aria-disabled="true"]:hover {
+  color: var(--color-text-muted);
+}
+
 .scripts-panel {
   min-height: 0;
 }
