@@ -3,80 +3,84 @@
 {% block title %}Validators — Hatchery{% endblock %}
 
 {% block content %}
-<div class="pane-header">
-  <h1 class="pane-title">Validators</h1>
-  <p class="pane-subtitle">History of background and on-demand validation runs. Findings still appear under Alerts.</p>
-</div>
-
-<div class="notif-filters" role="search" aria-label="Filter validator runs">
-  <div class="form-group notif-filter-field">
-    <label class="form-label" for="validator-filter-id">Validator</label>
-    <select id="validator-filter-id" class="form-select" aria-controls="validator-runs-table">
-      <option value="">All validators</option>
-      {% for vid, title in validator_titles|dictsort %}
-      <option value="{{ vid }}">{{ title }}</option>
-      {% endfor %}
-    </select>
+<div class="list-shell">
+  <div class="pane-header">
+    <h1 class="pane-title">Validators</h1>
+    <p class="pane-subtitle">History of background and on-demand validation runs. Findings still appear under Alerts.</p>
   </div>
-  <div class="form-group notif-filter-field">
-    <label class="form-label" for="validator-filter-status">Status</label>
-    <select id="validator-filter-status" class="form-select" aria-controls="validator-runs-table">
-      <option value="">All statuses</option>
-      <option value="ok">ok</option>
-      <option value="findings">findings</option>
-      <option value="error">error</option>
-    </select>
+
+  <div class="notif-filters" role="search" aria-label="Filter validator runs">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="validator-filter-id">Validator</label>
+      <select id="validator-filter-id" class="form-select" aria-controls="validator-runs-table">
+        <option value="">All validators</option>
+        {% for vid, title in validator_titles|dictsort %}
+        <option value="{{ vid }}">{{ title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="validator-filter-status">Status</label>
+      <select id="validator-filter-status" class="form-select" aria-controls="validator-runs-table">
+        <option value="">All statuses</option>
+        <option value="ok">ok</option>
+        <option value="findings">findings</option>
+        <option value="error">error</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="validator-filter-tier">Tier</label>
+      <select id="validator-filter-tier" class="form-select" aria-controls="validator-runs-table">
+        <option value="">All tiers</option>
+        <option value="info">info</option>
+        <option value="warning">warning</option>
+        <option value="alert">alert</option>
+      </select>
+    </div>
   </div>
-  <div class="form-group notif-filter-field">
-    <label class="form-label" for="validator-filter-tier">Tier</label>
-    <select id="validator-filter-tier" class="form-select" aria-controls="validator-runs-table">
-      <option value="">All tiers</option>
-      <option value="info">info</option>
-      <option value="warning">warning</option>
-      <option value="alert">alert</option>
-    </select>
+
+  <div class="list-shell-body">
+    <div id="validator-runs-empty" class="stub" role="status"{% if runs %} hidden{% endif %}>
+      No validator runs recorded yet. Configure intervals under Settings → General.
+    </div>
+    <div id="validator-runs-filtered-empty" class="stub" role="status" hidden>
+      No runs match these filters.
+    </div>
+
+    <table class="notif-table" id="validator-runs-table"{% if not runs %} hidden{% endif %}>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Validator</th>
+          <th>Status</th>
+          <th>Tier</th>
+          <th>Trigger</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="validator-runs-tbody">
+        {% for run in runs %}
+        <tr>
+          <td class="notif-table-time">{{ run.finished_at or run.started_at }}</td>
+          <td>{{ validator_titles.get(run.validator_id, run.validator_id) }}</td>
+          <td class="notif-table-status">
+            <span class="notif-status-badge notif-status-badge--{% if run.status == 'ok' %}resolved{% elif run.status == 'findings' %}findings{% else %}active{% endif %}">
+              {{ run.status }}
+            </span>
+          </td>
+          <td class="notif-table-tier">
+            <span class="notif-tier-badge notif-tier-badge--{{ run.tier | default('info') }}">{{ run.tier | default('info') }}</span>
+          </td>
+          <td>{{ run.trigger }}</td>
+          <td class="notif-table-msg">{{ run.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
 
-<div id="validator-runs-empty" class="stub" role="status"{% if runs %} hidden{% endif %}>
-  No validator runs recorded yet. Configure intervals under Settings → General.
+  <script type="application/json" id="validator-titles-json">{{ validator_titles | tojson }}</script>
 </div>
-<div id="validator-runs-filtered-empty" class="stub" role="status" hidden>
-  No runs match these filters.
-</div>
-
-<table class="notif-table" id="validator-runs-table"{% if not runs %} hidden{% endif %}>
-  <thead>
-    <tr>
-      <th>Time</th>
-      <th>Validator</th>
-      <th>Status</th>
-      <th>Tier</th>
-      <th>Trigger</th>
-      <th>Message</th>
-    </tr>
-  </thead>
-  <tbody id="validator-runs-tbody">
-    {% for run in runs %}
-    <tr>
-      <td class="notif-table-time">{{ run.finished_at or run.started_at }}</td>
-      <td>{{ validator_titles.get(run.validator_id, run.validator_id) }}</td>
-      <td class="notif-table-status">
-        <span class="notif-status-badge notif-status-badge--{% if run.status == 'ok' %}resolved{% elif run.status == 'findings' %}findings{% else %}active{% endif %}">
-          {{ run.status }}
-        </span>
-      </td>
-      <td class="notif-table-tier">
-        <span class="notif-tier-badge notif-tier-badge--{{ run.tier | default('info') }}">{{ run.tier | default('info') }}</span>
-      </td>
-      <td>{{ run.trigger }}</td>
-      <td class="notif-table-msg">{{ run.message }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<script type="application/json" id="validator-titles-json">{{ validator_titles | tojson }}</script>
 {% endblock %}
 
 {% block scripts %}

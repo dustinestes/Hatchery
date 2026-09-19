@@ -434,6 +434,94 @@ body {
   overflow-y: auto;
   background: var(--color-bg);
   padding: 32px;
+  min-height: 0;
+}
+
+/* List shell: sticky chrome + scrollable data (#298) */
+.content:has(> .list-shell) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.list-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.list-shell > .pane-header {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.list-shell > .notif-filters {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.list-shell-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.list-shell-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.list-shell-body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.list-shell-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.list-shell-body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.list-shell-body--split {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.list-shell-body .stub {
+  margin: 16px;
+  height: auto;
+  min-height: 120px;
+}
+
+.list-shell-body .notif-table .events-level {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.list-shell-body .notif-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-alt);
+  box-shadow: 0 1px 0 var(--color-border);
 }
 
 /* ── Pane layout ── */
@@ -2081,6 +2169,13 @@ body {
   margin-bottom: 20px;
 }
 
+.notif-filter-status {
+  margin: 0 0 2px auto;
+  align-self: flex-end;
+  font-size: 12px;
+  min-height: 1.2em;
+}
+
 .notif-filter-field {
   margin: 0;
   min-width: 10rem;
@@ -2776,8 +2871,10 @@ body {
 .events-layout {
   display: flex;
   gap: 16px;
+  flex: 1;
   height: 100%;
   min-height: 0;
+  width: 100%;
 }
 
 .events-nav {
@@ -2902,8 +2999,9 @@ body {
   flex: 1;
   overflow: auto;
   padding: 8px 12px;
-  min-height: 280px;
-  max-height: calc(100vh - 260px);
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .events-feed-empty {

@@ -3,48 +3,52 @@
 {% block title %}Events — Hatchery{% endblock %}
 
 {% block content %}
-<div class="pane-header">
-  <h1 class="pane-title">Events</h1>
-  <p class="pane-subtitle">Per-VM provisioning event log for active hatch sessions.</p>
-</div>
-
-<div class="events-layout">
-
-  <nav class="events-nav" aria-label="Hatch VMs" id="events-nav">
-    <div class="events-nav-empty" id="events-nav-empty">No active hatch sessions.</div>
-  </nav>
-
-  <div class="events-content" id="events-content">
-    <div class="events-content-header" id="events-content-header" hidden>
-      <div class="events-content-heading">
-        <span class="events-content-title" id="events-content-title"></span>
-        <span class="events-content-meta" id="events-content-meta"></span>
-      </div>
-      <span class="events-refresh-label" id="events-refresh-label" aria-live="polite"></span>
-    </div>
-
-    <div class="events-feed-wrap" id="events-feed-wrap" hidden>
-      <div class="events-feed" id="events-feed" role="log" aria-label="Provisioning events" aria-live="polite"></div>
-    </div>
-
-    <div class="stub" id="events-stub">Select a VM to view its event log</div>
+<div class="list-shell">
+  <div class="pane-header">
+    <h1 class="pane-title">Events</h1>
+    <p class="pane-subtitle">Per-VM provisioning event log for active hatch sessions.</p>
   </div>
 
+  <div class="notif-filters" role="search" aria-label="Filter Events">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="events-filter-vm">VM</label>
+      <select id="events-filter-vm" class="form-select" aria-controls="events-table" disabled>
+        <option value="">No active hatch sessions</option>
+      </select>
+    </div>
+    <p class="library-browser-status notif-filter-status" id="events-refresh-label" role="status" aria-live="polite"></p>
+  </div>
+
+  <div class="list-shell-body">
+    <div id="events-empty" class="stub" role="status">No active hatch sessions.</div>
+    <div id="events-feed-empty" class="stub" role="status" hidden>No events recorded yet for this VM.</div>
+
+    <table class="notif-table" id="events-table" hidden>
+      <thead>
+        <tr>
+          <th scope="col">Time</th>
+          <th scope="col">Level</th>
+          <th scope="col">Context</th>
+          <th scope="col">Script</th>
+          <th scope="col">Component</th>
+          <th scope="col">Message</th>
+        </tr>
+      </thead>
+      <tbody id="events-tbody"></tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  const nav = document.getElementById('events-nav');
-  const navEmpty = document.getElementById('events-nav-empty');
-  const header = document.getElementById('events-content-header');
-  const titleEl = document.getElementById('events-content-title');
-  const metaEl = document.getElementById('events-content-meta');
+  const vmSelect = document.getElementById('events-filter-vm');
   const refreshLabel = document.getElementById('events-refresh-label');
-  const feedWrap = document.getElementById('events-feed-wrap');
-  const feed = document.getElementById('events-feed');
-  const stub = document.getElementById('events-stub');
+  const empty = document.getElementById('events-empty');
+  const feedEmpty = document.getElementById('events-feed-empty');
+  const table = document.getElementById('events-table');
+  const tbody = document.getElementById('events-tbody');
 
   const HATCH_STATUS_LABEL = {
     pending: 'Pending',
@@ -56,15 +60,9 @@
   };
 
   let resolvedTimezone = 'UTC';
+  let vmItems = [];
   let selectedKey = null;
-  let selected = null;
   let lastEventId = 0;
-
-  function escHtml(str) {
-    return String(str ?? '').replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-    );
-  }
 
   function vmKey(sessionId, vmName) {
     return sessionId + '|' + vmName;
@@ -80,7 +78,6 @@
           vm_name: vm.vm_name,
           clutch_name: s.clutch_name,
           status: vm.status,
-          hatched_at: s.hatched_at,
         });
       });
     });
@@ -107,174 +104,107 @@
     return HATCH_STATUS_LABEL[status] || status || '—';
   }
 
+  function selectedItem() {
+    return vmItems.find(function (i) { return i.key === selectedKey; }) || null;
+  }
+
+  function showNoSessions() {
+    selectedKey = null;
+    lastEventId = 0;
+    tbody.textContent = '';
+    table.hidden = true;
+    if (feedEmpty) feedEmpty.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = 'No active hatch sessions.';
+    }
+    vmSelect.disabled = true;
+    vmSelect.innerHTML = '<option value="">No active hatch sessions</option>';
+  }
+
+  function fillVmFilter(items) {
+    const prev = selectedKey;
+    vmItems = items;
+    if (!items.length) {
+      showNoSessions();
+      return;
+    }
+
+    if (empty) empty.hidden = true;
+    vmSelect.disabled = false;
+    vmSelect.innerHTML = '';
+    items.forEach(function (item) {
+      const opt = document.createElement('option');
+      opt.value = item.key;
+      opt.textContent =
+        item.vm_name + ' — ' + item.clutch_name + ' (' + statusLabel(item.status) + ')';
+      vmSelect.appendChild(opt);
+    });
+
+    if (prev && items.some(function (i) { return i.key === prev; })) {
+      selectedKey = prev;
+    } else {
+      selectedKey = items[0].key;
+    }
+    vmSelect.value = selectedKey;
+  }
+
   function nearBottom(el) {
     return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   }
 
-  function renderNav(items) {
-    const existing = new Map();
-    nav.querySelectorAll('.events-nav-item').forEach(function (btn) {
-      existing.set(btn.dataset.key, btn);
-    });
-
-    if (!items.length) {
-      existing.forEach(function (btn) { btn.remove(); });
-      navEmpty.style.display = '';
-      if (selectedKey) {
-        selectedKey = null;
-        selected = null;
-        showStub('No active hatch sessions.');
-      }
-      return;
-    }
-
-    navEmpty.style.display = 'none';
-    const incoming = new Set(items.map(function (i) { return i.key; }));
-
-    existing.forEach(function (btn, key) {
-      if (!incoming.has(key)) btn.remove();
-    });
-
-    items.forEach(function (item) {
-      let btn = nav.querySelector('.events-nav-item[data-key="' + CSS.escape(item.key) + '"]');
-      const label = escHtml(item.vm_name);
-      const sub = escHtml(item.clutch_name) + ' · ' + escHtml(statusLabel(item.status));
-      if (!btn) {
-        btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'events-nav-item';
-        btn.dataset.key = item.key;
-        btn.addEventListener('click', function () {
-          selectVm(item);
-        });
-        nav.appendChild(btn);
-      }
-      btn.dataset.sessionId = item.session_id;
-      btn.dataset.vmName = item.vm_name;
-      btn.setAttribute('aria-pressed', item.key === selectedKey ? 'true' : 'false');
-      btn.classList.toggle('active', item.key === selectedKey);
-      btn.innerHTML =
-        '<span class="events-nav-label">' + label + '</span>' +
-        '<span class="events-nav-sub">' + sub + '</span>';
-
-      if (item.key === selectedKey) {
-        selected = item;
-        updateHeader(item);
-      }
-    });
-
-    if (selectedKey && !incoming.has(selectedKey)) {
-      selectedKey = null;
-      selected = null;
-      showStub('Select a VM to view its event log');
-    } else if (!selectedKey && items.length) {
-      selectVm(items[0]);
-    }
-  }
-
-  function updateHeader(item) {
-    titleEl.textContent = item.vm_name;
-    metaEl.textContent = item.clutch_name + ' · ' + statusLabel(item.status);
-    header.hidden = false;
-    feedWrap.hidden = false;
-    stub.style.display = 'none';
-  }
-
-  function showStub(message) {
-    header.hidden = true;
-    feedWrap.hidden = true;
-    stub.style.display = '';
-    stub.textContent = message;
-    feed.innerHTML = '';
-    lastEventId = 0;
-  }
-
-  function selectVm(item) {
-    if (selectedKey === item.key) {
-      selected = item;
-      updateHeader(item);
-      return;
-    }
-    selectedKey = item.key;
-    selected = item;
-    lastEventId = 0;
-    feed.innerHTML = '';
-    updateHeader(item);
-    nav.querySelectorAll('.events-nav-item').forEach(function (btn) {
-      const active = btn.dataset.key === selectedKey;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-    fetchEvents(true);
-  }
-
-  function ensureTable() {
-    let rows = document.getElementById('events-rows');
-    if (rows) return rows;
-    feed.innerHTML =
-      '<div class="events-table">' +
-        '<div class="events-cols-header" role="row">' +
-          '<span>Time</span>' +
-          '<span>Level</span>' +
-          '<span>Context</span>' +
-          '<span>Script</span>' +
-          '<span>Component</span>' +
-          '<span>Message</span>' +
-        '</div>' +
-        '<div class="events-rows" id="events-rows" role="rowgroup"></div>' +
-      '</div>';
-    return document.getElementById('events-rows');
-  }
-
-  function renderEvent(ev) {
-    const level = String(ev.level || 'INFO');
-    const levelCls = 'events-level events-level--' + escHtml(level.toLowerCase());
-    return (
-      '<div class="events-row" data-event-id="' + escHtml(ev.id) + '" role="row">' +
-        '<span class="events-col-time">' +
-          '<time datetime="' + escHtml(ev.received_at) + '">' +
-            escHtml(fmtTime(ev.received_at)) +
-          '</time>' +
-        '</span>' +
-        '<span class="' + levelCls + '">' + escHtml(level) + '</span>' +
-        '<span class="events-col-context">' + escHtml(ev.context || '—') + '</span>' +
-        '<span class="events-col-script">' + escHtml(ev.script_name || '—') + '</span>' +
-        '<span class="events-col-component">' + escHtml(ev.component || '—') + '</span>' +
-        '<span class="events-col-message">' + escHtml(ev.message) + '</span>' +
-      '</div>'
-    );
+  function cell(text, className) {
+    const td = document.createElement('td');
+    if (className) td.className = className;
+    td.textContent = text == null ? '' : String(text);
+    return td;
   }
 
   function appendEvents(events, replace) {
-    const stick = replace || nearBottom(feed);
+    const scrollRoot = table.closest('.list-shell-body') || table;
+    const stick = replace || nearBottom(scrollRoot);
     if (replace) {
-      feed.innerHTML = '';
+      tbody.textContent = '';
       lastEventId = 0;
     }
     if (!events.length && replace) {
-      feed.innerHTML = '<div class="events-feed-empty">No events recorded yet.</div>';
+      table.hidden = true;
+      if (feedEmpty) feedEmpty.hidden = false;
       return;
     }
-    const empty = feed.querySelector('.events-feed-empty');
-    if (empty && events.length) empty.remove();
+    if (feedEmpty) feedEmpty.hidden = true;
+    table.hidden = false;
 
-    const rows = ensureTable();
-    const frag = document.createDocumentFragment();
-    const tmp = document.createElement('div');
     events.forEach(function (ev) {
       if (ev.id <= lastEventId) return;
-      tmp.innerHTML = renderEvent(ev).trim();
-      frag.appendChild(tmp.firstElementChild);
+      const level = String(ev.level || 'INFO');
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-event-id', String(ev.id));
+      const timeTd = document.createElement('td');
+      timeTd.className = 'notif-table-time';
+      const timeEl = document.createElement('time');
+      timeEl.setAttribute('datetime', ev.received_at || '');
+      timeEl.textContent = fmtTime(ev.received_at);
+      timeTd.appendChild(timeEl);
+      tr.appendChild(timeTd);
+      const levelTd = cell(level);
+      levelTd.className = 'events-level events-level--' + level.toLowerCase();
+      tr.appendChild(levelTd);
+      tr.appendChild(cell(ev.context || '—'));
+      tr.appendChild(cell(ev.script_name || '—'));
+      tr.appendChild(cell(ev.component || '—'));
+      tr.appendChild(cell(ev.message || '', 'notif-table-msg'));
+      tbody.appendChild(tr);
       lastEventId = Math.max(lastEventId, ev.id);
     });
-    rows.appendChild(frag);
-    if (stick) feed.scrollTop = feed.scrollHeight;
+    if (stick) scrollRoot.scrollTop = scrollRoot.scrollHeight;
   }
 
   function fetchEvents(replace) {
-    if (!selected) return;
-    const url = '/api/sessions/' + encodeURIComponent(selected.session_id) +
-      '/vms/' + encodeURIComponent(selected.vm_name) + '/events';
+    const item = selectedItem();
+    if (!item) return;
+    const url = '/api/sessions/' + encodeURIComponent(item.session_id) +
+      '/vms/' + encodeURIComponent(item.vm_name) + '/events';
     fetch(url)
       .then(function (r) {
         if (!r.ok) throw new Error('events ' + r.status);
@@ -294,6 +224,22 @@
       });
   }
 
+  function selectFromFilter(replaceEvents) {
+    const next = vmSelect.value;
+    if (!next) {
+      showNoSessions();
+      return;
+    }
+    if (next !== selectedKey) {
+      selectedKey = next;
+      lastEventId = 0;
+      tbody.textContent = '';
+      fetchEvents(true);
+      return;
+    }
+    if (replaceEvents) fetchEvents(true);
+  }
+
   function pollSessions() {
     fetch('/api/sessions')
       .then(function (r) {
@@ -301,13 +247,26 @@
         return r.json();
       })
       .then(function (sessions) {
-        renderNav(flattenSessions(sessions));
-        if (selected) fetchEvents(false);
+        const items = flattenSessions(sessions);
+        const prev = selectedKey;
+        fillVmFilter(items);
+        if (!items.length) return;
+        if (prev !== selectedKey) {
+          lastEventId = 0;
+          tbody.textContent = '';
+          fetchEvents(true);
+        } else {
+          fetchEvents(false);
+        }
       })
       .catch(function () {
         refreshLabel.textContent = 'Refresh failed';
       });
   }
+
+  vmSelect.addEventListener('change', function () {
+    selectFromFilter(true);
+  });
 
   fetch('/api/config')
     .then(function (r) { return r.json(); })

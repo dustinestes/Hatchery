@@ -148,7 +148,7 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 **Bell badge** — small red **dot** (no count) when there are unresolved alerts newer than the last time the tray was opened. Opening the tray clears the badge; active alerts remain listed in the tray / Alerts pane.
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
-**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Subscribes to `hatchery.onStatusTick` and refreshes from `GET /api/alerts?limit=500` so new rows appear without a full page reload (same bus as Validators — [#282](https://github.com/dustinestes/Hatchery/issues/282)). Route: `/notifications/alerts`.
+**Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Uses a **list shell** shared with Events and Validators ([#298](https://github.com/dustinestes/Hatchery/issues/298)): title + filter bar stay put; the table scrolls in a bounded region. Filters: tier and status (Active / Resolved). Subscribes to `hatchery.onStatusTick` and refreshes from `GET /api/alerts?limit=500` so new rows appear without a full page reload (same bus as Validators — [#282](https://github.com/dustinestes/Hatchery/issues/282)). Route: `/notifications/alerts`.
 
 ![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
 
@@ -176,7 +176,7 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 ### Background sync
 
-Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators** (filters: validator / status / tier). Runs that detect problems use `status=findings` and a non-`info` tier ([#280](https://github.com/dustinestes/Hatchery/issues/280)). Library connection health is `library_connections` ([#254](https://github.com/dustinestes/Hatchery/issues/254)).
+Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators** (filters sticky above a scrollable run table — [#298](https://github.com/dustinestes/Hatchery/issues/298); filters: validator / status / tier). Runs that detect problems use `status=findings` and a non-`info` tier ([#280](https://github.com/dustinestes/Hatchery/issues/280)). Library connection health is `library_connections` ([#254](https://github.com/dustinestes/Hatchery/issues/254)).
 
 **Findings** still use the Alerts table (bell / tray). Examples:
 
@@ -237,7 +237,7 @@ The script requires Hatchery to have been started at least once (so `hatchery.db
 
 ## Events
 
-Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane lists active hatch VMs on the left and a live-updating chronological feed on the right (polls `GET /api/sessions/.../events`). Events do not drive the Alerts bell, tray, or toasts. Event rows for a session are purged when that session is archived — see [events.md — Retention](events.md#retention).
+Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane uses the same list shell as Alerts/Validators ([#298](https://github.com/dustinestes/Hatchery/issues/298)): a **VM** filter selects among active hatch VMs, and the event table scrolls below. Polls `GET /api/sessions/.../events`. Events do not drive the Alerts bell, tray, or toasts. Event rows for a session are purged when that session is archived — see [events.md — Retention](events.md#retention).
 
 See [events.md](events.md) and [orchestration.md](orchestration.md).
 
