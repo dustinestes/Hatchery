@@ -19,6 +19,8 @@ Product docs under [`docs/`](../) explain **how** things work for operators and 
 
 Prefer writing the ADR in the **same PR** that implements the decision (`Accepted`).
 
+Agents: Cursor rule [`adr-discipline.mdc`](../../.cursor/rules/adr-discipline.mdc) — when a plan or discussion **locks** architecture, write an ADR and **supersede** any ADR the new decision replaces (Status + link; do not delete or renumber).
+
 <br>
 
 ## Format
