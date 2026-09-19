@@ -522,6 +522,7 @@ class TestLibrarySettingsGate:
                 "library_conn_id": "abc123def456",
                 "library_conn_label": "Ops share",
                 "library_conn_type": "path",
+                "library_conn_provider": "",
                 "library_conn_base_uri": str(share),
                 "library_conn_token": "",
                 "library_conn_expires_at": "",
