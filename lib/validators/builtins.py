@@ -236,14 +236,22 @@ class LibraryConnectionsValidator(BaseValidator):
 
         lh.prune_alerts_for_removed_connections({c["id"] for c in connections})
 
+        # Disabled connections stay in Settings but are skipped for health probes
+        # and token-expiry Alerts; resolve any leftover Alerts for those rows (#293).
+        for conn in connections:
+            if not library_lib.connection_is_enabled(conn):
+                lh.resolve_alerts_for_connection_id(str(conn.get("id") or ""))
+
+        active = library_lib.enabled_connections(connections)
+
         def _note(tier: str) -> None:
             ctx.note_finding(tier)
 
-        probe = lh.sync_connection_alerts(connections, note_finding=_note)
-        recorded_expiry = lh.sync_token_expiry_alerts(connections, note_finding=_note)
+        probe = lh.sync_connection_alerts(active, note_finding=_note)
+        recorded_expiry = lh.sync_token_expiry_alerts(active, note_finding=_note)
 
         parts: list[str] = []
-        if probe["checked"] == 0 and not connections:
+        if probe["checked"] == 0 and not active:
             return "No Library connections"
         if probe["down"]:
             parts.append(f"{probe['down']} of {probe['checked']} connection(s) unhealthy")

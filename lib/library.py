@@ -65,6 +65,22 @@ def parse_expires_at(raw: object, *, label: str, enforce_future: bool = True) ->
     return expires.isoformat()
 
 
+def parse_enabled(raw: object, *, default: bool = True) -> bool:
+    """Normalize an optional enabled flag; missing key → ``default`` (backward compatible)."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in ("", "default"):
+        return default
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
 def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -> list[dict]:
     """Validate and normalize connection dicts from Settings / app_settings."""
     if not raw:
@@ -128,6 +144,7 @@ def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -
                 "expires_at": expires_at,
                 "kinds": kinds,
                 "provider": provider,
+                "enabled": parse_enabled(item.get("enabled"), default=True),
             }
         )
     return out
@@ -220,6 +237,7 @@ def parse_media_bindings(raw: list | None, connections: list[dict]) -> list[dict
                 "filter": filt,
                 "domain": "media",
                 "target": target,
+                "enabled": parse_enabled(item.get("enabled"), default=True),
             }
         )
     return out
@@ -257,8 +275,52 @@ def _parse_domain_bindings(
                 f"enable the {kind} artifact type on the connection"
             )
         filt = str(item.get("filter") or "").strip() or "*"
-        out.append({"id": bid, "connection_id": conn_id, "filter": filt, "domain": domain})
+        out.append(
+            {
+                "id": bid,
+                "connection_id": conn_id,
+                "filter": filt,
+                "domain": domain,
+                "enabled": parse_enabled(item.get("enabled"), default=True),
+            }
+        )
     return out
+
+
+def connection_is_enabled(conn: dict | None) -> bool:
+    """True when the connection is enabled (missing flag → True)."""
+    if not conn:
+        return False
+    return parse_enabled(conn.get("enabled"), default=True)
+
+
+def binding_is_enabled(binding: dict | None) -> bool:
+    """True when the binding's own enabled flag is on (missing → True)."""
+    if not binding:
+        return False
+    return parse_enabled(binding.get("enabled"), default=True)
+
+
+def binding_is_effective(binding: dict, connections_by_id: dict[str, dict]) -> bool:
+    """Effective for Import/list/pull: ``connection.enabled AND binding.enabled``."""
+    if not binding_is_enabled(binding):
+        return False
+    conn = connections_by_id.get(str(binding.get("connection_id") or ""))
+    return connection_is_enabled(conn)
+
+
+def enabled_connections(connections: list[dict]) -> list[dict]:
+    """Return only connections with ``enabled`` true (default true)."""
+    return [c for c in connections if connection_is_enabled(c)]
+
+
+def effective_bindings(
+    bindings: list[dict],
+    connections: list[dict],
+) -> list[dict]:
+    """Return bindings that are effective given their parent connections."""
+    by_id = {c["id"]: c for c in connections}
+    return [b for b in bindings if binding_is_effective(b, by_id)]
 
 
 def sha256_file(path: Path) -> str:
@@ -892,6 +954,8 @@ def _catalog(
     seen_names: set[str] = set()
     out: list[dict] = []
     for binding in bindings:
+        if not binding_is_effective(binding, by_id):
+            continue
         conn = by_id.get(binding["connection_id"])
         if not conn:
             continue

@@ -97,6 +97,93 @@ class TestParse:
                 [{"id": "b1", "connection_id": "a", "filter": "*"}], conns
             )
 
+    def test_parse_enabled_defaults_true(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "A",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts"],
+                }
+            ]
+        )
+        assert conns[0]["enabled"] is True
+        binds = library.parse_script_bindings(
+            [{"id": "b1", "connection_id": "a", "filter": "*"}], conns
+        )
+        assert binds[0]["enabled"] is True
+
+    def test_parse_enabled_false(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "A",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts"],
+                    "enabled": False,
+                }
+            ]
+        )
+        assert conns[0]["enabled"] is False
+        binds = library.parse_script_bindings(
+            [{"id": "b1", "connection_id": "a", "filter": "*", "enabled": "0"}], conns
+        )
+        assert binds[0]["enabled"] is False
+
+    def test_binding_effective_requires_connection_and_binding(self):
+        conns = [
+            {"id": "a", "label": "A", "enabled": True},
+            {"id": "b", "label": "B", "enabled": False},
+        ]
+        by_id = {c["id"]: c for c in conns}
+        assert library.binding_is_effective(
+            {"connection_id": "a", "enabled": True}, by_id
+        )
+        assert not library.binding_is_effective(
+            {"connection_id": "a", "enabled": False}, by_id
+        )
+        assert not library.binding_is_effective(
+            {"connection_id": "b", "enabled": True}, by_id
+        )
+        # Cascade does not rewrite stored binding.enabled — only effective state.
+        assert library.binding_is_enabled({"enabled": True})
+
+    def test_catalog_skips_disabled_and_cascaded(self, script_share):
+        on = _path_conn(script_share, conn_id="on")
+        off = {**_path_conn(script_share, conn_id="off"), "enabled": False}
+        bindings = [
+            {
+                "id": "b-on",
+                "connection_id": "on",
+                "filter": "*",
+                "domain": "scripts",
+                "enabled": True,
+            },
+            {
+                "id": "b-off",
+                "connection_id": "on",
+                "filter": "*",
+                "domain": "scripts",
+                "enabled": False,
+            },
+            {
+                "id": "b-cascade",
+                "connection_id": "off",
+                "filter": "*",
+                "domain": "scripts",
+                "enabled": True,
+            },
+        ]
+        items = library.catalog_scripts([on, off], bindings)
+        assert len(items) >= 1
+        assert all(i["binding_id"] == "b-on" for i in items)
+
 
 class TestPathLibrary:
     def test_connection(self, script_share):

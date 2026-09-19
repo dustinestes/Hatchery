@@ -527,22 +527,28 @@ class TestLibrarySettingsGate:
                 "library_conn_token": "",
                 "library_conn_expires_at": "",
                 "library_conn_kinds": "scripts,clutches,media",
+                "library_conn_enabled": "1",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
                 "library_script_bind_filter": "*.ps1",
+                "library_script_bind_enabled": "1",
                 "library_clutch_bind_id": "cbind001",
                 "library_clutch_bind_connection_id": "abc123def456",
                 "library_clutch_bind_filter": "*.yaml",
+                "library_clutch_bind_enabled": "1",
                 "library_media_bind_id": "mbind001",
                 "library_media_bind_connection_id": "abc123def456",
                 "library_media_bind_filter": "*.iso",
                 "library_media_bind_target": "iso",
+                "library_media_bind_enabled": "1",
             },
         )
         assert resp.status_code == 302
         assert saved["library_connections"][0]["label"] == "Ops share"
         assert saved["library_connections"][0]["expires_at"] is None
+        assert saved["library_connections"][0]["enabled"] is True
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+        assert saved["library_script_bindings"][0]["enabled"] is True
         assert saved["library_clutch_bindings"][0]["filter"] == "*.yaml"
         assert saved["library_media_bindings"][0]["target"] == "iso"
 

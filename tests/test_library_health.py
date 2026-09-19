@@ -171,6 +171,42 @@ class TestValidator:
         run_validator("library_connections", trigger="manual")
         assert alerts_lib.count_active_by_prefixes(lh.LIBRARY_SCOPED_ALERT_PREFIXES) == 0
 
+    def test_disabled_connection_skipped_and_alerts_resolved(self, tmp_path):
+        share = tmp_path / "missing"
+        _enable_library(
+            [
+                {
+                    "id": "c1",
+                    "label": "X",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": True,
+                }
+            ]
+        )
+        run_validator("library_connections", trigger="manual")
+        assert alerts_lib.count_active_by_prefixes(lh.LIBRARY_SCOPED_ALERT_PREFIXES) >= 1
+
+        c = cfg.get()
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "X",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": False,
+            }
+        ]
+        cfg.save(c)
+        run_validator("library_connections", trigger="manual")
+        assert alerts_lib.count_active_by_prefixes(lh.LIBRARY_SCOPED_ALERT_PREFIXES) == 0
+
     def test_prune_removed_connection(self):
         alerts_lib.record_alert(
             "Library connection: 'Gone' (gone1) — Path does not exist: /x",

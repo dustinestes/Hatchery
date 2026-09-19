@@ -90,10 +90,25 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull.
-- **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
-- **Clutches** — binding rows (connection picker filtered by clutches artifact type + path/filter), pull into `clutches/`, Import dropdown when Library is on
-- **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
+- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on).
+- **Scripts / Clutches / Media** — binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles.
+
+### Enable / disable (#293)
+
+Operators can park a connection or binding without deleting its config:
+
+| Flag | Effect |
+|---|---|
+| Connection `enabled: false` | Skipped by the `library_connections` validator (no reachability / token-expiry Alerts while off); omitted from Import / list / pull; not offered when adding new bindings; footer **Libraries** rollup counts only **enabled** connections |
+| Binding `enabled: false` | Remains in Settings; omitted from Import / From library… catalogs |
+
+**Effective enablement** for Import / list / pull:
+
+`binding_effective = connection.enabled AND binding.enabled`
+
+Disabling a connection **cascades in the UI** (dependent bindings dim + note “Disabled because connection *X* is off”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
+
+Missing `enabled` on export/import → treat as enabled (backward compatible).
 
 Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 
@@ -147,9 +162,9 @@ The `library_connections` validator probes registered connections (via the same 
 | `Library connection:` | Path/HTTPS/git/API unreachable, unreadable, or auth failure |
 | `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
 
-Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
+Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. **Disabling a connection** (`enabled: false`, [#293](https://github.com/dustinestes/Hatchery/issues/293)) also skips it in the validator and resolves its Library-scoped Alerts while it stays in Settings. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
 
-Footer **Libraries** chip (when Library is enabled): muted with zero connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md — Footer vs Alerts](notifications.md#footer-vs-alerts-277).
+Footer **Libraries** chip (when Library is enabled): muted with zero **enabled** connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md — Footer vs Alerts](notifications.md#footer-vs-alerts-277).
 
 Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts, `clutches/` for Clutches) so inventory, Used-by, and provisioning keep using local files by default.
 

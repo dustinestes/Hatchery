@@ -167,7 +167,7 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 **Nest removed from Settings** ([#275](https://github.com/dustinestes/Hatchery/issues/275)): saving the Nest registry after deleting a Nest resolves Nest-scoped findings that embed that Nest’s id (`Nest reachability:`, `Nest capability:`, `Nest SSH identity expiry:`). Rows stay resolved for history; the bell clears. Reachability snapshot entries for removed Nest ids are pruned so Nest plane rollups stay honest.
 
-**Library connection removed / Library disabled** ([#254](https://github.com/dustinestes/Hatchery/issues/254)): saving Library Settings after deleting a connection resolves Library-scoped findings for that connection id. Disabling Library under General resolves all Library-scoped Alerts and hides the Libraries footer chip.
+**Library connection removed / Library disabled** ([#254](https://github.com/dustinestes/Hatchery/issues/254)): saving Library Settings after deleting a connection resolves Library-scoped findings for that connection id. Disabling Library under General resolves all Library-scoped Alerts and hides the Libraries footer chip. **Connection `enabled: false`** ([#293](https://github.com/dustinestes/Hatchery/issues/293)) skips that row in the Library validator and resolves its Library-scoped Alerts while the row remains in Settings; the footer **Libraries** rollup counts only enabled connections.
 
 | State | Rendered as |
 |---|---|

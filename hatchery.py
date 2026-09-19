@@ -920,6 +920,7 @@ def settings_section_post(section: str):
         conn_tokens = request.form.getlist("library_conn_token")
         conn_expires = request.form.getlist("library_conn_expires_at")
         conn_kinds = request.form.getlist("library_conn_kinds")
+        conn_enabled = request.form.getlist("library_conn_enabled")
         n = len(conn_labels)
         if not (
             len(conn_ids) == n
@@ -929,6 +930,7 @@ def settings_section_post(section: str):
             and len(conn_tokens) == n
             and len(conn_expires) == n
             and len(conn_kinds) == n
+            and len(conn_enabled) == n
         ):
             return _rerender("Library connections are incomplete — each row needs all fields.")
         raw_conns = []
@@ -943,6 +945,7 @@ def settings_section_post(section: str):
                     "token": conn_tokens[i] or "",
                     "expires_at": (conn_expires[i] or "").strip(),
                     "kinds": [k.strip() for k in (conn_kinds[i] or "").split(",") if k.strip()],
+                    "enabled": library_lib.parse_enabled(conn_enabled[i], default=True),
                 }
             )
         try:
@@ -961,8 +964,9 @@ def settings_section_post(section: str):
         bind_ids = request.form.getlist("library_script_bind_id")
         bind_conn_ids = request.form.getlist("library_script_bind_connection_id")
         bind_filters = request.form.getlist("library_script_bind_filter")
+        bind_enabled = request.form.getlist("library_script_bind_enabled")
         bn = len(bind_conn_ids)
-        if not (len(bind_ids) == bn and len(bind_filters) == bn):
+        if not (len(bind_ids) == bn and len(bind_filters) == bn and len(bind_enabled) == bn):
             return _rerender(
                 "Script bindings are incomplete — each row needs a connection and filter."
             )
@@ -973,6 +977,7 @@ def settings_section_post(section: str):
                     "id": (bind_ids[i] or "").strip(),
                     "connection_id": (bind_conn_ids[i] or "").strip(),
                     "filter": (bind_filters[i] or "*").strip() or "*",
+                    "enabled": library_lib.parse_enabled(bind_enabled[i], default=True),
                 }
             )
         try:
@@ -995,8 +1000,9 @@ def settings_section_post(section: str):
         clutch_ids = request.form.getlist("library_clutch_bind_id")
         clutch_conn_ids = request.form.getlist("library_clutch_bind_connection_id")
         clutch_filters = request.form.getlist("library_clutch_bind_filter")
+        clutch_enabled = request.form.getlist("library_clutch_bind_enabled")
         cn = len(clutch_conn_ids)
-        if not (len(clutch_ids) == cn and len(clutch_filters) == cn):
+        if not (len(clutch_ids) == cn and len(clutch_filters) == cn and len(clutch_enabled) == cn):
             return _rerender(
                 "Clutch bindings are incomplete — each row needs a connection and filter."
             )
@@ -1007,6 +1013,7 @@ def settings_section_post(section: str):
                     "id": (clutch_ids[i] or "").strip(),
                     "connection_id": (clutch_conn_ids[i] or "").strip(),
                     "filter": (clutch_filters[i] or "*").strip() or "*",
+                    "enabled": library_lib.parse_enabled(clutch_enabled[i], default=True),
                 }
             )
         try:
@@ -1028,8 +1035,14 @@ def settings_section_post(section: str):
         media_conn_ids = request.form.getlist("library_media_bind_connection_id")
         media_filters = request.form.getlist("library_media_bind_filter")
         media_targets = request.form.getlist("library_media_bind_target")
+        media_enabled = request.form.getlist("library_media_bind_enabled")
         mn = len(media_conn_ids)
-        if not (len(media_ids) == mn and len(media_filters) == mn and len(media_targets) == mn):
+        if not (
+            len(media_ids) == mn
+            and len(media_filters) == mn
+            and len(media_targets) == mn
+            and len(media_enabled) == mn
+        ):
             return _rerender(
                 "Media bindings are incomplete — each row needs a connection, target, and filter."
             )
@@ -1041,6 +1054,7 @@ def settings_section_post(section: str):
                     "connection_id": (media_conn_ids[i] or "").strip(),
                     "filter": (media_filters[i] or "*").strip() or "*",
                     "target": (media_targets[i] or "iso").strip() or "iso",
+                    "enabled": library_lib.parse_enabled(media_enabled[i], default=True),
                 }
             )
         try:

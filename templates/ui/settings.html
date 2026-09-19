@@ -53,23 +53,35 @@
     </div>
     <div id="library-conn-rows" class="library-conn-rows" role="group" aria-labelledby="library-conn-label">
       {% for conn in (cfg.get('library_connections') or []) %}
-      <div class="library-conn-row" data-conn-id="{{ conn.id }}">
+      {% set conn_on = conn.get('enabled', True) %}
+      <div class="library-conn-row{% if not conn_on %} library-conn-row--disabled{% endif %}" data-conn-id="{{ conn.id }}">
         <input type="hidden" name="library_conn_id" value="{{ conn.id }}">
+        <input type="hidden" name="library_conn_enabled" class="library-conn-enabled-value"
+               value="{{ '1' if conn_on else '0' }}">
         <div class="library-conn-row-header">
           <button type="button" class="library-conn-toggle" aria-expanded="false"
                   aria-label="Expand connection {{ conn.label }}">
             <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                  aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            <span class="library-conn-summary">{{ conn.label }} · {{ conn.type }} · {{ conn.base_uri }}</span>
+            <span class="library-conn-summary">{{ conn.label }} · {{ conn.type }} · {{ conn.base_uri }}{% if not conn_on %} · off{% endif %}</span>
           </button>
           <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
                   aria-label="Remove connection {{ conn.label }}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-conn-enabled-check"
+                   {% if conn_on %}checked{% endif %}
+                   aria-label="Enable connection {{ conn.label }}">
+          </label>
         </div>
         <div class="library-conn-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -154,34 +166,66 @@
     <div id="library-script-bind-rows" class="library-bind-rows" role="group"
          aria-labelledby="library-script-bind-label">
       {% for bind in (cfg.get('library_script_bindings') or []) %}
-      <div class="library-bind-row">
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
         <input type="hidden" name="library_script_bind_id" value="{{ bind.id }}">
-        <div class="form-group">
-          <label class="form-label">Connection</label>
-          <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
-            <option value="">Choose a connection</option>
-            {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
-            <option value="{{ conn.id }}"
-                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Filter</label>
-          <input type="text" name="library_script_bind_filter" class="form-input"
-                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
-        </div>
-        <div class="library-bind-row-actions">
-          <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+        <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand script binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Script binding</span>
+          </button>
           <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
                   aria-label="Remove script binding">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable script binding"
+                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+          </label>
         </div>
-        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -205,34 +249,66 @@
     <div id="library-clutch-bind-rows" class="library-bind-rows" role="group"
          aria-labelledby="library-clutch-bind-label">
       {% for bind in (cfg.get('library_clutch_bindings') or []) %}
-      <div class="library-bind-row">
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
         <input type="hidden" name="library_clutch_bind_id" value="{{ bind.id }}">
-        <div class="form-group">
-          <label class="form-label">Connection</label>
-          <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
-            <option value="">Choose a connection</option>
-            {% for conn in (cfg.get('library_connections') or []) if 'clutches' in (conn.kinds or []) %}
-            <option value="{{ conn.id }}"
-                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Filter</label>
-          <input type="text" name="library_clutch_bind_filter" class="form-input"
-                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.yaml or path/file.yaml">
-        </div>
-        <div class="library-bind-row-actions">
-          <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+        <input type="hidden" name="library_clutch_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand clutch binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Clutch binding</span>
+          </button>
           <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
                   aria-label="Remove clutch binding">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable clutch binding"
+                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+          </label>
         </div>
-        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'clutches' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_clutch_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.yaml or path/file.yaml">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -256,41 +332,73 @@
     <div id="library-media-bind-rows" class="library-bind-rows" role="group"
          aria-labelledby="library-media-bind-label">
       {% for bind in (cfg.get('library_media_bindings') or []) %}
-      <div class="library-bind-row library-bind-row--media">
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row library-bind-row--media{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
         <input type="hidden" name="library_media_bind_id" value="{{ bind.id }}">
-        <div class="form-group">
-          <label class="form-label">Connection</label>
-          <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
-            <option value="">Choose a connection</option>
-            {% for conn in (cfg.get('library_connections') or []) if 'media' in (conn.kinds or []) %}
-            <option value="{{ conn.id }}"
-                    {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cache target</label>
-          <select name="library_media_bind_target" class="form-select">
-            <option value="iso" {% if bind.target != 'virtio' %}selected{% endif %}>ISO</option>
-            <option value="virtio" {% if bind.target == 'virtio' %}selected{% endif %}>VirtIO</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Filter</label>
-          <input type="text" name="library_media_bind_filter" class="form-input"
-                 value="{{ bind.filter or '*' }}" placeholder="* or **/*.iso or path/file.iso">
-        </div>
-        <div class="library-bind-row-actions">
-          <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+        <input type="hidden" name="library_media_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand media binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Media binding</span>
+          </button>
           <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
                   aria-label="Remove media binding">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable media binding"
+                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+          </label>
         </div>
-        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'media' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cache target</label>
+              <select name="library_media_bind_target" class="form-select library-bind-target-input">
+                <option value="iso" {% if bind.target != 'virtio' %}selected{% endif %}>ISO</option>
+                <option value="virtio" {% if bind.target == 'virtio' %}selected{% endif %}>VirtIO</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_media_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.iso or path/file.iso">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -333,8 +441,12 @@
           <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
                   aria-label="Remove Nest {{ nest.name }}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
           {% endif %}
@@ -528,7 +640,6 @@
                {% if v.enabled %}checked{% endif %}
                {% if v.stub %}disabled{% endif %}
                aria-labelledby="validator-label-{{ v.id }}">
-        <span class="form-toggle-label">Enabled</span>
       </label>
       <div class="form-label-row" style="margin-top:8px">
         <label class="form-label" for="validator-interval-{{ v.id }}">Interval (seconds)</label>
@@ -609,8 +720,12 @@
             <button type="button" class="btn-icon settings-tier-remove" title="Remove tier"
                     aria-label="Remove alert tier">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/>
+                <path d="M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
               </svg>
             </button>
           </div>
@@ -689,8 +804,12 @@
     <button type="button" class="btn-icon settings-tier-remove" title="Remove tier"
             aria-label="Remove alert tier">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/>
+        <path d="M14 11v6"/>
+        <path d="M9 6V4h6v2"/>
       </svg>
     </button>
   </div>
@@ -701,6 +820,7 @@
 <template id="library-conn-row-template">
   <div class="library-conn-row" data-conn-id="">
     <input type="hidden" name="library_conn_id" value="">
+    <input type="hidden" name="library_conn_enabled" class="library-conn-enabled-value" value="1">
     <div class="library-conn-row-header">
       <button type="button" class="library-conn-toggle" aria-expanded="true"
               aria-label="Collapse connection">
@@ -712,10 +832,18 @@
       <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
               aria-label="Remove connection">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
         </svg>
       </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-conn-enabled-check" checked
+               aria-label="Enable connection">
+      </label>
     </div>
     <div class="library-conn-row-body">
       <div class="library-conn-row-fields">
@@ -789,91 +917,160 @@
 <template id="library-script-bind-row-template">
   <div class="library-bind-row">
     <input type="hidden" name="library_script_bind_id" value="">
-    <div class="form-group">
-      <label class="form-label">Connection</label>
-      <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
-        <option value="">Choose a connection</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Filter</label>
-      <input type="text" name="library_script_bind_filter" class="form-input"
-             value="*" placeholder="* or **/*.ps1 or path/file.sh">
-    </div>
-    <div class="library-bind-row-actions">
-      <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+    <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse script binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New script binding</span>
+      </button>
       <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
               aria-label="Remove script binding">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
         </svg>
       </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable script binding">
+      </label>
     </div>
-    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.ps1 or path/file.sh">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
   </div>
 </template>
 
 <template id="library-clutch-bind-row-template">
   <div class="library-bind-row">
     <input type="hidden" name="library_clutch_bind_id" value="">
-    <div class="form-group">
-      <label class="form-label">Connection</label>
-      <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
-        <option value="">Choose a connection</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Filter</label>
-      <input type="text" name="library_clutch_bind_filter" class="form-input"
-             value="*" placeholder="* or **/*.yaml or path/file.yaml">
-    </div>
-    <div class="library-bind-row-actions">
-      <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+    <input type="hidden" name="library_clutch_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse clutch binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New clutch binding</span>
+      </button>
       <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
               aria-label="Remove clutch binding">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
         </svg>
       </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable clutch binding">
+      </label>
     </div>
-    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_clutch_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.yaml or path/file.yaml">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
   </div>
 </template>
 
 <template id="library-media-bind-row-template">
   <div class="library-bind-row library-bind-row--media">
     <input type="hidden" name="library_media_bind_id" value="">
-    <div class="form-group">
-      <label class="form-label">Connection</label>
-      <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
-        <option value="">Choose a connection</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Cache target</label>
-      <select name="library_media_bind_target" class="form-select">
-        <option value="iso" selected>ISO</option>
-        <option value="virtio">VirtIO</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Filter</label>
-      <input type="text" name="library_media_bind_filter" class="form-input"
-             value="*" placeholder="* or **/*.iso or path/file.iso">
-    </div>
-    <div class="library-bind-row-actions">
-      <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+    <input type="hidden" name="library_media_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse media binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New media binding</span>
+      </button>
       <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
               aria-label="Remove media binding">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
         </svg>
       </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable media binding">
+      </label>
     </div>
-    <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cache target</label>
+          <select name="library_media_bind_target" class="form-select library-bind-target-input">
+            <option value="iso" selected>ISO</option>
+            <option value="virtio">VirtIO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_media_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.iso or path/file.iso">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
   </div>
 </template>
 {% endif %}
@@ -1108,12 +1305,14 @@
     const label = ((row.querySelector('.library-conn-label-input') || {}).value || '').trim() || 'New connection';
     const type = typeLabel((row.querySelector('.library-conn-type-input') || {}).value || 'path');
     const uri = ((row.querySelector('.library-conn-uri-input') || {}).value || '').trim();
+    const on = isConnEnabled(row);
     let text = label + ' · ' + type;
     if (type === 'api') {
       const prov = ((row.querySelector('.library-conn-provider-input') || {}).value || '').trim();
       if (prov) text += ' · ' + prov;
     }
     if (uri) text += ' · ' + uri;
+    if (!on) text += ' · off';
     if (summary) {
       summary.textContent = text;
     }
@@ -1121,6 +1320,118 @@
       const open = toggle.getAttribute('aria-expanded') === 'true';
       toggle.setAttribute('aria-label', (open ? 'Collapse' : 'Expand') + ' connection ' + label);
     }
+    row.classList.toggle('library-conn-row--disabled', !on);
+  }
+
+  function isConnEnabled(row) {
+    const hidden = row.querySelector('.library-conn-enabled-value');
+    if (!hidden) return true;
+    return hidden.value !== '0' && hidden.value !== 'false' && hidden.value !== '';
+  }
+
+  function syncConnEnabled(row) {
+    const check = row.querySelector('.library-conn-enabled-check');
+    const hidden = row.querySelector('.library-conn-enabled-value');
+    if (check && hidden) {
+      hidden.value = check.checked ? '1' : '0';
+    }
+    updateSummary(row);
+  }
+
+  function syncBindEnabled(row) {
+    const check = row.querySelector('.library-bind-enabled-check');
+    const hidden = row.querySelector('.library-bind-enabled-value');
+    if (check && hidden && !check.disabled) {
+      hidden.value = check.checked ? '1' : '0';
+    }
+    const on = hidden ? (hidden.value !== '0' && hidden.value !== 'false') : true;
+    row.classList.toggle('library-bind-row--disabled', !on);
+  }
+
+  function connLabelById(connId) {
+    let label = '';
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) {
+        label = ((r.querySelector('.library-conn-label-input') || {}).value || '').trim() || connId;
+      }
+    });
+    return label;
+  }
+
+  function connEnabledById(connId) {
+    let found = null;
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) found = r;
+    });
+    if (!found) return true;
+    return isConnEnabled(found);
+  }
+
+  function updateBindSummary(row, domainLabel) {
+    const summary = row.querySelector('.library-bind-summary');
+    const toggle = row.querySelector('.library-bind-toggle');
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const filt = ((row.querySelector('.library-bind-filter-input') || {}).value || '').trim() || '*';
+    const connId = sel ? sel.value : '';
+    const label = connId ? (connLabelById(connId) || 'connection') : 'No connection';
+    let text = label + ' · ' + filt;
+    const target = row.querySelector('.library-bind-target-input');
+    if (target && target.value) text += ' · ' + target.value;
+    const bindOn = ((row.querySelector('.library-bind-enabled-value') || {}).value || '1') !== '0';
+    if (!bindOn) text += ' · off';
+    if (summary) summary.textContent = text;
+    if (toggle) {
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      const kind = domainLabel || 'binding';
+      toggle.setAttribute('aria-label', (open ? 'Collapse' : 'Expand') + ' ' + kind);
+    }
+  }
+
+  function updateCascadeForBind(row, domainLabel) {
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const connId = sel ? sel.value : '';
+    const parentOn = !connId || connEnabledById(connId);
+    const note = row.querySelector('.library-bind-cascade-note');
+    const check = row.querySelector('.library-bind-enabled-check');
+    row.classList.toggle('library-bind-row--cascaded-off', !parentOn);
+    if (note) {
+      if (parentOn) {
+        note.hidden = true;
+        note.textContent = '';
+      } else {
+        const clabel = connLabelById(connId) || 'connection';
+        note.hidden = false;
+        note.innerHTML = 'Disabled because connection <strong></strong> is off';
+        const strong = note.querySelector('strong');
+        if (strong) strong.textContent = clabel;
+      }
+    }
+    if (check) {
+      check.disabled = !parentOn;
+      if (parentOn) {
+        check.removeAttribute('aria-disabled');
+        check.removeAttribute('title');
+      } else {
+        check.setAttribute('aria-disabled', 'true');
+        check.title = 'Disabled because the parent connection is off';
+      }
+    }
+    updateBindSummary(row, domainLabel);
+    syncBindEnabled(row);
+  }
+
+  function refreshAllCascades() {
+    Array.prototype.forEach.call(bindRows.children, function (row) {
+      updateCascadeForBind(row, 'script binding');
+    });
+    Array.prototype.forEach.call(clutchRows.children, function (row) {
+      updateCascadeForBind(row, 'clutch binding');
+    });
+    Array.prototype.forEach.call(mediaRows.children, function (row) {
+      updateCascadeForBind(row, 'media binding');
+    });
   }
 
   function setExpiryMin(row) {
@@ -1129,7 +1440,7 @@
     input.min = tomorrowIso();
   }
 
-  function kindConnections(kind) {
+  function kindConnections(kind, keepId) {
     const out = [];
     Array.prototype.forEach.call(connRows.children, function (row) {
       const id = row.querySelector('input[name="library_conn_id"]');
@@ -1138,7 +1449,11 @@
       if (!id || !label || !kinds) return;
       const kindList = (kinds.value || '').split(',').map(function (k) { return k.trim(); });
       if (kindList.indexOf(kind) === -1) return;
-      out.push({ id: id.value, label: label.value || id.value });
+      const on = isConnEnabled(row);
+      // Disabled connections are not offered for new bindings, but keep the
+      // currently selected parent so existing rows remain editable (#293).
+      if (!on && id.value !== keepId) return;
+      out.push({ id: id.value, label: label.value || id.value, enabled: on });
     });
     out.sort(function (a, b) {
       return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
@@ -1147,9 +1462,9 @@
   }
 
   function refreshBindSelects(selector, kind) {
-    const options = kindConnections(kind);
     Array.prototype.forEach.call(document.querySelectorAll(selector), function (sel) {
       const current = sel.value;
+      const options = kindConnections(kind, current);
       sel.innerHTML = '';
       const placeholder = document.createElement('option');
       placeholder.value = '';
@@ -1158,7 +1473,7 @@
       options.forEach(function (c) {
         const opt = document.createElement('option');
         opt.value = c.id;
-        opt.textContent = c.label;
+        opt.textContent = c.enabled ? c.label : (c.label + ' (off)');
         if (c.id === current) opt.selected = true;
         sel.appendChild(opt);
       });
@@ -1172,6 +1487,7 @@
     refreshBindSelects('.library-bind-conn-select', 'scripts');
     refreshBindSelects('.library-clutch-bind-conn-select', 'clutches');
     refreshBindSelects('.library-media-bind-conn-select', 'media');
+    refreshAllCascades();
   }
 
   function setTestResult(el, ok, message) {
@@ -1203,6 +1519,7 @@
     setExpiryMin(row);
     syncKinds(row);
     syncProviderVisibility(row);
+    syncConnEnabled(row);
     updateSummary(row);
   }
 
@@ -1273,12 +1590,18 @@
       e.target.classList.contains('library-conn-uri-input')
     ) {
       updateSummary(row);
+      refreshAllCascades();
     }
   });
 
   connRows.addEventListener('change', function (e) {
     const row = e.target.closest('.library-conn-row');
     if (!row) return;
+    if (e.target.classList.contains('library-conn-enabled-check')) {
+      syncConnEnabled(row);
+      refreshBindConnectionOptions();
+      return;
+    }
     if (e.target.classList.contains('library-kind-check')) {
       syncKinds(row);
       refreshBindConnectionOptions();
@@ -1297,6 +1620,82 @@
     }
   });
 
+  function wireBindRowClick(container, removeSel, testSel, domain, domainLabel, syncEmpty) {
+    container.addEventListener('click', function (e) {
+      const toggle = e.target.closest('.library-bind-toggle');
+      if (toggle) {
+        const row = toggle.closest('.library-bind-row');
+        const body = row && row.querySelector('.library-bind-row-body');
+        if (!body) return;
+        const open = toggle.getAttribute('aria-expanded') === 'true';
+        body.hidden = open;
+        toggle.setAttribute('aria-expanded', String(!open));
+        updateBindSummary(row, domainLabel);
+        return;
+      }
+      const remove = e.target.closest(removeSel);
+      if (remove) {
+        const row = remove.closest('.library-bind-row');
+        if (row) row.remove();
+        syncEmpty();
+        return;
+      }
+      const testBtn = e.target.closest(testSel);
+      if (!testBtn) return;
+      const row = testBtn.closest('.library-bind-row');
+      const result = row.querySelector('.library-bind-test-result');
+      const connId = (row.querySelector('select[name$="_connection_id"]') || {}).value;
+      const filt = (row.querySelector('.library-bind-filter-input') || {}).value || '*';
+      let connRow = null;
+      Array.prototype.forEach.call(connRows.children, function (r) {
+        const idInput = r.querySelector('input[name="library_conn_id"]');
+        if (idInput && idInput.value === connId) connRow = r;
+      });
+      if (!connId || !connRow) {
+        setTestResult(result, false, 'Choose a connection first');
+        return;
+      }
+      setTestResult(result, true, 'Testing…');
+      fetch({{ url_for('api_library_test_filter') | tojson }}, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: domain }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          const data = res.data || {};
+          setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+        })
+        .catch(function () {
+          setTestResult(result, false, 'Network or server error');
+        });
+    });
+
+    container.addEventListener('change', function (e) {
+      const row = e.target.closest('.library-bind-row');
+      if (!row) return;
+      if (e.target.classList.contains('library-bind-enabled-check')) {
+        syncBindEnabled(row);
+        updateBindSummary(row, domainLabel);
+        return;
+      }
+      if (
+        e.target.matches('select[name$="_connection_id"]') ||
+        e.target.classList.contains('library-bind-target-input')
+      ) {
+        updateCascadeForBind(row, domainLabel);
+      }
+    });
+
+    container.addEventListener('input', function (e) {
+      const row = e.target.closest('.library-bind-row');
+      if (!row) return;
+      if (e.target.classList.contains('library-bind-filter-input')) {
+        updateBindSummary(row, domainLabel);
+      }
+    });
+  }
+
   addBindBtn.addEventListener('click', function () {
     const node = bindTpl.content.cloneNode(true);
     const row = node.querySelector('.library-bind-row');
@@ -1304,6 +1703,7 @@
     bindRows.appendChild(node);
     refreshBindConnectionOptions();
     syncBindEmpty();
+    updateCascadeForBind(row, 'script binding');
     const sel = row.querySelector('.library-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1311,44 +1711,14 @@
     }
   });
 
-  bindRows.addEventListener('click', function (e) {
-    const remove = e.target.closest('.library-bind-remove');
-    if (remove) {
-      const row = remove.closest('.library-bind-row');
-      if (row) row.remove();
-      syncBindEmpty();
-      return;
-    }
-    const testBtn = e.target.closest('.library-test-filter-btn');
-    if (!testBtn) return;
-    const row = testBtn.closest('.library-bind-row');
-    const result = row.querySelector('.library-bind-test-result');
-    const connId = (row.querySelector('select[name="library_script_bind_connection_id"]') || {}).value;
-    const filt = (row.querySelector('input[name="library_script_bind_filter"]') || {}).value || '*';
-    let connRow = null;
-    Array.prototype.forEach.call(connRows.children, function (r) {
-      const idInput = r.querySelector('input[name="library_conn_id"]');
-      if (idInput && idInput.value === connId) connRow = r;
-    });
-    if (!connId || !connRow) {
-      setTestResult(result, false, 'Choose a connection first');
-      return;
-    }
-    setTestResult(result, true, 'Testing…');
-    fetch({{ url_for('api_library_test_filter') | tojson }}, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: 'scripts' }),
-    })
-      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-      .then(function (res) {
-        const data = res.data || {};
-        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
-      })
-      .catch(function () {
-        setTestResult(result, false, 'Network or server error');
-      });
-  });
+  wireBindRowClick(
+    bindRows,
+    '.library-bind-remove',
+    '.library-test-filter-btn',
+    'scripts',
+    'script binding',
+    syncBindEmpty
+  );
 
   addClutchBtn.addEventListener('click', function () {
     const node = clutchTpl.content.cloneNode(true);
@@ -1357,6 +1727,7 @@
     clutchRows.appendChild(node);
     refreshBindConnectionOptions();
     syncClutchEmpty();
+    updateCascadeForBind(row, 'clutch binding');
     const sel = row.querySelector('.library-clutch-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1364,44 +1735,14 @@
     }
   });
 
-  clutchRows.addEventListener('click', function (e) {
-    const remove = e.target.closest('.library-clutch-bind-remove');
-    if (remove) {
-      const row = remove.closest('.library-bind-row');
-      if (row) row.remove();
-      syncClutchEmpty();
-      return;
-    }
-    const testBtn = e.target.closest('.library-clutch-test-filter-btn');
-    if (!testBtn) return;
-    const row = testBtn.closest('.library-bind-row');
-    const result = row.querySelector('.library-bind-test-result');
-    const connId = (row.querySelector('select[name="library_clutch_bind_connection_id"]') || {}).value;
-    const filt = (row.querySelector('input[name="library_clutch_bind_filter"]') || {}).value || '*';
-    let connRow = null;
-    Array.prototype.forEach.call(connRows.children, function (r) {
-      const idInput = r.querySelector('input[name="library_conn_id"]');
-      if (idInput && idInput.value === connId) connRow = r;
-    });
-    if (!connId || !connRow) {
-      setTestResult(result, false, 'Choose a connection first');
-      return;
-    }
-    setTestResult(result, true, 'Testing…');
-    fetch({{ url_for('api_library_test_filter') | tojson }}, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: 'clutches' }),
-    })
-      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-      .then(function (res) {
-        const data = res.data || {};
-        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
-      })
-      .catch(function () {
-        setTestResult(result, false, 'Network or server error');
-      });
-  });
+  wireBindRowClick(
+    clutchRows,
+    '.library-clutch-bind-remove',
+    '.library-clutch-test-filter-btn',
+    'clutches',
+    'clutch binding',
+    syncClutchEmpty
+  );
 
   addMediaBtn.addEventListener('click', function () {
     const node = mediaTpl.content.cloneNode(true);
@@ -1410,6 +1751,7 @@
     mediaRows.appendChild(node);
     refreshBindConnectionOptions();
     syncMediaEmpty();
+    updateCascadeForBind(row, 'media binding');
     const sel = row.querySelector('.library-media-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1417,53 +1759,25 @@
     }
   });
 
-  mediaRows.addEventListener('click', function (e) {
-    const remove = e.target.closest('.library-media-bind-remove');
-    if (remove) {
-      const row = remove.closest('.library-bind-row');
-      if (row) row.remove();
-      syncMediaEmpty();
-      return;
-    }
-    const testBtn = e.target.closest('.library-media-test-filter-btn');
-    if (!testBtn) return;
-    const row = testBtn.closest('.library-bind-row');
-    const result = row.querySelector('.library-bind-test-result');
-    const connId = (row.querySelector('select[name="library_media_bind_connection_id"]') || {}).value;
-    const filt = (row.querySelector('input[name="library_media_bind_filter"]') || {}).value || '*';
-    let connRow = null;
-    Array.prototype.forEach.call(connRows.children, function (r) {
-      const idInput = r.querySelector('input[name="library_conn_id"]');
-      if (idInput && idInput.value === connId) connRow = r;
-    });
-    if (!connId || !connRow) {
-      setTestResult(result, false, 'Choose a connection first');
-      return;
-    }
-    setTestResult(result, true, 'Testing…');
-    fetch({{ url_for('api_library_test_filter') | tojson }}, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        connection: connPayload(connRow),
-        filter: filt,
-        domain: 'media',
-      }),
-    })
-      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-      .then(function (res) {
-        const data = res.data || {};
-        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
-      })
-      .catch(function () {
-        setTestResult(result, false, 'Network or server error');
-      });
-  });
+  wireBindRowClick(
+    mediaRows,
+    '.library-media-bind-remove',
+    '.library-media-test-filter-btn',
+    'media',
+    'media binding',
+    syncMediaEmpty
+  );
 
   var form = document.querySelector('form');
   if (form) {
     form.addEventListener('submit', function () {
-      Array.prototype.forEach.call(connRows.children, syncKinds);
+      Array.prototype.forEach.call(connRows.children, function (row) {
+        syncKinds(row);
+        syncConnEnabled(row);
+      });
+      Array.prototype.forEach.call(bindRows.children, syncBindEnabled);
+      Array.prototype.forEach.call(clutchRows.children, syncBindEnabled);
+      Array.prototype.forEach.call(mediaRows.children, syncBindEnabled);
     });
   }
 
@@ -1495,8 +1809,12 @@
       <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
               aria-label="Remove Nest">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
         </svg>
       </button>
     </div>

@@ -109,6 +109,60 @@ class TestFooterStatus:
         assert status["libraries_dot"] == "green"
         assert status["library_connection_total"] == 1
 
+    def test_libraries_footer_counts_only_enabled(self, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "On",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": True,
+            },
+            {
+                "id": "c2",
+                "label": "Off",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": False,
+            },
+        ]
+        cfg.save(c)
+        status = ps.footer_status()
+        assert status["library_connection_total"] == 1
+        assert status["libraries_dot"] == "green"
+
+    def test_libraries_muted_when_all_connections_disabled(self, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "Off",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": False,
+            }
+        ]
+        cfg.save(c)
+        status = ps.footer_status()
+        assert status["library_connection_total"] == 0
+        assert status["libraries_dot"] == "muted"
+        assert status["libraries_title"] == "No Library connections"
     def test_libraries_red_on_library_alert(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
