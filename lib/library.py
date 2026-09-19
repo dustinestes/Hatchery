@@ -1,7 +1,8 @@
 """Library connections and domain bindings — list, test, and pull into the operator cache.
 
 ``path`` (local or mounted share), ``https`` (single relative file), ``git``
-(shallow clone cache), and ``api`` (pluggable catalog providers — #255) are supported.
+(shallow clone cache), ``api`` (pluggable catalog providers — #255), and ``forge``
+(pluggable git forge providers — #307) are supported.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from urllib.request import Request, urlopen
 
 from lib.import_files import SCRIPT_EXTENSIONS
 
-CONNECTION_TYPES = frozenset({"path", "https", "git", "api"})
+CONNECTION_TYPES = frozenset({"path", "https", "git", "api", "forge"})
 CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
@@ -131,6 +132,17 @@ def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -
                 known = ", ".join(p.id for p in library_api_lib.all_providers()) or "(none)"
                 raise ValueError(
                     f"connection '{label}' has unknown API provider '{provider}' (known: {known})"
+                )
+        elif ctype == "forge":
+            from lib import library_forge as library_forge_lib
+
+            library_forge_lib.register_builtins()
+            if not provider:
+                raise ValueError(f"connection '{label}' (forge) needs a provider")
+            if library_forge_lib.get_adapter(provider) is None:
+                known = ", ".join(p.id for p in library_forge_lib.all_providers()) or "(none)"
+                raise ValueError(
+                    f"connection '{label}' has unknown forge provider '{provider}' (known: {known})"
                 )
         else:
             provider = ""
@@ -353,6 +365,8 @@ def test_connection(conn: dict) -> dict:
         return _test_git(conn)
     if ctype == "api":
         return _test_api(conn)
+    if ctype == "forge":
+        return _test_forge(conn)
     return {"ok": False, "message": f"Unsupported type: {ctype}"}
 
 
@@ -618,6 +632,34 @@ def _list_api_files(
     return _api_adapter(conn).list_hits(conn, filt, extensions=extensions, limit=limit)
 
 
+def _forge_adapter(conn: dict):
+    from lib import library_forge as library_forge_lib
+
+    library_forge_lib.register_builtins()
+    provider = str(conn.get("provider") or "").strip().lower()
+    adapter = library_forge_lib.get_adapter(provider)
+    if adapter is None:
+        raise ValueError(f"Unknown or missing forge provider: {provider or '(empty)'}")
+    return adapter
+
+
+def _test_forge(conn: dict) -> dict:
+    try:
+        return _forge_adapter(conn).test(conn)
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+def _list_forge_files(
+    conn: dict,
+    filt: str,
+    *,
+    extensions: frozenset[str],
+    limit: int | None,
+) -> list[dict]:
+    return _forge_adapter(conn).list_hits(conn, filt, extensions=extensions, limit=limit)
+
+
 def _test_https(conn: dict) -> dict:
     url = conn["base_uri"].rstrip("/") + "/"
     req = Request(url, method="HEAD")
@@ -694,6 +736,8 @@ def list_hits(
         return _list_git_files(conn, filt, extensions=extensions, limit=limit)
     if ctype == "api":
         return _list_api_files(conn, filt, extensions=extensions, limit=limit)
+    if ctype == "forge":
+        return _list_forge_files(conn, filt, extensions=extensions, limit=limit)
     raise ValueError(f"Unsupported connection type: {ctype}")
 
 
@@ -963,6 +1007,9 @@ def _pull_file(
         return {"name": name, "sha256": digest, "dest": str(dest)}
     if ctype == "api":
         adapter = _api_adapter(conn)
+        return adapter.pull_file(conn, rel, dest)
+    if ctype == "forge":
+        adapter = _forge_adapter(conn)
         return adapter.pull_file(conn, rel, dest)
     raise ValueError(f"Pull not supported for type: {ctype}")
 

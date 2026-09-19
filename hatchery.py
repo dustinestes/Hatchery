@@ -742,11 +742,15 @@ def _settings_template(
     validators_run_retention = get_run_retention() if section == "general" else 50
 
     library_api_providers: list = []
+    library_forge_providers: list = []
     if section == "library":
         from lib import library_api as library_api_lib
+        from lib import library_forge as library_forge_lib
 
         library_api_lib.register_builtins()
+        library_forge_lib.register_builtins()
         library_api_providers = library_api_lib.all_providers()
+        library_forge_providers = library_forge_lib.all_providers()
 
     return render_template(
         "settings.html",
@@ -766,6 +770,7 @@ def _settings_template(
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
         library_api_providers=library_api_providers,
+        library_forge_providers=library_forge_providers,
     )
 
 

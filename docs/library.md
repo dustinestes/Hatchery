@@ -18,6 +18,7 @@ How Hatchery keeps a local-first operator model while supporting Library **conne
 - [Identity](#identity)
 - [Settings and Import](#settings-and-import)
 - [Git connections (#251)](#git-connections-251)
+- [Forge connections (#307)](#forge-connections-307)
 - [API connections (#255)](#api-connections-255)
 - [Connection health (#254)](#connection-health-254)
 - [Inventory: Cache vs Catalog](#inventory-cache-vs-catalog)
@@ -116,7 +117,7 @@ Enable Library under Settings → General. Deep links to Library Settings while 
 
 ### Git connections (#251)
 
-Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection. Architecture: [ADR-0009](adr/0009-library-git-checkout-cache.md). Long-term forge HTTP APIs without a local clone: [#307](https://github.com/dustinestes/Hatchery/issues/307).
+Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection. Architecture: [ADR-0009](adr/0009-library-git-checkout-cache.md). Prefer [Forge connections](#forge-connections-307) for GitHub/etc. when you want list/pull **without** a local clone ([ADR-0010](adr/0010-library-forge-providers.md)).
 
 | | |
 |---|---|
@@ -128,6 +129,29 @@ Strategy: **shallow clone to a Controller-side cache**, then list/pull like a pa
 | **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched — without `git-lfs`, LFS pointer files may be copied as-is |
 
 Path and HTTPS behavior are unchanged. Operator-cache drift vs source (sync UI): [#308](https://github.com/dustinestes/Hatchery/issues/308).
+
+### Forge connections (#307)
+
+Strategy: connection **`type: forge`** + **`provider`** plugin — list/pull via forge HTTP APIs with **no** Controller working tree under `library/git/`. Architecture: [ADR-0010](adr/0010-library-forge-providers.md). Package: [`lib/library_forge/`](../../lib/library_forge/). Dual-run with [Git connections](#git-connections-251) (clone path unchanged).
+
+| | |
+|---|---|
+| **Type** | `forge` |
+| **Provider** | Registry id (first: `github`) — Settings shows Forge + provider dropdown |
+| **Shared hit** | `{ name, relative_path, sha256\|null, connection_id, source_type: "forge" }` |
+| **SHA-256** | Git blob SHAs are not Hatchery identity — list may omit `sha256`; pull hashes file contents |
+| **Add a vendor** | New `lib/library_forge/<id>.py` + `register` in `register_builtins()` — follow-ons: [#310](https://github.com/dustinestes/Hatchery/issues/310) GitLab, [#311](https://github.com/dustinestes/Hatchery/issues/311) Bitbucket, [#312](https://github.com/dustinestes/Hatchery/issues/312) Gitea |
+
+#### GitHub provider
+
+| | |
+|---|---|
+| **Base URI** | `https://github.com/owner/repo` (optional `.git`) or `owner/repo` |
+| **Token** | Optional Bearer PAT (private repos / rate limits) |
+| **Test** | `GET /repos/{owner}/{repo}` |
+| **Filter** | Path glob under the default branch — e.g. `*.ps1`, `scripts/**/*.ps1` |
+| **List** | Git Trees API (`recursive=1`); truncated trees fail closed |
+| **Pull** | Raw content download; SHA-256 of bytes written to the domain cache |
 
 ### API connections (#255)
 
@@ -160,7 +184,7 @@ The `library_connections` validator probes registered connections (via the same 
 
 | Prefix | When |
 |---|---|
-| `Library connection:` | Path/HTTPS/git/API unreachable, unreadable, or auth failure |
+| `Library connection:` | Path/HTTPS/git/API/Forge unreachable, unreadable, or auth failure |
 | `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
 
 Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. **Disabling a connection** (`enabled: false`, [#293](https://github.com/dustinestes/Hatchery/issues/293)) also skips it in the validator and resolves its Library-scoped Alerts while it stays in Settings. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
