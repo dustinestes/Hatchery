@@ -1630,6 +1630,105 @@
     setSaveEnabled(row.querySelector('.library-save-bind-btn'), false);
   }
 
+  function persistConnToggle(row) {
+    syncConnEnabled(row);
+    refreshBindConnectionOptions();
+    lockConnBody(row);
+    if (row.dataset.persisted !== '1') {
+      refreshConnDirty(row);
+      return;
+    }
+    const check = row.querySelector('.library-conn-enabled-check');
+    const result = row.querySelector('.library-test-result');
+    const previous = !isConnEnabled(row);
+    if (check) check.disabled = true;
+    setTestResult(result, true, 'Saving…');
+    fetch({{ url_for('api_library_connection_upsert') | tojson }}, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(row) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (check) check.disabled = false;
+        const data = res.data || {};
+        if (!res.ok) {
+          if (check) check.checked = previous;
+          syncConnEnabled(row);
+          refreshBindConnectionOptions();
+          lockConnBody(row);
+          setTestResult(result, false, data.error || 'Save failed');
+          refreshConnDirty(row);
+          return;
+        }
+        markConnClean(row);
+        setTestResult(result, true, isConnEnabled(row) ? 'Enabled' : 'Disabled');
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
+      })
+      .catch(function () {
+        if (check) {
+          check.disabled = false;
+          check.checked = previous;
+        }
+        syncConnEnabled(row);
+        refreshBindConnectionOptions();
+        lockConnBody(row);
+        setTestResult(result, false, 'Network or server error');
+        refreshConnDirty(row);
+      });
+  }
+
+  function persistBindToggle(row, domain, domainLabel) {
+    syncBindEnabled(row);
+    updateBindSummary(row, domainLabel);
+    lockBindBody(row);
+    if (row.dataset.persisted !== '1') {
+      refreshBindDirty(row, domain);
+      return;
+    }
+    const check = row.querySelector('.library-bind-enabled-check');
+    const result = row.querySelector('.library-bind-test-result');
+    const previous = !isBindEnabled(row);
+    if (check) check.disabled = true;
+    setTestResult(result, true, 'Saving…');
+    const upsertUrl = {{ url_for('api_library_binding_upsert', domain='DOMAIN') | tojson }}
+      .replace('DOMAIN', encodeURIComponent(domain));
+    fetch(upsertUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ binding: bindPayload(row, domain) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (check) check.disabled = false;
+        const data = res.data || {};
+        if (!res.ok) {
+          if (check) check.checked = previous;
+          syncBindEnabled(row);
+          updateBindSummary(row, domainLabel);
+          lockBindBody(row);
+          setTestResult(result, false, data.error || 'Save failed');
+          refreshBindDirty(row, domain);
+          return;
+        }
+        markBindClean(row, domain);
+        setTestResult(result, true, isBindEnabled(row) ? 'Enabled' : 'Disabled');
+      })
+      .catch(function () {
+        if (check) {
+          check.disabled = false;
+          check.checked = previous;
+        }
+        syncBindEnabled(row);
+        updateBindSummary(row, domainLabel);
+        lockBindBody(row);
+        setTestResult(result, false, 'Network or server error');
+        refreshBindDirty(row, domain);
+      });
+  }
+
   function wireConnRow(row) {
     setExpiryMin(row);
     syncKinds(row);
@@ -1779,9 +1878,7 @@
     const row = e.target.closest('.library-conn-row');
     if (!row) return;
     if (e.target.classList.contains('library-conn-enabled-check')) {
-      syncConnEnabled(row);
-      refreshBindConnectionOptions();
-      refreshConnDirty(row);
+      persistConnToggle(row);
       return;
     }
     if (e.target.classList.contains('library-kind-check')) {
@@ -1915,9 +2012,7 @@
       const row = e.target.closest('.library-bind-row');
       if (!row) return;
       if (e.target.classList.contains('library-bind-enabled-check')) {
-        syncBindEnabled(row);
-        updateBindSummary(row, domainLabel);
-        refreshBindDirty(row, domain);
+        persistBindToggle(row, domain, domainLabel);
         return;
       }
       if (
