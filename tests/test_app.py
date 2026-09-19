@@ -685,9 +685,7 @@ class TestLibrarySettingsGate:
         assert state["library_connections"] == []
         assert state["library_script_bindings"] == []
 
-    def test_library_api_delete_git_connection_removes_cache(
-        self, client, tmp_path, monkeypatch
-    ):
+    def test_library_api_delete_git_connection_removes_cache(self, client, tmp_path, monkeypatch):
         state = {
             "data_dir": str(tmp_path),
             "bg_interval": 60,
@@ -759,9 +757,7 @@ class TestLibrarySettingsGate:
         assert not cache.exists()
         assert state["library_connections"] == []
 
-    def test_library_api_delete_path_ignores_git_cache_flag(
-        self, client, tmp_path, monkeypatch
-    ):
+    def test_library_api_delete_path_ignores_git_cache_flag(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
         share.mkdir()
         state = {
