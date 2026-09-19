@@ -72,3 +72,64 @@ class TestFooterStatus:
         status = ps.footer_status()
         assert status["nests_dot"] == "red"
         assert status["nest_alert_count"] == 1
+
+    def test_libraries_hidden_when_disabled(self):
+        status = ps.footer_status()
+        assert status["library_enabled"] is False
+        assert status["libraries_visible"] is False
+
+    def test_libraries_muted_when_enabled_empty(self):
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = []
+        cfg.save(c)
+        status = ps.footer_status()
+        assert status["libraries_visible"] is True
+        assert status["libraries_dot"] == "muted"
+        assert status["libraries_title"] == "No Library connections"
+
+    def test_libraries_green_when_ok(self, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "Share",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+            }
+        ]
+        cfg.save(c)
+        status = ps.footer_status()
+        assert status["libraries_dot"] == "green"
+        assert status["library_connection_total"] == 1
+
+    def test_libraries_red_on_library_alert(self, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "Share",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+            }
+        ]
+        cfg.save(c)
+        alerts_lib.record_alert(
+            "Library connection: 'Share' (c1) — Path does not exist: /x",
+            tier="alert",
+        )
+        status = ps.footer_status()
+        assert status["libraries_dot"] == "red"
+        assert status["library_alert_count"] == 1

@@ -40,13 +40,13 @@ class TestRegistry:
         assert "nest_reachability" in ids
         assert "library_connections" in ids
 
-    def test_stubs_marked(self):
-        v = get_validator("library_connections")
-        assert v is not None
-        assert getattr(v, "stub", False) is True
-
     def test_nest_reachability_active(self):
         v = get_validator("nest_reachability")
+        assert v is not None
+        assert getattr(v, "stub", False) is False
+
+    def test_library_connections_active(self):
+        v = get_validator("library_connections")
         assert v is not None
         assert getattr(v, "stub", False) is False
 

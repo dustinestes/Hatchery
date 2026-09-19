@@ -470,7 +470,11 @@ def inject_plane_status():
         "nests_title": status["nests_title"],
         "nests_dot": status["nests_dot"],
         "nest_total": status["nest_total"],
-        "library_enabled": config.library_enabled(),
+        "library_enabled": status["library_enabled"],
+        "libraries_visible": status["libraries_visible"],
+        "libraries_ok": status["libraries_ok"],
+        "libraries_title": status["libraries_title"],
+        "libraries_dot": status["libraries_dot"],
     }
 
 
@@ -814,7 +818,13 @@ def settings_section_post(section: str):
 
         new_cfg["data_dir"] = str(Path(data_dir_raw).expanduser())
         new_cfg["bg_interval"] = bg_interval
-        new_cfg["library_enabled"] = "library_enabled" in request.form
+        library_was_enabled = bool(config.library_enabled())
+        library_now_enabled = "library_enabled" in request.form
+        new_cfg["library_enabled"] = library_now_enabled
+        if library_was_enabled and not library_now_enabled:
+            from lib import library_health as library_health_lib
+
+            library_health_lib.resolve_all_library_alerts()
 
         retention_raw = request.form.get("validators_run_retention", "50").strip()
         try:
@@ -1040,6 +1050,9 @@ def settings_section_post(section: str):
         new_cfg["library_clutch_bindings"] = clutch_bindings
         new_cfg["library_media_bindings"] = media_bindings
         config.save(new_cfg)
+        from lib import library_health as library_health_lib
+
+        library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
         return redirect(url_for("settings_section", section="library", saved="1"))
 
     if section == "nests":
@@ -1176,6 +1189,10 @@ def api_library_test_connection():
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 400
     result = library_lib.test_connection(conn)
+    from lib import library_health as library_health_lib
+
+    registered = any(c.get("id") == conn.get("id") for c in config.library_connections())
+    library_health_lib.apply_manual_test_result(conn, result, registered=registered)
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 

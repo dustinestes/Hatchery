@@ -87,7 +87,7 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow — for later alerting). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
+- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
 - **Clutches** — binding rows (connection picker filtered by clutches artifact type + path/filter), pull into `clutches/`, Import dropdown when Library is on
 - **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
@@ -95,6 +95,19 @@ When Library is on, Settings gains a **Library** section with:
 Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library Settings while the feature is off redirect to General with an enable hint.
+
+### Connection health (#254)
+
+The `library_connections` validator probes registered connections (via the same logic as **Test connection**) and watches optional token `expires_at` dates:
+
+| Prefix | When |
+|---|---|
+| `Library connection:` | Path/HTTPS unreachable, unreadable, or auth failure |
+| `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
+
+Empty `expires_at` → no token-expiry Alert for that connection. Git connections skip reachability until git list/pull lands (#251). Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
+
+Footer **Libraries** chip (when Library is enabled): muted with zero connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md — Footer vs Alerts](notifications.md#footer-vs-alerts-277).
 
 Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts, `clutches/` for Clutches) so inventory, Used-by, and provisioning keep using local files by default.
 
