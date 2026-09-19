@@ -139,8 +139,10 @@
             </div>
           </div>
           <div class="library-conn-row-actions">
-            <button type="button" class="btn btn-secondary btn-sm library-test-conn-btn">Test connection</button>
             <span class="library-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-test-conn-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-conn-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
           </div>
         </div>
       </div>
@@ -222,8 +224,10 @@
             </div>
           </div>
           <div class="library-bind-row-actions">
-            <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
             <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
           </div>
         </div>
       </div>
@@ -305,8 +309,10 @@
             </div>
           </div>
           <div class="library-bind-row-actions">
-            <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
             <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-clutch-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
           </div>
         </div>
       </div>
@@ -395,8 +401,10 @@
             </div>
           </div>
           <div class="library-bind-row-actions">
-            <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
             <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-media-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
           </div>
         </div>
       </div>
@@ -766,9 +774,11 @@
 {% endif %}
 {% endif %}
 
+  {% if section != 'library' %}
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">Save</button>
   </div>
+  {% endif %}
 
 </form>
 
@@ -907,8 +917,10 @@
         </div>
       </div>
       <div class="library-conn-row-actions">
-        <button type="button" class="btn btn-secondary btn-sm library-test-conn-btn">Test connection</button>
         <span class="library-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-test-conn-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-conn-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
       </div>
     </div>
   </div>
@@ -958,8 +970,10 @@
         </div>
       </div>
       <div class="library-bind-row-actions">
-        <button type="button" class="btn btn-secondary btn-sm library-test-filter-btn">Test filter</button>
         <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
       </div>
     </div>
   </div>
@@ -1009,8 +1023,10 @@
         </div>
       </div>
       <div class="library-bind-row-actions">
-        <button type="button" class="btn btn-secondary btn-sm library-clutch-test-filter-btn">Test filter</button>
         <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-clutch-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
       </div>
     </div>
   </div>
@@ -1067,8 +1083,10 @@
         </div>
       </div>
       <div class="library-bind-row-actions">
-        <button type="button" class="btn btn-secondary btn-sm library-media-test-filter-btn">Test filter</button>
         <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-media-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
       </div>
     </div>
   </div>
@@ -1336,6 +1354,40 @@
       hidden.value = check.checked ? '1' : '0';
     }
     updateSummary(row);
+    row.classList.toggle('library-conn-row--disabled', !isConnEnabled(row));
+  }
+
+  function isBindEnabled(row) {
+    const hidden = row.querySelector('.library-bind-enabled-value');
+    if (!hidden) return true;
+    return hidden.value !== '0' && hidden.value !== 'false' && hidden.value !== '';
+  }
+
+  function bindIsEditable(row) {
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const connId = sel ? sel.value : '';
+    const parentOn = !connId || connEnabledById(connId);
+    return parentOn && isBindEnabled(row);
+  }
+
+  function lockConnBody(row) {
+    const on = isConnEnabled(row);
+    const body = row.querySelector('.library-conn-row-body');
+    if (!body) return;
+    body.querySelectorAll('input:not([type="hidden"]), select, button').forEach(function (el) {
+      if (el.classList.contains('library-save-conn-btn')) return;
+      el.disabled = !on;
+    });
+  }
+
+  function lockBindBody(row) {
+    const editable = bindIsEditable(row);
+    const body = row.querySelector('.library-bind-row-body');
+    if (!body) return;
+    body.querySelectorAll('input:not([type="hidden"]), select, button').forEach(function (el) {
+      if (el.classList.contains('library-save-bind-btn')) return;
+      el.disabled = !editable;
+    });
   }
 
   function syncBindEnabled(row) {
@@ -1344,7 +1396,7 @@
     if (check && hidden && !check.disabled) {
       hidden.value = check.checked ? '1' : '0';
     }
-    const on = hidden ? (hidden.value !== '0' && hidden.value !== 'false') : true;
+    const on = isBindEnabled(row);
     row.classList.toggle('library-bind-row--disabled', !on);
   }
 
@@ -1420,6 +1472,7 @@
     }
     updateBindSummary(row, domainLabel);
     syncBindEnabled(row);
+    lockBindBody(row);
   }
 
   function refreshAllCascades() {
@@ -1499,6 +1552,7 @@
 
   function connPayload(row) {
     syncKinds(row);
+    syncConnEnabled(row);
     const type = (row.querySelector('select[name="library_conn_type"]') || {}).value || 'path';
     return {
       id: (row.querySelector('input[name="library_conn_id"]') || {}).value || '',
@@ -1512,7 +1566,68 @@
       expires_at: (row.querySelector('input[name="library_conn_expires_at"]') || {}).value || '',
       kinds: ((row.querySelector('.library-conn-kinds-value') || {}).value || '')
         .split(',').map(function (k) { return k.trim(); }).filter(Boolean),
+      enabled: isConnEnabled(row),
     };
+  }
+
+  function bindPayload(row, domain) {
+    syncBindEnabled(row);
+    const idEl = row.querySelector('input[name$="_bind_id"]');
+    const connEl = row.querySelector('select[name$="_connection_id"]');
+    const filterEl = row.querySelector('.library-bind-filter-input');
+    const targetEl = row.querySelector('.library-bind-target-input');
+    const enabledEl = row.querySelector('.library-bind-enabled-value');
+    const out = {
+      id: (idEl && idEl.value) || '',
+      connection_id: (connEl && connEl.value) || '',
+      filter: ((filterEl && filterEl.value) || '*').trim() || '*',
+      enabled: !enabledEl || (enabledEl.value !== '0' && enabledEl.value !== 'false'),
+    };
+    if (domain === 'media') {
+      out.target = (targetEl && targetEl.value) || 'iso';
+    }
+    return out;
+  }
+
+  function snapshotKey(obj) {
+    return JSON.stringify(obj);
+  }
+
+  function setSaveEnabled(btn, dirty) {
+    if (!btn) return;
+    btn.disabled = !dirty;
+    btn.setAttribute('aria-disabled', dirty ? 'false' : 'true');
+    btn.title = dirty ? 'Save changes' : 'No unsaved changes';
+  }
+
+  function refreshConnDirty(row) {
+    lockConnBody(row);
+    const on = isConnEnabled(row);
+    const snap = row.dataset.savedSnapshot || '';
+    const dirty = on && (!snap || snap !== snapshotKey(connPayload(row)));
+    setSaveEnabled(row.querySelector('.library-save-conn-btn'), dirty);
+  }
+
+  function markConnClean(row) {
+    row.dataset.savedSnapshot = snapshotKey(connPayload(row));
+    row.dataset.persisted = '1';
+    lockConnBody(row);
+    setSaveEnabled(row.querySelector('.library-save-conn-btn'), false);
+  }
+
+  function refreshBindDirty(row, domain) {
+    lockBindBody(row);
+    const editable = bindIsEditable(row);
+    const snap = row.dataset.savedSnapshot || '';
+    const dirty = editable && (!snap || snap !== snapshotKey(bindPayload(row, domain)));
+    setSaveEnabled(row.querySelector('.library-save-bind-btn'), dirty);
+  }
+
+  function markBindClean(row, domain) {
+    row.dataset.savedSnapshot = snapshotKey(bindPayload(row, domain));
+    row.dataset.persisted = '1';
+    lockBindBody(row);
+    setSaveEnabled(row.querySelector('.library-save-bind-btn'), false);
   }
 
   function wireConnRow(row) {
@@ -1521,6 +1636,7 @@
     syncProviderVisibility(row);
     syncConnEnabled(row);
     updateSummary(row);
+    lockConnBody(row);
   }
 
   addConnBtn.addEventListener('click', function () {
@@ -1528,9 +1644,11 @@
     const row = node.querySelector('.library-conn-row');
     const id = newId();
     row.dataset.connId = id;
+    row.dataset.persisted = '0';
     row.querySelector('input[name="library_conn_id"]').value = id;
     wireConnRow(row);
     connRows.appendChild(node);
+    refreshConnDirty(row);
     syncConnEmpty();
     refreshBindConnectionOptions();
     row.querySelector('input[name="library_conn_label"]').focus();
@@ -1551,9 +1669,71 @@
     const remove = e.target.closest('.library-conn-remove');
     if (remove) {
       const row = remove.closest('.library-conn-row');
-      if (row) row.remove();
-      syncConnEmpty();
-      refreshBindConnectionOptions();
+      if (!row) return;
+      const cid = (row.querySelector('input[name="library_conn_id"]') || {}).value || '';
+      const persisted = row.dataset.persisted === '1';
+      if (!persisted) {
+        row.remove();
+        syncConnEmpty();
+        refreshBindConnectionOptions();
+        return;
+      }
+      if (!window.confirm('Remove this connection from Settings?')) return;
+      const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
+        .replace('CONN_ID', encodeURIComponent(cid));
+      fetch(delUrl, {
+        method: 'DELETE',
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Could not remove connection', 'error', 5000);
+            }
+            return;
+          }
+          row.remove();
+          syncConnEmpty();
+          refreshBindConnectionOptions();
+          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+            hatchery.refreshStatusSurfaces();
+          }
+        })
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Network or server error', 'error', 5000);
+          }
+        });
+      return;
+    }
+    const saveBtn = e.target.closest('.library-save-conn-btn');
+    if (saveBtn) {
+      if (saveBtn.disabled) return;
+      const row = saveBtn.closest('.library-conn-row');
+      const result = row.querySelector('.library-test-result');
+      setTestResult(result, true, 'Saving…');
+      fetch({{ url_for('api_library_connection_upsert') | tojson }}, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection: connPayload(row) }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          const data = res.data || {};
+          if (!res.ok) {
+            setTestResult(result, false, data.error || 'Save failed');
+            return;
+          }
+          markConnClean(row);
+          setTestResult(result, true, 'Saved');
+          refreshBindConnectionOptions();
+          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+            hatchery.refreshStatusSurfaces();
+          }
+        })
+        .catch(function () {
+          setTestResult(result, false, 'Network or server error');
+        });
       return;
     }
     const testBtn = e.target.closest('.library-test-conn-btn');
@@ -1592,6 +1772,7 @@
       updateSummary(row);
       refreshAllCascades();
     }
+    refreshConnDirty(row);
   });
 
   connRows.addEventListener('change', function (e) {
@@ -1600,6 +1781,7 @@
     if (e.target.classList.contains('library-conn-enabled-check')) {
       syncConnEnabled(row);
       refreshBindConnectionOptions();
+      refreshConnDirty(row);
       return;
     }
     if (e.target.classList.contains('library-kind-check')) {
@@ -1613,11 +1795,14 @@
       e.target.classList.contains('library-conn-label-input') ||
       e.target.classList.contains('library-conn-type-input') ||
       e.target.classList.contains('library-conn-provider-input') ||
-      e.target.classList.contains('library-conn-uri-input')
+      e.target.classList.contains('library-conn-uri-input') ||
+      e.target.classList.contains('library-conn-expires-input') ||
+      e.target.name === 'library_conn_token'
     ) {
       updateSummary(row);
       refreshBindConnectionOptions();
     }
+    refreshConnDirty(row);
   });
 
   function wireBindRowClick(container, removeSel, testSel, domain, domainLabel, syncEmpty) {
@@ -1636,8 +1821,63 @@
       const remove = e.target.closest(removeSel);
       if (remove) {
         const row = remove.closest('.library-bind-row');
-        if (row) row.remove();
-        syncEmpty();
+        if (!row) return;
+        const bid = ((row.querySelector('input[name$="_bind_id"]') || {}).value || '');
+        const persisted = row.dataset.persisted === '1';
+        if (!persisted) {
+          row.remove();
+          syncEmpty();
+          return;
+        }
+        if (!window.confirm('Remove this binding from Settings?')) return;
+        const delUrl = {{ url_for('api_library_binding_delete', domain='DOMAIN', binding_id='BIND_ID') | tojson }}
+          .replace('DOMAIN', encodeURIComponent(domain))
+          .replace('BIND_ID', encodeURIComponent(bid));
+        fetch(delUrl, { method: 'DELETE' })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              if (window.hatchery && hatchery.showToast) {
+                hatchery.showToast((res.data && res.data.error) || 'Could not remove binding', 'error', 5000);
+              }
+              return;
+            }
+            row.remove();
+            syncEmpty();
+          })
+          .catch(function () {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast('Network or server error', 'error', 5000);
+            }
+          });
+        return;
+      }
+      const saveBtn = e.target.closest('.library-save-bind-btn');
+      if (saveBtn) {
+        if (saveBtn.disabled) return;
+        const row = saveBtn.closest('.library-bind-row');
+        const result = row.querySelector('.library-bind-test-result');
+        setTestResult(result, true, 'Saving…');
+        const upsertUrl = {{ url_for('api_library_binding_upsert', domain='DOMAIN') | tojson }}
+          .replace('DOMAIN', encodeURIComponent(domain));
+        fetch(upsertUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ binding: bindPayload(row, domain) }),
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            const data = res.data || {};
+            if (!res.ok) {
+              setTestResult(result, false, data.error || 'Save failed');
+              return;
+            }
+            markBindClean(row, domain);
+            setTestResult(result, true, 'Saved');
+          })
+          .catch(function () {
+            setTestResult(result, false, 'Network or server error');
+          });
         return;
       }
       const testBtn = e.target.closest(testSel);
@@ -1677,6 +1917,7 @@
       if (e.target.classList.contains('library-bind-enabled-check')) {
         syncBindEnabled(row);
         updateBindSummary(row, domainLabel);
+        refreshBindDirty(row, domain);
         return;
       }
       if (
@@ -1685,6 +1926,7 @@
       ) {
         updateCascadeForBind(row, domainLabel);
       }
+      refreshBindDirty(row, domain);
     });
 
     container.addEventListener('input', function (e) {
@@ -1693,17 +1935,20 @@
       if (e.target.classList.contains('library-bind-filter-input')) {
         updateBindSummary(row, domainLabel);
       }
+      refreshBindDirty(row, domain);
     });
   }
 
   addBindBtn.addEventListener('click', function () {
     const node = bindTpl.content.cloneNode(true);
     const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
     row.querySelector('input[name="library_script_bind_id"]').value = newId();
     bindRows.appendChild(node);
     refreshBindConnectionOptions();
     syncBindEmpty();
     updateCascadeForBind(row, 'script binding');
+    refreshBindDirty(row, 'scripts');
     const sel = row.querySelector('.library-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1723,11 +1968,13 @@
   addClutchBtn.addEventListener('click', function () {
     const node = clutchTpl.content.cloneNode(true);
     const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
     row.querySelector('input[name="library_clutch_bind_id"]').value = newId();
     clutchRows.appendChild(node);
     refreshBindConnectionOptions();
     syncClutchEmpty();
     updateCascadeForBind(row, 'clutch binding');
+    refreshBindDirty(row, 'clutches');
     const sel = row.querySelector('.library-clutch-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1747,11 +1994,13 @@
   addMediaBtn.addEventListener('click', function () {
     const node = mediaTpl.content.cloneNode(true);
     const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
     row.querySelector('input[name="library_media_bind_id"]').value = newId();
     mediaRows.appendChild(node);
     refreshBindConnectionOptions();
     syncMediaEmpty();
     updateCascadeForBind(row, 'media binding');
+    refreshBindDirty(row, 'media');
     const sel = row.querySelector('.library-media-bind-conn-select');
     if (sel) {
       sel.value = '';
@@ -1770,18 +2019,25 @@
 
   var form = document.querySelector('form');
   if (form) {
-    form.addEventListener('submit', function () {
-      Array.prototype.forEach.call(connRows.children, function (row) {
-        syncKinds(row);
-        syncConnEnabled(row);
-      });
-      Array.prototype.forEach.call(bindRows.children, syncBindEnabled);
-      Array.prototype.forEach.call(clutchRows.children, syncBindEnabled);
-      Array.prototype.forEach.call(mediaRows.children, syncBindEnabled);
+    form.addEventListener('submit', function (e) {
+      // Library uses per-row Save APIs — never submit the whole page.
+      e.preventDefault();
     });
   }
 
-  Array.prototype.forEach.call(connRows.children, wireConnRow);
+  Array.prototype.forEach.call(connRows.children, function (row) {
+    wireConnRow(row);
+    markConnClean(row);
+  });
+  Array.prototype.forEach.call(bindRows.children, function (row) {
+    markBindClean(row, 'scripts');
+  });
+  Array.prototype.forEach.call(clutchRows.children, function (row) {
+    markBindClean(row, 'clutches');
+  });
+  Array.prototype.forEach.call(mediaRows.children, function (row) {
+    markBindClean(row, 'media');
+  });
   refreshBindConnectionOptions();
   syncConnEmpty();
   syncBindEmpty();

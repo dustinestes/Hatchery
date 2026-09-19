@@ -892,12 +892,22 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
-.library-bind-row .library-bind-test-result {
+.library-conn-row-actions .library-test-result,
+.library-bind-row-actions .library-bind-test-result {
   flex: 1 1 auto;
   min-width: 0;
+  margin-right: auto;
+  text-align: left;
+}
+
+.library-conn-row-actions .btn:disabled,
+.library-bind-row-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .library-test-result {
@@ -1005,9 +1015,10 @@ body {
   height: 20px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--color-border);
+  border: 1.5px solid color-mix(in srgb, var(--gold) 65%, var(--color-border));
   border-radius: 999px;
-  background: var(--color-surface-alt);
+  /* Muted track — distinct from the gold knob when off */
+  background: color-mix(in srgb, var(--color-text-muted) 22%, var(--color-surface));
   cursor: pointer;
   position: relative;
   vertical-align: middle;
@@ -1019,14 +1030,19 @@ body {
 .form-toggle input[type="checkbox"]::before {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 1.5px;
+  left: 1.5px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-  transition: transform 140ms ease;
+  /* Off: gold knob so it does not dissolve into the muted track */
+  background: var(--gold);
+  border: 1px solid var(--gold-dark);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
 
 .form-toggle input[type="checkbox"]:checked {
@@ -1036,6 +1052,10 @@ body {
 
 .form-toggle input[type="checkbox"]:checked::before {
   transform: translateX(16px);
+  /* On: surface knob on gold track so the knob stays readable */
+  background: var(--color-surface);
+  border-color: color-mix(in srgb, var(--gold-dark) 35%, var(--color-surface));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
 
 .form-toggle input[type="checkbox"]:focus-visible {
@@ -1044,7 +1064,7 @@ body {
 }
 
 .form-toggle input[type="checkbox"]:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 

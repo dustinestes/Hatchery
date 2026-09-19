@@ -90,8 +90,8 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on).
-- **Scripts / Clutches / Media** — binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles.
+- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on). **Test** and **Save** sit together (right-aligned); Save is dimmed until that row has unsaved changes — Library no longer uses a page-wide Save that would write every section at once.
+- **Scripts / Clutches / Media** — binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles and the same right-aligned **Test** / **Save** pattern (Save dimmed until that binding changes).
 
 ### Enable / disable
 

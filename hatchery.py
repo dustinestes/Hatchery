@@ -1239,6 +1239,155 @@ def api_library_test_filter():
     return jsonify(result), status
 
 
+def _bindings_reference_connection(conn_id: str) -> list[str]:
+    """Return human labels for domains that still reference ``conn_id``."""
+    hits: list[str] = []
+    for label, rows in (
+        ("Scripts", config.library_script_bindings()),
+        ("Clutches", config.library_clutch_bindings()),
+        ("Media", config.library_media_bindings()),
+    ):
+        if any(str(b.get("connection_id") or "") == conn_id for b in rows):
+            hits.append(label)
+    return hits
+
+
+@app.route("/api/library/connections", methods=["PUT"])
+def api_library_connection_upsert():
+    """Upsert one Library connection (scoped Save from Settings → Library)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    raw = data.get("connection")
+    if not isinstance(raw, dict):
+        return jsonify({"ok": False, "error": "connection object is required"}), 400
+    try:
+        parsed = library_lib.parse_connections([raw], enforce_expiry_future=True)[0]
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    cfg = config.get()
+    connections = list(cfg.get("library_connections") or [])
+    cid = parsed["id"]
+    replaced = False
+    for i, existing in enumerate(connections):
+        if existing.get("id") == cid:
+            connections[i] = parsed
+            replaced = True
+            break
+    if not replaced:
+        connections.append(parsed)
+    cfg["library_connections"] = connections
+    config.save(cfg)
+    from lib import library_health as library_health_lib
+
+    library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
+    return jsonify({"ok": True, "connection": parsed, "created": not replaced})
+
+
+@app.route("/api/library/connections/<conn_id>", methods=["DELETE"])
+def api_library_connection_delete(conn_id: str):
+    """Delete one Library connection when no bindings still reference it."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    cid = str(conn_id or "").strip()
+    if not cid:
+        return jsonify({"ok": False, "error": "connection id is required"}), 400
+    refs = _bindings_reference_connection(cid)
+    if refs:
+        return jsonify(
+            {
+                "ok": False,
+                "error": (
+                    f"Connection is still used by {' / '.join(refs)} bindings — "
+                    "remove or reassign those bindings first."
+                ),
+            }
+        ), 400
+
+    cfg = config.get()
+    connections = [c for c in (cfg.get("library_connections") or []) if c.get("id") != cid]
+    if len(connections) == len(cfg.get("library_connections") or []):
+        return jsonify({"ok": False, "error": "Unknown connection id"}), 404
+    cfg["library_connections"] = connections
+    config.save(cfg)
+    from lib import library_health as library_health_lib
+
+    library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
+    return jsonify({"ok": True, "id": cid})
+
+
+_BINDING_DOMAIN_KEYS = {
+    "scripts": ("library_script_bindings", library_lib.parse_script_bindings),
+    "clutches": ("library_clutch_bindings", library_lib.parse_clutch_bindings),
+    "media": ("library_media_bindings", library_lib.parse_media_bindings),
+}
+
+
+@app.route("/api/library/bindings/<domain>", methods=["PUT"])
+def api_library_binding_upsert(domain: str):
+    """Upsert one domain binding (scoped Save from Settings → Library)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    key = str(domain or "").strip().lower()
+    if key not in _BINDING_DOMAIN_KEYS:
+        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    data = request.get_json(silent=True) or {}
+    raw = data.get("binding")
+    if not isinstance(raw, dict):
+        return jsonify({"ok": False, "error": "binding object is required"}), 400
+
+    cfg_key, parse_fn = _BINDING_DOMAIN_KEYS[key]
+    try:
+        connections = library_lib.parse_connections(
+            config.library_connections(), enforce_expiry_future=False
+        )
+        parsed = parse_fn([raw], connections)[0]
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    cfg = config.get()
+    bindings = list(cfg.get(cfg_key) or [])
+    bid = parsed["id"]
+    replaced = False
+    for i, existing in enumerate(bindings):
+        if existing.get("id") == bid:
+            bindings[i] = parsed
+            replaced = True
+            break
+    if not replaced:
+        bindings.append(parsed)
+    cfg[cfg_key] = bindings
+    config.save(cfg)
+    return jsonify({"ok": True, "binding": parsed, "created": not replaced})
+
+
+@app.route("/api/library/bindings/<domain>/<binding_id>", methods=["DELETE"])
+def api_library_binding_delete(domain: str, binding_id: str):
+    """Delete one domain binding."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    key = str(domain or "").strip().lower()
+    if key not in _BINDING_DOMAIN_KEYS:
+        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    bid = str(binding_id or "").strip()
+    if not bid:
+        return jsonify({"ok": False, "error": "binding id is required"}), 400
+    cfg_key, _parse = _BINDING_DOMAIN_KEYS[key]
+    cfg = config.get()
+    bindings = list(cfg.get(cfg_key) or [])
+    kept = [b for b in bindings if b.get("id") != bid]
+    if len(kept) == len(bindings):
+        return jsonify({"ok": False, "error": "Unknown binding id"}), 404
+    cfg[cfg_key] = kept
+    config.save(cfg)
+    return jsonify({"ok": True, "id": bid})
+
+
 @app.route("/api/library/scripts")
 def api_library_scripts():
     denied = _library_require_enabled()
