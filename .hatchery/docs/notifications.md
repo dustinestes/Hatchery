@@ -83,8 +83,7 @@ Surfaces **do not** invent health logic or re-run checks. They call APIs over st
 | `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
 | `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
 
-Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests** + **Libraries** (Libraries only when Library is enabled — [#254](https://github.com/dustinestes/Hatchery/issues/254)), **Alerts pane** table, **Validators** pane run history.
-- [#280](https://github.com/dustinestes/Hatchery/issues/280) — Validators pane filters / finding tiers (pane subscribes to the tick)
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests** + **Libraries** (Libraries only when Library is enabled — [#254](https://github.com/dustinestes/Hatchery/issues/254)), **Alerts pane** table, **Validators** pane run history (filters / finding tiers — [#280](https://github.com/dustinestes/Hatchery/issues/280)).
 
 ```js
 // Pane example — no new timer

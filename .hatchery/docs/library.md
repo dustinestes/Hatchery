@@ -87,7 +87,7 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path supports test/list/pull; HTTPS tests reachability and can pull an explicit relative file; git can be saved for later.
+- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, and git all support test / list / pull (git uses a shallow clone cache under the data directory — [#251](https://github.com/dustinestes/Hatchery/issues/251)).
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
 - **Clutches** — binding rows (connection picker filtered by clutches artifact type + path/filter), pull into `clutches/`, Import dropdown when Library is on
 - **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
@@ -96,16 +96,30 @@ Each connection declares **artifact types** (scripts, clutches, media, packages)
 
 Enable Library under Settings → General. Deep links to Library Settings while the feature is off redirect to General with an enable hint.
 
+### Git connections (#251)
+
+Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection.
+
+| | |
+|---|---|
+| **Base URI** | HTTPS (`https://github.com/org/repo.git`), SSH (`git@host:org/repo.git`), or a local repo path / `file://` |
+| **Token** | Optional HTTPS PAT — embedded for `git ls-remote` / clone (GitHub: `x-access-token`; other HTTPS hosts: `oauth2`). SSH remotes use the Controller’s SSH agent/keys; token is ignored |
+| **Test** | `git ls-remote --heads` (requires `git` on the Controller PATH) |
+| **List / pull** | Shallow `--depth 1` checkout under `{data_dir}/library/git/{connection_id}/`; binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
+| **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched — without `git-lfs`, LFS pointer files may be copied as-is |
+
+Path and HTTPS behavior are unchanged. Artifactory-style API connections remain [#255](https://github.com/dustinestes/Hatchery/issues/255).
+
 ### Connection health (#254)
 
 The `library_connections` validator probes registered connections (via the same logic as **Test connection**) and watches optional token `expires_at` dates:
 
 | Prefix | When |
 |---|---|
-| `Library connection:` | Path/HTTPS unreachable, unreadable, or auth failure |
+| `Library connection:` | Path/HTTPS/git unreachable, unreadable, or auth failure |
 | `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
 
-Empty `expires_at` → no token-expiry Alert for that connection. Git connections skip reachability until git list/pull lands (#251). Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
+Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
 
 Footer **Libraries** chip (when Library is enabled): muted with zero connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md — Footer vs Alerts](notifications.md#footer-vs-alerts-277).
 

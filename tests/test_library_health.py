@@ -121,7 +121,11 @@ class TestConnectionProbe:
         assert stats["down"] == 0
         assert alerts_lib.count_active_by_prefixes((lh.CONNECTION_ALERT_PREFIX,)) == 0
 
-    def test_git_skipped(self):
+    def test_git_unreachable_alerts(self, monkeypatch):
+        monkeypatch.setattr(
+            "lib.library.test_connection",
+            lambda _conn: {"ok": False, "message": "git ls-remote failed: denied"},
+        )
         conn = {
             "id": "git1",
             "label": "Repo",
@@ -132,9 +136,9 @@ class TestConnectionProbe:
             "kinds": ["scripts"],
         }
         stats = lh.sync_connection_alerts([conn])
-        assert stats["skipped_git"] == 1
-        assert stats["checked"] == 0
-        assert alerts_lib.count_active_by_prefixes((lh.CONNECTION_ALERT_PREFIX,)) == 0
+        assert stats["checked"] == 1
+        assert stats["down"] == 1
+        assert alerts_lib.count_active_by_prefixes((lh.CONNECTION_ALERT_PREFIX,)) == 1
 
 
 class TestValidator:

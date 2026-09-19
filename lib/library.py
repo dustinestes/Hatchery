@@ -1,9 +1,7 @@
 """Library connections and domain bindings — list, test, and pull into the operator cache.
 
-v1 focuses on ``path`` connections (local or mounted share). ``https`` supports
-reachability tests and pulling a single relative file. ``git`` is accepted in
-Settings for forward compatibility; test/list/pull return a clear not-implemented
-message until a later issue.
+``path`` (local or mounted share), ``https`` (single relative file), and ``git``
+(shallow clone cache under the data directory — #251) are supported.
 """
 
 from __future__ import annotations
@@ -11,11 +9,13 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
+import subprocess
 import uuid
 from datetime import date, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from lib.import_files import SCRIPT_EXTENSIONS
@@ -28,6 +28,8 @@ CLUTCH_EXTENSIONS = frozenset({".yaml"})
 _SAMPLE_LIMIT = 5
 _SCRIPT_PULL_DEST = "automation/scripts"
 _CLUTCH_PULL_DEST = "clutches"
+_GIT_CACHE_SUBDIR = "library/git"
+_GIT_TIMEOUT_S = 120
 
 
 def new_id() -> str:
@@ -271,10 +273,7 @@ def test_connection(conn: dict) -> dict:
     if ctype == "https":
         return _test_https(conn)
     if ctype == "git":
-        return {
-            "ok": False,
-            "message": "Git connections are saved but test/list/pull land in a follow-on — use path for now.",
-        }
+        return _test_git(conn)
     return {"ok": False, "message": f"Unsupported type: {ctype}"}
 
 
@@ -284,6 +283,175 @@ def os_access_dir(path: Path) -> bool:
         return True
     except OSError:
         return False
+
+
+def git_available() -> bool:
+    """True when the Controller has a ``git`` executable on PATH."""
+    return shutil.which("git") is not None
+
+
+def git_remote_url(base_uri: str, token: str = "") -> str:
+    """Return a clone/ls-remote URL, embedding ``token`` for HTTPS remotes.
+
+    SSH and ``file://`` / local-path remotes are returned unchanged (token ignored).
+    GitHub hosts use ``x-access-token``; other HTTPS hosts use ``oauth2`` (GitLab-style).
+    """
+    uri = (base_uri or "").strip()
+    if not uri:
+        raise ValueError("git connection needs a repository URL")
+    token = (token or "").strip()
+    if not token:
+        return uri
+    # Local path / file URL / scp-style SSH — token does not apply
+    if uri.startswith("git@") or uri.startswith("/") or uri.startswith("file:"):
+        return uri
+    if re.match(r"^[A-Za-z]:[\\/]", uri):
+        return uri
+    # scp-style user@host:path (no scheme)
+    if "://" not in uri and re.match(r"^[^/]+@[^/]+:", uri):
+        return uri
+    parsed = urlparse(uri)
+    if parsed.scheme not in ("http", "https"):
+        return uri
+    host = (parsed.hostname or "").lower()
+    port = f":{parsed.port}" if parsed.port else ""
+    user = (
+        "x-access-token"
+        if host in ("github.com", "www.github.com", "gist.github.com")
+        else "oauth2"
+    )
+    netloc = f"{user}:{quote(token, safe='')}@{host}{port}"
+    return urlunparse((parsed.scheme, netloc, parsed.path or "", "", "", ""))
+
+
+def _git_env() -> dict[str, str]:
+    """Env for non-interactive git (no credential prompts)."""
+    import os
+
+    env = dict(os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_ASKPASS"] = "echo"
+    return env
+
+
+def _run_git(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    timeout: int = _GIT_TIMEOUT_S,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(cwd) if cwd else None,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        env=_git_env(),
+    )
+
+
+def _git_error_detail(result: subprocess.CompletedProcess[str]) -> str:
+    err = (result.stderr or result.stdout or "").strip()
+    # Never echo URLs that may embed tokens — keep the last non-URL line.
+    lines = [ln for ln in err.splitlines() if "://" not in ln and "@" not in ln]
+    detail = lines[-1] if lines else err.splitlines()[-1] if err else f"exit {result.returncode}"
+    return detail[:300]
+
+
+def _test_git(conn: dict) -> dict:
+    if not git_available():
+        return {
+            "ok": False,
+            "message": "git is not installed on this Hatchery Controller — install git to use Library git connections.",
+        }
+    try:
+        url = git_remote_url(conn["base_uri"], conn.get("token") or "")
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+    try:
+        result = _run_git(["ls-remote", "--heads", url], timeout=60)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "message": "git ls-remote timed out"}
+    except OSError as exc:
+        return {"ok": False, "message": str(exc)}
+    if result.returncode != 0:
+        return {"ok": False, "message": f"git ls-remote failed: {_git_error_detail(result)}"}
+    heads = [ln for ln in (result.stdout or "").splitlines() if ln.strip()]
+    if not heads:
+        return {"ok": False, "message": "Repository reachable but has no heads (empty?)"}
+    display = (conn.get("base_uri") or "").strip()
+    return {"ok": True, "message": f"Git remote OK ({len(heads)} head(s)): {display}"}
+
+
+def git_cache_dir(conn: dict) -> Path:
+    """Return the per-connection shallow clone path under the data directory."""
+    from lib import config as config_lib
+
+    cid = str(conn.get("id") or "").strip() or "unknown"
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", cid):
+        raise ValueError(f"invalid connection id for git cache: {cid!r}")
+    return config_lib.data_dir() / _GIT_CACHE_SUBDIR / cid
+
+
+def ensure_git_checkout(conn: dict) -> Path:
+    """Clone or update a shallow checkout for ``conn``; return the working tree path."""
+    if not git_available():
+        raise ValueError(
+            "git is not installed on this Hatchery Controller — install git to use Library git connections."
+        )
+    url = git_remote_url(conn["base_uri"], conn.get("token") or "")
+    cache = git_cache_dir(conn)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    git_dir = cache / ".git"
+    try:
+        if not git_dir.is_dir():
+            if cache.exists():
+                shutil.rmtree(cache)
+            result = _run_git(
+                ["clone", "--depth", "1", "--single-branch", url, str(cache)],
+                timeout=_GIT_TIMEOUT_S,
+            )
+            if result.returncode != 0:
+                if cache.exists():
+                    shutil.rmtree(cache, ignore_errors=True)
+                raise ValueError(f"git clone failed: {_git_error_detail(result)}")
+        else:
+            fetch = _run_git(
+                ["fetch", "--depth", "1", "origin"],
+                cwd=cache,
+                timeout=_GIT_TIMEOUT_S,
+            )
+            if fetch.returncode != 0:
+                raise ValueError(f"git fetch failed: {_git_error_detail(fetch)}")
+            reset = _run_git(
+                ["reset", "--hard", "FETCH_HEAD"],
+                cwd=cache,
+                timeout=60,
+            )
+            if reset.returncode != 0:
+                raise ValueError(f"git reset failed: {_git_error_detail(reset)}")
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError("git operation timed out") from exc
+    return cache
+
+
+def _list_git_files(
+    conn: dict,
+    filt: str,
+    *,
+    extensions: frozenset[str],
+    limit: int | None,
+) -> list[dict]:
+    root = ensure_git_checkout(conn)
+    return _list_tree_files(
+        root,
+        filt,
+        extensions=extensions,
+        limit=limit,
+        connection_id=conn["id"],
+        source_type="git",
+    )
 
 
 def _test_https(conn: dict) -> dict:
@@ -359,7 +527,7 @@ def list_hits(
     if ctype == "https":
         return _list_https_files(conn, filt, extensions=extensions, limit=limit)
     if ctype == "git":
-        raise ValueError("Git list/pull is not implemented yet — use a path connection")
+        return _list_git_files(conn, filt, extensions=extensions, limit=limit)
     raise ValueError(f"Unsupported connection type: {ctype}")
 
 
@@ -380,10 +548,36 @@ def _list_path_files(
     root = _expand_base(conn["base_uri"])
     if not root.is_dir():
         raise ValueError(f"Connection path is not a directory: {root}")
+    return _list_tree_files(
+        root,
+        filt,
+        extensions=extensions,
+        limit=limit,
+        connection_id=conn["id"],
+        source_type="path",
+    )
+
+
+def _list_tree_files(
+    root: Path,
+    filt: str,
+    *,
+    extensions: frozenset[str],
+    limit: int | None,
+    connection_id: str,
+    source_type: str,
+) -> list[dict]:
     pattern = _normalize_filter(filt)
     hits: list[dict] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
+            continue
+        # Skip git metadata inside checkouts
+        try:
+            rel_parts = path.relative_to(root).parts
+        except ValueError:
+            continue
+        if ".git" in rel_parts:
             continue
         if path.suffix.lower() not in extensions:
             continue
@@ -395,8 +589,8 @@ def _list_path_files(
                 "name": path.name,
                 "relative_path": rel,
                 "sha256": sha256_file(path),
-                "connection_id": conn["id"],
-                "source_type": "path",
+                "connection_id": connection_id,
+                "source_type": source_type,
             }
         )
         if limit is not None and len(hits) >= limit:
@@ -591,6 +785,14 @@ def _pull_file(
         except Exception:
             dest.unlink(missing_ok=True)
             raise
+        digest = sha256_file(dest)
+        return {"name": name, "sha256": digest, "dest": str(dest)}
+    if ctype == "git":
+        root = ensure_git_checkout(conn)
+        src = root / rel
+        if not src.is_file():
+            raise FileNotFoundError(f"Not found in git checkout: {rel}")
+        shutil.copy2(src, dest)
         digest = sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}
     raise ValueError(f"Pull not supported for type: {ctype}")
