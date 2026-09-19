@@ -153,6 +153,8 @@ Strategy: connection **`type: forge`** + **`provider`** plugin — list/pull via
 | **List** | Git Trees API (`recursive=1`); truncated trees fail closed |
 | **Pull** | Raw content download; SHA-256 of bytes written to the domain cache |
 
+Library stays **consume-only** — no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)). A sample public catalog for demos is tracked as [#315](https://github.com/dustinestes/Hatchery/issues/315) (`hatchery_catalog`).
+
 ### API connections (#255)
 
 Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named connection type). Architecture: [ADR-0001](adr/0001-library-api-adapters.md). Package: [`lib/library_api/`](../../lib/library_api/).
