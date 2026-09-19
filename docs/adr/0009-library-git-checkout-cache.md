@@ -18,7 +18,7 @@ Library `type: git` needs list and pull into the operator domain cache (Scripts 
 4. **Removing** a connection cascade-deletes domain bindings that reference it. For **git**, Settings may also delete the clone cache when the operator confirms (portable `pathlib` + `shutil.rmtree`, including Windows read-only `.git` files). That is the **clone cache**, not the operator domain cache.
 5. Pulled domain files remain **create-only** — they can age independently of the checkout tip.
 6. **Sparse / partial clone:** deferred for the shallow-clone path (multi-binding filters and domain extensions make ensure-time sparse non-trivial; typical script/clutch repos stay small). Prefer long-term [#307](https://github.com/dustinestes/Hatchery/issues/307) forge APIs instead of investing heavily in sparse git.
-7. **Future:** forge `type` + `provider` plugins ([#307](https://github.com/dustinestes/Hatchery/issues/307)) list/pull via HTTP so Hatchery need not keep a working tree. Operator-cache drift vs source is [#308](https://github.com/dustinestes/Hatchery/issues/308).
+7. **Future:** forge `type` + `provider` plugins ([#307](https://github.com/dustinestes/Hatchery/issues/307) / [ADR-0010](0010-library-forge-providers.md)) list/pull via HTTP so Hatchery need not keep a working tree. Operator-cache drift vs source is [#308](https://github.com/dustinestes/Hatchery/issues/308). Dual-run: `type: git` clone path remains; forge does not supersede this ADR.
 
 ## Consequences
 
