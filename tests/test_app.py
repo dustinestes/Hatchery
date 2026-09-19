@@ -493,6 +493,9 @@ class TestLibrarySettingsGate:
         assert "Script bindings" in html
         assert "Clutch bindings" in html
         assert "Media bindings" in html
+        assert "library-save-conn-btn" in html
+        assert "library-save-bind-btn" in html
+        assert html.count('class="action-bar"') == 0
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
 
@@ -527,24 +530,135 @@ class TestLibrarySettingsGate:
                 "library_conn_token": "",
                 "library_conn_expires_at": "",
                 "library_conn_kinds": "scripts,clutches,media",
+                "library_conn_enabled": "1",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
                 "library_script_bind_filter": "*.ps1",
+                "library_script_bind_enabled": "1",
                 "library_clutch_bind_id": "cbind001",
                 "library_clutch_bind_connection_id": "abc123def456",
                 "library_clutch_bind_filter": "*.yaml",
+                "library_clutch_bind_enabled": "1",
                 "library_media_bind_id": "mbind001",
                 "library_media_bind_connection_id": "abc123def456",
                 "library_media_bind_filter": "*.iso",
                 "library_media_bind_target": "iso",
+                "library_media_bind_enabled": "1",
             },
         )
         assert resp.status_code == 302
         assert saved["library_connections"][0]["label"] == "Ops share"
         assert saved["library_connections"][0]["expires_at"] is None
+        assert saved["library_connections"][0]["enabled"] is True
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+        assert saved["library_script_bindings"][0]["enabled"] is True
         assert saved["library_clutch_bindings"][0]["filter"] == "*.yaml"
         assert saved["library_media_bindings"][0]["target"] == "iso"
+
+    def test_library_api_upsert_and_delete_connection(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        state = {
+            "data_dir": str(tmp_path),
+            "bg_interval": 60,
+            "library_enabled": True,
+            "library_connections": [],
+            "library_script_bindings": [],
+            "library_clutch_bindings": [],
+            "library_media_bindings": [],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "get", lambda: state)
+        monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
+        monkeypatch.setattr(
+            cfg, "library_script_bindings", lambda: list(state["library_script_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_clutch_bindings", lambda: list(state["library_clutch_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+
+        conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": "",
+            "kinds": ["scripts"],
+            "enabled": True,
+        }
+        put = client.put("/api/library/connections", json={"connection": conn})
+        assert put.status_code == 200
+        assert put.get_json()["ok"] is True
+        assert len(state["library_connections"]) == 1
+
+        state["library_script_bindings"] = [
+            {
+                "id": "b1",
+                "connection_id": "cpath1",
+                "filter": "*",
+                "domain": "scripts",
+                "enabled": True,
+            }
+        ]
+        blocked = client.delete("/api/library/connections/cpath1")
+        assert blocked.status_code == 400
+
+        state["library_script_bindings"] = []
+        deleted = client.delete("/api/library/connections/cpath1")
+        assert deleted.status_code == 200
+        assert state["library_connections"] == []
+
+    def test_library_api_upsert_binding(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        state = {
+            "data_dir": str(tmp_path),
+            "bg_interval": 60,
+            "library_enabled": True,
+            "library_connections": [
+                {
+                    "id": "c1",
+                    "label": "Share",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": True,
+                }
+            ],
+            "library_script_bindings": [],
+            "library_clutch_bindings": [],
+            "library_media_bindings": [],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "get", lambda: state)
+        monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
+        monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+
+        put = client.put(
+            "/api/library/bindings/scripts",
+            json={
+                "binding": {
+                    "id": "b1",
+                    "connection_id": "c1",
+                    "filter": "*.ps1",
+                    "enabled": True,
+                }
+            },
+        )
+        assert put.status_code == 200
+        assert put.get_json()["ok"] is True
+        assert state["library_script_bindings"][0]["filter"] == "*.ps1"
+
+        deleted = client.delete("/api/library/bindings/scripts/b1")
+        assert deleted.status_code == 200
+        assert state["library_script_bindings"] == []
 
     def test_library_api_test_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"

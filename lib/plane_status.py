@@ -65,8 +65,14 @@ def footer_status() -> dict[str, Any]:
         nests_title = f"All {nest_total} Nest(s) OK"
         nests_ok = True
 
+    from lib import library as library_lib
+
     library_enabled = bool(config.library_enabled())
-    library_connections = list(config.library_connections() or []) if library_enabled else []
+    # Footer rollup counts only enabled connections (#293); disabled rows stay in Settings.
+    raw_connections = list(config.library_connections() or []) if library_enabled else []
+    library_connections = (
+        library_lib.enabled_connections(raw_connections) if library_enabled else []
+    )
     library_connection_total = len(library_connections) if library_enabled else 0
     library_alert_count = (
         alerts_lib.count_active_by_prefixes(
