@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issue:** [#255](https://github.com/dustinestes/Hatchery/issues/255)
-- **Code:** [`lib/library_api/`](../../../lib/library_api/)
+- **Code:** [`lib/library_api/`](../../lib/library_api/)
 - **How-to:** [library.md — API connections](../library.md#api-connections-255)
 
 ## Context
@@ -21,7 +21,7 @@ We needed a shape that:
 1. Add one Library connection **`type: api`**
 2. Require a **`provider`** discriminator (e.g. `artifactory`) validated against a registry
 3. Put vendor HTTP, auth, and filter grammar in **`lib/library_api/<provider>.py`** modules that implement `BaseLibraryApiAdapter` (`test`, `list_hits`, `pull_file`)
-4. Keep dispatch and shared catalog contracts in [`lib/library.py`](../../../lib/library.py); register builtins at import/use time (same idea as validators / Nest providers)
+4. Keep dispatch and shared catalog contracts in [`lib/library.py`](../../lib/library.py); register builtins at import/use time (same idea as validators / Nest providers)
 
 Artifactory is the **first adapter**, not the product model. Settings labels: type **API**, provider **Artifactory**.
 

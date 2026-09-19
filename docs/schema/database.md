@@ -1,7 +1,7 @@
 <br><br>
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../../.hatchery/branding/icons/hatchery-icon-dark.svg">
+  <img align="right" src="../../.hatchery/branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Database Schema Reference</h1>
 <br clear="both">
@@ -99,7 +99,7 @@ Registered Nest connections (where VMs live). The built-in row `id = 'local'` is
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | Stable Nest id (e.g. `local`); referenced by `hatch_sessions.nest` |
 | `name` | `TEXT` | `NOT NULL` | Display label in Settings and the Nests pane |
-| `provider_type` | `TEXT` | `NOT NULL` | `libvirt`, `utm`, or `hyperv` (routed by [`lib/providers/factory.py`](../../../lib/providers/factory.py); only local libvirt is instantiable today) |
+| `provider_type` | `TEXT` | `NOT NULL` | `libvirt`, `utm`, or `hyperv` (routed by [`lib/providers/factory.py`](../../lib/providers/factory.py); only local libvirt is instantiable today) |
 | `location` | `TEXT` | `NOT NULL DEFAULT 'local'` | `local` or `remote` |
 | `transport` | `TEXT` | | `ssh` or `winrm` when remote; `NULL` when local |
 | `host` | `TEXT` | | Remote hostname or IP |
@@ -307,8 +307,8 @@ See issue [#110](https://github.com/dustinestes/Hatchery/issues/110) for the v2 
 ---
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../../.hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img align="left" src="../../.hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
 <div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

@@ -1,7 +1,7 @@
 <br><br>
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/icons/hatchery-icon-dark.svg">
-  <img align="right" src="../branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/icons/hatchery-icon-dark.svg">
+  <img align="right" src="../.hatchery/branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
 <h1>Project Structure</h1>
 <br clear="both">
@@ -24,10 +24,15 @@ Root directory layout and purpose of every file and folder in Hatchery.
 
 ```
 Hatchery/
+├── docs/                         # First-class reference documentation (this directory)
+│   ├── adr/                      # Architecture Decision Records
+│   ├── schema/                   # Clutch YAML + database schema references
+│   └── assets/                   # Screenshots and doc images
 ├── .hatchery/                    # Project meta — not required to run the application
 │   ├── audits/                   # Security and quality audit artifacts
 │   ├── branding/                 # Brand assets — dragon scale mark (icons/logos/banners); dragon_egg.svg kept for history
-│   ├── docs/                     # Reference documentation (this directory)
+│   ├── examples/                 # Sample scripts and fixtures
+│   ├── tooling/                  # Contributor harnesses (e.g. Artifactory OSS)
 │   └── ui/                       # Interface mockups and interactive examples
 ├── .github/
 │   ├── workflows/
@@ -123,17 +128,21 @@ Jinja2 templates for unattended install answer files. One template per supported
 
 pytest test suite. Mirrors the structure of `lib/`. Run with `uv run pytest`.
 
+### `docs/`
+
+First-class product and contributor documentation (operators + architecture). See [Documentation index](README.md).
+
 ### `.hatchery/`
 
-Project meta-content. Not required to run the application. Excluded from deployments. See [.hatchery/docs/README.md](README.md) for the documentation index.
+Project meta-content (branding, examples, tooling, audits, UI mocks). Not required to run the application. Excluded from deployments.
 
 <br>
 
 ---
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../branding/logos/hatchery-logo-dark.svg">
-  <img align="left" src="../branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
+  <source media="(prefers-color-scheme: dark)" srcset="../.hatchery/branding/logos/hatchery-logo-dark.svg">
+  <img align="left" src="../.hatchery/branding/logos/hatchery-logo-light.svg" height="48" alt="Hatchery">
 </picture>
 <div align="right">Hatch. Provision. Scale.</div>
 <br clear="both">

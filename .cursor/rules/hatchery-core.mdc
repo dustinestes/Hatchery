@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Hatchery Core
 
-Windows-first VM manager; **Hatchery Controller** (Controller plane) runs on Linux / macOS / Windows; **Nests** (Nest plane) are libvirt / UTM / Hyper-V (**Local Nest** or **Remote Nest**). See `.hatchery/docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
+Windows-first VM manager; **Hatchery Controller** (Controller plane) runs on Linux / macOS / Windows; **Nests** (Nest plane) are libvirt / UTM / Hyper-V (**Local Nest** or **Remote Nest**). See `docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
 
 ## Naming (1:1:1 — UI, docs, code)
 
@@ -50,10 +50,10 @@ Provider method names already use snapshot language — keep them. Do not rename
 - Answer files and provisioning adapt to guest OS — do not assume Windows everywhere
 - Surface errors in the UI, not only logs
 - Prefer editing existing files; no new abstraction layers beyond the task
-- Project meta belongs in `.hatchery/` (not required to run the app)
+- Product/contributor docs live in root `docs/`; other project meta belongs in `.hatchery/` (not required to run the app)
 - No devcontainers — Local Nest libvirt/KVM still needs a real Nest environment when used
 - **Consumer distribution north star ([#273](https://github.com/dustinestes/Hatchery/issues/273)):** OS package managers install **Controller only** (empty Nest registry); Nest setup is docs + validators. Contributor paths may keep `uv` / gunicorn for development and tests.
 
 When adding VM features, read `lib/providers/base.py` before extending the provider interface.
 
-Human docs: `CONTRIBUTING.md`, `README.md`, `.hatchery/docs/`.
+Human docs: `CONTRIBUTING.md`, `README.md`, `docs/`.

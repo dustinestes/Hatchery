@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issue:** [#268](https://github.com/dustinestes/Hatchery/issues/268)
-- **Code:** [`lib/validators/`](../../../lib/validators/)
+- **Code:** [`lib/validators/`](../../lib/validators/)
 - **How-to:** [validators.md](../validators.md)
 
 ## Context
@@ -18,7 +18,7 @@ We needed an extensibility boundary that:
 
 ## Decision
 
-1. New package [`lib/validators/`](../../../lib/validators/): `BaseValidator`, context, registry, scheduler, settings, runs
+1. New package [`lib/validators/`](../../lib/validators/): `BaseValidator`, context, registry, scheduler, settings, runs
 2. Each check declares `id`, `scope` (`controller` \| `nest` \| `content`), defaults, and `run(ctx)`
 3. **Two channels — do not conflate:**
    - **Alerts** — findings that need attention (bell / tray / toasts / Alerts pane)

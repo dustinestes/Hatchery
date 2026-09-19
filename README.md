@@ -105,7 +105,7 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 <br>
 
-> Layout and module map → [Project Structure](.hatchery/docs/project-structure.md)
+> Layout and module map → [Project Structure](docs/project-structure.md)
 
 ---
 
@@ -124,7 +124,7 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 <br>
 
-> Full Nest × feature matrix (libvirt / UTM / Hyper-V, local and remote) → [Provider support matrix](.hatchery/docs/providers.md)
+> Full Nest × feature matrix (libvirt / UTM / Hyper-V, local and remote) → [Provider support matrix](docs/providers.md)
 
 ---
 
@@ -170,13 +170,13 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 1. **Install host dependencies** — see requirements above
 2. **Clone and install Python deps** — `uv sync`
 3. **Run Hatchery** — `uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1`
-   > To run as a background service that starts automatically, see [Running as a Service](.hatchery/docs/getting-started.md#running-as-a-service).
+   > To run as a background service that starts automatically, see [Running as a Service](docs/getting-started.md#running-as-a-service).
 4. **Open the dashboard** — `http://localhost:5000`
 5. **Hatch a VM** — go to `/create`, fill in the form, click Hatch
 
 <br>
 
-> Getting Started → [Getting Started Guide](.hatchery/docs/getting-started.md)
+> Getting Started → [Getting Started Guide](docs/getting-started.md)
 
 ---
 
