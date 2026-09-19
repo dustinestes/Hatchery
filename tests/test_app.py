@@ -213,6 +213,42 @@ class TestPageTitles:
         assert "Browse library…" not in html
         assert 'id="scripts-library-browser"' not in html
 
+    def test_media_iso_library_tabs_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        html = client.get("/media/iso").data.decode()
+        assert 'id="media-tab-cache"' in html
+        assert 'id="media-tab-library"' in html
+        assert "inventory-tab--disabled" not in html
+        assert 'id="media-library-browser"' in html
+        assert "Browse library…" in html
+        assert "library-import-backdrop" not in html
+
+    def test_media_iso_cached_tab_when_library_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        html = client.get("/media/iso").data.decode()
+        assert 'id="media-tab-cache"' in html
+        assert 'id="media-tab-library"' in html
+        assert "inventory-tab--disabled" in html
+        assert 'id="media-library-browser"' not in html
+
+    def test_clutches_library_tabs_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        html = client.get("/clutches").data.decode()
+        assert 'id="clutches-tab-cache"' in html
+        assert 'id="clutches-tab-library"' in html
+        assert "inventory-tab--disabled" not in html
+        assert 'id="clutches-library-browser"' in html
+        assert "Browse library…" in html
+        assert "library-import-backdrop" not in html
+
+    def test_clutches_cached_tab_when_library_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        html = client.get("/clutches").data.decode()
+        assert 'id="clutches-tab-cache"' in html
+        assert 'id="clutches-tab-library"' in html
+        assert "inventory-tab--disabled" in html
+        assert 'id="clutches-library-browser"' not in html
+
     def test_media_iso_title_and_nav(self, client):
         html = client.get("/media/iso").data.decode()
         assert "ISO" in html
@@ -812,7 +848,9 @@ class TestLibrarySettingsGate:
 
         catalog = client.get("/api/library/media?target=iso")
         assert catalog.status_code == 200
-        assert any(i["name"] == "win11.iso" for i in catalog.get_json()["items"])
+        items = catalog.get_json()["items"]
+        hit = next(i for i in items if i["name"] == "win11.iso")
+        assert hit.get("cached") is False
 
         pull = client.post(
             "/api/library/media/pull",
@@ -824,6 +862,10 @@ class TestLibrarySettingsGate:
         )
         assert pull.status_code == 200
         assert (data / "media" / "iso" / "win11.iso").is_file()
+
+        catalog2 = client.get("/api/library/media?target=iso")
+        hit2 = next(i for i in catalog2.get_json()["items"] if i["name"] == "win11.iso")
+        assert hit2.get("cached") is True
 
     def test_nest_cache_preflight_api_ok_and_missing(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)

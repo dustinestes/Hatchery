@@ -1442,6 +1442,8 @@ def api_library_clutches():
     except ValueError as exc:
         return jsonify({"error": str(exc), "items": []}), 400
     items = library_lib.catalog_clutches(connections, bindings)
+    cached_names = set(_scan_dir("clutches", [".yaml"]))
+    items = library_lib.annotate_cached(items, cached_names)
     return jsonify({"items": items})
 
 
@@ -1482,6 +1484,13 @@ def api_library_media():
         items = library_lib.catalog_media(connections, bindings, target=target)
     except ValueError as exc:
         return jsonify({"error": str(exc), "items": []}), 400
+    if target in ("iso", "virtio"):
+        cached_names = {i["name"] for i in media_inspect_lib.scan_media_dir(target)}
+    else:
+        cached_names = {i["name"] for i in media_inspect_lib.scan_media_dir("iso")} | {
+            i["name"] for i in media_inspect_lib.scan_media_dir("virtio")
+        }
+    items = library_lib.annotate_cached(items, cached_names)
     return jsonify({"items": items})
 
 
