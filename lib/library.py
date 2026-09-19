@@ -976,3 +976,14 @@ def _catalog(
             )
     out.sort(key=lambda h: h["name"].lower())
     return out
+
+
+def annotate_cached(items: list[dict], cached_names: set[str] | list[str]) -> list[dict]:
+    """Mark catalog hits whose basename is already in the operator cache."""
+    names = {str(n) for n in cached_names}
+    out: list[dict] = []
+    for item in items:
+        row = dict(item)
+        row["cached"] = str(row.get("name") or "") in names
+        out.append(row)
+    return out

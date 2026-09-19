@@ -194,6 +194,21 @@ class TestPageTitles:
         assert html.count("sidebar-subitem active") == 1
         assert "Scripts" in html
 
+    def test_automation_scripts_library_tabs_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        html = client.get("/automation/scripts").data.decode()
+        assert 'id="scripts-tab-cache"' in html
+        assert 'id="scripts-tab-library"' in html
+        assert 'id="scripts-library-browser"' in html
+        assert "Browse library…" in html
+        assert "bindLibraryBrowser" in html
+
+    def test_automation_scripts_no_library_tabs_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        html = client.get("/automation/scripts").data.decode()
+        assert 'id="scripts-tab-library"' not in html
+        assert "Browse library…" not in html
+
     def test_media_iso_title_and_nav(self, client):
         html = client.get("/media/iso").data.decode()
         assert "ISO" in html
@@ -695,6 +710,8 @@ class TestLibrarySettingsGate:
         assert catalog.status_code == 200
         items = catalog.get_json()["items"]
         assert any(i["name"] == "tool.sh" for i in items)
+        tool = next(i for i in items if i["name"] == "tool.sh")
+        assert tool.get("cached") is False
 
         pull = client.post(
             "/api/library/scripts/pull",
@@ -703,6 +720,10 @@ class TestLibrarySettingsGate:
         assert pull.status_code == 200
         assert pull.get_json()["imported"] == ["tool.sh"]
         assert (data / "automation" / "scripts" / "tool.sh").is_file()
+
+        catalog2 = client.get("/api/library/scripts")
+        tool2 = next(i for i in catalog2.get_json()["items"] if i["name"] == "tool.sh")
+        assert tool2.get("cached") is True
 
     def test_library_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)

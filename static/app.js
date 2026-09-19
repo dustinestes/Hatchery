@@ -542,6 +542,8 @@ hatchery.vmRows = (function () {
    * Optional library dropdown: libraryEnabled, menu, fromFile, fromLibrary,
    *   libraryModal, libraryList, libraryEmpty, libraryStatus, libraryCancel,
    *   libraryConfirm, catalogUrl, pullUrl
+   * Optional onFromLibrary(): when set, called instead of opening the modal
+   *   (e.g. switch to an in-pane Library browser tab).
    * Reloads the page after any successful import. Conflicts use showToast.
    */
   hatchery.bindImportControl = function (opts) {
@@ -594,6 +596,10 @@ hatchery.vmRows = (function () {
       if (opts.fromLibrary) {
         opts.fromLibrary.addEventListener('click', function () {
           closeMenu();
+          if (typeof opts.onFromLibrary === 'function') {
+            opts.onFromLibrary();
+            return;
+          }
           openLibraryModal();
         });
       }
@@ -799,6 +805,326 @@ hatchery.vmRows = (function () {
           button.textContent = idleLabel;
         });
     });
+  };
+
+  /**
+   * In-pane Library catalog browser (filter / sort / batch pull).
+   * opts: root, catalogUrl, pullUrl, status, tbody, empty, selectAll, pullBtn,
+   *   refreshBtn, filterQ, filterConn, filterCached, sort,
+   *   pullExtra (optional object merged into each pull POST body)
+   * Returns { load: function }
+   */
+  hatchery.bindLibraryBrowser = function (opts) {
+    var items = [];
+    var selected = {};
+    var loaded = false;
+    var COPY_SVG =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>' +
+      '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>' +
+      '</svg>';
+
+    function setStatus(message, ok) {
+      var el = opts.status;
+      if (!el) return;
+      el.textContent = message || '';
+      el.classList.toggle('library-test-result--ok', ok === true);
+      el.classList.toggle('library-test-result--err', ok === false);
+    }
+
+    function esc(str) {
+      return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+      });
+    }
+
+    function copySha(sha) {
+      if (!sha) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(sha).then(function () {
+          showToast('SHA-256 copied', 'info', 2200);
+        }).catch(function () {
+          showToast('Could not copy SHA-256', 'warning', 3200);
+        });
+      } else {
+        showToast('Could not copy SHA-256', 'warning', 3200);
+      }
+    }
+
+    function fillConnectionFilter(rows) {
+      var sel = opts.filterConn;
+      if (!sel) return;
+      var current = sel.value;
+      var labels = {};
+      rows.forEach(function (row) {
+        var id = row.connection_id || '';
+        var label = row.connection_label || id;
+        if (id) labels[id] = label;
+      });
+      sel.innerHTML = '<option value="">All connections</option>';
+      Object.keys(labels).sort(function (a, b) {
+        return labels[a].localeCompare(labels[b], undefined, { sensitivity: 'base' });
+      }).forEach(function (id) {
+        var opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = labels[id];
+        sel.appendChild(opt);
+      });
+      if (current && labels[current]) sel.value = current;
+    }
+
+    function filteredSorted() {
+      var q = ((opts.filterQ && opts.filterQ.value) || '').trim().toLowerCase();
+      var conn = (opts.filterConn && opts.filterConn.value) || '';
+      var cached = (opts.filterCached && opts.filterCached.value) || '';
+      var sortKey = (opts.sort && opts.sort.value) || 'name';
+      var rows = items.filter(function (row) {
+        if (conn && row.connection_id !== conn) return false;
+        if (cached === 'yes' && !row.cached) return false;
+        if (cached === 'no' && row.cached) return false;
+        if (q) {
+          var hay = [
+            row.name || '',
+            row.relative_path || '',
+            row.connection_label || '',
+          ].join(' ').toLowerCase();
+          if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+      });
+      rows.sort(function (a, b) {
+        var av;
+        var bv;
+        if (sortKey === 'connection') {
+          av = (a.connection_label || a.connection_id || '').toLowerCase();
+          bv = (b.connection_label || b.connection_id || '').toLowerCase();
+        } else if (sortKey === 'path') {
+          av = (a.relative_path || '').toLowerCase();
+          bv = (b.relative_path || '').toLowerCase();
+        } else {
+          av = (a.name || '').toLowerCase();
+          bv = (b.name || '').toLowerCase();
+        }
+        if (av < bv) return -1;
+        if (av > bv) return 1;
+        return (a.relative_path || '').localeCompare(b.relative_path || '');
+      });
+      return rows;
+    }
+
+    function rowKey(row) {
+      return (row.connection_id || '') + '\0' + (row.relative_path || row.name || '');
+    }
+
+    function syncPullBtn() {
+      if (!opts.pullBtn) return;
+      opts.pullBtn.disabled = Object.keys(selected).length === 0;
+    }
+
+    function syncSelectAll(visible) {
+      if (!opts.selectAll) return;
+      if (!visible.length) {
+        opts.selectAll.checked = false;
+        opts.selectAll.indeterminate = false;
+        return;
+      }
+      var n = 0;
+      visible.forEach(function (row) {
+        if (selected[rowKey(row)]) n += 1;
+      });
+      opts.selectAll.checked = n === visible.length;
+      opts.selectAll.indeterminate = n > 0 && n < visible.length;
+    }
+
+    function render() {
+      var tbody = opts.tbody;
+      if (!tbody) return;
+      var rows = filteredSorted();
+      tbody.innerHTML = '';
+      if (opts.empty) opts.empty.hidden = rows.length > 0 || !loaded;
+      rows.forEach(function (row, idx) {
+        var key = rowKey(row);
+        var id = 'lib-browser-row-' + idx;
+        var tr = document.createElement('tr');
+        var name = row.name || '';
+        var path = row.relative_path || '';
+        var showPath = path && path !== name;
+        var statusText = row.cached ? 'Cached' : 'Library only';
+        var statusClass = row.cached
+          ? 'library-browser-status-badge library-browser-status-badge--cached'
+          : 'library-browser-status-badge library-browser-status-badge--remote';
+        var sha = row.sha256 ? String(row.sha256) : '';
+        var shaCell = sha
+          ? ('<button type="button" class="library-browser-sha-btn" ' +
+             'aria-label="Copy SHA-256 for ' + esc(name || path || 'item') + '" ' +
+             'title="Copy SHA-256">' + COPY_SVG + '</button>')
+          : '<span class="library-browser-sha-empty" title="SHA-256 unknown">—</span>';
+        tr.innerHTML =
+          '<td class="library-browser-check-col">' +
+            '<input type="checkbox" id="' + id + '"' +
+            (selected[key] ? ' checked' : '') +
+            ' aria-label="Select ' + esc(name || path || 'item') + '">' +
+          '</td>' +
+          '<td class="library-browser-name-cell">' +
+            '<div class="library-browser-item">' +
+              '<span class="scripts-nav-label">' + esc(name) + '</span>' +
+              (showPath
+                ? ('<span class="scripts-nav-sub" title="' + esc(path) + '">' + esc(path) + '</span>')
+                : '') +
+            '</div>' +
+          '</td>' +
+          '<td>' + esc(row.connection_label || row.connection_id || '') + '</td>' +
+          '<td class="library-browser-sha-col">' + shaCell + '</td>' +
+          '<td><span class="' + statusClass + '">' + esc(statusText) + '</span></td>';
+        var cb = tr.querySelector('input[type="checkbox"]');
+        cb.addEventListener('change', function () {
+          if (cb.checked) selected[key] = row;
+          else delete selected[key];
+          syncPullBtn();
+          syncSelectAll(rows);
+        });
+        var shaBtn = tr.querySelector('.library-browser-sha-btn');
+        if (shaBtn) {
+          shaBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            copySha(sha);
+          });
+        }
+        tbody.appendChild(tr);
+      });
+      syncSelectAll(rows);
+      syncPullBtn();
+      if (opts.status && loaded && !opts.status.classList.contains('library-test-result--err')) {
+        var total = items.length;
+        var shown = rows.length;
+        setStatus(
+          shown === total
+            ? (total + ' catalog hit' + (total === 1 ? '' : 's'))
+            : (shown + ' of ' + total + ' hits'),
+          true
+        );
+      }
+    }
+
+    function load() {
+      if (!opts.catalogUrl) return;
+      setStatus('Loading library…', true);
+      if (opts.pullBtn) opts.pullBtn.disabled = true;
+      fetch(opts.catalogUrl)
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, data: data };
+          });
+        })
+        .then(function (res) {
+          loaded = true;
+          if (!res.ok) {
+            items = [];
+            selected = {};
+            setStatus((res.data && res.data.error) || 'Failed to load library', false);
+            render();
+            return;
+          }
+          items = (res.data && res.data.items) || [];
+          fillConnectionFilter(items);
+          var nextSelected = {};
+          Object.keys(selected).forEach(function (key) {
+            var match = items.find(function (row) { return rowKey(row) === key; });
+            if (match) nextSelected[key] = match;
+          });
+          selected = nextSelected;
+          setStatus('', true);
+          render();
+        })
+        .catch(function () {
+          loaded = true;
+          items = [];
+          selected = {};
+          setStatus('Network or server error', false);
+          render();
+        });
+    }
+
+    function pullSelected() {
+      var keys = Object.keys(selected);
+      if (!keys.length || !opts.pullUrl) return;
+      if (opts.pullBtn) opts.pullBtn.disabled = true;
+      setStatus('Pulling…', true);
+      var imported = [];
+      var errors = [];
+      var chain = Promise.resolve();
+      keys.forEach(function (key) {
+        var row = selected[key];
+        chain = chain.then(function () {
+          return fetch(opts.pullUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({
+              connection_id: row.connection_id,
+              relative_path: row.relative_path,
+            }, opts.pullExtra || {})),
+          }).then(function (r) {
+            return r.json().then(function (data) {
+              return { ok: r.ok, data: data };
+            });
+          }).then(function (res) {
+            if (res.ok && res.data && res.data.imported && res.data.imported.length) {
+              imported = imported.concat(res.data.imported);
+            } else {
+              errors.push({
+                name: row.name || row.relative_path,
+                reason: (res.data && res.data.error) || 'pull failed',
+              });
+            }
+          }).catch(function () {
+            errors.push({ name: row.name || row.relative_path, reason: 'network error' });
+          });
+        });
+      });
+      chain.then(function () {
+        errors.forEach(function (err) {
+          showToast(err.name + ': ' + err.reason, 'warning', 5000);
+        });
+        if (imported.length) {
+          var msg = imported.length === 1
+            ? ('Pulled ' + imported[0])
+            : ('Pulled ' + imported.length + ' items');
+          showToast(msg + ' — ready to use.', 'info', 3200);
+          window.setTimeout(function () { window.location.reload(); }, 400);
+          return;
+        }
+        setStatus(errors.length ? 'Pull finished with errors' : 'Nothing pulled', false);
+        syncPullBtn();
+      });
+    }
+
+    if (opts.refreshBtn) {
+      opts.refreshBtn.addEventListener('click', load);
+    }
+    if (opts.pullBtn) {
+      opts.pullBtn.addEventListener('click', pullSelected);
+    }
+    if (opts.selectAll) {
+      opts.selectAll.addEventListener('change', function () {
+        var rows = filteredSorted();
+        if (opts.selectAll.checked) {
+          rows.forEach(function (row) { selected[rowKey(row)] = row; });
+        } else {
+          rows.forEach(function (row) { delete selected[rowKey(row)]; });
+        }
+        render();
+      });
+    }
+    ['filterQ', 'filterConn', 'filterCached', 'sort'].forEach(function (key) {
+      var el = opts[key];
+      if (!el) return;
+      var evt = el.tagName === 'INPUT' ? 'input' : 'change';
+      el.addEventListener(evt, render);
+    });
+
+    return { load: load };
   };
 
   function updateBadge(items) {

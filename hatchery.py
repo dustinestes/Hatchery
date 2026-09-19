@@ -1401,6 +1401,8 @@ def api_library_scripts():
     except ValueError as exc:
         return jsonify({"error": str(exc), "items": []}), 400
     items = library_lib.catalog_scripts(connections, bindings)
+    cached_names = {s["name"] for s in _scan_script_inventory()}
+    items = library_lib.annotate_cached(items, cached_names)
     return jsonify({"items": items})
 
 
