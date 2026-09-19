@@ -1239,19 +1239,6 @@ def api_library_test_filter():
     return jsonify(result), status
 
 
-def _bindings_reference_connection(conn_id: str) -> list[str]:
-    """Return human labels for domains that still reference ``conn_id``."""
-    hits: list[str] = []
-    for label, rows in (
-        ("Scripts", config.library_script_bindings()),
-        ("Clutches", config.library_clutch_bindings()),
-        ("Media", config.library_media_bindings()),
-    ):
-        if any(str(b.get("connection_id") or "") == conn_id for b in rows):
-            hits.append(label)
-    return hits
-
-
 @app.route("/api/library/connections", methods=["PUT"])
 def api_library_connection_upsert():
     """Upsert one Library connection (scoped Save from Settings → Library)."""
@@ -1286,44 +1273,63 @@ def api_library_connection_upsert():
     return jsonify({"ok": True, "connection": parsed, "created": not replaced})
 
 
+_BINDING_DOMAIN_KEYS = {
+    "scripts": ("library_script_bindings", library_lib.parse_script_bindings),
+    "clutches": ("library_clutch_bindings", library_lib.parse_clutch_bindings),
+    "media": ("library_media_bindings", library_lib.parse_media_bindings),
+}
+
+
 @app.route("/api/library/connections/<conn_id>", methods=["DELETE"])
 def api_library_connection_delete(conn_id: str):
-    """Delete one Library connection when no bindings still reference it."""
+    """Delete one Library connection and cascade-remove bindings that reference it."""
     denied = _library_require_enabled()
     if denied:
         return denied
     cid = str(conn_id or "").strip()
     if not cid:
         return jsonify({"ok": False, "error": "connection id is required"}), 400
-    refs = _bindings_reference_connection(cid)
-    if refs:
-        return jsonify(
-            {
-                "ok": False,
-                "error": (
-                    f"Connection is still used by {' / '.join(refs)} bindings — "
-                    "remove or reassign those bindings first."
-                ),
-            }
-        ), 400
 
     cfg = config.get()
-    connections = [c for c in (cfg.get("library_connections") or []) if c.get("id") != cid]
-    if len(connections) == len(cfg.get("library_connections") or []):
+    existing = list(cfg.get("library_connections") or [])
+    removed = next((c for c in existing if c.get("id") == cid), None)
+    if removed is None:
         return jsonify({"ok": False, "error": "Unknown connection id"}), 404
+
+    data = request.get_json(silent=True) or {}
+    delete_git_cache = bool(data.get("delete_git_cache"))
+
+    bindings_removed = 0
+    for cfg_key, _parse in _BINDING_DOMAIN_KEYS.values():
+        rows = list(cfg.get(cfg_key) or [])
+        kept = [b for b in rows if str(b.get("connection_id") or "") != cid]
+        bindings_removed += len(rows) - len(kept)
+        cfg[cfg_key] = kept
+
+    connections = [c for c in existing if c.get("id") != cid]
     cfg["library_connections"] = connections
     config.save(cfg)
     from lib import library_health as library_health_lib
 
     library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
-    return jsonify({"ok": True, "id": cid})
 
+    git_cache_deleted = False
+    git_cache_warning = None
+    if delete_git_cache and str(removed.get("type") or "").strip().lower() == "git":
+        try:
+            git_cache_deleted = library_lib.delete_git_cache(cid)
+        except (ValueError, OSError) as exc:
+            git_cache_warning = str(exc)
 
-_BINDING_DOMAIN_KEYS = {
-    "scripts": ("library_script_bindings", library_lib.parse_script_bindings),
-    "clutches": ("library_clutch_bindings", library_lib.parse_clutch_bindings),
-    "media": ("library_media_bindings", library_lib.parse_media_bindings),
-}
+    payload = {
+        "ok": True,
+        "id": cid,
+        "bindings_removed": bindings_removed,
+        "git_cache_deleted": git_cache_deleted,
+    }
+    if git_cache_warning:
+        payload["git_cache_warning"] = git_cache_warning
+    return jsonify(payload)
 
 
 @app.route("/api/library/bindings/<domain>", methods=["PUT"])

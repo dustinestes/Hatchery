@@ -1092,6 +1092,35 @@
   </div>
 </template>
 {% endif %}
+
+{% if section == 'library' %}
+<div id="library-conn-remove-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-conn-remove-title">
+    <h2 class="modal-title" id="library-conn-remove-title">Remove Library connection</h2>
+    <div class="modal-body">
+      <p>Remove <strong id="library-conn-remove-label"></strong> from Settings?</p>
+      <p class="modal-warning">This also removes all Scripts, Clutches, and Media bindings that use this connection.</p>
+      <div id="library-conn-remove-git-opts" class="library-conn-remove-git-opts" hidden>
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-conn-remove-git-cache">
+            <input type="checkbox" id="library-conn-remove-git-cache" checked>
+            <span class="form-toggle-label">Also delete the git clone cache</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache."
+                tabindex="0"
+                role="img"
+                aria-label="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache.">i</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-conn-remove-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-conn-remove-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -1258,6 +1287,112 @@
   if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
   if (!clutchRows || !clutchTpl || !addClutchBtn) return;
   if (!mediaRows || !mediaTpl || !addMediaBtn) return;
+
+  const removeBackdrop = document.getElementById('library-conn-remove-backdrop');
+  const removeLabelEl = document.getElementById('library-conn-remove-label');
+  const removeGitOpts = document.getElementById('library-conn-remove-git-opts');
+  const removeGitCache = document.getElementById('library-conn-remove-git-cache');
+  const removeCancel = document.getElementById('library-conn-remove-cancel');
+  const removeConfirm = document.getElementById('library-conn-remove-confirm');
+  let removePending = null;
+
+  function closeConnRemoveModal() {
+    if (!removeBackdrop) return;
+    removeBackdrop.hidden = true;
+    const focusEl = removePending && removePending.focusEl;
+    removePending = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+  }
+
+  function openConnRemoveModal(row, cid, focusEl) {
+    if (!removeBackdrop || !removeConfirm) return;
+    const labelInput = row.querySelector('input[name="library_conn_label"]');
+    const typeEl = row.querySelector('.library-conn-type-input');
+    const ctype = ((typeEl && typeEl.value) || 'path').toLowerCase();
+    const label = (labelInput && labelInput.value) || cid || 'connection';
+    if (removeLabelEl) removeLabelEl.textContent = label;
+    if (removeGitOpts) removeGitOpts.hidden = ctype !== 'git';
+    if (removeGitCache) {
+      removeGitCache.checked = true;
+      removeGitCache.disabled = ctype !== 'git';
+    }
+    removePending = { row: row, cid: cid, ctype: ctype, focusEl: focusEl };
+    removeBackdrop.hidden = false;
+    removeConfirm.focus();
+  }
+
+  if (removeCancel) {
+    removeCancel.addEventListener('click', closeConnRemoveModal);
+  }
+  if (removeBackdrop) {
+    removeBackdrop.addEventListener('click', function (e) {
+      if (e.target === removeBackdrop) closeConnRemoveModal();
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && removeBackdrop && !removeBackdrop.hidden) {
+      e.preventDefault();
+      closeConnRemoveModal();
+    }
+  });
+  if (removeConfirm) {
+    removeConfirm.addEventListener('click', function () {
+      if (!removePending) return;
+      const row = removePending.row;
+      const cid = removePending.cid;
+      const ctype = removePending.ctype;
+      const deleteGit = ctype === 'git' && removeGitCache && removeGitCache.checked;
+      removeConfirm.disabled = true;
+      const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
+        .replace('CONN_ID', encodeURIComponent(cid));
+      fetch(delUrl, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_git_cache: !!deleteGit }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          removeConfirm.disabled = false;
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Could not remove connection', 'error', 5000);
+            }
+            return;
+          }
+          closeConnRemoveModal();
+          row.remove();
+          document.querySelectorAll(
+            '#library-script-bind-rows .library-bind-row, '
+            + '#library-clutch-bind-rows .library-bind-row, '
+            + '#library-media-bind-rows .library-bind-row'
+          ).forEach(function (bindRow) {
+            var sel = bindRow.querySelector('select[name$="_connection_id"]');
+            if (sel && sel.value === cid) bindRow.remove();
+          });
+          syncConnEmpty();
+          syncBindEmpty();
+          syncClutchEmpty();
+          syncMediaEmpty();
+          refreshBindConnectionOptions();
+          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+            hatchery.refreshStatusSurfaces();
+          }
+          if (res.data && res.data.git_cache_warning && window.hatchery && hatchery.showToast) {
+            hatchery.showToast(
+              'Connection removed, but git clone cache was not deleted: ' + res.data.git_cache_warning,
+              'warning',
+              6000
+            );
+          }
+        })
+        .catch(function () {
+          removeConfirm.disabled = false;
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Network or server error', 'error', 5000);
+          }
+        });
+    });
+  }
 
   function newId() {
     if (window.crypto && crypto.randomUUID) {
@@ -1777,32 +1912,7 @@
         refreshBindConnectionOptions();
         return;
       }
-      if (!window.confirm('Remove this connection from Settings?')) return;
-      const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
-        .replace('CONN_ID', encodeURIComponent(cid));
-      fetch(delUrl, {
-        method: 'DELETE',
-      })
-        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-        .then(function (res) {
-          if (!res.ok) {
-            if (window.hatchery && hatchery.showToast) {
-              hatchery.showToast((res.data && res.data.error) || 'Could not remove connection', 'error', 5000);
-            }
-            return;
-          }
-          row.remove();
-          syncConnEmpty();
-          refreshBindConnectionOptions();
-          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
-            hatchery.refreshStatusSurfaces();
-          }
-        })
-        .catch(function () {
-          if (window.hatchery && hatchery.showToast) {
-            hatchery.showToast('Network or server error', 'error', 5000);
-          }
-        });
+      openConnRemoveModal(row, cid, remove);
       return;
     }
     const saveBtn = e.target.closest('.library-save-conn-btn');

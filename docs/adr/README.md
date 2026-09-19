@@ -51,6 +51,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0006](0006-pluggable-validators.md) | Pluggable validators; Alerts ≠ validator runs | Accepted |
 | [0007](0007-library-nest-content-planes.md) | Library / Nest content planes + local-first hatch cache | Accepted |
 | [0008](0008-alerts-events-audit-separation.md) | Alerts vs Events vs Audit (Notifications umbrella) | Accepted |
+| [0009](0009-library-git-checkout-cache.md) | Library git checkout cache on the Controller | Accepted |
 
 <br>
 

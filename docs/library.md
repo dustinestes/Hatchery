@@ -116,17 +116,18 @@ Enable Library under Settings → General. Deep links to Library Settings while 
 
 ### Git connections (#251)
 
-Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection.
+Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection. Architecture: [ADR-0009](adr/0009-library-git-checkout-cache.md). Long-term forge HTTP APIs without a local clone: [#307](https://github.com/dustinestes/Hatchery/issues/307).
 
 | | |
 |---|---|
 | **Base URI** | HTTPS (`https://github.com/org/repo.git`), SSH (`git@host:org/repo.git`), or a local repo path / `file://` |
 | **Token** | Optional HTTPS PAT — embedded for `git ls-remote` / clone (GitHub: `x-access-token`; other HTTPS hosts: `oauth2`). SSH remotes use the Controller’s SSH agent/keys; token is ignored |
-| **Test** | `git ls-remote --heads` (requires `git` on the Controller PATH) |
-| **List / pull** | Shallow `--depth 1` checkout under `{data_dir}/library/git/{connection_id}/`; binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
+| **Test** | `git ls-remote --heads` (requires `git` on the Controller PATH). Does **not** refresh the local checkout |
+| **List / pull** | Before walking files, `ensure_git_checkout` refreshes a shallow `--depth 1` tree under `{data_dir}/library/git/{connection_id}/` (clone on first use; later `fetch` + hard reset to tip). Binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
+| **Lifecycle** | No background forge sync. Disabling a connection ([#293](https://github.com/dustinestes/Hatchery/issues/293)) does not prune the checkout. Removing a connection also removes all domain bindings that use it; for **git**, Settings offers to delete that clone cache (not Scripts / Clutches / Media files already pulled). Connection **id** is stable — changing the URI keeps the same cache directory |
 | **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched — without `git-lfs`, LFS pointer files may be copied as-is |
 
-Path and HTTPS behavior are unchanged.
+Path and HTTPS behavior are unchanged. Operator-cache drift vs source (sync UI): [#308](https://github.com/dustinestes/Hatchery/issues/308).
 
 ### API connections (#255)
 
