@@ -113,6 +113,11 @@ CONTROLLER_ALERT_PREFIXES = (
     "Invalid Clutch file:",
 )
 
+LIBRARY_SCOPED_ALERT_PREFIXES = (
+    "Library connection:",
+    "Library connection token expiry:",
+)
+
 
 def resolve_alerts_for_nest_id(nest_id: str) -> None:
     """Resolve active Nest-scoped alerts that reference ``(nest_id)``.

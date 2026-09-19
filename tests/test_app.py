@@ -2333,6 +2333,16 @@ class TestScanDir:
 
 
 class TestPlaneStatus:
+    _LIBRARIES_OFF = {
+        "library_enabled": False,
+        "libraries_visible": False,
+        "libraries_ok": True,
+        "libraries_title": "Library disabled",
+        "libraries_dot": "muted",
+        "library_connection_total": 0,
+        "library_alert_count": 0,
+    }
+
     def test_footer_shows_hatchery_and_nests(self, client):
         with patch(
             "lib.plane_status.footer_status",
@@ -2347,6 +2357,7 @@ class TestPlaneStatus:
                 "nest_total": 1,
                 "nest_unreachable": 0,
                 "nest_alert_count": 0,
+                **self._LIBRARIES_OFF,
             },
         ):
             html = client.get("/").data.decode()
@@ -2354,6 +2365,7 @@ class TestPlaneStatus:
         assert "Nests</span>" in html
         assert "footer-hatchery" in html
         assert "footer-nests" in html
+        assert "footer-libraries" in html
         assert "nest-status-dot--green" in html
 
     def test_hatchery_red_when_controller_issues(self, client):
@@ -2370,6 +2382,7 @@ class TestPlaneStatus:
                 "nest_total": 1,
                 "nest_unreachable": 0,
                 "nest_alert_count": 0,
+                **self._LIBRARIES_OFF,
             },
         ):
             html = client.get("/").data.decode()
@@ -2390,6 +2403,7 @@ class TestPlaneStatus:
                 "nest_total": 0,
                 "nest_unreachable": 0,
                 "nest_alert_count": 0,
+                **self._LIBRARIES_OFF,
             },
         ):
             html = client.get("/").data.decode()
@@ -2410,11 +2424,62 @@ class TestPlaneStatus:
                 "nest_total": 2,
                 "nest_unreachable": 1,
                 "nest_alert_count": 0,
+                **self._LIBRARIES_OFF,
             },
         ):
             html = client.get("/").data.decode()
         assert "1 of 2 unreachable" in html
         assert "nest-status-dot--red" in html
+
+    def test_libraries_chip_visible_when_enabled(self, client):
+        with patch(
+            "lib.plane_status.footer_status",
+            return_value={
+                "hatchery_ok": True,
+                "hatchery_title": "Hatchery Controller OK",
+                "hatchery_dot": "green",
+                "hatchery_issue_count": 0,
+                "nests_ok": True,
+                "nests_title": "All 1 Nest(s) OK",
+                "nests_dot": "green",
+                "nest_total": 1,
+                "nest_unreachable": 0,
+                "nest_alert_count": 0,
+                "library_enabled": True,
+                "libraries_visible": True,
+                "libraries_ok": True,
+                "libraries_title": "No Library connections",
+                "libraries_dot": "muted",
+                "library_connection_total": 0,
+                "library_alert_count": 0,
+            },
+        ):
+            html = client.get("/").data.decode()
+        assert "Libraries</span>" in html
+        assert "No Library connections" in html
+        open_tag = html.split('id="footer-libraries"', 1)[1].split(">", 1)[0]
+        assert "hidden" not in open_tag
+
+    def test_libraries_chip_hidden_when_disabled(self, client):
+        with patch(
+            "lib.plane_status.footer_status",
+            return_value={
+                "hatchery_ok": True,
+                "hatchery_title": "Hatchery Controller OK",
+                "hatchery_dot": "green",
+                "hatchery_issue_count": 0,
+                "nests_ok": True,
+                "nests_title": "All 1 Nest(s) OK",
+                "nests_dot": "green",
+                "nest_total": 1,
+                "nest_unreachable": 0,
+                "nest_alert_count": 0,
+                **self._LIBRARIES_OFF,
+            },
+        ):
+            html = client.get("/").data.decode()
+        open_tag = html.split('id="footer-libraries"', 1)[1].split(">", 1)[0]
+        assert "hidden" in open_tag
 
     def test_api_plane_status(self, client):
         resp = client.get("/api/plane-status")
@@ -2422,8 +2487,12 @@ class TestPlaneStatus:
         data = resp.get_json()
         assert "hatchery_dot" in data
         assert "nests_dot" in data
+        assert "libraries_visible" in data
+        assert "libraries_dot" in data
         assert data["hatchery_dot"] in ("green", "red")
         assert data["nests_dot"] in ("green", "red", "muted")
+        assert data["libraries_dot"] in ("green", "red", "muted")
+        assert isinstance(data["libraries_visible"], bool)
 
     def test_status_present_on_all_panes(self, client):
         for path in [
@@ -2445,6 +2514,9 @@ class TestPlaneStatus:
             assert "Nests" in html
             assert "footer-hatchery" in html
             assert "footer-nests" in html
+            assert "footer-libraries" in html
+            # Libraries chip is in the DOM but hidden when Library is off.
+            assert 'id="footer-libraries"' in html
 
 
 class TestRequirementsSync:

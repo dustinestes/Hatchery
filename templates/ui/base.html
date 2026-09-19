@@ -229,8 +229,10 @@
 
   </div>
 
-  <!-- Footer: Hatchery (Controller) + Nests plane status (#277). Alerts stay on the bell.
-       Counts from live registry + alerts via /api/plane-status (not the page URL). -->
+  <!-- Footer: Hatchery + Nests + Libraries (#277 / #254). Alerts stay on the bell.
+       Counts from live registry + alerts via /api/plane-status (not the page URL).
+       Libraries chip stays in the DOM (hidden when Library disabled) so the poller
+       can show/hide without a full reload. -->
   <footer class="footer">
     <div class="footer-left">
       <div class="nest-status" id="footer-hatchery"
@@ -246,6 +248,14 @@
         <span class="nest-status-dot nest-status-dot--{{ nests_dot }}" aria-hidden="true"></span>
         <span class="nest-status-label">Nests</span>
         <span class="visually-hidden" id="footer-nests-sr">{{ nests_title }}</span>
+      </div>
+      <div class="nest-status" id="footer-libraries"
+           title="{{ libraries_title }}"
+           data-dot="{{ libraries_dot }}"
+           {% if not libraries_visible %}hidden{% endif %}>
+        <span class="nest-status-dot nest-status-dot--{{ libraries_dot }}" aria-hidden="true"></span>
+        <span class="nest-status-label">Libraries</span>
+        <span class="visually-hidden" id="footer-libraries-sr">{{ libraries_title }}</span>
       </div>
     </div>
     <div class="footer-right">

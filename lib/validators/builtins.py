@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from lib import clutch as clutch_lib
 from lib import config
+from lib import library as library_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import nests as nests_lib
 from lib import requirements as req_lib
@@ -208,20 +209,51 @@ class NestReachabilityValidator(BaseValidator):
         return f"All {checked} Nest(s) reachable"
 
 
-class _StubValidator(BaseValidator):
-    stub = True
-    default_enabled = False
-    default_interval_seconds = 120
-
-    def run(self, ctx: ValidatorContext) -> str:
-        return "Not implemented yet"
-
-
-class LibraryConnectionsValidator(_StubValidator):
+class LibraryConnectionsValidator(BaseValidator):
     id = "library_connections"
     title = "Library connections"
-    description = "Check Library sources for reachability, auth, and token expiry. Follow-up #254."
+    description = "Check Library sources for reachability, auth, and token expiry."
     scope = "content"
+    default_interval_seconds = 120
+    default_enabled = True
+
+    def run(self, ctx: ValidatorContext) -> str:
+        from lib import library_health as lh
+
+        if not config.library_enabled():
+            lh.resolve_all_library_alerts()
+            return "Library disabled"
+
+        raw = config.library_connections()
+        try:
+            connections = library_lib.parse_connections(raw, enforce_expiry_future=False)
+        except ValueError as exc:
+            ctx.record_alert(
+                f"{lh.CONNECTION_ALERT_PREFIX} registry invalid — {exc}",
+                tier="alert",
+            )
+            return f"Library connection registry invalid: {exc}"
+
+        lh.prune_alerts_for_removed_connections({c["id"] for c in connections})
+
+        def _note(tier: str) -> None:
+            ctx.note_finding(tier)
+
+        probe = lh.sync_connection_alerts(connections, note_finding=_note)
+        recorded_expiry = lh.sync_token_expiry_alerts(connections, note_finding=_note)
+
+        parts: list[str] = []
+        if probe["checked"] == 0 and not connections:
+            return "No Library connections"
+        if probe["down"]:
+            parts.append(f"{probe['down']} of {probe['checked']} connection(s) unhealthy")
+        elif probe["checked"]:
+            parts.append(f"All {probe['checked']} connection(s) reachable")
+        if recorded_expiry:
+            parts.append(f"{len(recorded_expiry)} token expiry finding(s)")
+        if probe["skipped_git"]:
+            parts.append(f"skipped {probe['skipped_git']} git connection(s)")
+        return "; ".join(parts) if parts else "Library connections OK"
 
 
 def register_builtins() -> None:

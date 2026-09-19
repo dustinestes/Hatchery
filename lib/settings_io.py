@@ -142,6 +142,14 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
     new_cfg["data_dir"] = data_dir
 
     config_lib.save(new_cfg)
+    from lib import library_health as library_health_lib
+
+    if not new_cfg.get("library_enabled"):
+        library_health_lib.resolve_all_library_alerts()
+    else:
+        library_health_lib.prune_alerts_for_removed_connections(
+            {c["id"] for c in (new_cfg.get("library_connections") or []) if c.get("id")}
+        )
     return {
         "ok": True,
         "warnings": warnings,

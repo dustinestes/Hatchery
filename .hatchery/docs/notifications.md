@@ -83,9 +83,7 @@ Surfaces **do not** invent health logic or re-run checks. They call APIs over st
 | `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
 | `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
 
-Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests**, **Alerts pane** table, **Validators** pane run history. Planned on the same bus:
-
-- [#254](https://github.com/dustinestes/Hatchery/issues/254) — Libraries footer chip (visibility + plane-status fields)
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests** + **Libraries** (Libraries only when Library is enabled — [#254](https://github.com/dustinestes/Hatchery/issues/254)), **Alerts pane** table, **Validators** pane run history.
 - [#280](https://github.com/dustinestes/Hatchery/issues/280) — Validators pane filters / finding tiers (pane subscribes to the tick)
 
 ```js
@@ -170,6 +168,8 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 **Nest removed from Settings** ([#275](https://github.com/dustinestes/Hatchery/issues/275)): saving the Nest registry after deleting a Nest resolves Nest-scoped findings that embed that Nest’s id (`Nest reachability:`, `Nest capability:`, `Nest SSH identity expiry:`). Rows stay resolved for history; the bell clears. Reachability snapshot entries for removed Nest ids are pruned so Nest plane rollups stay honest.
 
+**Library connection removed / Library disabled** ([#254](https://github.com/dustinestes/Hatchery/issues/254)): saving Library Settings after deleting a connection resolves Library-scoped findings for that connection id. Disabling Library under General resolves all Library-scoped Alerts and hides the Libraries footer chip.
+
 | State | Rendered as |
 |---|---|
 | `resolved = 0` | Active badge |
@@ -177,7 +177,7 @@ Resolved alerts remain as historical records. They appear in the Alerts pane wit
 
 ### Background sync
 
-Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators** (filters: validator / status / tier). Runs that detect problems use `status=findings` and a non-`info` tier ([#280](https://github.com/dustinestes/Hatchery/issues/280)).
+Health and content checks run as **pluggable validators** ([validators.md](validators.md), [#268](https://github.com/dustinestes/Hatchery/issues/268)). Each validator has its own enable flag and interval under Settings → General. Run history is stored in `validator_runs` and shown under **Notifications → Validators** (filters: validator / status / tier). Runs that detect problems use `status=findings` and a non-`info` tier ([#280](https://github.com/dustinestes/Hatchery/issues/280)). Library connection health is `library_connections` ([#254](https://github.com/dustinestes/Hatchery/issues/254)).
 
 **Findings** still use the Alerts table (bell / tray). Examples:
 
@@ -193,11 +193,14 @@ The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the 
 
 | Surface | Meaning |
 |---|---|
-| **Bell / Alerts pane** | All active findings (Controller, Nest reachability, Nest capability, Clutches, …) |
+| **Bell / Alerts pane** | All active findings (Controller, Nest reachability, Nest capability, Library connections, Clutches, …) |
 | **Footer Hatchery** | Controller-plane rollup — green when no Controller-scoped alerts (excl. info); red when requirements / invalid Clutches / etc. need attention |
 | **Footer Nests** | Nest-plane rollup — muted when no Nests registered; green when all registered Nests are OK; red when any unreachable or Nest-scoped alert is active |
+| **Footer Libraries** | Content-plane rollup ([#254](https://github.com/dustinestes/Hatchery/issues/254)) — **hidden** when Library is disabled; muted when enabled with zero connections; green when connections exist and no Library-scoped alerts; red when any Library connection / token-expiry Alert is active |
 
-Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + alerts + reachability snapshot). The same status-surfaces bus as Alerts (`refreshStatusSurfaces` / `onStatusTick`) keeps footer and bell aligned ([#278](https://github.com/dustinestes/Hatchery/issues/278), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
+Status is glanceable only (no tray, no nav). Payload comes from `GET /api/plane-status` (live Nest registry + Library flag/connections + alerts + reachability snapshot). The Libraries chip stays in the DOM (`hidden` when off) so enabling Library updates visibility on the next status poll without a full page reload. The same status-surfaces bus as Alerts (`refreshStatusSurfaces` / `onStatusTick`) keeps footer and bell aligned ([#278](https://github.com/dustinestes/Hatchery/issues/278), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
+
+Library prefixes: `Library connection:`, `Library connection token expiry:` — see [library.md — Connection health](library.md#connection-health-254).
 
 ### Observability decision (#263)
 

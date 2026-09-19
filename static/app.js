@@ -916,9 +916,12 @@ hatchery.vmRows = (function () {
   }
 
   function applyPlaneStatus(status) {
-    function apply(id, title, dot) {
+    function apply(id, title, dot, visible) {
       var el = document.getElementById(id);
       if (!el) return;
+      if (typeof visible === 'boolean') {
+        el.hidden = !visible;
+      }
       var safeDot = (dot === 'red' || dot === 'green' || dot === 'muted') ? dot : 'muted';
       el.title = title || '';
       el.setAttribute('data-dot', safeDot);
@@ -931,6 +934,12 @@ hatchery.vmRows = (function () {
     }
     apply('footer-hatchery', status.hatchery_title, status.hatchery_dot);
     apply('footer-nests', status.nests_title, status.nests_dot);
+    apply(
+      'footer-libraries',
+      status.libraries_title,
+      status.libraries_dot,
+      !!status.libraries_visible
+    );
   }
 
   function pollPlaneStatus() {
@@ -948,7 +957,7 @@ hatchery.vmRows = (function () {
 
   /**
    * Status surfaces bus (#282): one refresh entrypoint for bell / tray / footer
-   * (and later Libraries). Surfaces read stored health — they do not re-run checks.
+   * (Hatchery, Nests, Libraries). Surfaces read stored health — they do not re-run checks.
    * Pane code may subscribe via hatchery.onStatusTick instead of a new setInterval.
    */
   function notifyStatusTick(payload) {
