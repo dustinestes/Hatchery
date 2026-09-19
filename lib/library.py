@@ -465,12 +465,66 @@ def _test_git(conn: dict) -> dict:
 
 def git_cache_dir(conn: dict) -> Path:
     """Return the per-connection shallow clone path under the data directory."""
+    return git_cache_path_for_id(str(conn.get("id") or "").strip() or "unknown")
+
+
+def git_cache_path_for_id(connection_id: str) -> Path:
+    """Return ``{data_dir}/library/git/{connection_id}`` for a connection id."""
     from lib import config as config_lib
 
-    cid = str(conn.get("id") or "").strip() or "unknown"
+    cid = str(connection_id or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", cid):
         raise ValueError(f"invalid connection id for git cache: {cid!r}")
     return config_lib.data_dir() / _GIT_CACHE_SUBDIR / cid
+
+
+def _rmtree_portable(path: Path) -> None:
+    """Recursively remove ``path`` on Linux / macOS / Windows Controllers.
+
+    Clears read-only bits on failure (common under ``.git`` on Windows) then retries.
+    """
+    import stat
+
+    def _onexc(func, p, exc_info=None):  # noqa: ARG001 — shutil signature varies
+        target = Path(p)
+        try:
+            if target.exists():
+                target.chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+                func(p)
+        except OSError:
+            raise
+
+    # Python 3.12+ prefers onexc; 3.11 still uses onerror.
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except TypeError:
+        shutil.rmtree(path, onerror=lambda func, p, _err: _onexc(func, p))
+
+
+def delete_git_cache(connection_id: str) -> bool:
+    """Remove the shallow clone cache for ``connection_id`` if present.
+
+    Returns True when a directory was removed. No-op (False) when missing.
+    Refuses paths that resolve outside ``{data_dir}/library/git/``.
+    """
+    from lib import config as config_lib
+
+    cache = git_cache_path_for_id(connection_id)
+    root = (config_lib.data_dir() / _GIT_CACHE_SUBDIR).resolve()
+    try:
+        resolved = cache.resolve(strict=False)
+    except OSError as exc:
+        raise ValueError(f"cannot resolve git cache path: {exc}") from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("git cache path escapes library/git root") from exc
+    if not cache.exists():
+        return False
+    if not cache.is_dir():
+        raise ValueError(f"git cache path is not a directory: {cache}")
+    _rmtree_portable(cache)
+    return True
 
 
 def ensure_git_checkout(conn: dict) -> Path:
@@ -486,14 +540,17 @@ def ensure_git_checkout(conn: dict) -> Path:
     try:
         if not git_dir.is_dir():
             if cache.exists():
-                shutil.rmtree(cache)
+                _rmtree_portable(cache)
             result = _run_git(
                 ["clone", "--depth", "1", "--single-branch", url, str(cache)],
                 timeout=_GIT_TIMEOUT_S,
             )
             if result.returncode != 0:
                 if cache.exists():
-                    shutil.rmtree(cache, ignore_errors=True)
+                    try:
+                        _rmtree_portable(cache)
+                    except OSError:
+                        shutil.rmtree(cache, ignore_errors=True)
                 raise ValueError(f"git clone failed: {_git_error_detail(result)}")
         else:
             fetch = _run_git(

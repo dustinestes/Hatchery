@@ -414,6 +414,20 @@ class TestGitLibrary:
         clutch_hits = library.list_clutch_hits(conn, "*")
         assert {h["name"] for h in clutch_hits} == {"lab.yaml"}
 
+    def test_delete_git_cache_removes_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        cache = tmp_path / "library" / "git" / "g1"
+        cache.mkdir(parents=True)
+        (cache / "hello.txt").write_text("hi", encoding="utf-8")
+        assert library.delete_git_cache("g1") is True
+        assert not cache.exists()
+        assert library.delete_git_cache("g1") is False
+
+    def test_delete_git_cache_rejects_bad_id(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        with pytest.raises(ValueError, match="invalid connection id"):
+            library.delete_git_cache("../escape")
+
 
 class TestMediaLibrary:
     @pytest.fixture

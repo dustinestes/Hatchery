@@ -677,13 +677,135 @@ class TestLibrarySettingsGate:
                 "enabled": True,
             }
         ]
-        blocked = client.delete("/api/library/connections/cpath1")
-        assert blocked.status_code == 400
-
-        state["library_script_bindings"] = []
         deleted = client.delete("/api/library/connections/cpath1")
         assert deleted.status_code == 200
+        body = deleted.get_json()
+        assert body["ok"] is True
+        assert body["bindings_removed"] == 1
         assert state["library_connections"] == []
+        assert state["library_script_bindings"] == []
+
+    def test_library_api_delete_git_connection_removes_cache(self, client, tmp_path, monkeypatch):
+        state = {
+            "data_dir": str(tmp_path),
+            "bg_interval": 60,
+            "library_enabled": True,
+            "library_connections": [
+                {
+                    "id": "g1",
+                    "label": "Ops git",
+                    "type": "git",
+                    "base_uri": "https://example.com/org/repo.git",
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": True,
+                }
+            ],
+            "library_script_bindings": [],
+            "library_clutch_bindings": [],
+            "library_media_bindings": [],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "get", lambda: state)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
+        monkeypatch.setattr(
+            cfg, "library_script_bindings", lambda: list(state["library_script_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_clutch_bindings", lambda: list(state["library_clutch_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+
+        cache = tmp_path / "library" / "git" / "g1"
+        cache.mkdir(parents=True)
+        (cache / "marker.txt").write_text("x", encoding="utf-8")
+
+        kept = client.delete(
+            "/api/library/connections/g1",
+            json={"delete_git_cache": False},
+        )
+        assert kept.status_code == 200
+        assert kept.get_json()["git_cache_deleted"] is False
+        assert cache.is_dir()
+        assert state["library_connections"] == []
+
+        state["library_connections"] = [
+            {
+                "id": "g1",
+                "label": "Ops git",
+                "type": "git",
+                "base_uri": "https://example.com/org/repo.git",
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": True,
+            }
+        ]
+        deleted = client.delete(
+            "/api/library/connections/g1",
+            json={"delete_git_cache": True},
+        )
+        assert deleted.status_code == 200
+        body = deleted.get_json()
+        assert body["ok"] is True
+        assert body["git_cache_deleted"] is True
+        assert not cache.exists()
+        assert state["library_connections"] == []
+
+    def test_library_api_delete_path_ignores_git_cache_flag(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        state = {
+            "data_dir": str(tmp_path),
+            "bg_interval": 60,
+            "library_enabled": True,
+            "library_connections": [
+                {
+                    "id": "cpath1",
+                    "label": "Share",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": True,
+                }
+            ],
+            "library_script_bindings": [],
+            "library_clutch_bindings": [],
+            "library_media_bindings": [],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "get", lambda: state)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
+        monkeypatch.setattr(
+            cfg, "library_script_bindings", lambda: list(state["library_script_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_clutch_bindings", lambda: list(state["library_clutch_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
+        )
+        monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+
+        stray = tmp_path / "library" / "git" / "cpath1"
+        stray.mkdir(parents=True)
+        (stray / "x").write_text("1", encoding="utf-8")
+
+        deleted = client.delete(
+            "/api/library/connections/cpath1",
+            json={"delete_git_cache": True},
+        )
+        assert deleted.status_code == 200
+        assert deleted.get_json()["git_cache_deleted"] is False
+        assert stray.is_dir()
 
     def test_library_api_upsert_binding(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
