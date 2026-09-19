@@ -45,14 +45,12 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 |---|---|---|
 | [0001](0001-library-api-adapters.md) | Library API connection type + pluggable providers | Accepted |
 | [0002](0002-library-in-pane-browser.md) | In-pane Library browser (Cached \| Library tabs) | Accepted |
-
-### Backfill candidates (not written yet)
-
-Write these only when the decision is revisited or someone asks “why”:
-
-- Nest registry / factory (#206 / #207)
-- Status surfaces gather → store → poll (#282)
-- Controller-only package-manager distribution (#273)
+| [0003](0003-nest-registry-provider-factory.md) | Nest registry + provider factory (no hard-wired libvirt) | Accepted |
+| [0004](0004-status-surfaces-gather-store-poll.md) | Status surfaces — gather → store → poll | Accepted |
+| [0005](0005-controller-only-package-distribution.md) | Controller-only install via OS package managers | Accepted |
+| [0006](0006-pluggable-validators.md) | Pluggable validators; Alerts ≠ validator runs | Accepted |
+| [0007](0007-library-nest-content-planes.md) | Library / Nest content planes + local-first hatch cache | Accepted |
+| [0008](0008-alerts-events-audit-separation.md) | Alerts vs Events vs Audit (Notifications umbrella) | Accepted |
 
 <br>
 

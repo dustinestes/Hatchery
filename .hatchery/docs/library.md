@@ -180,15 +180,15 @@ Domain inventory panes (Scripts, Media, Clutches) use a **Cached | Library** tab
 | **Library** | Binding catalog: name + muted path, connection, copyable SHA, Cached vs Library-only; filter/sort, multi-select, batch pull. Dimmed when Library is disabled in Settings |
 | **Import** | From file…; Browse library… switches to the Library tab when Library is enabled |
 
-Overlay of Library hits inside the Cached list remains [#250](https://github.com/dustinestes/Hatchery/issues/250).
+An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded** by the Cached | Library tab model above.
 
 <br>
 
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **Browse library…** opens the in-pane **Library** tab (Scripts, Media, Clutches) and pulls chosen items into the cache.
+**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **Browse library…** opens the in-pane **Library** tab (Scripts, Media, Clutches) and pulls chosen items into the cache. Catalog discovery, Cached vs Library-only badges, and pull-into-cache live on the Library tab — not merged into the Cached list.
 
-**Optional:** Settings → Library knob to **show library results in inventory panes**. When on, panes may list binding hits with badges such as **Cached** vs **Library** (not cached). Visibility is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later). Actions on Library-only rows are pull/cache (and later pull-and-use), not silent remote attach.
+Visibility on the Library tab is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
 
 <br>
 
