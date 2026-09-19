@@ -197,11 +197,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable script binding"
-                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -280,11 +280,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable clutch binding"
-                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -363,11 +363,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable media binding"
-                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -1403,7 +1403,7 @@
         note.textContent = '';
       } else {
         note.hidden = false;
-        note.innerHTML = '<strong></strong> is disabled';
+        note.innerHTML = '<strong></strong> connection is disabled';
         const strong = note.querySelector('strong');
         if (strong) strong.textContent = clabel;
       }
@@ -1415,7 +1415,7 @@
         check.removeAttribute('title');
       } else {
         check.setAttribute('aria-disabled', 'true');
-        check.title = clabel + ' is disabled';
+        check.title = clabel + ' connection is disabled';
       }
     }
     updateBindSummary(row, domainLabel);

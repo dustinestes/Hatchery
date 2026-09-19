@@ -106,7 +106,7 @@ Operators can park a connection or binding without deleting its config:
 
 `binding_effective = connection.enabled AND binding.enabled`
 
-Disabling a connection **cascades in the UI** (dependent bindings dim + note “**ConnectionName** is disabled”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
+Disabling a connection **cascades in the UI** (dependent bindings dim + note “**ConnectionName** connection is disabled”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
