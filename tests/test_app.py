@@ -290,6 +290,23 @@ class TestPageTitles:
         html = client.get("/notifications/validators").data.decode()
         assert "Validators" in html
 
+    def test_notifications_panes_use_list_shell(self, client):
+        for path in (
+            "/notifications/alerts",
+            "/notifications/events",
+            "/notifications/validators",
+        ):
+            html = client.get(path).data.decode()
+            assert 'class="list-shell"' in html
+            assert "list-shell-body" in html
+            assert "notif-filters" in html
+
+    def test_events_uses_vm_filter_not_side_nav(self, client):
+        html = client.get("/notifications/events").data.decode()
+        assert 'id="events-filter-vm"' in html
+        assert "events-nav" not in html
+        assert 'id="events-table"' in html
+
 
 class TestSettingsRoute:
     def test_get_shows_current_data_dir(self, client, tmp_path, monkeypatch):
@@ -2941,10 +2958,10 @@ class TestEventsRoute:
 
     def test_shows_events_layout(self, client):
         html = client.get("/notifications/events").data.decode()
-        assert "events-layout" in html
-        assert "events-nav" in html
-        assert "events-feed" in html
-        assert "events-cols-header" in html
+        assert 'class="list-shell"' in html
+        assert 'id="events-filter-vm"' in html
+        assert 'id="events-table"' in html
+        assert "events-nav" not in html
         assert "Events content coming soon" not in html
 
 

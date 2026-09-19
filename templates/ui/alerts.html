@@ -3,42 +3,67 @@
 {% block title %}Alerts — Hatchery{% endblock %}
 
 {% block content %}
-<div class="pane-header">
-  <h1 class="pane-title">Alerts</h1>
-  <p class="pane-subtitle">Environment and validation issues that need attention.</p>
+<div class="list-shell">
+  <div class="pane-header">
+    <h1 class="pane-title">Alerts</h1>
+    <p class="pane-subtitle">Environment and validation issues that need attention.</p>
+  </div>
+
+  <div class="notif-filters" role="search" aria-label="Filter alerts">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="alert-filter-tier">Tier</label>
+      <select id="alert-filter-tier" class="form-select" aria-controls="alert-table">
+        <option value="">All tiers</option>
+        <option value="info">info</option>
+        <option value="warning">warning</option>
+        <option value="alert">alert</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="alert-filter-status">Status</label>
+      <select id="alert-filter-status" class="form-select" aria-controls="alert-table">
+        <option value="">Any</option>
+        <option value="active">Active</option>
+        <option value="resolved">Resolved</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="list-shell-body">
+    <div id="alert-empty" class="stub" role="status"{% if items %} hidden{% endif %}>No alerts yet</div>
+    <div id="alert-filtered-empty" class="stub" role="status" hidden>No alerts match these filters.</div>
+
+    <table class="notif-table" id="alert-table"{% if not items %} hidden{% endif %}>
+      <thead>
+        <tr>
+          <th data-col="created_at">Time</th>
+          <th data-col="tier">Tier</th>
+          <th data-col="message">Message</th>
+          <th data-col="status">Status</th>
+        </tr>
+      </thead>
+      <tbody id="alert-tbody">
+        {% for item in items %}
+        <tr data-id="{{ item.id }}">
+          <td class="notif-table-time">{{ item.created_at }}</td>
+          <td class="notif-table-tier">
+            <span class="notif-tier-badge notif-tier-badge--{{ item.tier | default('alert') }}">{{ item.tier | default('alert') }}</span>
+          </td>
+          <td class="notif-table-msg">{{ item.message }}</td>
+          <td class="notif-table-status">
+            {% if item.resolved %}
+              <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
+              {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
+            {% else %}
+              <span class="notif-status-badge notif-status-badge--active">Active</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
-
-<div id="alert-empty" class="stub" role="status"{% if items %} hidden{% endif %}>No alerts yet</div>
-
-<table class="notif-table" id="alert-table"{% if not items %} hidden{% endif %}>
-  <thead>
-    <tr>
-      <th data-col="created_at">Time</th>
-      <th data-col="tier">Tier</th>
-      <th data-col="message">Message</th>
-      <th data-col="status">Status</th>
-    </tr>
-  </thead>
-  <tbody id="alert-tbody">
-    {% for item in items %}
-    <tr data-id="{{ item.id }}">
-      <td class="notif-table-time">{{ item.created_at }}</td>
-      <td class="notif-table-tier">
-        <span class="notif-tier-badge notif-tier-badge--{{ item.tier | default('alert') }}">{{ item.tier | default('alert') }}</span>
-      </td>
-      <td class="notif-table-msg">{{ item.message }}</td>
-      <td class="notif-table-status">
-        {% if item.resolved %}
-          <span class="notif-status-badge notif-status-badge--resolved">Resolved</span>
-          {% if item.resolved_at %}<br><span class="notif-resolved-at">{{ item.resolved_at }}</span>{% endif %}
-        {% else %}
-          <span class="notif-status-badge notif-status-badge--active">Active</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
 {% endblock %}
 
 {% block scripts %}
@@ -50,7 +75,12 @@
   var table = document.getElementById('alert-table');
   var tbody = document.getElementById('alert-tbody');
   var empty = document.getElementById('alert-empty');
+  var filteredEmpty = document.getElementById('alert-filtered-empty');
+  var filterTier = document.getElementById('alert-filter-tier');
+  var filterStatus = document.getElementById('alert-filter-status');
   if (!table || !tbody) return;
+
+  var allItems = [];
 
   function cell(text, className) {
     var td = document.createElement('td');
@@ -95,16 +125,44 @@
     return td;
   }
 
+  function currentFilters() {
+    return {
+      tier: (filterTier && filterTier.value) || '',
+      status: (filterStatus && filterStatus.value) || '',
+    };
+  }
+
+  function applyFilters(items) {
+    var f = currentFilters();
+    return (items || []).filter(function (item) {
+      var tier = String(item.tier || 'alert').toLowerCase();
+      if (tier === 'error') tier = 'alert';
+      if (f.tier && tier !== f.tier) return false;
+      if (f.status === 'active' && item.resolved) return false;
+      if (f.status === 'resolved' && !item.resolved) return false;
+      return true;
+    });
+  }
+
   function renderItems(items) {
+    allItems = items || [];
+    var filtered = applyFilters(allItems);
     tbody.textContent = '';
-    if (!items.length) {
+    if (!allItems.length) {
       table.hidden = true;
       if (empty) empty.hidden = false;
+      if (filteredEmpty) filteredEmpty.hidden = true;
       return;
     }
     if (empty) empty.hidden = true;
+    if (!filtered.length) {
+      table.hidden = true;
+      if (filteredEmpty) filteredEmpty.hidden = false;
+      return;
+    }
+    if (filteredEmpty) filteredEmpty.hidden = true;
     table.hidden = false;
-    items.forEach(function (item) {
+    filtered.forEach(function (item) {
       var tr = document.createElement('tr');
       tr.setAttribute('data-id', String(item.id));
       tr.appendChild(cell(item.created_at || '', 'notif-table-time'));
@@ -121,6 +179,10 @@
       .then(function (data) { renderItems(data.items || []); })
       .catch(function () {});
   }
+
+  [filterTier, filterStatus].forEach(function (sel) {
+    if (sel) sel.addEventListener('change', function () { renderItems(allItems); });
+  });
 
   hatchery.onStatusTick(refreshAlerts);
   refreshAlerts();
