@@ -570,9 +570,15 @@ class TestLibrarySettingsGate:
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         monkeypatch.setattr(cfg, "get", lambda: state)
         monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
-        monkeypatch.setattr(cfg, "library_script_bindings", lambda: list(state["library_script_bindings"]))
-        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: list(state["library_clutch_bindings"]))
-        monkeypatch.setattr(cfg, "library_media_bindings", lambda: list(state["library_media_bindings"]))
+        monkeypatch.setattr(
+            cfg, "library_script_bindings", lambda: list(state["library_script_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_clutch_bindings", lambda: list(state["library_clutch_bindings"])
+        )
+        monkeypatch.setattr(
+            cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
+        )
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
 
         conn = {
@@ -591,7 +597,13 @@ class TestLibrarySettingsGate:
         assert len(state["library_connections"]) == 1
 
         state["library_script_bindings"] = [
-            {"id": "b1", "connection_id": "cpath1", "filter": "*", "domain": "scripts", "enabled": True}
+            {
+                "id": "b1",
+                "connection_id": "cpath1",
+                "filter": "*",
+                "domain": "scripts",
+                "enabled": True,
+            }
         ]
         blocked = client.delete("/api/library/connections/cpath1")
         assert blocked.status_code == 400

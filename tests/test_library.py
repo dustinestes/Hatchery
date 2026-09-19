@@ -142,15 +142,9 @@ class TestParse:
             {"id": "b", "label": "B", "enabled": False},
         ]
         by_id = {c["id"]: c for c in conns}
-        assert library.binding_is_effective(
-            {"connection_id": "a", "enabled": True}, by_id
-        )
-        assert not library.binding_is_effective(
-            {"connection_id": "a", "enabled": False}, by_id
-        )
-        assert not library.binding_is_effective(
-            {"connection_id": "b", "enabled": True}, by_id
-        )
+        assert library.binding_is_effective({"connection_id": "a", "enabled": True}, by_id)
+        assert not library.binding_is_effective({"connection_id": "a", "enabled": False}, by_id)
+        assert not library.binding_is_effective({"connection_id": "b", "enabled": True}, by_id)
         # Cascade does not rewrite stored binding.enabled — only effective state.
         assert library.binding_is_enabled({"enabled": True})
 

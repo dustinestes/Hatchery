@@ -163,6 +163,7 @@ class TestFooterStatus:
         assert status["library_connection_total"] == 0
         assert status["libraries_dot"] == "muted"
         assert status["libraries_title"] == "No Library connections"
+
     def test_libraries_red_on_library_alert(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
