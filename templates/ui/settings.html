@@ -197,11 +197,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable script binding"
-                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -280,11 +280,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable clutch binding"
-                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -363,11 +363,11 @@
                    {% if bind_on %}checked{% endif %}
                    {% if not parent_on %}disabled aria-disabled="true"{% endif %}
                    aria-label="Enable media binding"
-                   {% if not parent_on %}title="Disabled because the parent connection is off"{% endif %}>
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
           </label>
         </div>
         <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          Disabled because connection{% if bind_conn %} <strong>{{ bind_conn[0].label }}</strong>{% endif %} is off
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> is disabled{% else %}Connection is disabled{% endif %}
         </p>
         <div class="library-conn-row-body library-bind-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -1393,6 +1393,7 @@
     const sel = row.querySelector('select[name$="_connection_id"]');
     const connId = sel ? sel.value : '';
     const parentOn = !connId || connEnabledById(connId);
+    const clabel = connLabelById(connId) || 'Connection';
     const note = row.querySelector('.library-bind-cascade-note');
     const check = row.querySelector('.library-bind-enabled-check');
     row.classList.toggle('library-bind-row--cascaded-off', !parentOn);
@@ -1401,9 +1402,8 @@
         note.hidden = true;
         note.textContent = '';
       } else {
-        const clabel = connLabelById(connId) || 'connection';
         note.hidden = false;
-        note.innerHTML = 'Disabled because connection <strong></strong> is off';
+        note.innerHTML = '<strong></strong> is disabled';
         const strong = note.querySelector('strong');
         if (strong) strong.textContent = clabel;
       }
@@ -1415,7 +1415,7 @@
         check.removeAttribute('title');
       } else {
         check.setAttribute('aria-disabled', 'true');
-        check.title = 'Disabled because the parent connection is off';
+        check.title = clabel + ' is disabled';
       }
     }
     updateBindSummary(row, domainLabel);

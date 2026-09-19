@@ -93,7 +93,7 @@ When Library is on, Settings gains a **Library** section with:
 - **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on).
 - **Scripts / Clutches / Media** — binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles.
 
-### Enable / disable (#293)
+### Enable / disable
 
 Operators can park a connection or binding without deleting its config:
 
@@ -106,7 +106,7 @@ Operators can park a connection or binding without deleting its config:
 
 `binding_effective = connection.enabled AND binding.enabled`
 
-Disabling a connection **cascades in the UI** (dependent bindings dim + note “Disabled because connection *X* is off”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
+Disabling a connection **cascades in the UI** (dependent bindings dim + note “**ConnectionName** is disabled”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
