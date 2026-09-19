@@ -17,6 +17,9 @@ How Hatchery keeps a local-first operator model while supporting Library **conne
 - [Connections and Bindings](#connections-and-bindings)
 - [Identity](#identity)
 - [Settings and Import](#settings-and-import)
+- [Git connections (#251)](#git-connections-251)
+- [API connections (#255)](#api-connections-255)
+- [Connection health (#254)](#connection-health-254)
 - [Inventory: Cache vs Catalog](#inventory-cache-vs-catalog)
 - [Hatch Preflight](#hatch-preflight)
 - [Settings export and import](#settings-export-and-import)
@@ -51,14 +54,14 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 ## Connections and Bindings
 
-**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, Artifactory-style API later). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
+**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
 
 **Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern). Multiple bindings per domain are allowed (several git repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
 
 | Concept | Example |
 |---|---|
-| Connection | `Artifactory` — HTTPS base + token; kinds: media |
-| Binding | Media → that connection + `repo=win-isos` + `**/Win11*.iso` |
+| Connection | `Artifactory` — type API / provider Artifactory + token; kinds: media |
+| Binding | Media → that connection + filter `win-isos/**/*.iso` |
 | Connection | `Ops git` — forge URL + token; kinds: scripts, clutches |
 | Binding | Scripts → that connection + path `automation/scripts` |
 
@@ -87,7 +90,7 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, and git all support test / list / pull (git uses a shallow clone cache under the data directory — [#251](https://github.com/dustinestes/Hatchery/issues/251)).
+- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull.
 - **Scripts** — binding rows (connection picker filtered by artifact type + path/filter), with **Test connection** and **Test filter** (~5 sample hits)
 - **Clutches** — binding rows (connection picker filtered by clutches artifact type + path/filter), pull into `clutches/`, Import dropdown when Library is on
 - **Media** — binding rows with cache target (ISO / VirtIO), pull into `media/iso/` or `media/virtio/`, Import dropdown when Library is on
@@ -108,7 +111,32 @@ Strategy: **shallow clone to a Controller-side cache**, then list/pull like a pa
 | **List / pull** | Shallow `--depth 1` checkout under `{data_dir}/library/git/{connection_id}/`; binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
 | **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched — without `git-lfs`, LFS pointer files may be copied as-is |
 
-Path and HTTPS behavior are unchanged. Artifactory-style API connections remain [#255](https://github.com/dustinestes/Hatchery/issues/255).
+Path and HTTPS behavior are unchanged.
+
+### API connections (#255)
+
+Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named connection type). Architecture: [ADR-0001](adr/0001-library-api-adapters.md). Package: [`lib/library_api/`](../../lib/library_api/).
+
+| | |
+|---|---|
+| **Type** | `api` |
+| **Provider** | Registry id (first: `artifactory`) — Settings shows API + provider dropdown |
+| **Shared hit** | `{ name, relative_path, sha256\|null, connection_id, source_type: "api" }` |
+| **Add a vendor** | New `lib/library_api/<id>.py` implementing `BaseLibraryApiAdapter` + `register` in `register_builtins()` |
+
+#### Artifactory provider
+
+| | |
+|---|---|
+| **Base URI** | Artifactory root (e.g. `https://host/artifactory`) |
+| **Token** | Optional Bearer PAT (anonymous OSS setups may omit) |
+| **Test** | `GET …/api/system/ping` |
+| **Filter** | `repoKey[/path/glob]` — e.g. `media-isos/**/*.iso`, `scripts/*.ps1` |
+| **List** | AQL when available; Storage API walk as fallback |
+| **Pull** | Download artifact; prefer `X-Checksum-Sha256` / metadata, else hash the file |
+| **Local OSS test** | Contributor Docker harness: [`.hatchery/tooling/artifactory-oss/`](../tooling/artifactory-oss/) (`up` → change admin password → `seed` → Settings base URI `http://127.0.0.1:8082/artifactory`) |
+
+`https` stays explicit single/multi path GET — not a browsable API catalog.
 
 ### Connection health (#254)
 
@@ -116,7 +144,7 @@ The `library_connections` validator probes registered connections (via the same 
 
 | Prefix | When |
 |---|---|
-| `Library connection:` | Path/HTTPS/git unreachable, unreadable, or auth failure |
+| `Library connection:` | Path/HTTPS/git/API unreachable, unreadable, or auth failure |
 | `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
 
 Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).

@@ -1,7 +1,7 @@
 """Library connections and domain bindings — list, test, and pull into the operator cache.
 
-``path`` (local or mounted share), ``https`` (single relative file), and ``git``
-(shallow clone cache under the data directory — #251) are supported.
+``path`` (local or mounted share), ``https`` (single relative file), ``git``
+(shallow clone cache), and ``api`` (pluggable catalog providers — #255) are supported.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from urllib.request import Request, urlopen
 
 from lib.import_files import SCRIPT_EXTENSIONS
 
-CONNECTION_TYPES = frozenset({"path", "https", "git"})
+CONNECTION_TYPES = frozenset({"path", "https", "git", "api"})
 CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
@@ -104,6 +104,20 @@ def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -
             label=label,
             enforce_future=enforce_expiry_future,
         )
+        provider = str(item.get("provider") or "").strip().lower()
+        if ctype == "api":
+            from lib import library_api as library_api_lib
+
+            library_api_lib.register_builtins()
+            if not provider:
+                raise ValueError(f"connection '{label}' (api) needs a provider")
+            if library_api_lib.get_adapter(provider) is None:
+                known = ", ".join(p.id for p in library_api_lib.all_providers()) or "(none)"
+                raise ValueError(
+                    f"connection '{label}' has unknown API provider '{provider}' (known: {known})"
+                )
+        else:
+            provider = ""
         out.append(
             {
                 "id": cid,
@@ -113,6 +127,7 @@ def parse_connections(raw: list | None, *, enforce_expiry_future: bool = True) -
                 "token": token,
                 "expires_at": expires_at,
                 "kinds": kinds,
+                "provider": provider,
             }
         )
     return out
@@ -274,6 +289,8 @@ def test_connection(conn: dict) -> dict:
         return _test_https(conn)
     if ctype == "git":
         return _test_git(conn)
+    if ctype == "api":
+        return _test_api(conn)
     return {"ok": False, "message": f"Unsupported type: {ctype}"}
 
 
@@ -454,6 +471,34 @@ def _list_git_files(
     )
 
 
+def _api_adapter(conn: dict):
+    from lib import library_api as library_api_lib
+
+    library_api_lib.register_builtins()
+    provider = str(conn.get("provider") or "").strip().lower()
+    adapter = library_api_lib.get_adapter(provider)
+    if adapter is None:
+        raise ValueError(f"Unknown or missing API provider: {provider or '(empty)'}")
+    return adapter
+
+
+def _test_api(conn: dict) -> dict:
+    try:
+        return _api_adapter(conn).test(conn)
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+def _list_api_files(
+    conn: dict,
+    filt: str,
+    *,
+    extensions: frozenset[str],
+    limit: int | None,
+) -> list[dict]:
+    return _api_adapter(conn).list_hits(conn, filt, extensions=extensions, limit=limit)
+
+
 def _test_https(conn: dict) -> dict:
     url = conn["base_uri"].rstrip("/") + "/"
     req = Request(url, method="HEAD")
@@ -528,6 +573,8 @@ def list_hits(
         return _list_https_files(conn, filt, extensions=extensions, limit=limit)
     if ctype == "git":
         return _list_git_files(conn, filt, extensions=extensions, limit=limit)
+    if ctype == "api":
+        return _list_api_files(conn, filt, extensions=extensions, limit=limit)
     raise ValueError(f"Unsupported connection type: {ctype}")
 
 
@@ -795,6 +842,9 @@ def _pull_file(
         shutil.copy2(src, dest)
         digest = sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}
+    if ctype == "api":
+        adapter = _api_adapter(conn)
+        return adapter.pull_file(conn, rel, dest)
     raise ValueError(f"Pull not supported for type: {ctype}")
 
 

@@ -42,9 +42,9 @@
   <section class="form-section">
     <h2 class="form-section-title">Connections</h2>
     <p class="form-help-text">
-      Named endpoints (path/share, HTTPS, git) with base URI and token.
+      Named endpoints (path/share, HTTPS, git, API) with base URI and token.
       Choose artifact types so domain bindings only offer relevant connections.
-      Path, HTTPS, and git support test, list, and pull. Git uses a shallow clone under the data directory.
+      Path, HTTPS, git, and API (provider plugins such as Artifactory) support test, list, and pull.
     </p>
     <div class="section-header">
       <span class="form-label" id="library-conn-label">Connection rows</span>
@@ -84,17 +84,26 @@
                 <option value="path" {% if conn.type == 'path' %}selected{% endif %}>Path / share</option>
                 <option value="https" {% if conn.type == 'https' %}selected{% endif %}>HTTPS</option>
                 <option value="git" {% if conn.type == 'git' %}selected{% endif %}>Git</option>
+                <option value="api" {% if conn.type == 'api' %}selected{% endif %}>API</option>
+              </select>
+            </div>
+            <div class="form-group library-conn-provider-group"{% if conn.type != 'api' %} hidden{% endif %}>
+              <label class="form-label">API provider</label>
+              <select name="library_conn_provider" class="form-select library-conn-provider-input">
+                {% for p in library_api_providers %}
+                <option value="{{ p.id }}" {% if (conn.provider or '') == p.id %}selected{% endif %}>{{ p.title }}</option>
+                {% endfor %}
               </select>
             </div>
             <div class="form-group form-group-full">
               <label class="form-label">Base URI / path <span class="required">*</span></label>
               <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
-                     value="{{ conn.base_uri }}" placeholder="e.g. /mnt/nas/hatchery or https://example.com/files">
+                     value="{{ conn.base_uri }}" placeholder="e.g. /mnt/nas/hatchery or https://example.com/artifactory">
             </div>
             <div class="form-group">
               <label class="form-label">Token / API key</label>
               <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                     value="{{ conn.token or '' }}" placeholder="Optional — used for HTTPS / git">
+                     value="{{ conn.token or '' }}" placeholder="Optional — HTTPS / git / API">
             </div>
             <div class="form-group">
               <label class="form-label">Token expiry</label>
@@ -134,8 +143,8 @@
   <section class="form-section">
     <h2 class="form-section-title">Scripts</h2>
     <p class="form-help-text">
-      Bindings pick a scripts-capable connection and a path/filter (glob for path connections;
-      explicit relative file paths for HTTPS).
+      Bindings pick a scripts-capable connection and a path/filter (glob for path/git;
+      explicit relative file paths for HTTPS; ``repoKey[/path/glob]`` for Artifactory API).
     </p>
     <div class="section-header">
       <span class="form-label" id="library-script-bind-label">Script bindings</span>
@@ -721,17 +730,26 @@
             <option value="path" selected>Path / share</option>
             <option value="https">HTTPS</option>
             <option value="git">Git</option>
+            <option value="api">API</option>
+          </select>
+        </div>
+        <div class="form-group library-conn-provider-group" hidden>
+          <label class="form-label">API provider</label>
+          <select name="library_conn_provider" class="form-select library-conn-provider-input">
+            {% for p in library_api_providers %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="form-group form-group-full">
           <label class="form-label">Base URI / path <span class="required">*</span></label>
           <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
-                 value="" placeholder="e.g. /mnt/nas/hatchery or https://example.com/files">
+                 value="" placeholder="e.g. /mnt/nas/hatchery or https://example.com/artifactory">
         </div>
         <div class="form-group">
           <label class="form-label">Token / API key</label>
           <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                 value="" placeholder="Optional — used for HTTPS / git">
+                 value="" placeholder="Optional — HTTPS / git / API">
         </div>
         <div class="form-group">
           <label class="form-label">Token expiry</label>
@@ -1046,7 +1064,16 @@
   function typeLabel(value) {
     if (value === 'https') return 'https';
     if (value === 'git') return 'git';
+    if (value === 'api') return 'api';
     return 'path';
+  }
+
+  function syncProviderVisibility(row) {
+    const typeEl = row.querySelector('.library-conn-type-input');
+    const group = row.querySelector('.library-conn-provider-group');
+    if (!group) return;
+    const isApi = ((typeEl && typeEl.value) || 'path') === 'api';
+    group.hidden = !isApi;
   }
 
   function syncConnEmpty() {
@@ -1081,8 +1108,14 @@
     const label = ((row.querySelector('.library-conn-label-input') || {}).value || '').trim() || 'New connection';
     const type = typeLabel((row.querySelector('.library-conn-type-input') || {}).value || 'path');
     const uri = ((row.querySelector('.library-conn-uri-input') || {}).value || '').trim();
+    let text = label + ' · ' + type;
+    if (type === 'api') {
+      const prov = ((row.querySelector('.library-conn-provider-input') || {}).value || '').trim();
+      if (prov) text += ' · ' + prov;
+    }
+    if (uri) text += ' · ' + uri;
     if (summary) {
-      summary.textContent = uri ? (label + ' · ' + type + ' · ' + uri) : (label + ' · ' + type);
+      summary.textContent = text;
     }
     if (toggle) {
       const open = toggle.getAttribute('aria-expanded') === 'true';
@@ -1150,10 +1183,14 @@
 
   function connPayload(row) {
     syncKinds(row);
+    const type = (row.querySelector('select[name="library_conn_type"]') || {}).value || 'path';
     return {
       id: (row.querySelector('input[name="library_conn_id"]') || {}).value || '',
       label: (row.querySelector('input[name="library_conn_label"]') || {}).value || 'connection',
-      type: (row.querySelector('select[name="library_conn_type"]') || {}).value || 'path',
+      type: type,
+      provider: type === 'api'
+        ? ((row.querySelector('select[name="library_conn_provider"]') || {}).value || '')
+        : '',
       base_uri: (row.querySelector('input[name="library_conn_base_uri"]') || {}).value || '',
       token: (row.querySelector('input[name="library_conn_token"]') || {}).value || '',
       expires_at: (row.querySelector('input[name="library_conn_expires_at"]') || {}).value || '',
@@ -1165,6 +1202,7 @@
   function wireConnRow(row) {
     setExpiryMin(row);
     syncKinds(row);
+    syncProviderVisibility(row);
     updateSummary(row);
   }
 
@@ -1245,9 +1283,13 @@
       syncKinds(row);
       refreshBindConnectionOptions();
     }
+    if (e.target.classList.contains('library-conn-type-input')) {
+      syncProviderVisibility(row);
+    }
     if (
       e.target.classList.contains('library-conn-label-input') ||
       e.target.classList.contains('library-conn-type-input') ||
+      e.target.classList.contains('library-conn-provider-input') ||
       e.target.classList.contains('library-conn-uri-input')
     ) {
       updateSummary(row);

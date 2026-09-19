@@ -40,9 +40,25 @@ Hatchery is a local web application for creating, provisioning, and managing VMs
 - **Hatch** — create guest VMs from source media using unattended install methods on local and remote hosts
 - **Provision** — runs defined script automations on the new guest to baseline the configuration
 - **Scale** — operate one local Nest or many remote Nests from a single control plane
+- **Library** — pull Clutches, scripts, and media from shares, forges, and API catalogs into a local-first cache
 - **Manage** — start, stop, destroy, snapshot, and restore from a browser UI
 - **Observe** — monitor Hatchery, Nests (local and remote), and individual VMs
 - **Notify** — alerting, event tracking, and auditing across the fleet
+
+---
+
+<br/>
+
+## Library connections
+
+Connections are named endpoints (base URI + optional token); **bindings** attach a connection + filter results to Scripts, Clutches, or Media..
+
+| Type | What it reaches | List / pull |
+|---|---|---|
+| **Path / share** | Local directory or mounted NAS | Recursive glob |
+| **HTTPS** | Static HTTP(S) base | Explicit relative file path(s) in the binding filter |
+| **Git** | Forge or local repo (shallow clone cache) | Path glob on the default branch |
+| **API** | Catalog backends via **provider plugins** | Provider-specific filter (first: **Artifactory** — `repoKey[/path/glob]`) |
 
 ---
 

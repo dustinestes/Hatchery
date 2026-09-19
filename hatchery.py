@@ -741,6 +741,13 @@ def _settings_template(
     validator_latest = latest_by_validator() if section == "general" else {}
     validators_run_retention = get_run_retention() if section == "general" else 50
 
+    library_api_providers: list = []
+    if section == "library":
+        from lib import library_api as library_api_lib
+
+        library_api_lib.register_builtins()
+        library_api_providers = library_api_lib.all_providers()
+
     return render_template(
         "settings.html",
         active_pane=f"settings_{section}",
@@ -758,6 +765,7 @@ def _settings_template(
         validator_configs=validator_configs,
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
+        library_api_providers=library_api_providers,
     )
 
 
@@ -907,6 +915,7 @@ def settings_section_post(section: str):
         conn_ids = request.form.getlist("library_conn_id")
         conn_labels = request.form.getlist("library_conn_label")
         conn_types = request.form.getlist("library_conn_type")
+        conn_providers = request.form.getlist("library_conn_provider")
         conn_uris = request.form.getlist("library_conn_base_uri")
         conn_tokens = request.form.getlist("library_conn_token")
         conn_expires = request.form.getlist("library_conn_expires_at")
@@ -915,6 +924,7 @@ def settings_section_post(section: str):
         if not (
             len(conn_ids) == n
             and len(conn_types) == n
+            and len(conn_providers) == n
             and len(conn_uris) == n
             and len(conn_tokens) == n
             and len(conn_expires) == n
@@ -928,6 +938,7 @@ def settings_section_post(section: str):
                     "id": (conn_ids[i] or "").strip(),
                     "label": (conn_labels[i] or "").strip(),
                     "type": (conn_types[i] or "path").strip(),
+                    "provider": (conn_providers[i] or "").strip(),
                     "base_uri": (conn_uris[i] or "").strip(),
                     "token": conn_tokens[i] or "",
                     "expires_at": (conn_expires[i] or "").strip(),
