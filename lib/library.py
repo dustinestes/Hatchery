@@ -787,6 +787,18 @@ def delete_git_cache(connection_id: str) -> bool:
     return True
 
 
+def _configure_git_cache_line_endings(cache: Path) -> None:
+    """Disable CRLF conversion so working-tree bytes match git blob tips (#308).
+
+    Windows Controllers often default ``core.autocrlf=true``, which rewrites text
+    files on checkout and breaks ``git_blob`` provenance / pull verification.
+    """
+    for key, value in (("core.autocrlf", "false"), ("core.eol", "lf")):
+        cfg = _run_git(["config", key, value], cwd=cache, timeout=30)
+        if cfg.returncode != 0:
+            raise ValueError(f"git config {key} failed: {_git_error_detail(cfg)}")
+
+
 def ensure_git_checkout(conn: dict) -> Path:
     """Clone or update a shallow checkout for ``conn``; return the working tree path."""
     if not git_available():
@@ -801,8 +813,20 @@ def ensure_git_checkout(conn: dict) -> Path:
         if not git_dir.is_dir():
             if cache.exists():
                 _rmtree_portable(cache)
+            # -c flags apply during the initial checkout before repo config exists.
             result = _run_git(
-                ["clone", "--depth", "1", "--single-branch", url, str(cache)],
+                [
+                    "-c",
+                    "core.autocrlf=false",
+                    "-c",
+                    "core.eol=lf",
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--single-branch",
+                    url,
+                    str(cache),
+                ],
                 timeout=_GIT_TIMEOUT_S,
             )
             if result.returncode != 0:
@@ -812,7 +836,9 @@ def ensure_git_checkout(conn: dict) -> Path:
                     except OSError:
                         shutil.rmtree(cache, ignore_errors=True)
                 raise ValueError(f"git clone failed: {_git_error_detail(result)}")
+            _configure_git_cache_line_endings(cache)
         else:
+            _configure_git_cache_line_endings(cache)
             fetch = _run_git(
                 ["fetch", "--depth", "1", "origin"],
                 cwd=cache,
