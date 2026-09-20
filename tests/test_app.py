@@ -162,6 +162,15 @@ class TestActivePane:
         # Umbrella taxonomy stays on the sidebar group only
         assert ">Notifications</span>" in html or 'sidebar-label">Notifications' in html
 
+    def test_topbar_hatch_and_clutch_ctas(self, client):
+        html = client.get("/").data.decode()
+        assert ">Hatch</a>" in html
+        assert ">+ Clutch</a>" in html
+        assert "+ Hatch" not in html
+        assert "+ Build" not in html
+        assert 'href="/hatch-clutch"' in html
+        assert 'href="/build"' in html
+
 
 class TestPageTitles:
     def test_dashboard_title(self, client):
