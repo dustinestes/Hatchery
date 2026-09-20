@@ -83,7 +83,7 @@ Surfaces **do not** invent health logic or re-run checks. They call APIs over st
 | `hatchery.refreshStatusSurfaces()` | Official refresh — fetches Alerts + plane status, updates built-in surfaces, then notifies tick listeners. Called every **15s** and after Settings → Test Nest connection |
 | `hatchery.onStatusTick(fn)` | Register a callback; receives `{ alerts, planeStatus }` after each refresh. Returns an unsubscribe function. Prefer this over a new `setInterval` |
 
-Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests** + **Libraries** (Libraries only when Library is enabled - [#254](https://github.com/dustinestes/Hatchery/issues/254)), **Alerts pane** table, **Validators** pane run history (filters / finding tiers - [#280](https://github.com/dustinestes/Hatchery/issues/280)), and the **Dashboard** Nest and Library tiles (from `planeStatus`) plus VM and Clutches tiles via `GET /api/dashboard-summary` on the same tick ([#329](https://github.com/dustinestes/Hatchery/issues/329), [#330](https://github.com/dustinestes/Hatchery/issues/330), [#331](https://github.com/dustinestes/Hatchery/issues/331)). Do not put VM or Clutch inventory on `/api/plane-status` (that endpoint is polled on every pane).
+Built-in consumers today: Alerts bell / tray / toast-once, footer **Hatchery** + **Nests** + **Libraries** (Libraries only when Library is enabled - [#254](https://github.com/dustinestes/Hatchery/issues/254)), **Alerts pane** table, **Validators** pane run history (filters / finding tiers - [#280](https://github.com/dustinestes/Hatchery/issues/280)), and **Dashboard** tiles on the same tick: Nest / Library / Health from `planeStatus`, Alerts from the tick `alerts` payload (open counts by tier), plus VM and Clutches via `GET /api/dashboard-summary` ([#329](https://github.com/dustinestes/Hatchery/issues/329), [#330](https://github.com/dustinestes/Hatchery/issues/330), [#331](https://github.com/dustinestes/Hatchery/issues/331), [#332](https://github.com/dustinestes/Hatchery/issues/332)). Do not put VM or Clutch inventory on `/api/plane-status` (that endpoint is polled on every pane).
 
 ```js
 // Pane example — no new timer
@@ -149,6 +149,8 @@ Alerts are stored in the `alerts` table in `hatchery.db`. The browser refreshes 
 **Tray dropdown** — headed **Alerts**; recent alerts; “View all” links to `/notifications/alerts`.
 
 **Alerts pane** — alert history, reverse-chronological (UI shows the newest 500; older rows remain in the DB). Uses a **list shell** shared with Events and Validators ([#298](https://github.com/dustinestes/Hatchery/issues/298)): title + filter bar stay put; the table scrolls in a bounded region. Filters: tier and status (Active / Resolved). Subscribes to `hatchery.onStatusTick` and refreshes from `GET /api/alerts?limit=500` so new rows appear without a full page reload (same bus as Validators — [#282](https://github.com/dustinestes/Hatchery/issues/282)). Route: `/notifications/alerts`.
+
+**Dashboard Alerts tile** — open-alert count with a by-tier breakdown (alert / warning / info), fed from the same `onStatusTick` `alerts` payload as the bell (not a second poll). Complements the bell; does not duplicate the full list ([#332](https://github.com/dustinestes/Hatchery/issues/332)). The **Health** tile rolls up Controller / Nest / Library ok flags from `planeStatus`.
 
 ![Alerts pane — full table view](assets/screenshot_notifications_pane.png)
 
