@@ -2,16 +2,60 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Hatchery: Flask",
+            "name": "Hatchery: production",
             "type": "debugpy",
             "request": "launch",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_DEBUG": "1"
-            },
-            "args": ["run"],
-            "jinja": true
+            "module": "lib.cli",
+            "args": [
+                "serve",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "5000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "jinja": true,
+            "justMyCode": true
+        },
+        {
+            "name": "Hatchery: sandbox",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lib.cli",
+            "args": [
+                "serve",
+                "--data-dir",
+                "${workspaceFolder}/.temp/hatchery-sandbox",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "5001"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "jinja": true,
+            "justMyCode": true
+        },
+        {
+            "name": "Hatchery: sandbox (Local Nest)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lib.cli",
+            "args": [
+                "serve",
+                "--data-dir",
+                "${workspaceFolder}/.temp/hatchery-sandbox-local",
+                "--nest-local",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "5002"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "jinja": true,
+            "justMyCode": true
         }
     ]
 }

@@ -41,7 +41,7 @@ Hatchery/
 │   │   └── test.yml              # pytest matrix (Linux / macOS / Windows)
 │   └── dependabot.yml
 ├── .vscode/
-│   ├── launch.json               # Flask debug configuration
+│   ├── launch.json               # Run and Debug: production + sandbox Controllers (#337)
 │   └── settings.json             # Python + ruff settings
 ├── hatchery.py                   # Flask app entry point, all API routes
 ├── scripts/

@@ -44,15 +44,17 @@ Missing `--data-dir` paths are created (via normal Controller startup `init_data
 uv run hatchery serve --host 127.0.0.1 --port 5000
 
 # Disposable Controller-only sandbox (empty Nest registry)
-uv run hatchery serve --data-dir .hatchery-sandbox --host 127.0.0.1 --port 5000
+uv run hatchery serve --data-dir .temp/hatchery-sandbox --host 127.0.0.1 --port 5000
 
 # Same sandbox with this Controller registered as Local Nest
-uv run hatchery serve --data-dir .hatchery-sandbox-local --nest-local --host 127.0.0.1 --port 5000
+uv run hatchery serve --data-dir .temp/hatchery-sandbox-local --nest-local --host 127.0.0.1 --port 5000
 
 # Same overrides with gunicorn
-HATCHERY_DATA_DIR=.hatchery-sandbox HATCHERY_NEST_LOCAL=1 \
+HATCHERY_DATA_DIR=.temp/hatchery-sandbox HATCHERY_NEST_LOCAL=1 \
   uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 ```
+
+Cursor / VS Code **Run and Debug** configs for production and these sandboxes: [`.vscode/launch.json`](../../.vscode/launch.json) (#337).
 
 <br>
 
