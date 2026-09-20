@@ -26,8 +26,10 @@ def nest_tile_fields(
 ) -> dict[str, Any]:
     """Nest counts + last-validated for plane-status / Nest tile."""
     nests = registered if registered is not None else nests_lib.list_nests()
-    snap = snap_nests if snap_nests is not None else (
-        nest_reachability_lib.get_snapshot().get("nests") or {}
+    snap = (
+        snap_nests
+        if snap_nests is not None
+        else (nest_reachability_lib.get_snapshot().get("nests") or {})
     )
     if not isinstance(snap, dict):
         snap = {}

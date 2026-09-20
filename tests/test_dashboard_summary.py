@@ -4,11 +4,25 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 import lib.dashboard_summary as dash
 import lib.nest_reachability as nr
 import lib.nests as nests_lib
 import lib.plane_status as ps
-from lib.nest_reachability import NestHealthCheckResult
+from lib import config as cfg
+from lib import db
+from lib.nest_transport import NestHealthCheckResult
+
+
+@pytest.fixture(autouse=True)
+def _iso(tmp_path, monkeypatch):
+    monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(cfg, "CONFIG_FILE", tmp_path / "config.yaml")
+    db.init_db(tmp_path / "hatchery.db")
+    cfg.load()
+    cfg.bind_db()
+    yield
 
 
 class TestNestTileFields:
@@ -38,7 +52,7 @@ class TestNestTileFields:
 
 
 class TestVmSummary:
-    def test_empty_registry(self, tmp_path, monkeypatch):
+    def test_empty_registry(self, monkeypatch):
         monkeypatch.setattr(nests_lib, "list_nests", lambda: [])
         summary = dash.vm_summary()
         assert summary["total"] == 0
@@ -49,7 +63,14 @@ class TestVmSummary:
         monkeypatch.setattr(
             nests_lib,
             "list_nests",
-            lambda: [{"id": "local", "name": "Local", "provider_type": "libvirt", "location": "local"}],
+            lambda: [
+                {
+                    "id": "local",
+                    "name": "Local",
+                    "provider_type": "libvirt",
+                    "location": "local",
+                }
+            ],
         )
         provider = MagicMock()
         provider.list_vms.return_value = [
