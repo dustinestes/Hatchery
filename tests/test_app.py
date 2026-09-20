@@ -426,7 +426,7 @@ class TestDashboardShell:
 
 
 class TestDashboardSummaryApi:
-    def test_dashboard_summary_returns_nests_and_vms(self, client, monkeypatch):
+    def test_dashboard_summary_returns_nests_vms_and_clutches(self, client, monkeypatch):
         monkeypatch.setattr(
             "lib.dashboard_summary.dashboard_summary",
             lambda: {
@@ -452,6 +452,19 @@ class TestDashboardSummaryApi:
                     },
                     "nests_unavailable": 0,
                 },
+                "clutches": {
+                    "file_count": 1,
+                    "session_total": 1,
+                    "by_status": {
+                        "in_progress": 1,
+                        "completed": 0,
+                        "failed": 0,
+                        "degraded": 0,
+                        "unknown": 0,
+                    },
+                    "nests_used": [{"id": "local", "name": "Local"}],
+                    "unique_clutch_files": 1,
+                },
             },
         )
         resp = client.get("/api/dashboard-summary")
@@ -460,14 +473,19 @@ class TestDashboardSummaryApi:
         assert data["nests"]["total"] == 1
         assert data["vms"]["total"] == 2
         assert data["vms"]["by_power"]["running"] == 1
+        assert data["clutches"]["file_count"] == 1
+        assert data["clutches"]["session_total"] == 1
 
     def test_dashboard_scripts_fetch_summary(self, client):
         html = client.get("/").data.decode()
         assert "/api/dashboard-summary" in html
         assert "renderNests" in html
         assert "renderVms" in html
+        assert "renderClutches" in html
         assert "dash-nests-body" in html
         assert "dash-vms-body" in html
+        assert "dash-clutches-body" in html
+        assert "fetchDashboardSummary" in html
 
 
 class TestSettingsRoute:
