@@ -25,6 +25,7 @@ Root directory layout and purpose of every file and folder in Hatchery.
 ```
 Hatchery/
 ├── docs/                         # First-class reference documentation (this directory)
+│   ├── cli/                      # Controller CLI docs (mirrors lib/cli/)
 │   ├── adr/                      # Architecture Decision Records
 │   ├── schema/                   # Clutch YAML + database schema references
 │   └── assets/                   # Screenshots and doc images
@@ -48,6 +49,10 @@ Hatchery/
 │   ├── install-service.sh        # installs the systemd service and optional hostname
 │   └── uninstall-service.sh      # removes the service and hostname entry
 ├── lib/
+│   ├── cli/                      # Controller CLI (hatchery serve; operator cmds planned)
+│   │   ├── __init__.py           # argparse entry + subcommand dispatch
+│   │   ├── __main__.py           # python -m lib.cli
+│   │   └── serve.py              # hatchery serve
 │   ├── providers/
 │   │   ├── base.py               # Abstract provider interface
 │   │   ├── libvirt.py            # KVM/QEMU implementation (v1)

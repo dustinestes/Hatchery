@@ -87,14 +87,43 @@ _config: dict = {}
 # Legacy non-bootstrap keys found in config.yaml pending first DB bind.
 _pending_yaml_settings: dict = {}
 _db_bound: bool = False
+# Session-only data_dir from CLI / HATCHERY_DATA_DIR (ADR-0013). Never written to bootstrap.
+_runtime_data_dir: str | None = None
+# Last bootstrap data_dir from disk (or default); used when writing bootstrap under an override.
+_bootstrap_data_dir: str | None = None
+
+
+def set_runtime_data_dir(path: str | Path | None) -> None:
+    """Set or clear a session-only ``data_dir`` override (does not write Settings)."""
+    global _runtime_data_dir
+    if path is None or path == "":
+        _runtime_data_dir = None
+        return
+    _runtime_data_dir = str(Path(path).expanduser().resolve())
+
+
+def runtime_data_dir() -> str | None:
+    """Return the session ``data_dir`` override, if any."""
+    return _runtime_data_dir
+
+
+def _effective_data_dir(bootstrap: str) -> str:
+    env = os.environ.get("HATCHERY_DATA_DIR", "").strip()
+    if _runtime_data_dir:
+        return _runtime_data_dir
+    if env:
+        return str(Path(env).expanduser().resolve())
+    return bootstrap
 
 
 def load() -> dict:
     """Load the bootstrap file and merge defaults into memory.
 
     Does not read SQLite — call :func:`bind_db` after ``db.init_db``.
+    Honors :func:`set_runtime_data_dir` and ``HATCHERY_DATA_DIR`` without writing them
+    back to the bootstrap file (ADR-0013).
     """
-    global _config, _pending_yaml_settings, _db_bound
+    global _config, _pending_yaml_settings, _db_bound, _bootstrap_data_dir
     _db_bound = False
     _pending_yaml_settings = {}
 
@@ -103,17 +132,21 @@ def load() -> dict:
             on_disk = yaml.safe_load(f) or {}
         if not isinstance(on_disk, dict):
             on_disk = {}
-        data_dir = on_disk.get("data_dir", _DEFAULTS["data_dir"])
+        bootstrap = str(on_disk.get("data_dir", _DEFAULTS["data_dir"]))
         legacy = {k: v for k, v in on_disk.items() if k in _DB_SETTING_KEYS}
         _pending_yaml_settings = dict(legacy)
-        _config = {**_DEFAULTS, **legacy, "data_dir": str(data_dir)}
+        _bootstrap_data_dir = bootstrap
+        _config = {**_DEFAULTS, **legacy, "data_dir": _effective_data_dir(bootstrap)}
         if set(on_disk.keys()) - _BOOTSTRAP_KEYS:
             # Drop migrated keys from the bootstrap file; pending values stay in
             # memory until bind_db writes them into SQLite.
-            _write_bootstrap({"data_dir": _config["data_dir"]})
+            if runtime_data_dir() is None and not os.environ.get("HATCHERY_DATA_DIR", "").strip():
+                _write_bootstrap({"data_dir": _bootstrap_data_dir})
     else:
-        _config = dict(_DEFAULTS)
-        _write_bootstrap({"data_dir": _config["data_dir"]})
+        _bootstrap_data_dir = str(_DEFAULTS["data_dir"])
+        _config = {**_DEFAULTS, "data_dir": _effective_data_dir(_bootstrap_data_dir)}
+        if runtime_data_dir() is None and not os.environ.get("HATCHERY_DATA_DIR", "").strip():
+            _write_bootstrap({"data_dir": _bootstrap_data_dir})
     return _config
 
 
@@ -137,26 +170,39 @@ def bind_db() -> dict:
             _write_db_settings({**existing, **missing})
             existing = {**existing, **missing}
 
+    effective = _effective_data_dir(_bootstrap_data_dir or _config["data_dir"])
     _config = {
         **_DEFAULTS,
         **{k: existing[k] for k in _DB_SETTING_KEYS if k in existing},
-        "data_dir": _config["data_dir"],
+        "data_dir": effective,
     }
     _pending_yaml_settings = {}
     _db_bound = True
-    _write_bootstrap({"data_dir": _config["data_dir"]})
+    if runtime_data_dir() is None and not os.environ.get("HATCHERY_DATA_DIR", "").strip():
+        _write_bootstrap({"data_dir": _bootstrap_data_dir or _config["data_dir"]})
     return _config
 
 
 def save(cfg: dict) -> None:
-    """Persist ``data_dir`` to the bootstrap file and other keys to SQLite."""
-    global _config
+    """Persist ``data_dir`` to the bootstrap file and other keys to SQLite.
+
+    When a session ``data_dir`` override is active, bootstrap ``data_dir`` is left
+    unchanged; only SQLite Settings keys are written.
+    """
+    global _config, _bootstrap_data_dir, _db_bound
     merged = {**_DEFAULTS, **cfg}
-    _config = merged
-    _write_bootstrap({"data_dir": merged["data_dir"]})
+    override_active = bool(runtime_data_dir() or os.environ.get("HATCHERY_DATA_DIR", "").strip())
+    if override_active:
+        _config = {
+            **merged,
+            "data_dir": _effective_data_dir(_bootstrap_data_dir or merged["data_dir"]),
+        }
+    else:
+        _bootstrap_data_dir = str(merged["data_dir"])
+        _config = merged
+        _write_bootstrap({"data_dir": _bootstrap_data_dir})
     if _db_path_ready():
         _write_db_settings({k: merged[k] for k in _DB_SETTING_KEYS})
-        global _db_bound
         _db_bound = True
 
 

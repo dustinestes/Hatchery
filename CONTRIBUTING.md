@@ -75,7 +75,14 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 **Run the app:**
 
 ```bash
+# Preferred: see docs/cli/ — session-only --data-dir never writes Settings
+uv run hatchery serve --host 127.0.0.1 --port 5000
+# Optional sandbox data root:
+# uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
+
+# Equivalent contributor path (same app object):
 uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
+# Session data dir for gunicorn: HATCHERY_DATA_DIR=/path/to/sandbox uv run gunicorn ...
 # http://localhost:5000
 ```
 

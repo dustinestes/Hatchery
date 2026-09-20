@@ -29,6 +29,7 @@ Reference documentation for Hatchery.
 | [`providers.md`](providers.md) | Provider × feature support matrix (libvirt, UTM, Hyper-V; local/remote) |
 | [`settings.md`](settings.md) | Bootstrap file vs SQLite Settings storage |
 | [`library.md`](library.md) | Library connections, bindings, operator/Nest caches, hatch preflight |
+| [`cli/`](cli/) | Controller CLI (`hatchery serve` and planned operator commands) — [index](cli/README.md) |
 | [`adr/`](adr/) | Architecture Decision Records — why we chose lasting shapes ([index](adr/README.md)) |
 | [`getting-started.md`](getting-started.md) | Host setup, installation, and first VM walkthrough |
 | [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
