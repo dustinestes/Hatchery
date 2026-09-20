@@ -176,9 +176,32 @@ class TestPageTitles:
     def test_dashboard_title(self, client):
         html = client.get("/").data.decode()
         assert "Dashboard" in html
-        assert "Dashboard content coming soon" in html
-        assert 'class="stub"' in html
+        assert "Dashboard content coming soon" not in html
+        assert 'id="dashboard-sections"' in html
+        assert 'id="dashboard-section-hatchery-title"' in html
+        assert 'id="dashboard-section-connections-title"' in html
+        assert 'id="dashboard-section-observability-title"' in html
+        assert 'id="dash-tile-nests"' in html
+        assert 'id="dash-tile-clutches"' in html
+        assert 'id="dash-tile-vms"' in html
+        assert 'id="dash-tile-library"' in html
+        assert 'id="dash-tile-health"' in html
+        assert 'id="dash-tile-alerts"' in html
+        assert 'id="dash-tile-validators"' in html
+        assert "hatchery.onStatusTick" in html
         assert "nest-panel" not in html
+        assert 'id="dashboard-empty-nests"' in html
+        # Linear hierarchy within Hatchery section: Nests, Clutches, VMs
+        nests_at = html.find('id="dash-tile-nests"')
+        clutches_at = html.find('id="dash-tile-clutches"')
+        vms_at = html.find('id="dash-tile-vms"')
+        assert nests_at < clutches_at < vms_at
+        # Observability: Health, Alerts, Validators
+        health_at = html.find('id="dash-tile-health"')
+        alerts_at = html.find('id="dash-tile-alerts"')
+        validators_at = html.find('id="dash-tile-validators"')
+        assert health_at < alerts_at < validators_at
+        assert 'id="dashboard-tiles"' not in html
 
     def test_nests_title(self, client):
         html = client.get("/nests").data.decode()
@@ -332,6 +355,70 @@ class TestPageTitles:
         assert 'id="events-filter-vm"' in html
         assert "events-nav" not in html
         assert 'id="events-table"' in html
+
+
+class TestDashboardShell:
+    """Dashboard at-a-glance shell (#328): SSR empty states from plane status."""
+
+    _BASE = {
+        "hatchery_ok": True,
+        "hatchery_title": "Hatchery Controller OK",
+        "hatchery_dot": "green",
+        "hatchery_issue_count": 0,
+        "nests_ok": True,
+        "nests_title": "No Nests registered",
+        "nests_dot": "muted",
+        "nest_total": 0,
+        "nest_unreachable": 0,
+        "nest_alert_count": 0,
+        "library_enabled": False,
+        "libraries_visible": False,
+        "libraries_ok": True,
+        "libraries_title": "Library disabled",
+        "libraries_dot": "muted",
+        "library_connection_total": 0,
+        "library_alert_count": 0,
+    }
+
+    def test_empty_nests_banner_visible_when_none(self, client):
+        with patch("lib.plane_status.footer_status", return_value=self._BASE):
+            html = client.get("/").data.decode()
+        assert 'id="dashboard-empty-nests"' in html
+        assert 'id="dashboard-empty-nests" class="empty-state" role="status" hidden' not in html
+        assert "Add a Nest in Settings" in html
+
+    def test_empty_nests_banner_hidden_when_registered(self, client):
+        status = {
+            **self._BASE,
+            "nest_total": 1,
+            "nests_title": "All 1 Nest(s) OK",
+            "nests_dot": "green",
+        }
+        with patch("lib.plane_status.footer_status", return_value=status):
+            html = client.get("/").data.decode()
+        assert 'id="dashboard-empty-nests" class="empty-state" role="status" hidden' in html
+
+    def test_library_disabled_copy_and_settings_cta(self, client):
+        with patch("lib.plane_status.footer_status", return_value=self._BASE):
+            html = client.get("/").data.decode()
+        assert "Library is disabled" in html
+        assert 'id="dashboard-library-on" class="dashboard-tile-placeholder" hidden' in html
+        assert 'href="/settings/general"' in html
+        assert "Open Settings" in html
+
+    def test_library_enabled_placeholder_and_library_cta(self, client):
+        status = {
+            **self._BASE,
+            "library_enabled": True,
+            "libraries_visible": True,
+            "libraries_title": "No Library connections",
+        }
+        with patch("lib.plane_status.footer_status", return_value=status):
+            html = client.get("/").data.decode()
+        assert 'id="dashboard-library-off" class="dashboard-tile-placeholder" hidden' in html
+        assert "Connection health (coming soon)" in html
+        assert 'href="/settings/library"' in html
+        assert "Open Library Settings" in html
 
 
 class TestSettingsRoute:

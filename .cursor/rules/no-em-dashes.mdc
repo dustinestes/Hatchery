@@ -1,0 +1,33 @@
+---
+description: Do not use em dashes in copy, comments, docs, or commits
+alwaysApply: true
+---
+
+# No em dashes
+
+Never use the em dash character (Unicode U+2014) in anything you write for this repo:
+
+- UI copy, placeholders, titles, tooltips, aria-labels
+- Code comments and docstrings
+- Docs, ADRs, issue/PR/commit text
+- Cursor rules and agent instructions (except naming the forbidden character once)
+
+## Prefer
+
+| Instead of em dash | Use |
+|---|---|
+| clause [em dash] clause | clause: clause |
+| clause [em dash] clause | clause - clause (ASCII hyphen-minus) |
+| clause [em dash] clause | clause; clause / two sentences |
+| Title [em dash] Hatchery | Title - Hatchery |
+
+```
+❌ Nest counts and last validated [em dash] coming soon.
+✅ Nest counts and last validated (coming soon).
+✅ Coming soon: Nest counts and last validated.
+
+❌ Status-surfaces bus (#282) [em dash] no per-pane setInterval.
+✅ Status-surfaces bus (#282): no per-pane setInterval.
+```
+
+Do not rewrite unrelated historical em dashes across the tree unless that file is already in scope. New and edited prose must stay em-dash-free.

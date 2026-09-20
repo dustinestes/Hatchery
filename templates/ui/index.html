@@ -1,11 +1,150 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard — Hatchery{% endblock %}
+{% block title %}Dashboard - Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
   <h1 class="pane-title">Dashboard</h1>
-  <p class="pane-subtitle">Summary overview across Nests, Clutches, and Alerts — content TBD.</p>
+  <p class="pane-subtitle">At-a-glance status across Hatchery, connections, and observability.</p>
 </div>
-<div class="stub">Dashboard content coming soon</div>
+
+<div id="dashboard-empty-nests" class="empty-state" role="status"{% if nest_total %} hidden{% endif %}>
+  No Nests registered.
+  <a class="link" href="{{ url_for('settings_section', section='nests') }}">Add a Nest in Settings</a>
+  or <a class="link" href="{{ url_for('hatch_clutch') }}">Hatch a Clutch</a>.
+</div>
+
+<div id="dashboard-sections" class="dashboard-sections">
+
+  {# ── Hatchery core ── #}
+  <section class="dashboard-band" aria-labelledby="dashboard-section-hatchery-title">
+    <h2 class="dashboard-section-title" id="dashboard-section-hatchery-title">Hatchery</h2>
+    <p class="dashboard-section-subtitle">Nests, Clutches, and VMs on this Controller.</p>
+    <div class="dashboard-tile-grid" aria-label="Hatchery summary">
+
+      <section class="dashboard-tile" id="dash-tile-nests" aria-labelledby="dash-tile-nests-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
+        <div class="dashboard-tile-body" data-tile="nests">
+          <p class="dashboard-tile-placeholder">Nest counts and last validated (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
+      </section>
+
+      <section class="dashboard-tile" id="dash-tile-clutches" aria-labelledby="dash-tile-clutches-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
+        <div class="dashboard-tile-body" data-tile="clutches">
+          <p class="dashboard-tile-placeholder">Clutch files and hatch placement (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('clutches') }}">Open Clutches</a>
+      </section>
+
+      <section class="dashboard-tile" id="dash-tile-vms" aria-labelledby="dash-tile-vms-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
+        <div class="dashboard-tile-body" data-tile="vms">
+          <p class="dashboard-tile-placeholder">VM counts by status and health (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests inventory</a>
+      </section>
+
+    </div>
+  </section>
+
+  {# ── Connections / extensions ── #}
+  <section class="dashboard-band" aria-labelledby="dashboard-section-connections-title">
+    <h2 class="dashboard-section-title" id="dashboard-section-connections-title">Connections</h2>
+    <p class="dashboard-section-subtitle">Optional integrations (Library today; more later).</p>
+    <div class="dashboard-tile-grid" aria-label="Connections summary">
+
+      <section class="dashboard-tile" id="dash-tile-library" aria-labelledby="dash-tile-library-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
+        <div class="dashboard-tile-body" data-tile="library">
+          <p id="dashboard-library-off" class="dashboard-tile-placeholder"{% if library_enabled %} hidden{% endif %}>
+            Library is disabled.
+            <a class="link" href="{{ url_for('settings_section', section='general') }}">Enable in Settings → General</a>.
+          </p>
+          <p id="dashboard-library-on" class="dashboard-tile-placeholder"{% if not library_enabled %} hidden{% endif %}>
+            Connection health (coming soon).
+          </p>
+        </div>
+        <a id="dashboard-library-cta"
+           class="dashboard-tile-cta link"
+           href="{% if library_enabled %}{{ url_for('settings_section', section='library') }}{% else %}{{ url_for('settings_section', section='general') }}{% endif %}">
+          {% if library_enabled %}Open Library Settings{% else %}Open Settings{% endif %}
+        </a>
+      </section>
+
+    </div>
+  </section>
+
+  {# ── Health & observability ── #}
+  <section class="dashboard-band" aria-labelledby="dashboard-section-observability-title">
+    <h2 class="dashboard-section-title" id="dashboard-section-observability-title">Health &amp; observability</h2>
+    <p class="dashboard-section-subtitle">Controller health, alerts, and validators.</p>
+    <div class="dashboard-tile-grid" aria-label="Health and observability summary">
+
+      <section class="dashboard-tile" id="dash-tile-health" aria-labelledby="dash-tile-health-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-health-title">Health</h3>
+        <div class="dashboard-tile-body" data-tile="health">
+          <p class="dashboard-tile-placeholder">Controller and Nest health rollup (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
+      </section>
+
+      <section class="dashboard-tile" id="dash-tile-alerts" aria-labelledby="dash-tile-alerts-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
+        <div class="dashboard-tile-body" data-tile="alerts">
+          <p class="dashboard-tile-placeholder">Open alert counts by tier (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('alerts_pane') }}">Open Alerts</a>
+      </section>
+
+      <section class="dashboard-tile" id="dash-tile-validators" aria-labelledby="dash-tile-validators-title">
+        <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
+        <div class="dashboard-tile-body" data-tile="validators">
+          <p class="dashboard-tile-placeholder">Enabled or off, last run status (coming soon).</p>
+        </div>
+        <a class="dashboard-tile-cta link" href="{{ url_for('validators_pane') }}">Open Validators</a>
+      </section>
+
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  /* Status-surfaces bus (#282): no per-pane setInterval. */
+  if (!window.hatchery || typeof hatchery.onStatusTick !== 'function') return;
+
+  var emptyNests = document.getElementById('dashboard-empty-nests');
+  var libraryOff = document.getElementById('dashboard-library-off');
+  var libraryOn = document.getElementById('dashboard-library-on');
+  var libraryCta = document.getElementById('dashboard-library-cta');
+
+  function applyPlaneStatus(ps) {
+    if (!ps) return;
+    if (emptyNests) {
+      emptyNests.hidden = (ps.nest_total || 0) > 0;
+    }
+    var enabled = !!ps.library_enabled;
+    if (libraryOff) libraryOff.hidden = enabled;
+    if (libraryOn) libraryOn.hidden = !enabled;
+    if (libraryCta) {
+      if (enabled) {
+        libraryCta.href = '/settings/library';
+        libraryCta.textContent = 'Open Library Settings';
+      } else {
+        libraryCta.href = '/settings/general';
+        libraryCta.textContent = 'Open Settings';
+      }
+    }
+  }
+
+  hatchery.onStatusTick(function (payload) {
+    applyPlaneStatus(payload && payload.planeStatus);
+  });
+})();
+</script>
 {% endblock %}
