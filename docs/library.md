@@ -252,6 +252,8 @@ Domain inventory panes (Scripts, Media, Clutches) use a **Cached | Library** tab
 | **Library** | Binding catalog: name + muted path, connection, copyable SHA, Cached vs Library-only; filter/sort, multi-select, batch pull. Dimmed when Library is disabled in Settings |
 | **Import** | From file…; Browse library… switches to the Library tab when Library is enabled |
 
+**Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached — left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary); Scripts and Clutches offer Path / Contents.
+
 An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded** by the Cached | Library tab model above.
 
 <br>

@@ -3406,7 +3406,9 @@ body {
   max-width: 100%;
 }
 
-.scripts-nav-drift-icon {
+.scripts-nav-drift-icon,
+.inventory-nav-drift-icon,
+.media-nav-drift-icon {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -3415,7 +3417,9 @@ body {
   pointer-events: none;
 }
 
-.scripts-nav-drift-icon[hidden] {
+.scripts-nav-drift-icon[hidden],
+.inventory-nav-drift-icon[hidden],
+.media-nav-drift-icon[hidden] {
   display: none;
 }
 
@@ -3673,9 +3677,10 @@ body {
 
 .media-nav-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   padding: 8px 12px;
   border: none;
@@ -3686,6 +3691,14 @@ body {
   font-family: var(--font-heading);
   color: var(--color-text-muted);
   transition: background 120ms;
+}
+
+.media-nav-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .media-nav-item:hover {

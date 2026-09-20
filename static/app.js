@@ -1440,13 +1440,16 @@ hatchery.vmRows = (function () {
       empty.textContent = '— none —';
       select.appendChild(empty);
     }
-    files.forEach(function (f) {
+    var names = (files || []).map(function (f) {
+      return (f && typeof f === 'object') ? f.name : f;
+    }).filter(Boolean);
+    names.forEach(function (name) {
       var opt = document.createElement('option');
-      opt.value = f;
-      opt.textContent = f;
+      opt.value = name;
+      opt.textContent = name;
       select.appendChild(opt);
     });
-    select.value = files.indexOf(prev) !== -1 ? prev : '';
+    select.value = names.indexOf(prev) !== -1 ? prev : '';
   }
 
   document.addEventListener('click', function (e) {
