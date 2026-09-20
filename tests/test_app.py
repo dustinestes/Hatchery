@@ -380,7 +380,10 @@ class TestDashboardShell:
         "libraries_title": "Library disabled",
         "libraries_dot": "muted",
         "library_connection_total": 0,
+        "library_connection_registered": 0,
+        "library_connection_disabled": 0,
         "library_alert_count": 0,
+        "library_drift_alert_count": 0,
     }
 
     def test_empty_nests_banner_visible_when_none(self, client):
@@ -405,11 +408,12 @@ class TestDashboardShell:
         with patch("lib.plane_status.footer_status", return_value=self._BASE):
             html = client.get("/").data.decode()
         assert "Library is disabled" in html
-        assert 'id="dashboard-library-on" class="dashboard-tile-placeholder" hidden' in html
+        assert 'id="dash-library-body"' in html
+        assert "renderLibrary" in html
         assert 'href="/settings/general"' in html
         assert "Open Settings" in html
 
-    def test_library_enabled_placeholder_and_library_cta(self, client):
+    def test_library_enabled_loading_and_library_cta(self, client):
         status = {
             **self._BASE,
             "library_enabled": True,
@@ -418,8 +422,7 @@ class TestDashboardShell:
         }
         with patch("lib.plane_status.footer_status", return_value=status):
             html = client.get("/").data.decode()
-        assert 'id="dashboard-library-off" class="dashboard-tile-placeholder" hidden' in html
-        assert "Connection health (coming soon)" in html
+        assert "Loading Library status" in html
         assert 'href="/settings/library"' in html
         assert "Open Settings" in html
         assert "Open Library Settings" not in html
@@ -2858,7 +2861,10 @@ class TestPlaneStatus:
         "libraries_title": "Library disabled",
         "libraries_dot": "muted",
         "library_connection_total": 0,
+        "library_connection_registered": 0,
+        "library_connection_disabled": 0,
         "library_alert_count": 0,
+        "library_drift_alert_count": 0,
     }
 
     def test_footer_shows_hatchery_and_nests(self, client):

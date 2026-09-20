@@ -69,10 +69,20 @@ def footer_status() -> dict[str, Any]:
     library_connections = (
         library_lib.enabled_connections(raw_connections) if library_enabled else []
     )
+    library_connection_registered = len(raw_connections) if library_enabled else 0
     library_connection_total = len(library_connections) if library_enabled else 0
+    library_connection_disabled = max(0, library_connection_registered - library_connection_total)
     library_alert_count = (
         alerts_lib.count_active_by_prefixes(
             alerts_lib.LIBRARY_SCOPED_ALERT_PREFIXES,
+            exclude_tiers=("info",),
+        )
+        if library_enabled
+        else 0
+    )
+    library_drift_alert_count = (
+        alerts_lib.count_active_by_prefixes(
+            ("Library cache drift:",),
             exclude_tiers=("info",),
         )
         if library_enabled
@@ -120,5 +130,8 @@ def footer_status() -> dict[str, Any]:
         "libraries_title": libraries_title,
         "libraries_dot": libraries_dot,
         "library_connection_total": library_connection_total,
+        "library_connection_registered": library_connection_registered,
+        "library_connection_disabled": library_connection_disabled,
         "library_alert_count": library_alert_count,
+        "library_drift_alert_count": library_drift_alert_count,
     }

@@ -139,6 +139,9 @@ class TestFooterStatus:
         cfg.save(c)
         status = ps.footer_status()
         assert status["library_connection_total"] == 1
+        assert status["library_connection_registered"] == 2
+        assert status["library_connection_disabled"] == 1
+        assert status["library_drift_alert_count"] == 0
         assert status["libraries_dot"] == "green"
 
     def test_libraries_muted_when_all_connections_disabled(self, tmp_path):
