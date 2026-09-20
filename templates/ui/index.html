@@ -60,7 +60,6 @@
         <div class="dashboard-tile-body" data-tile="library">
           <p id="dashboard-library-off" class="dashboard-tile-placeholder"{% if library_enabled %} hidden{% endif %}>
             Library is disabled.
-            <a class="link" href="{{ url_for('settings_section', section='general') }}">Enable in Settings → General</a>.
           </p>
           <p id="dashboard-library-on" class="dashboard-tile-placeholder"{% if not library_enabled %} hidden{% endif %}>
             Connection health (coming soon).
