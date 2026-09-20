@@ -86,27 +86,17 @@ class TestMainAndServe:
             ["serve", "--data-dir", str(sandbox), "--host", "127.0.0.1", "--port", "9"]
         )
         fake_app = MagicMock()
-        run = MagicMock()
-        instances: list = []
-
-        class FakeGunicorn:
-            def __init__(self, *args, **kwargs):
-                instances.append(self)
-
-            def run(self):
-                run()
-
         hatchery_mod = MagicMock(app=fake_app)
         with (
             patch.dict("sys.modules", {"hatchery": hatchery_mod}),
-            patch("gunicorn.app.base.BaseApplication", FakeGunicorn),
+            patch("lib.cli.serve._run_with_gunicorn") as run_guni,
         ):
             rc = serve_cmd.run(args)
 
         assert rc == 0
         assert Path(cfg.runtime_data_dir()) == sandbox.resolve()
-        assert len(instances) == 1
-        assert instances[0].application is fake_app
-        assert instances[0].options["bind"] == "127.0.0.1:9"
-        assert instances[0].options["workers"] == 1
-        run.assert_called_once()
+        run_guni.assert_called_once()
+        called_app, called_opts = run_guni.call_args[0]
+        assert called_app is fake_app
+        assert called_opts["bind"] == "127.0.0.1:9"
+        assert called_opts["workers"] == 1

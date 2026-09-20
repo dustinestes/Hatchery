@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 
 def register(sub: argparse._SubParsersAction) -> None:
@@ -29,22 +30,14 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
 
 
-def run(args: argparse.Namespace) -> int:
-    """Apply session overrides, then run gunicorn against ``hatchery:app``."""
-    from lib import config as cfg
-
-    if args.data_dir:
-        cfg.set_runtime_data_dir(args.data_dir)
-
-    # Import after overrides so module-level config.load() sees the session data_dir.
-    import hatchery  # noqa: F401
-
+def _run_with_gunicorn(application: Any, options: dict) -> None:
+    """Start gunicorn for ``application`` (isolated for tests / Windows import quirks)."""
     from gunicorn.app.base import BaseApplication
 
     class _App(BaseApplication):
-        def __init__(self, application, options: dict):
-            self.application = application
-            self.options = options
+        def __init__(self, app, opts: dict):
+            self.application = app
+            self.options = opts
             super().__init__()
 
         def load_config(self) -> None:
@@ -56,11 +49,24 @@ def run(args: argparse.Namespace) -> int:
         def load(self):
             return self.application
 
+    _App(application, options).run()
+
+
+def run(args: argparse.Namespace) -> int:
+    """Apply session overrides, then run gunicorn against ``hatchery:app``."""
+    from lib import config as cfg
+
+    if args.data_dir:
+        cfg.set_runtime_data_dir(args.data_dir)
+
+    # Import after overrides so module-level config.load() sees the session data_dir.
+    import hatchery  # noqa: F401
+
     options = {
         "bind": f"{args.host}:{args.port}",
         "workers": 1,
         # Sync worker matches contributor docs / single-process Controller expectations.
         "worker_class": "sync",
     }
-    _App(hatchery.app, options).run()
+    _run_with_gunicorn(hatchery.app, options)
     return 0
