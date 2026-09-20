@@ -49,46 +49,80 @@
 <div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
 <div class="scripts-layout">
 
-  <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
-    {% if scripts %}
-      {% for s in scripts %}
-      <button type="button"
-              class="scripts-nav-item"
-              data-name="{{ s.name }}"
-              data-relative-path="{{ s.relative_path }}"
-              data-absolute-path="{{ s.absolute_path }}"
-              data-language="{{ s.language }}"
-              data-modified-at="{{ s.modified_at }}"
-              data-drift-state="{{ s.drift_state or 'local' }}"
-              data-orphan="{{ '1' if s.orphan else '0' }}"
-              data-orphan-reason="{{ s.orphan_reason or '' }}"
-              data-lib-rel="{{ (s.library_provenance.relative_path if s.library_provenance else '') }}"
-              data-lib-conn="{{ (s.library_provenance.connection_id if s.library_provenance else '') }}"
-              aria-pressed="false">
-        <span class="scripts-nav-main">
-          <span class="scripts-nav-label">{{ s.name }}</span>
-          <span class="scripts-nav-sub">{{ s.language }}{% if s.drift_state == 'out_of_sync' %} · out of sync{% elif s.orphan %} · orphaned{% endif %}</span>
-        </span>
-        <span class="scripts-nav-drift-icon"
-              {% if s.drift_state != 'out_of_sync' and not s.orphan %}hidden{% endif %}
-              title="{% if s.orphan %}{{ s.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
-              aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-        </span>
-      </button>
-      {% endfor %}
-    {% else %}
-      <div class="scripts-nav-empty" id="scripts-nav-empty">
-        No scripts found. Use <strong>Import</strong>, or place files in
-        <code>automation/scripts/</code>
-        under your Hatchery data directory.
+  <div class="scripts-rail">
+    <div class="notif-filters scripts-cached-filters" role="search" aria-label="Filter Cached scripts">
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-filter-q">Search</label>
+        <input type="search"
+               id="scripts-filter-q"
+               class="form-input"
+               placeholder="Name"
+               autocomplete="off"
+               aria-controls="scripts-nav">
       </div>
-    {% endif %}
-  </nav>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-filter-language">Language</label>
+        <select id="scripts-filter-language" class="form-select" aria-controls="scripts-nav">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="scripts-filter-state">Library state</label>
+        <select id="scripts-filter-state" class="form-select" aria-controls="scripts-nav">
+          <option value="">All</option>
+          <option value="local">Local</option>
+          <option value="in_sync">In sync</option>
+          <option value="out_of_sync">Out of sync</option>
+          <option value="orphan">Orphaned</option>
+          <option value="unknown">Tip unknown</option>
+        </select>
+      </div>
+    </div>
+
+    <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
+      {% if scripts %}
+        {% for s in scripts %}
+        <button type="button"
+                class="scripts-nav-item"
+                data-name="{{ s.name }}"
+                data-relative-path="{{ s.relative_path }}"
+                data-absolute-path="{{ s.absolute_path }}"
+                data-language="{{ s.language }}"
+                data-modified-at="{{ s.modified_at }}"
+                data-drift-state="{{ s.drift_state or 'local' }}"
+                data-orphan="{{ '1' if s.orphan else '0' }}"
+                data-orphan-reason="{{ s.orphan_reason or '' }}"
+                data-lib-rel="{{ (s.library_provenance.relative_path if s.library_provenance else '') }}"
+                data-lib-conn="{{ (s.library_provenance.connection_id if s.library_provenance else '') }}"
+                aria-pressed="false">
+          <span class="scripts-nav-main">
+            <span class="scripts-nav-label">{{ s.name }}</span>
+            <span class="scripts-nav-sub">{{ s.language }}{% if s.drift_state == 'out_of_sync' %} · out of sync{% elif s.orphan %} · orphaned{% endif %}</span>
+          </span>
+          <span class="scripts-nav-drift-icon"
+                {% if s.drift_state != 'out_of_sync' and not s.orphan %}hidden{% endif %}
+                title="{% if s.orphan %}{{ s.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
+                aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </span>
+        </button>
+        {% endfor %}
+      {% else %}
+        <div class="scripts-nav-empty" id="scripts-nav-empty">
+          No scripts found. Use <strong>Import</strong>, or place files in
+          <code>automation/scripts/</code>
+          under your Hatchery data directory.
+        </div>
+      {% endif %}
+      <div class="scripts-nav-empty" id="scripts-nav-filtered-empty" role="status" hidden>
+        No scripts match these filters.
+      </div>
+    </nav>
+  </div>
 
   <div class="scripts-content" id="scripts-content">
     <div class="scripts-content-header" id="scripts-content-header" hidden>
@@ -399,6 +433,11 @@
   const deleteFilenameEl = document.getElementById('delete-modal-filename');
   const deleteCancel = document.getElementById('delete-modal-cancel');
   const deleteConfirm = document.getElementById('delete-modal-confirm');
+  const filterQ = document.getElementById('scripts-filter-q');
+  const filterLanguage = document.getElementById('scripts-filter-language');
+  const filterState = document.getElementById('scripts-filter-state');
+  const navFilteredEmpty = document.getElementById('scripts-nav-filtered-empty');
+  const navEmpty = document.getElementById('scripts-nav-empty');
   const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
   const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
   const libraryConnections = {{ library_connections | default([]) | tojson }};
@@ -550,6 +589,103 @@
     }
   }
 
+  function scriptLibraryState(btn) {
+    if (!btn) return 'local';
+    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
+    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
+    if (drift === 'unknown') return 'unknown';
+    if (drift === 'out_of_sync') return 'out_of_sync';
+    if (drift === 'in_sync') return 'in_sync';
+    return 'local';
+  }
+
+  function currentScriptFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      language: filterLanguage ? (filterLanguage.value || '') : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
+  }
+
+  function itemMatchesScriptFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.language) {
+      var lang = btn.getAttribute('data-language') || '';
+      if (lang !== filters.language) return false;
+    }
+    if (filters.state && scriptLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearScriptDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    selectedContent = null;
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    libraryMode = 'hidden';
+  }
+
+  function populateLanguageFilter() {
+    if (!filterLanguage) return;
+    var selected = filterLanguage.value || '';
+    var langs = {};
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+      var lang = (btn.getAttribute('data-language') || '').trim();
+      if (lang) langs[lang] = true;
+    });
+    var keys = Object.keys(langs).sort(function (a, b) {
+      return a.localeCompare(b);
+    });
+    filterLanguage.innerHTML = '';
+    var all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'All';
+    filterLanguage.appendChild(all);
+    keys.forEach(function (lang) {
+      var opt = document.createElement('option');
+      opt.value = lang;
+      opt.textContent = lang;
+      filterLanguage.appendChild(opt);
+    });
+    if (selected && langs[selected]) filterLanguage.value = selected;
+  }
+
+  function applyScriptFilters() {
+    if (!nav) return;
+    var filters = currentScriptFilters();
+    var items = nav.querySelectorAll('.scripts-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesScriptFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) {
+      navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    }
+    var active = nav.querySelector('.scripts-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearScriptDetail();
+    }
+  }
+
   function refreshDriftInventory() {
     return fetch('/api/automation/scripts')
       .then(function (r) { return r.ok ? r.json() : []; })
@@ -563,8 +699,10 @@
           var name = btn.getAttribute('data-name');
           if (name && byName[name]) applyDriftChrome(btn, byName[name]);
         });
+        populateLanguageFilter();
+        applyScriptFilters();
         var active = nav.querySelector('.scripts-nav-item.active');
-        if (active) setLibraryStatus(active);
+        if (active && !active.hidden) setLibraryStatus(active);
       })
       .catch(function () { /* status tick must not break the page */ });
   }
@@ -918,6 +1056,15 @@
         });
     });
   }
+
+  function onScriptFilterChange() {
+    applyScriptFilters();
+  }
+  if (filterQ) filterQ.addEventListener('input', onScriptFilterChange);
+  if (filterLanguage) filterLanguage.addEventListener('change', onScriptFilterChange);
+  if (filterState) filterState.addEventListener('change', onScriptFilterChange);
+  populateLanguageFilter();
+  applyScriptFilters();
 
   if (window.hatchery && typeof hatchery.onStatusTick === 'function') {
     hatchery.onStatusTick(function () {
