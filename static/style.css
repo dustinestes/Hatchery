@@ -1607,6 +1607,37 @@ body {
   line-height: 1.45;
 }
 
+.dashboard-tile-metric {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.dashboard-tile-count {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 600;
+  margin-right: 4px;
+  color: var(--color-text);
+}
+
+.dashboard-tile-breakdown {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.dashboard-tile-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
 .dashboard-tile-cta {
   align-self: flex-start;
   font-size: 13px;
