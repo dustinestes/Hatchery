@@ -1,8 +1,9 @@
-"""Dashboard Nest, VM, and Clutch rollups (#329 / #331).
+"""Dashboard Nest, VM, Clutch, and Validators rollups (#329 / #331 / #334).
 
 Nests use stored reachability / validator run data (no probe on paint).
-VMs and Clutches aggregate for the Dashboard only via ``/api/dashboard-summary``;
-do not put them on ``/api/plane-status`` (that bus polls every pane).
+VMs, Clutches, and Validators aggregate for the Dashboard only via
+``/api/dashboard-summary``; do not put them on ``/api/plane-status``
+(that bus polls every pane).
 """
 
 from __future__ import annotations
@@ -190,6 +191,58 @@ def clutch_summary() -> dict[str, Any]:
     }
 
 
+def validators_summary() -> dict[str, Any]:
+    """Enabled/off + latest-run rollup from Settings and ``validator_runs`` (#334).
+
+    Reads stored config and run history only; does not schedule or execute validators.
+    """
+    from lib.validators.settings import list_validator_configs
+
+    configs = list_validator_configs()
+    latest = validator_runs.latest_by_validator()
+    total = len(configs)
+    enabled_rows = [c for c in configs if c.get("enabled")]
+    enabled = len(enabled_rows)
+    disabled = total - enabled
+
+    by_status = {"ok": 0, "findings": 0, "error": 0}
+    never_run = 0
+    degraded = 0
+    findings_total = 0
+    finished_ats: list[str] = []
+
+    for run in latest.values():
+        at = run.get("finished_at") or run.get("started_at")
+        if isinstance(at, str) and at:
+            finished_ats.append(at)
+
+    for row in enabled_rows:
+        vid = row.get("id")
+        run = latest.get(vid) if vid else None
+        if not run:
+            never_run += 1
+            continue
+        status = run.get("status") if run.get("status") in by_status else "error"
+        by_status[status] += 1
+        if status in ("findings", "error"):
+            degraded += 1
+        try:
+            findings_total += int(run.get("findings_count") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        "total": total,
+        "enabled": enabled,
+        "disabled": disabled,
+        "never_run": never_run,
+        "by_status": by_status,
+        "degraded": degraded,
+        "findings_total": findings_total,
+        "last_run_at": _latest_iso(finished_ats),
+    }
+
+
 def dashboard_summary() -> dict[str, Any]:
     """Payload for ``GET /api/dashboard-summary``."""
     from lib import alerts as alerts_lib
@@ -207,6 +260,7 @@ def dashboard_summary() -> dict[str, Any]:
         },
         "vms": vm_summary(),
         "clutches": clutch_summary(),
+        "validators": validators_summary(),
     }
 
 

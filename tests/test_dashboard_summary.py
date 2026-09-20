@@ -134,6 +134,62 @@ class TestClutchSummary:
         assert summary["nests_used"] == [{"id": "local", "name": "Local"}]
 
 
+class TestValidatorsSummary:
+    def test_enabled_and_latest_runs(self):
+        from lib.validators import builtins as builtins_mod
+        from lib.validators.registry import clear_registry
+        from lib.validators.runs import record_run
+        from lib.validators.settings import save_validator_configs
+
+        clear_registry()
+        builtins_mod.register_builtins()
+        save_validator_configs(
+            {
+                "controller_requirements": {"enabled": True, "interval_seconds": 60},
+                "clutch_files": {"enabled": False, "interval_seconds": 60},
+            }
+        )
+        record_run(
+            validator_id="controller_requirements",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T16:00:00Z",
+        )
+        record_run(
+            validator_id="nest_reachability",
+            status="findings",
+            message="down",
+            findings_count=2,
+            finished_at="2026-09-20T16:30:00Z",
+        )
+
+        summary = dash.validators_summary()
+        assert summary["total"] >= 2
+        assert summary["enabled"] >= 1
+        assert summary["disabled"] >= 1
+        assert summary["by_status"]["ok"] >= 1
+        assert summary["by_status"]["findings"] >= 1
+        assert summary["degraded"] >= 1
+        assert summary["findings_total"] >= 2
+        assert summary["last_run_at"] == "2026-09-20T16:30:00Z"
+
+    def test_all_disabled(self):
+        from lib.validators import builtins as builtins_mod
+        from lib.validators.registry import all_validators, clear_registry
+        from lib.validators.settings import save_validator_configs
+
+        clear_registry()
+        builtins_mod.register_builtins()
+        save_validator_configs(
+            {v.id: {"enabled": False, "interval_seconds": 60} for v in all_validators()}
+        )
+        summary = dash.validators_summary()
+        assert summary["total"] > 0
+        assert summary["enabled"] == 0
+        assert summary["disabled"] == summary["total"]
+        assert summary["never_run"] == 0
+
+
 class TestFooterStatusNestFields:
     def test_includes_nest_tile_fields(self):
         nests_lib.ensure_local_nest()

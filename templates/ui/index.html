@@ -99,8 +99,8 @@
 
       <section class="dashboard-tile" id="dash-tile-validators" aria-labelledby="dash-tile-validators-title">
         <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
-        <div class="dashboard-tile-body" data-tile="validators">
-          <p class="dashboard-tile-placeholder">Enabled or off, last run status (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="validators" id="dash-validators-body">
+          <p class="dashboard-tile-placeholder">Loading validators…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('validators_pane') }}">Open Validators</a>
       </section>
@@ -112,6 +112,7 @@
 {% endblock %}
 
 {% block scripts %}
+{% raw %}
 <script>
 (function () {
   /* Status-surfaces bus (#282): no per-pane setInterval. */
@@ -125,6 +126,7 @@
   var clutchesBody = document.getElementById('dash-clutches-body');
   var healthBody = document.getElementById('dash-health-body');
   var alertsBody = document.getElementById('dash-alerts-body');
+  var validatorsBody = document.getElementById('dash-validators-body');
   var summaryInFlight = false;
 
   function esc(str) {
@@ -386,6 +388,70 @@
     alertsBody.innerHTML = parts.join('');
   }
 
+  function renderValidators(validators) {
+    if (!validatorsBody) return;
+    if (!validators) {
+      validatorsBody.innerHTML = '<p class="dashboard-tile-placeholder">Loading validators…</p>';
+      return;
+    }
+    var total = validators.total || 0;
+    var enabled = validators.enabled || 0;
+    var disabled = validators.disabled || 0;
+    if (!total) {
+      validatorsBody.innerHTML =
+        '<p class="dashboard-tile-metric">No validators registered</p>' +
+        '<p class="dashboard-tile-meta">Built-in validators load with the Controller.</p>';
+      return;
+    }
+    if (!enabled) {
+      validatorsBody.innerHTML =
+        '<p class="dashboard-tile-metric">Validators are off</p>' +
+        '<p class="dashboard-tile-meta">' + disabled + ' disabled. Enable checks in Settings → General.</p>';
+      return;
+    }
+
+    var byStatus = validators.by_status || {};
+    var neverRun = validators.never_run || 0;
+    var degraded = validators.degraded || 0;
+    var findingsTotal = validators.findings_total || 0;
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + enabled + '</span> of ' + total + ' enabled</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Latest run status for enabled validators">',
+      '<li>' + (byStatus.ok || 0) + ' ok</li>',
+      '<li>' + (byStatus.findings || 0) + ' with findings</li>',
+      '<li>' + (byStatus.error || 0) + ' error</li>',
+    ];
+    if (neverRun) {
+      parts.push('<li>' + neverRun + ' never run</li>');
+    }
+    parts.push('</ul>');
+    if (degraded) {
+      var findBit = '';
+      if (findingsTotal) {
+        findBit = String(findingsTotal) + ' finding' + (findingsTotal === 1 ? '' : 's') +
+          ' in latest runs. ';
+      }
+      parts.push(
+        '<p class="dashboard-tile-meta">' + findBit +
+        'See the Validators pane for detail.</p>'
+      );
+    } else if (validators.last_run_at) {
+      var lastRun = 'Last run unknown';
+      try {
+        lastRun = 'Last run ' + new Date(validators.last_run_at).toLocaleString(undefined, {
+          month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        });
+      } catch (e) {
+        lastRun = 'Last run ' + esc(validators.last_run_at);
+      }
+      parts.push('<p class="dashboard-tile-meta">' + lastRun + '</p>');
+    } else {
+      parts.push('<p class="dashboard-tile-meta">No runs recorded yet.</p>');
+    }
+    validatorsBody.innerHTML = parts.join('');
+  }
+
   function applyPlaneStatus(ps) {
     if (!ps) return;
     if (emptyNests) {
@@ -404,6 +470,7 @@
       .then(function (data) {
         renderVms(data && data.vms, nestTotal);
         renderClutches(data && data.clutches);
+        renderValidators(data && data.validators);
       })
       .catch(function () {
         if (vmsBody) {
@@ -411,6 +478,9 @@
         }
         if (clutchesBody) {
           clutchesBody.innerHTML = '<p class="dashboard-tile-placeholder">Could not load Clutch summary.</p>';
+        }
+        if (validatorsBody) {
+          validatorsBody.innerHTML = '<p class="dashboard-tile-placeholder">Could not load Validators summary.</p>';
         }
       })
       .finally(function () { summaryInFlight = false; });
@@ -424,4 +494,5 @@
   });
 })();
 </script>
+{% endraw %}
 {% endblock %}

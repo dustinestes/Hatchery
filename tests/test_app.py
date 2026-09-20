@@ -487,15 +487,18 @@ class TestDashboardSummaryApi:
         assert "renderClutches" in html
         assert "renderHealth" in html
         assert "renderAlerts" in html
+        assert "renderValidators" in html
         assert "dash-nests-body" in html
         assert "dash-vms-body" in html
         assert "dash-clutches-body" in html
         assert "dash-health-body" in html
         assert "dash-alerts-body" in html
+        assert "dash-validators-body" in html
         assert "fetchDashboardSummary" in html
         assert "payload.alerts" in html
         assert "Controller and Nest health rollup" not in html
         assert "Open alert counts by tier" not in html
+        assert "Enabled or off, last run status" not in html
 
 
 class TestSettingsRoute:

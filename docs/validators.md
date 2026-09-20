@@ -61,6 +61,8 @@ Validators are the **gather** layer only. They must not push to the DOM. Finding
 
 When adding pane UI that should stay fresh (Validators filters [#280](https://github.com/dustinestes/Hatchery/issues/280), Libraries chip [#254](https://github.com/dustinestes/Hatchery/issues/254)), subscribe to the status tick — do not add another `setInterval` for health.
 
+The **Dashboard Validators** tile rolls up enabled/off counts and latest-run status from Settings + `validator_runs` via `GET /api/dashboard-summary` on the same tick ([#334](https://github.com/dustinestes/Hatchery/issues/334)). It does not re-run validators on paint.
+
 <br>
 
 ## Settings

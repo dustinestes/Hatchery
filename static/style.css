@@ -1571,7 +1571,10 @@ body {
 
 .dashboard-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  width: 100%;
+  /* auto-fit collapses empty tracks so N tiles share the full row;
+     auto-fill left spare columns and kept tiles stuck near minmax floor. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 16px;
 }
 
@@ -1579,6 +1582,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
   padding: 14px 16px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
