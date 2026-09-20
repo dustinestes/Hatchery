@@ -217,6 +217,8 @@ Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
 
 **Sync integrity:** downloads that claim a content-addressable tip must match pulled bytes before evaluate can promote anchors. Forge pulls use the GitHub Contents API (blob sha + body), not `raw.githubusercontent.com` CDN.
 
+**Scripts Cached filters (#320):** Automations → Scripts → Cached has a filter bar (search, language, Library state) so operators can narrow the rail without leaving the pane. Media/Clutches filter bars are follow-ons.
+
 #### Forge / GitHub rate limits
 
 Each full validator pass uses about **one Trees request per forge connection** (plus a repo metadata call), not one Trees request per attributed file. Single-file Sync uses Contents metadata for that path when possible.
