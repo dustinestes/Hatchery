@@ -512,6 +512,22 @@ def _script_language(name: str) -> str:
     return _SCRIPT_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
 
 
+# Clutch control-plane formats (YAML today; extend for Docker Compose / etc.).
+_CLUTCH_LANGUAGES = {
+    ".yaml": "YAML",
+    ".yml": "YAML",
+}
+
+
+def _clutch_language(name: str) -> str:
+    from pathlib import Path
+
+    ext = Path(name).suffix.lower()
+    if not ext:
+        return "Unknown"
+    return _CLUTCH_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
+
+
 def _resolve_script_path(name: str):
     """Return the path to a script under automation/scripts/, or None if invalid."""
     from pathlib import Path
@@ -588,6 +604,7 @@ def _scan_clutch_inventory() -> list[dict]:
                 "name": f.name,
                 "relative_path": f"{subdir}/{f.name}",
                 "absolute_path": str(f.resolve()),
+                "language": _clutch_language(f.name),
                 "modified_at": modified,
             }
         )

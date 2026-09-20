@@ -52,6 +52,12 @@
              aria-controls="clutches-nav">
     </div>
     <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-language">Language</label>
+      <select id="clutches-filter-language" class="form-select" aria-controls="clutches-nav">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
       <label class="form-label" for="clutches-filter-state">Library state</label>
       <select id="clutches-filter-state" class="form-select" aria-controls="clutches-nav">
         <option value="">All</option>
@@ -74,6 +80,7 @@
               data-name="{{ item.name }}"
               data-relative-path="{{ item.relative_path }}"
               data-absolute-path="{{ item.absolute_path }}"
+              data-language="{{ item.language or 'YAML' }}"
               data-modified-at="{{ item.modified_at }}"
               data-drift-state="{{ item.drift_state or 'local' }}"
               data-orphan="{{ '1' if item.orphan else '0' }}"
@@ -83,7 +90,7 @@
               aria-pressed="false">
         <span class="scripts-nav-main">
           <span class="scripts-nav-label">{{ item.name }}</span>
-          <span class="scripts-nav-sub">{% if item.modified_at %}{{ item.modified_at }}{% else %}Clutch{% endif %}{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
+          <span class="scripts-nav-sub">{{ item.language or 'YAML' }}{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
         </span>
         <span class="inventory-nav-drift-icon scripts-nav-drift-icon"
               {% if item.drift_state != 'out_of_sync' and not item.orphan %}hidden{% endif %}
@@ -194,10 +201,19 @@
           <dd id="clutches-meta-path"></dd>
         </div>
         <div class="scripts-meta-row">
+          <dt>Language</dt>
+          <dd id="clutches-meta-language"></dd>
+        </div>
+        <div class="scripts-meta-row">
           <dt>Modified</dt>
           <dd id="clutches-meta-modified"></dd>
         </div>
       </dl>
+
+      <section class="scripts-body-section" aria-labelledby="clutches-body-heading">
+        <h2 class="scripts-section-title" id="clutches-body-heading">Content</h2>
+        <pre class="scripts-body" id="clutches-body" tabindex="0" aria-label="Clutch content"></pre>
+      </section>
     </div>
 
     <div class="stub" id="clutches-stub">Select a Clutch to inspect</div>
@@ -316,7 +332,9 @@
   var detail = document.getElementById('clutches-detail');
   var stub = document.getElementById('clutches-stub');
   var pathEl = document.getElementById('clutches-meta-path');
+  var langEl = document.getElementById('clutches-meta-language');
   var modifiedEl = document.getElementById('clutches-meta-modified');
+  var bodyEl = document.getElementById('clutches-body');
   var copyDropdown = document.getElementById('clutches-copy-dropdown');
   var copyMenuBtn = document.getElementById('clutches-copy-menu-btn');
   var copyMenu = document.getElementById('clutches-copy-menu');
@@ -340,6 +358,7 @@
   var cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
   var libraryConnections = {{ library_connections | default([]) | tojson }};
   var filterQ = document.getElementById('clutches-filter-q');
+  var filterLanguage = document.getElementById('clutches-filter-language');
   var filterState = document.getElementById('clutches-filter-state');
   var navFilteredEmpty = document.getElementById('clutches-nav-filtered-empty');
   var navEmpty = document.getElementById('clutches-nav-empty');
@@ -360,6 +379,7 @@
   function currentClutchFilters() {
     return {
       q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      language: filterLanguage ? (filterLanguage.value || '') : '',
       state: filterState ? (filterState.value || '') : '',
     };
   }
@@ -368,6 +388,10 @@
     if (!btn) return false;
     var name = (btn.getAttribute('data-name') || '').toLowerCase();
     if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.language) {
+      var lang = btn.getAttribute('data-language') || '';
+      if (lang !== filters.language) return false;
+    }
     if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
     return true;
   }
@@ -393,6 +417,36 @@
       libraryStatusBtn.disabled = true;
     }
     libraryMode = 'hidden';
+    if (bodyEl) bodyEl.textContent = '';
+    if (pathEl) pathEl.textContent = '';
+    if (langEl) langEl.textContent = '';
+    if (modifiedEl) modifiedEl.textContent = '';
+    closeCopyMenu();
+  }
+
+  function populateLanguageFilter() {
+    if (!filterLanguage || !nav) return;
+    var selected = filterLanguage.value || '';
+    var langs = {};
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+      var lang = (btn.getAttribute('data-language') || '').trim();
+      if (lang) langs[lang] = true;
+    });
+    var keys = Object.keys(langs).sort(function (a, b) {
+      return a.localeCompare(b);
+    });
+    filterLanguage.innerHTML = '';
+    var all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'All';
+    filterLanguage.appendChild(all);
+    keys.forEach(function (lang) {
+      var opt = document.createElement('option');
+      opt.value = lang;
+      opt.textContent = lang;
+      filterLanguage.appendChild(opt);
+    });
+    if (selected && langs[selected]) filterLanguage.value = selected;
   }
 
   function applyClutchFilters() {
@@ -429,13 +483,11 @@
     }
   }
 
-  function clutchSubLabel(modifiedAt, drift, orphan) {
-    var base = modifiedAt ? formatModified(modifiedAt) : 'Clutch';
-    if (base === '—') base = 'Clutch';
-    var suffix = '';
-    if (drift === 'out_of_sync') suffix = ' · out of sync';
-    else if (orphan) suffix = ' · orphaned';
-    return base + suffix;
+  function clutchSubLabel(language, drift, orphan) {
+    var base = language || 'YAML';
+    if (drift === 'out_of_sync') return base + ' · out of sync';
+    if (orphan) return base + ' · orphaned';
+    return base;
   }
 
   function notifyCopy(ok, kind) {
@@ -533,10 +585,12 @@
     var drift = item.drift_state || 'local';
     var orphan = !!item.orphan;
     var reason = (item.orphan_reason || '').trim();
+    var lang = item.language || btn.getAttribute('data-language') || 'YAML';
     var modified = item.modified_at || btn.getAttribute('data-modified-at') || '';
     btn.setAttribute('data-drift-state', drift);
     btn.setAttribute('data-orphan', orphan ? '1' : '0');
     btn.setAttribute('data-orphan-reason', reason);
+    btn.setAttribute('data-language', lang);
     if (item.modified_at) btn.setAttribute('data-modified-at', item.modified_at);
     if (item.library_provenance) {
       btn.setAttribute('data-lib-rel', item.library_provenance.relative_path || '');
@@ -544,7 +598,7 @@
     }
     var sub = btn.querySelector('.scripts-nav-sub');
     if (sub) {
-      sub.textContent = clutchSubLabel(modified, drift, orphan);
+      sub.textContent = clutchSubLabel(lang, drift, orphan);
     }
     var icon = btn.querySelector('.inventory-nav-drift-icon, .scripts-nav-drift-icon');
     if (icon) {
@@ -567,13 +621,16 @@
           var name = btn.getAttribute('data-name');
           if (name && byName[name]) applyDriftChrome(btn, byName[name]);
         });
+        populateLanguageFilter();
         applyClutchFilters();
         var active = nav.querySelector('.scripts-nav-item.active');
         if (active && !active.hidden) {
           setLibraryStatus(active);
           if (selectedName === active.getAttribute('data-name')) {
             var mod = active.getAttribute('data-modified-at') || '';
-            if (metaEl) metaEl.textContent = formatModified(mod);
+            var lang = active.getAttribute('data-language') || 'YAML';
+            if (metaEl) metaEl.textContent = lang;
+            if (langEl) langEl.textContent = lang;
             if (modifiedEl) modifiedEl.textContent = formatModified(mod);
           }
         }
@@ -584,6 +641,7 @@
   function loadClutchContent(name) {
     selectedContent = null;
     if (copyContentItem) copyContentItem.disabled = true;
+    if (bodyEl) bodyEl.textContent = 'Loading…';
     fetch('/api/clutches/' + encodeURIComponent(name) + '/content')
       .then(function (resp) {
         if (!resp.ok) {
@@ -598,11 +656,13 @@
       .then(function (data) {
         if (selectedName !== name) return;
         selectedContent = data.content != null ? data.content : '';
+        if (bodyEl) bodyEl.textContent = selectedContent;
         if (copyContentItem) copyContentItem.disabled = false;
       })
-      .catch(function () {
+      .catch(function (err) {
         if (selectedName !== name) return;
         selectedContent = null;
+        if (bodyEl) bodyEl.textContent = 'Could not load content' + (err && err.message ? ': ' + err.message : '');
         if (copyContentItem) copyContentItem.disabled = true;
       });
   }
@@ -612,6 +672,7 @@
     var name = btn.getAttribute('data-name');
     var rel = btn.getAttribute('data-relative-path') || '';
     var abs = btn.getAttribute('data-absolute-path') || '';
+    var language = btn.getAttribute('data-language') || 'YAML';
     var modified = btn.getAttribute('data-modified-at') || '';
 
     nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
@@ -645,8 +706,9 @@
     setLibraryStatus(btn);
 
     titleEl.textContent = name;
-    metaEl.textContent = formatModified(modified);
+    metaEl.textContent = language;
     pathEl.textContent = rel;
+    if (langEl) langEl.textContent = language;
     modifiedEl.textContent = formatModified(modified);
     loadClutchContent(name);
   }
@@ -689,6 +751,7 @@
         drift_state: btn.getAttribute('data-drift-state') || 'local',
         orphan: btn.getAttribute('data-orphan') === '1',
         orphan_reason: btn.getAttribute('data-orphan-reason') || '',
+        language: btn.getAttribute('data-language') || 'YAML',
         modified_at: btn.getAttribute('data-modified-at') || '',
       });
     });
@@ -901,7 +964,9 @@
   }
 
   if (filterQ) filterQ.addEventListener('input', applyClutchFilters);
+  if (filterLanguage) filterLanguage.addEventListener('change', applyClutchFilters);
   if (filterState) filterState.addEventListener('change', applyClutchFilters);
+  populateLanguageFilter();
   applyClutchFilters();
 })();
 </script>

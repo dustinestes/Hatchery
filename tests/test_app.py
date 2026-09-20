@@ -186,7 +186,15 @@ class TestPageTitles:
         assert "inventory-nav-drift-icon" in html
         assert 'aria-label="Filter Cached Clutches"' in html
         assert 'id="clutches-filter-q"' in html
+        assert 'id="clutches-filter-language"' in html
+        assert 'id="clutches-filter-state"' in html
+        assert 'id="clutches-meta-language"' in html
+        assert 'id="clutches-body"' in html
+        assert 'id="clutches-copy-path-item">Path</button>' in html
+        assert 'id="clutches-copy-content-item"' in html
         assert "applyClutchFilters" in html
+        assert "populateLanguageFilter" in html
+        assert "loadClutchContent" in html
 
     def test_automation_scripts_title(self, client):
         html = client.get("/automation/scripts").data.decode()
@@ -2664,6 +2672,19 @@ class TestScanDir:
         assert "lab.yaml" in names
         assert "notes.txt" not in names
         assert all(isinstance(i, dict) and "drift_state" in i for i in result)
+        lab = next(i for i in result if i["name"] == "lab.yaml")
+        assert lab["language"] == "YAML"
+
+    def test_api_clutch_content_returns_text(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches = tmp_path / "clutches"
+        clutches.mkdir()
+        (clutches / "lab.yaml").write_text("name: Lab\nvms: []\n")
+        resp = client.get("/api/clutches/lab.yaml/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "lab.yaml"
+        assert "name: Lab" in data["content"]
 
 
 class TestPlaneStatus:
@@ -3490,7 +3511,9 @@ class TestMediaPanes:
         assert "win11.iso" in html
         assert "media/iso/win11.iso" in html
         assert "media-layout" in html
-        assert "Copy file path" in html
+        assert 'aria-label="Copy"' in html
+        assert 'id="media-copy-path-item">Path</button>' in html
+        assert "media-copy-content-item" not in html
         assert "media-nav-drift-icon" in html
         assert 'id="media-library-status-btn"' in html
         assert 'aria-label="Filter Cached ISO"' in html or "Filter Cached" in html

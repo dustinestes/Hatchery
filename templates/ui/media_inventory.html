@@ -136,20 +136,26 @@
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
         </button>
+        <div class="import-dropdown scripts-copy-dropdown" id="media-copy-dropdown" hidden>
+          <button type="button"
+                  class="scripts-copy-btn"
+                  id="media-copy-menu-btn"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="media-copy-menu"
+                  title="Copy"
+                  aria-label="Copy">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu import-dropdown-menu" id="media-copy-menu" hidden role="menu" aria-label="Copy options">
+            <button type="button" class="dropdown-item" role="menuitem" id="media-copy-path-item">Path</button>
+          </div>
+        </div>
         <button type="button"
-                class="media-copy-btn scripts-copy-btn"
-                id="media-copy-path-btn"
-                aria-label="Copy file path"
-                title="Copy file path"
-                hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          <span class="media-copy-label">Path</span>
-        </button>
-        <button type="button"
-                class="media-copy-btn"
+                class="scripts-copy-btn"
                 id="media-delete-btn"
                 title="Delete"
                 aria-label="Delete"
@@ -320,7 +326,10 @@
   const bootEl = document.getElementById('media-meta-boot');
   const usedByList = document.getElementById('media-used-by-list');
   const usedByEmpty = document.getElementById('media-used-by-empty');
-  const copyPathBtn = document.getElementById('media-copy-path-btn');
+  const copyDropdown = document.getElementById('media-copy-dropdown');
+  const copyMenuBtn = document.getElementById('media-copy-menu-btn');
+  const copyMenu = document.getElementById('media-copy-menu');
+  const copyPathItem = document.getElementById('media-copy-path-item');
   const deleteBtn = document.getElementById('media-delete-btn');
   const libraryStatusBtn = document.getElementById('media-library-status-btn');
   const librarySyncIcon = libraryStatusBtn
@@ -380,7 +389,7 @@
     if (header) header.hidden = true;
     if (detail) detail.hidden = true;
     if (stub) stub.hidden = false;
-    if (copyPathBtn) copyPathBtn.hidden = true;
+    if (copyDropdown) copyDropdown.hidden = true;
     if (deleteBtn) deleteBtn.hidden = true;
     if (libraryStatusBtn) {
       libraryStatusBtn.hidden = true;
@@ -461,6 +470,18 @@
     } else {
       notifyCopy(false);
     }
+  }
+
+  function closeCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = true;
+    copyMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = false;
+    copyMenuBtn.setAttribute('aria-expanded', 'true');
   }
 
   function renderUsedBy(name) {
@@ -614,7 +635,8 @@
     stub.hidden = true;
     header.hidden = false;
     detail.hidden = false;
-    copyPathBtn.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = false;
+    closeCopyMenu();
     deleteBtn.hidden = false;
     deleteBtn.title = 'Delete ' + name;
     deleteBtn.setAttribute('aria-label', 'Delete ' + name);
@@ -703,10 +725,33 @@
     items[next].focus();
   });
 
-  copyPathBtn.addEventListener('click', function () {
-    if (!selectedAbsPath) return;
-    copyText(selectedAbsPath);
-  });
+  if (copyMenuBtn && copyMenu) {
+    copyMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (copyMenu.hidden) openCopyMenu();
+      else closeCopyMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (!copyDropdown || copyMenu.hidden) return;
+      if (copyDropdown.contains(e.target)) return;
+      closeCopyMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && copyMenu && !copyMenu.hidden) {
+        e.preventDefault();
+        closeCopyMenu();
+        copyMenuBtn.focus();
+      }
+    });
+  }
+
+  if (copyPathItem) {
+    copyPathItem.addEventListener('click', function () {
+      closeCopyMenu();
+      if (!selectedAbsPath) return;
+      copyText(selectedAbsPath);
+    });
+  }
 
   function openDeleteModal(name) {
     deleteFilenameEl.textContent = name;

@@ -217,7 +217,7 @@ Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
 
 **Sync integrity:** downloads that claim a content-addressable tip must match pulled bytes before evaluate can promote anchors. Forge pulls use the GitHub Contents API (blob sha + body), not `raw.githubusercontent.com` CDN.
 
-**Scripts Cached filters (#320):** Automations → Scripts → Cached has a filter bar (search, language, Library state) so operators can narrow the rail without leaving the pane. Media/Clutches filter bars are follow-ons.
+**Scripts Cached filters (#320):** Automations → Scripts → Cached has a filter bar (search, language, Library state) so operators can narrow the rail without leaving the pane. Media and Clutches Cached filter bars match that layout (search + Library state; Clutches also filters by language for future control-plane formats).
 
 #### Forge / GitHub rate limits
 
@@ -252,7 +252,7 @@ Domain inventory panes (Scripts, Media, Clutches) use a **Cached | Library** tab
 | **Library** | Binding catalog: name + muted path, connection, copyable SHA, Cached vs Library-only; filter/sort, multi-select, batch pull. Dimmed when Library is disabled in Settings |
 | **Import** | From file…; Browse library… switches to the Library tab when Library is enabled |
 
-**Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached — left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary); Scripts and Clutches offer Path / Contents. Cached filter bars (search + Library state; Scripts also filters by language) sit full-width above the rail and detail pane.
+**Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached — left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Cached filter bars sit full-width above the rail and detail pane.
 
 An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded** by the Cached | Library tab model above.
 
