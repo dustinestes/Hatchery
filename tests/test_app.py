@@ -369,7 +369,10 @@ class TestDashboardShell:
         "nests_title": "No Nests registered",
         "nests_dot": "muted",
         "nest_total": 0,
+        "nest_reachable": 0,
         "nest_unreachable": 0,
+        "nest_unchecked": 0,
+        "nest_last_validated_at": None,
         "nest_alert_count": 0,
         "library_enabled": False,
         "libraries_visible": False,
@@ -420,6 +423,51 @@ class TestDashboardShell:
         assert 'href="/settings/library"' in html
         assert "Open Settings" in html
         assert "Open Library Settings" not in html
+
+
+class TestDashboardSummaryApi:
+    def test_dashboard_summary_returns_nests_and_vms(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "lib.dashboard_summary.dashboard_summary",
+            lambda: {
+                "nests": {
+                    "total": 1,
+                    "reachable": 1,
+                    "unreachable": 0,
+                    "unchecked": 0,
+                    "alert_count": 0,
+                    "last_validated_at": "2026-09-20T12:00:00Z",
+                },
+                "vms": {
+                    "total": 2,
+                    "by_power": {"running": 1, "shut_off": 1, "paused": 0, "other": 0},
+                    "by_hatch": {
+                        "pending": 0,
+                        "hatching": 0,
+                        "provisioning": 0,
+                        "fledged": 1,
+                        "failed": 0,
+                        "culled": 0,
+                        "none": 1,
+                    },
+                    "nests_unavailable": 0,
+                },
+            },
+        )
+        resp = client.get("/api/dashboard-summary")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["nests"]["total"] == 1
+        assert data["vms"]["total"] == 2
+        assert data["vms"]["by_power"]["running"] == 1
+
+    def test_dashboard_scripts_fetch_summary(self, client):
+        html = client.get("/").data.decode()
+        assert "/api/dashboard-summary" in html
+        assert "renderNests" in html
+        assert "renderVms" in html
+        assert "dash-nests-body" in html
+        assert "dash-vms-body" in html
 
 
 class TestSettingsRoute:

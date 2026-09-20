@@ -1,7 +1,7 @@
-"""Footer plane rollups — Hatchery + Nests + Libraries (#277 / #254).
+"""Footer plane rollups: Hatchery + Nests + Libraries (#277 / #254).
 
 Glanceable status only. Counts come from the live Nest registry, Library
-connection registry, and active Alerts — not from the page URL. Drill-down
+connection registry, and active Alerts; not from the page URL. Drill-down
 stays on the Alerts bell.
 
 Part of the status-surfaces contract (#282): validators gather, Alerts/snapshot
@@ -14,6 +14,7 @@ from typing import Any
 
 from lib import alerts as alerts_lib
 from lib import config
+from lib import dashboard_summary as dashboard_summary_lib
 from lib import nest_reachability as nest_reachability_lib
 from lib import nests as nests_lib
 
@@ -26,24 +27,19 @@ def footer_status() -> dict[str, Any]:
     )
     if controller_issues:
         hatchery_dot = "red"
-        hatchery_title = f"Hatchery: {controller_issues} Controller issue(s) — see Alerts"
+        hatchery_title = f"Hatchery: {controller_issues} Controller issue(s); see Alerts"
         hatchery_ok = False
     else:
         hatchery_dot = "green"
         hatchery_title = "Hatchery Controller OK"
         hatchery_ok = True
 
-    # Do not force-seed Local here — empty registry is a valid future state (#266).
+    # Do not force-seed Local here; empty registry is a valid future state (#266).
     registered = nests_lib.list_nests()
-    nest_total = len(registered)
     snap_nests = nest_reachability_lib.get_snapshot().get("nests") or {}
-
-    unreachable = 0
-    for nest in registered:
-        nid = nest.get("id")
-        entry = snap_nests.get(nid) if nid else None
-        if isinstance(entry, dict) and not entry.get("ok"):
-            unreachable += 1
+    nest_fields = dashboard_summary_lib.nest_tile_fields(registered, snap_nests=snap_nests)
+    nest_total = nest_fields["nest_total"]
+    unreachable = nest_fields["nest_unreachable"]
 
     nest_alert_count = alerts_lib.count_active_by_prefixes(alerts_lib.NEST_SCOPED_ALERT_PREFIXES)
 
@@ -58,7 +54,7 @@ def footer_status() -> dict[str, Any]:
             parts.append(f"{unreachable} of {nest_total} unreachable")
         if nest_alert_count:
             parts.append(f"{nest_alert_count} Nest alert(s)")
-        nests_title = "Nests: " + "; ".join(parts) + " — see Alerts"
+        nests_title = "Nests: " + "; ".join(parts) + "; see Alerts"
         nests_ok = False
     else:
         nests_dot = "green"
@@ -96,7 +92,7 @@ def footer_status() -> dict[str, Any]:
     elif library_alert_count:
         libraries_visible = True
         libraries_dot = "red"
-        libraries_title = f"Libraries: {library_alert_count} connection issue(s) — see Alerts"
+        libraries_title = f"Libraries: {library_alert_count} connection issue(s); see Alerts"
         libraries_ok = False
     else:
         libraries_visible = True
@@ -113,7 +109,10 @@ def footer_status() -> dict[str, Any]:
         "nests_title": nests_title,
         "nests_dot": nests_dot,
         "nest_total": nest_total,
+        "nest_reachable": nest_fields["nest_reachable"],
         "nest_unreachable": unreachable,
+        "nest_unchecked": nest_fields["nest_unchecked"],
+        "nest_last_validated_at": nest_fields["nest_last_validated_at"],
         "nest_alert_count": nest_alert_count,
         "library_enabled": library_enabled,
         "libraries_visible": libraries_visible,

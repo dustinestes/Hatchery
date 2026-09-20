@@ -2968,10 +2968,18 @@ def api_alerts():
 
 @app.route("/api/plane-status")
 def api_plane_status():
-    """Footer Hatchery + Nests status — registry and alerts, not page URL (#277)."""
+    """Footer Hatchery + Nests status: registry and alerts, not page URL (#277)."""
     from lib import plane_status as plane_status_lib
 
     return jsonify(plane_status_lib.footer_status())
+
+
+@app.route("/api/dashboard-summary")
+def api_dashboard_summary():
+    """Dashboard Nest + VM rollups (#329). Dashboard-only; not on the plane-status bus."""
+    from lib import dashboard_summary as dashboard_summary_lib
+
+    return jsonify(dashboard_summary_lib.dashboard_summary())
 
 
 @app.route("/api/sessions/<session_id>/vms/<vm_name>/events")

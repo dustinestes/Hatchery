@@ -24,8 +24,8 @@
 
       <section class="dashboard-tile" id="dash-tile-nests" aria-labelledby="dash-tile-nests-title">
         <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
-        <div class="dashboard-tile-body" data-tile="nests">
-          <p class="dashboard-tile-placeholder">Nest counts and last validated (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="nests" id="dash-nests-body">
+          <p class="dashboard-tile-placeholder">Loading Nest status…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
@@ -40,8 +40,8 @@
 
       <section class="dashboard-tile" id="dash-tile-vms" aria-labelledby="dash-tile-vms-title">
         <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
-        <div class="dashboard-tile-body" data-tile="vms">
-          <p class="dashboard-tile-placeholder">VM counts by status and health (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="vms" id="dash-vms-body">
+          <p class="dashboard-tile-placeholder">Loading VM status…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
@@ -121,6 +121,98 @@
   var libraryOff = document.getElementById('dashboard-library-off');
   var libraryOn = document.getElementById('dashboard-library-on');
   var libraryCta = document.getElementById('dashboard-library-cta');
+  var nestsBody = document.getElementById('dash-nests-body');
+  var vmsBody = document.getElementById('dash-vms-body');
+  var summaryInFlight = false;
+
+  function esc(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function fmtValidated(iso) {
+    if (!iso) return 'Never validated';
+    try {
+      return 'Last validated ' + new Date(iso).toLocaleString(undefined, {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) {
+      return 'Last validated ' + esc(iso);
+    }
+  }
+
+  function renderNests(ps) {
+    if (!nestsBody || !ps) return;
+    var total = ps.nest_total || 0;
+    if (total === 0) {
+      nestsBody.innerHTML = '<p class="dashboard-tile-metric">No Nests registered</p>' +
+        '<p class="dashboard-tile-meta">Add a Nest in Settings to get started.</p>';
+      return;
+    }
+    var reachable = ps.nest_reachable != null ? ps.nest_reachable : Math.max(0, total - (ps.nest_unreachable || 0) - (ps.nest_unchecked || 0));
+    var unreachable = ps.nest_unreachable || 0;
+    var unchecked = ps.nest_unchecked || 0;
+    var alerts = ps.nest_alert_count || 0;
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> Nest' + (total === 1 ? '' : 's') + '</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Nest reachability">',
+      '<li>' + reachable + ' reachable</li>',
+      '<li>' + unreachable + ' unreachable</li>',
+    ];
+    if (unchecked) parts.push('<li>' + unchecked + ' not checked yet</li>');
+    if (alerts) parts.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
+    parts.push('</ul>');
+    parts.push('<p class="dashboard-tile-meta">' + esc(fmtValidated(ps.nest_last_validated_at)) + '</p>');
+    nestsBody.innerHTML = parts.join('');
+  }
+
+  function renderVms(vms, nestTotal) {
+    if (!vmsBody) return;
+    if (!nestTotal) {
+      vmsBody.innerHTML = '<p class="dashboard-tile-metric">No Nests registered</p>' +
+        '<p class="dashboard-tile-meta">VM counts appear after a Nest is added.</p>';
+      return;
+    }
+    if (!vms) {
+      vmsBody.innerHTML = '<p class="dashboard-tile-placeholder">Loading VM status…</p>';
+      return;
+    }
+    var total = vms.total || 0;
+    var power = vms.by_power || {};
+    var hatch = vms.by_hatch || {};
+    var unavailable = vms.nests_unavailable || 0;
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> VM' + (total === 1 ? '' : 's') + '</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="VM power status">',
+      '<li>' + (power.running || 0) + ' running</li>',
+      '<li>' + (power.shut_off || 0) + ' shut off</li>',
+      '<li>' + (power.paused || 0) + ' paused</li>',
+    ];
+    if (power.other) parts.push('<li>' + power.other + ' other</li>');
+    parts.push('</ul>');
+    parts.push('<ul class="dashboard-tile-breakdown" aria-label="VM hatch status">');
+    var hatchBits = [];
+    if (hatch.hatching) hatchBits.push(hatch.hatching + ' hatching');
+    if (hatch.provisioning) hatchBits.push(hatch.provisioning + ' provisioning');
+    if (hatch.fledged) hatchBits.push(hatch.fledged + ' fledged');
+    if (hatch.failed) hatchBits.push(hatch.failed + ' failed');
+    if (hatch.pending) hatchBits.push(hatch.pending + ' pending');
+    if (!hatchBits.length) {
+      parts.push('<li>' + (hatch.none || total) + ' with no hatch record</li>');
+    } else {
+      hatchBits.forEach(function (b) { parts.push('<li>' + b + '</li>'); });
+      if (hatch.none) parts.push('<li>' + hatch.none + ' with no hatch record</li>');
+    }
+    parts.push('</ul>');
+    if (unavailable) {
+      parts.push('<p class="dashboard-tile-meta">' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>');
+    } else {
+      parts.push('<p class="dashboard-tile-meta">Guest health checks are not rolled up yet.</p>');
+    }
+    vmsBody.innerHTML = parts.join('');
+  }
 
   function applyPlaneStatus(ps) {
     if (!ps) return;
@@ -134,10 +226,29 @@
       libraryCta.href = enabled ? '/settings/library' : '/settings/general';
       libraryCta.textContent = 'Open Settings';
     }
+    renderNests(ps);
+  }
+
+  function fetchVmSummary(nestTotal) {
+    if (summaryInFlight) return;
+    summaryInFlight = true;
+    fetch('/api/dashboard-summary')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        renderVms(data && data.vms, nestTotal);
+      })
+      .catch(function () {
+        if (vmsBody) {
+          vmsBody.innerHTML = '<p class="dashboard-tile-placeholder">Could not load VM summary.</p>';
+        }
+      })
+      .finally(function () { summaryInFlight = false; });
   }
 
   hatchery.onStatusTick(function (payload) {
-    applyPlaneStatus(payload && payload.planeStatus);
+    var ps = payload && payload.planeStatus;
+    applyPlaneStatus(ps);
+    fetchVmSummary(ps ? (ps.nest_total || 0) : 0);
   });
 })();
 </script>

@@ -1,0 +1,168 @@
+"""Dashboard Nest + VM rollups (#329).
+
+Nests use stored reachability / validator run data (no probe on paint).
+VMs aggregate ``list_vms`` across registered Nests for the Dashboard only;
+do not put this on ``/api/plane-status`` (that bus polls every pane).
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from lib import hatch as hatch_lib
+from lib import nest_reachability as nest_reachability_lib
+from lib import nests as nests_lib
+from lib.providers.factory import UnknownNestError, UnsupportedProviderError, get_provider
+from lib.validators import runs as validator_runs
+
+
+_PAUSED_POWER = frozenset({"paused", "suspended", "pmsuspended"})
+
+
+def nest_tile_fields(
+    registered: list[dict] | None = None,
+    *,
+    snap_nests: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Nest counts + last-validated for plane-status / Nest tile."""
+    nests = registered if registered is not None else nests_lib.list_nests()
+    snap = (
+        snap_nests
+        if snap_nests is not None
+        else (nest_reachability_lib.get_snapshot().get("nests") or {})
+    )
+    if not isinstance(snap, dict):
+        snap = {}
+
+    total = len(nests)
+    reachable = 0
+    unreachable = 0
+    unchecked = 0
+    checked_ats: list[str] = []
+
+    for nest in nests:
+        nid = nest.get("id")
+        entry = snap.get(nid) if nid else None
+        if not isinstance(entry, dict):
+            unchecked += 1
+            continue
+        if entry.get("ok"):
+            reachable += 1
+        else:
+            unreachable += 1
+        at = entry.get("checked_at")
+        if isinstance(at, str) and at:
+            checked_ats.append(at)
+
+    last_validated = _latest_iso(checked_ats)
+    if last_validated is None:
+        snap_updated = nest_reachability_lib.get_snapshot().get("updated_at")
+        if isinstance(snap_updated, str) and snap_updated:
+            last_validated = snap_updated
+    if last_validated is None:
+        latest = validator_runs.latest_by_validator().get("nest_reachability") or {}
+        finished = latest.get("finished_at") or latest.get("started_at")
+        if isinstance(finished, str) and finished:
+            last_validated = finished
+
+    return {
+        "nest_total": total,
+        "nest_reachable": reachable,
+        "nest_unreachable": unreachable,
+        "nest_unchecked": unchecked,
+        "nest_last_validated_at": last_validated,
+    }
+
+
+def vm_summary() -> dict[str, Any]:
+    """Cross-Nest VM power + hatch counts (lightweight; no IP/scripts)."""
+    by_power = {
+        "running": 0,
+        "shut_off": 0,
+        "paused": 0,
+        "other": 0,
+    }
+    by_hatch = {
+        "pending": 0,
+        "hatching": 0,
+        "provisioning": 0,
+        "fledged": 0,
+        "failed": 0,
+        "culled": 0,
+        "none": 0,
+    }
+    total = 0
+    nests_unavailable = 0
+
+    for nest in nests_lib.list_nests():
+        nid = nest.get("id")
+        if not nid:
+            nests_unavailable += 1
+            continue
+        try:
+            provider = get_provider(nid)
+            vms = provider.list_vms()
+        except (UnknownNestError, UnsupportedProviderError, OSError, RuntimeError):
+            nests_unavailable += 1
+            continue
+
+        for vm in vms:
+            total += 1
+            power = (vm.get("status") or "").strip().lower()
+            if power == "running":
+                by_power["running"] += 1
+            elif power == "shut off":
+                by_power["shut_off"] += 1
+            elif power in _PAUSED_POWER:
+                by_power["paused"] += 1
+            else:
+                by_power["other"] += 1
+
+            hatch_status = None
+            name = vm.get("name")
+            if name:
+                try:
+                    tag = provider.get_vm_session_tag(name)
+                except Exception:
+                    tag = None
+                if tag and tag.get("session_id"):
+                    row = hatch_lib.get_vm_record(tag["session_id"], name)
+                    if row:
+                        hatch_status = row.get("status")
+
+            if hatch_status in by_hatch:
+                by_hatch[hatch_status] += 1
+            else:
+                by_hatch["none"] += 1
+
+    return {
+        "total": total,
+        "by_power": by_power,
+        "by_hatch": by_hatch,
+        "nests_unavailable": nests_unavailable,
+    }
+
+
+def dashboard_summary() -> dict[str, Any]:
+    """Payload for ``GET /api/dashboard-summary``."""
+    from lib import alerts as alerts_lib
+
+    nest_fields = nest_tile_fields()
+    alert_count = alerts_lib.count_active_by_prefixes(alerts_lib.NEST_SCOPED_ALERT_PREFIXES)
+    return {
+        "nests": {
+            "total": nest_fields["nest_total"],
+            "reachable": nest_fields["nest_reachable"],
+            "unreachable": nest_fields["nest_unreachable"],
+            "unchecked": nest_fields["nest_unchecked"],
+            "alert_count": alert_count,
+            "last_validated_at": nest_fields["nest_last_validated_at"],
+        },
+        "vms": vm_summary(),
+    }
+
+
+def _latest_iso(values: list[str]) -> str | None:
+    if not values:
+        return None
+    return max(values)
