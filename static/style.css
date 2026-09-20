@@ -1542,7 +1542,77 @@ body {
   gap: 8px;
 }
 
-/* ── Dashboard sections ── */
+/* ── Dashboard summary tiles (#328) ── */
+.dashboard-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 8px;
+}
+
+.dashboard-band {
+  margin: 0;
+}
+
+.dashboard-section-title {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dashboard-section-subtitle {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.dashboard-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.dashboard-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  min-height: 140px;
+}
+
+.dashboard-tile-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dashboard-tile-body {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.dashboard-tile-placeholder {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dashboard-tile-cta {
+  align-self: flex-start;
+  font-size: 13px;
+}
+
+/* Legacy two-column dashboard chrome (unused by current Dashboard) */
 .dashboard-layout {
   display: grid;
   grid-template-columns: 200px 1fr;
