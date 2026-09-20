@@ -316,7 +316,6 @@ class TestNestReachability:
         }
         with (
             patch("lib.nests.list_nests", return_value=[nest]),
-            patch("lib.nests.ensure_local_nest", return_value=None),
             patch(
                 "lib.nest_reachability.probe_nest",
                 return_value=NestHealthCheckResult(
@@ -354,7 +353,6 @@ class TestNestReachability:
         alerts_lib.record_alert("Nest reachability: 'Lab' (r1): Connection refused")
         with (
             patch("lib.nests.list_nests", return_value=[nest]),
-            patch("lib.nests.ensure_local_nest", return_value=None),
             patch(
                 "lib.nest_reachability.probe_nest",
                 return_value=NestHealthCheckResult(ok=True, detail="OK"),

@@ -126,7 +126,7 @@ Key/value store for operational Settings (JSON-encoded values). The external boo
 
 ### nests
 
-Registered Nest connections (where VMs live). The built-in row `id = 'local'` is seeded on `init_db` / migrate and cannot be removed. Remote Nests store endpoint and credential **references** — not private key bytes or long-lived WinRM passwords (those wait on [#110](https://github.com/dustinestes/Hatchery/issues/110)).
+Registered Nest connections (where VMs live). Fresh databases start with an **empty** registry ([ADR-0014](../adr/0014-optional-local-nest.md) / [#266](https://github.com/dustinestes/Hatchery/issues/266)). Local Nest id `local` is optional (session `--nest-local`, Settings Add Local Nest, or an existing migrated row). Remote Nests store endpoint and credential **references** — not private key bytes or long-lived WinRM passwords (those wait on [#110](https://github.com/dustinestes/Hatchery/issues/110)).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -150,7 +150,7 @@ Registered Nest connections (where VMs live). The built-in row `id = 'local'` is
 
 #### Managed by
 
-`lib/nests.py` — `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()`, `test_connection()`, `identities_for_expiry()`
+`lib/nests.py` — `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()` (opt-in `--nest-local`), `default_nest_id()`, `test_connection()`, `identities_for_expiry()`
 
 <br>
 

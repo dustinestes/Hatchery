@@ -50,7 +50,7 @@ Use these terms in UI copy, docs, issues, and agent rules. Prefer **Controller**
 | **Local Nest** | Nest on the same device as the Controller (`location=local`) — the Controller also manages guest VMs on that device |
 | **Remote Nest** | Nest the Controller reaches across the control plane (`location=remote`) to manage guest VMs |
 
-Today the registry still seeds a built-in Local Nest id `local` and forbids removing it ([#207](https://github.com/dustinestes/Hatchery/issues/207)). Making Local Nest optional (Controller with only Remote Nests) is [#266](https://github.com/dustinestes/Hatchery/issues/266).
+The Nest registry may be empty (Controller-only). Local Nest id `local` is optional and may be added later via Settings or session `--nest-local` ([ADR-0014](adr/0014-optional-local-nest.md) / [#266](https://github.com/dustinestes/Hatchery/issues/266)). At most one Nest may use `location=local`, and only id `local` may do so.
 
 <br>
 

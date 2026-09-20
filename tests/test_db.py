@@ -105,7 +105,7 @@ class TestInitDb:
         finally:
             conn.close()
 
-    def test_creates_nests_table_and_seeds_local(self):
+    def test_creates_nests_table_empty(self):
         conn = db_module.get_connection()
         try:
             names = [
@@ -115,9 +115,8 @@ class TestInitDb:
                 ).fetchall()
             ]
             assert "nests" in names
-            row = conn.execute("SELECT id, name, location FROM nests WHERE id='local'").fetchone()
-            assert row["name"] == "Local"
-            assert row["location"] == "local"
+            count = conn.execute("SELECT COUNT(*) AS n FROM nests").fetchone()["n"]
+            assert count == 0
         finally:
             conn.close()
 

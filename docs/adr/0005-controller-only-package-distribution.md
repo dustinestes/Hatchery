@@ -35,7 +35,7 @@ Ship package formulas **after** the Controller is Nest-optional and multi-OS; ke
 
 **Neutral / follow-on**
 
-- Optional Local Nest and empty-registry UX ([#266](https://github.com/dustinestes/Hatchery/issues/266))
+- Optional Local Nest and empty-registry UX ([#266](https://github.com/dustinestes/Hatchery/issues/266)) → [ADR-0014](0014-optional-local-nest.md)
 - Stable CLI entrypoint (`hatchery` / `hatchery serve`) remains a packaging prerequisite
 
 **Bad / accepted cost**

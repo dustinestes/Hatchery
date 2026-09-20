@@ -111,7 +111,12 @@ def get_nest(nest_id: str) -> dict | None:
 
 
 def ensure_local_nest() -> dict:
-    """Insert the default local libvirt Nest if missing; return it."""
+    """Insert the default local libvirt Nest if missing; return it.
+
+    Opt-in only (CLI ``--nest-local``, env ``HATCHERY_NEST_LOCAL``,
+    or Settings Add Local Nest). Fresh Controllers start with an empty registry
+    (ADR-0014 / #266). Idempotent: no-op when id ``local`` already exists.
+    """
     existing = get_nest(LOCAL_NEST_ID)
     if existing:
         return existing
@@ -136,17 +141,31 @@ def ensure_local_nest() -> dict:
     return nest
 
 
+def default_nest_id() -> str | None:
+    """Return the sole registered Nest id, or None if zero or many Nests."""
+    nests = list_nests()
+    if len(nests) == 1:
+        return nests[0]["id"]
+    return None
+
+
 def normalize_nest(item: dict) -> dict:
     """Validate and normalize a single Nest dict (Settings row / test payload)."""
     return _normalize_one(item)
 
 
 def parse_nests(raw: list | None) -> list[dict]:
-    """Validate and normalize Nest dicts from Settings / API."""
-    if not raw:
-        raise ValueError("at least one Nest is required")
+    """Validate and normalize Nest dicts from Settings / API.
+
+    Empty registry is allowed (Controller-only / ADR-0014). Local Nest id
+    ``local`` is optional; when present it must use ``location=local``.
+    """
+    if raw is None:
+        return []
     if not isinstance(raw, list):
         raise ValueError("nests must be a list")
+    if not raw:
+        return []
 
     out: list[dict] = []
     seen_ids: set[str] = set()
@@ -168,7 +187,7 @@ def parse_nests(raw: list | None) -> list[dict]:
 
         if nest["id"] != LOCAL_NEST_ID and nest["location"] == "local":
             raise ValueError(
-                "only the built-in Nest id 'local' may use location 'local' — "
+                "only the Nest id 'local' may use location 'local' — "
                 "other Nests must be remote (even for localhost / WSL)"
             )
 
@@ -186,12 +205,10 @@ def parse_nests(raw: list | None) -> list[dict]:
 
         out.append(nest)
 
-    if LOCAL_NEST_ID not in seen_ids:
-        raise ValueError(f"the built-in Nest id '{LOCAL_NEST_ID}' cannot be removed")
-
-    local = next(n for n in out if n["id"] == LOCAL_NEST_ID)
-    if local["location"] != "local":
-        raise ValueError(f"Nest '{LOCAL_NEST_ID}' must have location 'local'")
+    if LOCAL_NEST_ID in seen_ids:
+        local = next(n for n in out if n["id"] == LOCAL_NEST_ID)
+        if local["location"] != "local":
+            raise ValueError(f"Nest '{LOCAL_NEST_ID}' must have location 'local'")
 
     return out
 

@@ -58,6 +58,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0011](0011-library-consume-only-no-clutch-roundtrip.md) | Library is consume-only — no Clutch↔forge round-trip | Accepted |
 | [0012](0012-library-cache-provenance-drift.md) | Library cache provenance + drift sync | Accepted |
 | [0013](0013-hatchery-cli-launch-and-operator.md) | Hatchery CLI - launch and operator surfaces | Accepted |
+| [0014](0014-optional-local-nest.md) | Optional Local Nest and empty Nest registry | Accepted |
 
 <br>
 

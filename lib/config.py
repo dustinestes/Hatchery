@@ -89,6 +89,8 @@ _pending_yaml_settings: dict = {}
 _db_bound: bool = False
 # Session-only data_dir from CLI / HATCHERY_DATA_DIR (ADR-0013). Never written to bootstrap.
 _runtime_data_dir: str | None = None
+# Session-only: register this Controller as Local Nest (ADR-0014). CLI / HATCHERY_NEST_LOCAL.
+_runtime_nest_local: bool = False
 # Last bootstrap data_dir from disk (or default); used when writing bootstrap under an override.
 _bootstrap_data_dir: str | None = None
 
@@ -105,6 +107,25 @@ def set_runtime_data_dir(path: str | Path | None) -> None:
 def runtime_data_dir() -> str | None:
     """Return the session ``data_dir`` override, if any."""
     return _runtime_data_dir
+
+
+def set_runtime_nest_local(enabled: bool) -> None:
+    """Set or clear session-only Local Nest registration (does not write Settings)."""
+    global _runtime_nest_local
+    _runtime_nest_local = bool(enabled)
+
+
+def runtime_nest_local() -> bool:
+    """Return whether the session requested Local Nest registration."""
+    return _runtime_nest_local
+
+
+def nest_local_enabled() -> bool:
+    """True when CLI ``--nest-local`` or env ``HATCHERY_NEST_LOCAL`` is set."""
+    if _runtime_nest_local:
+        return True
+    env = os.environ.get("HATCHERY_NEST_LOCAL", "").strip().lower()
+    return env in ("1", "true", "yes")
 
 
 def _effective_data_dir(bootstrap: str) -> str:

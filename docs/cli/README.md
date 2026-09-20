@@ -47,7 +47,7 @@ flowchart LR
 
 | Surface | Job | Session vs persist |
 |---|---|---|
-| **Launch** (`serve`) | Start the Controller | `--data-dir` / bind are session-only; never write Settings |
+| **Launch** (`serve`) | Start the Controller | `--data-dir` / `--nest-local` / bind are session-only; never write Settings |
 | **Operator** (`clutch`, `vm`, `hatch`, `nest`) | Nest-scoped inspect and lifecycle | In-process Nest factory; no running Controller required |
 | **Settings** (`settings`) | Persist Settings from the terminal | Distinct from launch overrides ([#344](https://github.com/dustinestes/Hatchery/issues/344)) |
 
@@ -60,6 +60,7 @@ After `uv sync` in a clone:
 ```bash
 uv run hatchery serve --host 127.0.0.1 --port 5000
 uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
+uv run hatchery serve --data-dir /path/to/sandbox-local --nest-local --host 127.0.0.1 --port 5000
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -82,7 +83,7 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 
 | Doc | Code | Status | Description |
 |---|---|---|---|
-| [serve.md](serve.md) | [`lib/cli/serve.py`](../../lib/cli/serve.py) | **Shipped** (#22) | Start the Controller HTTP server |
+| [serve.md](serve.md) | [`lib/cli/serve.py`](../../lib/cli/serve.py) | **Shipped** (#22, #266 `--nest-local`) | Start the Controller HTTP server |
 | [clutch.md](clutch.md) | `lib/cli/clutch.py` | Planned (#23) | List/show Clutch files |
 | [vm.md](vm.md) | `lib/cli/vm.py` | Planned (#23) | Nest-scoped VM list and lifecycle |
 | [hatch.md](hatch.md) | `lib/cli/hatch.py` | Planned (#23) | Hatch a Clutch onto a Nest |
