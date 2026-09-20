@@ -328,6 +328,13 @@ class TestGitLibrary:
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
         subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True, env=env)
         subprocess.run(
+            ["git", "config", "core.autocrlf", "false"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo,
             check=True,
@@ -407,12 +414,37 @@ class TestGitLibrary:
         dest = tmp_path / "data" / "automation" / "scripts" / "hello.ps1"
         assert dest.is_file()
         assert pulled["sha256"] == library.sha256_file(dest)
+        tip = library.resolve_source_digest(conn, "hello.ps1")
+        assert tip is not None
+        assert tip[0] == "git_blob"
+        assert library.git_blob_sha_file(dest) == tip[1]
 
         with pytest.raises(FileExistsError):
             library.pull_script(conn, "hello.ps1")
 
         clutch_hits = library.list_clutch_hits(conn, "*")
         assert {h["name"] for h in clutch_hits} == {"lab.yaml"}
+
+    def test_git_checkout_disables_autocrlf(self, git_remote, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        conn = self._git_conn(git_remote)
+        cache = library.ensure_git_checkout(conn)
+        cfg = subprocess.run(
+            ["git", "config", "--get", "core.autocrlf"],
+            cwd=cache,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert cfg.stdout.strip().lower() == "false"
+        # Simulate a Windows CRLF working tree, then refresh — tip must match again.
+        hello = cache / "hello.ps1"
+        hello.write_bytes(hello.read_bytes().replace(b"\n", b"\r\n"))
+        assert b"\r\n" in hello.read_bytes()
+        library.ensure_git_checkout(conn)
+        tip = library.resolve_source_digest(conn, "hello.ps1")
+        assert tip is not None
+        assert library.git_blob_sha_file(cache / "hello.ps1") == tip[1]
 
     def test_delete_git_cache_removes_dir(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)

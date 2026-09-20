@@ -127,6 +127,30 @@ class ArtifactoryAdapter(BaseLibraryApiAdapter):
         digest = (sha_header or "").strip().lower() or sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}
 
+    def source_digest(self, conn: dict[str, Any], relative_path: str) -> tuple[str, str] | None:
+        """Return ``(sha256, digest)`` from Storage API metadata — no artifact download."""
+        rel = relative_path.replace("\\", "/").lstrip("/")
+        if not rel or ".." in Path(rel).parts:
+            return None
+        try:
+            base = _base_uri(conn)
+            token = conn.get("token") or ""
+            url = f"{base}/api/storage/{quote(rel, safe='/')}"
+            code, body = _http_text("GET", url, token=token, timeout=_TIMEOUT_S)
+            if code != 200:
+                return None
+            data = json.loads(body)
+        except (_ApiError, json.JSONDecodeError, OSError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        checksums = data.get("checksums") or {}
+        if isinstance(checksums, dict):
+            sha = (checksums.get("sha256") or "").strip().lower()
+            if sha:
+                return ("sha256", sha)
+        return None
+
 
 class _ApiError(Exception):
     """HTTP / parse failure for Artifactory calls."""

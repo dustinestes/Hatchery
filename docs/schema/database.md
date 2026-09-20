@@ -22,6 +22,8 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
   - [hatch\_events](#hatch_events)
   - [clutch\_instances](#clutch_instances)
+  - [validator\_runs](#validator_runs)
+  - [library\_cache\_provenance](#library_cache_provenance)
 - [Maintenance](#maintenance)
   - [Hatch session archive purge](#hatch-session-archive-purge)
   - [Migrations](#migrations)
@@ -73,6 +75,37 @@ History of pluggable validator executions (Notifications → Validators). Separa
 #### Managed by
 
 `lib/validators/runs.py` — `record_run()`, `list_runs()`, `latest_by_validator()`
+
+<br>
+
+### library_cache_provenance
+
+Attribution of operator-cache files pulled via Library ([#308](https://github.com/dustinestes/Hatchery/issues/308)). Architecture: [ADR-0012](../adr/0012-library-cache-provenance-drift.md).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
+| `domain` | `TEXT` | `NOT NULL` | `scripts`, `clutches`, or `media` |
+| `media_target` | `TEXT` | `NOT NULL DEFAULT ''` | `iso` / `virtio` for media; empty otherwise |
+| `cache_name` | `TEXT` | `NOT NULL` | Basename in operator cache |
+| `connection_id` | `TEXT` | `NOT NULL` | Stable Library connection id |
+| `binding_id` | `TEXT` | | Optional binding id |
+| `relative_path` | `TEXT` | `NOT NULL` | Path on the source |
+| `source_type` | `TEXT` | `NOT NULL` | Connection type at pull (`path`, `forge`, …) |
+| `cache_sha256` | `TEXT` | `NOT NULL` | Observed Hatchery SHA-256 of cache bytes (each evaluate) |
+| `cache_sha256_synced` | `TEXT` | `NOT NULL` | Cache SHA at last successful sync/pull |
+| `source_digest` | `TEXT` | | Observed remote tip (each evaluate) |
+| `source_digest_synced` | `TEXT` | | Remote tip at last successful sync/pull |
+| `source_digest_kind` | `TEXT` | | `sha256`, `git_blob`, or `size_mtime` |
+| `drift_state` | `TEXT` | `NOT NULL DEFAULT 'unknown'` | `in_sync`, `out_of_sync`, `unknown`, `orphan` |
+| `checked_at` | `TEXT` | | Last evaluate |
+| `pulled_at` | `TEXT` | `NOT NULL` | Last successful sync/pull |
+| `updated_at` | `TEXT` | `NOT NULL` | Row update time |
+| | | `UNIQUE(domain, media_target, cache_name)` | One row per cached basename |
+
+#### Managed by
+
+`lib/library_provenance.py` — `upsert_on_pull()`, `apply_evaluate_result()`, `reattach()`, …
 
 <br>
 

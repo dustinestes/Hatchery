@@ -52,9 +52,10 @@
               data-absolute-path="{{ item.absolute_path }}"
               data-size-bytes="{{ item.size_bytes }}"
               data-modified-at="{{ item.modified_at }}"
+              data-drift-state="{{ item.drift_state or 'local' }}"
               aria-pressed="false">
         <span class="media-nav-label">{{ item.name }}</span>
-        <span class="media-nav-sub">{{ item.size_bytes }} bytes</span>
+        <span class="media-nav-sub">{{ item.size_bytes }} bytes{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
       </button>
       {% endfor %}
     {% else %}
@@ -73,6 +74,12 @@
         <span class="media-content-meta" id="media-content-meta"></span>
       </div>
       <div class="media-content-actions">
+        <button type="button"
+                class="btn btn-sm library-cache-sync-btn"
+                id="media-library-sync-btn"
+                hidden
+                disabled
+                aria-label="Sync from Library">Sync</button>
         <button type="button"
                 class="media-copy-btn"
                 id="media-copy-path-btn"
@@ -237,6 +244,9 @@
   const usedByEmpty = document.getElementById('media-used-by-empty');
   const copyPathBtn = document.getElementById('media-copy-path-btn');
   const deleteBtn = document.getElementById('media-delete-btn');
+  const syncBtn = document.getElementById('media-library-sync-btn');
+  const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
+  const mediaTarget = {{ library_media_target | default('iso') | tojson }};
   const deleteBackdrop = document.getElementById('delete-modal-backdrop');
   const deleteFilenameEl = document.getElementById('delete-modal-filename');
   const deleteCancel = document.getElementById('delete-modal-cancel');
@@ -358,6 +368,18 @@
     deleteBtn.hidden = false;
     deleteBtn.title = 'Delete ' + name;
     deleteBtn.setAttribute('aria-label', 'Delete ' + name);
+
+    const drift = btn.getAttribute('data-drift-state') || 'local';
+    if (syncBtn) {
+      const canSync = drift === 'out_of_sync';
+      syncBtn.hidden = drift === 'local';
+      syncBtn.disabled = !canSync;
+      syncBtn.classList.toggle('btn-primary', canSync);
+      syncBtn.setAttribute('aria-label', canSync
+        ? ('Sync ' + name + ' from Library (out of sync)')
+        : 'Sync from Library');
+      syncBtn.title = canSync ? 'Out of sync — sync from Library' : 'In sync or tip unknown';
+    }
 
     titleEl.textContent = name;
     metaEl.textContent = formatBytes(sizeBytes);
@@ -499,6 +521,34 @@
         closeDeleteModal();
       });
   });
+
+  if (syncBtn && cacheSyncUrl) {
+    syncBtn.addEventListener('click', function () {
+      if (syncBtn.disabled || !selectedName) return;
+      syncBtn.disabled = true;
+      fetch(cacheSyncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: 'media',
+          name: selectedName,
+          media_target: mediaTarget,
+        }),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Sync failed', 'warning', 5000);
+            }
+            syncBtn.disabled = false;
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () { syncBtn.disabled = false; });
+    });
+  }
 })();
 </script>
 {% endblock %}

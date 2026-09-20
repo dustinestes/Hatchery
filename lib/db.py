@@ -107,6 +107,27 @@ CREATE TABLE IF NOT EXISTS validator_runs (
     nest_id         TEXT,
     findings_count  INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS library_cache_provenance (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain                  TEXT    NOT NULL,
+    media_target            TEXT    NOT NULL DEFAULT '',
+    cache_name              TEXT    NOT NULL,
+    connection_id           TEXT    NOT NULL,
+    binding_id              TEXT,
+    relative_path           TEXT    NOT NULL,
+    source_type             TEXT    NOT NULL,
+    cache_sha256            TEXT    NOT NULL DEFAULT '',
+    cache_sha256_synced     TEXT    NOT NULL,
+    source_digest           TEXT,
+    source_digest_synced    TEXT,
+    source_digest_kind      TEXT,
+    drift_state             TEXT    NOT NULL DEFAULT 'unknown',
+    checked_at              TEXT,
+    pulled_at               TEXT    NOT NULL,
+    updated_at              TEXT    NOT NULL,
+    UNIQUE(domain, media_target, cache_name)
+);
 """
 
 _db_path: Path | None = None
@@ -131,7 +152,76 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "tier" not in alert_cols:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
     _migrate_nests_columns(conn)
+    _migrate_library_cache_provenance(conn)
     _seed_local_nest(conn)
+
+
+def _migrate_library_cache_provenance(conn: sqlite3.Connection) -> None:
+    """Rename #308 digest columns to cache_/source_ observed + _synced anchors."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_cache_provenance'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(library_cache_provenance)").fetchall()}
+    if "cache_sha256_synced" in cols and "sha256_at_pull" not in cols:
+        if "cache_sha256" not in cols:
+            conn.execute(
+                "ALTER TABLE library_cache_provenance ADD COLUMN cache_sha256 TEXT NOT NULL DEFAULT ''"
+            )
+            conn.execute(
+                "UPDATE library_cache_provenance SET cache_sha256 = cache_sha256_synced "
+                "WHERE cache_sha256 = '' OR cache_sha256 IS NULL"
+            )
+        return
+    if "sha256_at_pull" not in cols:
+        return
+    conn.execute(
+        """
+        CREATE TABLE library_cache_provenance__new (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            domain                  TEXT    NOT NULL,
+            media_target            TEXT    NOT NULL DEFAULT '',
+            cache_name              TEXT    NOT NULL,
+            connection_id           TEXT    NOT NULL,
+            binding_id              TEXT,
+            relative_path           TEXT    NOT NULL,
+            source_type             TEXT    NOT NULL,
+            cache_sha256            TEXT    NOT NULL DEFAULT '',
+            cache_sha256_synced     TEXT    NOT NULL,
+            source_digest           TEXT,
+            source_digest_synced    TEXT,
+            source_digest_kind      TEXT,
+            drift_state             TEXT    NOT NULL DEFAULT 'unknown',
+            checked_at              TEXT,
+            pulled_at               TEXT    NOT NULL,
+            updated_at              TEXT    NOT NULL,
+            UNIQUE(domain, media_target, cache_name)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO library_cache_provenance__new (
+            id, domain, media_target, cache_name, connection_id, binding_id,
+            relative_path, source_type, cache_sha256, cache_sha256_synced,
+            source_digest, source_digest_synced, source_digest_kind,
+            drift_state, checked_at, pulled_at, updated_at
+        )
+        SELECT
+            id, domain, media_target, cache_name, connection_id, binding_id,
+            relative_path, source_type,
+            COALESCE(sha256_at_pull, ''),
+            COALESCE(sha256_at_pull, ''),
+            last_source_digest,
+            source_digest,
+            source_digest_kind,
+            drift_state, checked_at, pulled_at, updated_at
+        FROM library_cache_provenance
+        """
+    )
+    conn.execute("DROP TABLE library_cache_provenance")
+    conn.execute("ALTER TABLE library_cache_provenance__new RENAME TO library_cache_provenance")
 
 
 def _migrate_nests_columns(conn: sqlite3.Connection) -> None:

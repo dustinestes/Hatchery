@@ -13,7 +13,7 @@ Library `type: git` needs list and pull into the operator domain cache (Scripts 
 ## Decision
 
 1. Keep a **Controller-side shallow clone** per connection at `{data_dir}/library/git/{connection_id}/`.
-2. **Refresh on list/pull only** via `ensure_git_checkout` (clone `--depth 1` or `fetch --depth 1` + `reset --hard FETCH_HEAD`). **Test connection** uses `git ls-remote` only and does **not** refresh the checkout. There is **no** background forge sync.
+2. **Refresh on list/pull only** via `ensure_git_checkout` (clone `--depth 1` or `fetch --depth 1` + `reset --hard FETCH_HEAD`). Checkouts set **`core.autocrlf=false`** and **`core.eol=lf`** so working-tree bytes stay aligned with git blob object ids (required for provenance digests on Windows Controllers — see [#308](https://github.com/dustinestes/Hatchery/issues/308)). **Test connection** uses `git ls-remote` only and does **not** refresh the checkout. There is **no** background forge sync.
 3. **Connection id is stable** (Settings does not rename ids). Changing `base_uri` keeps the same cache directory. Disable ([#293](https://github.com/dustinestes/Hatchery/issues/293)) does not delete the checkout.
 4. **Removing** a connection cascade-deletes domain bindings that reference it. For **git**, Settings may also delete the clone cache when the operator confirms (portable `pathlib` + `shutil.rmtree`, including Windows read-only `.git` files). That is the **clone cache**, not the operator domain cache.
 5. Pulled domain files remain **create-only** — they can age independently of the checkout tip.

@@ -262,6 +262,54 @@ class LibraryConnectionsValidator(BaseValidator):
         return "; ".join(parts) if parts else "Library connections OK"
 
 
+class LibraryCacheDriftValidator(BaseValidator):
+    id = "library_cache_drift"
+    title = "Library cache drift"
+    description = (
+        "Bidirectional drift: Cached file SHA and Library tip vs last sync "
+        "(no body download for compare). Optional auto-sync overwrites then re-evaluates. "
+        "Forge/GitHub: about one Trees call per connection per pass; watch API rate limits."
+    )
+    scope = "content"
+    default_interval_seconds = 300
+    default_enabled = True
+    supports_auto_sync = True
+    default_auto_sync = False
+
+    def run(self, ctx: ValidatorContext) -> str:
+        from lib import library_drift as drift
+        from lib.validators.settings import get_validator_config
+
+        if not config.library_enabled():
+            from lib import alerts as alerts_lib
+
+            for label in ("Scripts", "Clutches", "Media"):
+                alerts_lib.resolve_alerts_by_prefix(f"{drift.DRIFT_ALERT_PREFIX} {label}")
+            return "Library disabled"
+
+        cfg = get_validator_config(self.id)
+        auto_sync = bool(cfg.get("auto_sync"))
+        summary = drift.run_drift_pass(auto_sync=auto_sync)
+        out = int(summary.get("out_of_sync") or 0)
+        if out:
+            ctx.note_findings(out, "warning")
+        checked = int(summary.get("checked") or 0)
+        if checked == 0:
+            return "No Library-attributed cache files"
+        parts = [f"{checked} attributed file(s)"]
+        if summary.get("synced"):
+            parts.append(f"auto-synced {summary['synced']}")
+        if out:
+            parts.append(f"{out} out of sync")
+        orphans = int(summary.get("orphan") or 0)
+        if orphans:
+            parts.append(f"{orphans} orphan(s)")
+        rate = int(summary.get("rate_limited") or 0)
+        if rate:
+            parts.append(f"{rate} rate-limited (unknown)")
+        return "; ".join(parts)
+
+
 def register_builtins() -> None:
     """Idempotent registration of built-in validators."""
     from lib.validators import registry as reg
@@ -273,6 +321,7 @@ def register_builtins() -> None:
         NestReachabilityValidator,
         NestCapabilityValidator,
         LibraryConnectionsValidator,
+        LibraryCacheDriftValidator,
     ):
         if reg.get_validator(cls.id) is None:
             register(cls())

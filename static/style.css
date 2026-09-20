@@ -3332,9 +3332,10 @@ body {
 
 .scripts-nav-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   padding: 8px 12px;
   border: none;
@@ -3361,6 +3362,15 @@ body {
   outline-offset: 2px;
 }
 
+.scripts-nav-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .scripts-nav-label {
   font-size: 13px;
   font-weight: 500;
@@ -3377,6 +3387,19 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.scripts-nav-drift-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #D97706;
+  pointer-events: none;
+}
+
+.scripts-nav-drift-icon[hidden] {
+  display: none;
 }
 
 .scripts-content {
@@ -3426,8 +3449,11 @@ body {
 .scripts-copy-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 10px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-surface);
@@ -3449,6 +3475,40 @@ body {
 .scripts-copy-btn:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+.scripts-copy-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.scripts-copy-dropdown .import-dropdown-menu {
+  left: auto;
+  right: 0;
+  min-width: 120px;
+}
+
+.scripts-copy-dropdown .dropdown-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scripts-library-status-btn.scripts-library-status-btn--warn {
+  color: #D97706;
+  border-color: color-mix(in srgb, #D97706 45%, var(--color-border));
+}
+
+.scripts-library-status-btn.scripts-library-status-btn--warn:hover:not(:disabled) {
+  background: color-mix(in srgb, #D97706 12%, var(--color-surface));
+}
+
+.scripts-library-status-btn.scripts-library-status-btn--action:not(:disabled) {
+  color: var(--gold-dark);
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--color-border));
+}
+
+[data-theme="dark"] .scripts-library-status-btn.scripts-library-status-btn--action:not(:disabled) {
+  color: var(--gold-light);
 }
 
 .scripts-detail {

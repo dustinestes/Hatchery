@@ -1145,6 +1145,7 @@ hatchery.vmRows = (function () {
             body: JSON.stringify(Object.assign({
               connection_id: row.connection_id,
               relative_path: row.relative_path,
+              binding_id: row.binding_id || undefined,
             }, opts.pullExtra || {})),
           }).then(function (r) {
             return r.json().then(function (data) {
