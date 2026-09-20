@@ -105,6 +105,35 @@ class TestVmSummary:
         assert summary["nests_unavailable"] == 0
 
 
+class TestClutchSummary:
+    def test_empty(self):
+        summary = dash.clutch_summary()
+        assert summary["file_count"] == 0
+        assert summary["session_total"] == 0
+        assert summary["nests_used"] == []
+        assert summary["unique_clutch_files"] == 0
+
+    def test_counts_files_and_sessions(self, tmp_path, monkeypatch):
+        from lib import hatch as hatch_lib
+
+        clutch_dir = tmp_path / "clutches"
+        clutch_dir.mkdir()
+        (clutch_dir / "lab.yaml").write_text("vms: []\n", encoding="utf-8")
+        (clutch_dir / "ignore.txt").write_text("x", encoding="utf-8")
+
+        nests_lib.ensure_local_nest()
+        sid = hatch_lib.create_session("lab.yaml", "Lab", nest="local")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "fledged")
+
+        summary = dash.clutch_summary()
+        assert summary["file_count"] == 1
+        assert summary["session_total"] == 1
+        assert summary["by_status"]["completed"] == 1
+        assert summary["unique_clutch_files"] == 1
+        assert summary["nests_used"] == [{"id": "local", "name": "Local"}]
+
+
 class TestFooterStatusNestFields:
     def test_includes_nest_tile_fields(self):
         nests_lib.ensure_local_nest()

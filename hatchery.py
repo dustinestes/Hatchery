@@ -2976,7 +2976,7 @@ def api_plane_status():
 
 @app.route("/api/dashboard-summary")
 def api_dashboard_summary():
-    """Dashboard Nest + VM rollups (#329). Dashboard-only; not on the plane-status bus."""
+    """Dashboard Nest, VM, and Clutch rollups (#329 / #331). Dashboard-only."""
     from lib import dashboard_summary as dashboard_summary_lib
 
     return jsonify(dashboard_summary_lib.dashboard_summary())

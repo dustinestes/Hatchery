@@ -32,8 +32,8 @@
 
       <section class="dashboard-tile" id="dash-tile-clutches" aria-labelledby="dash-tile-clutches-title">
         <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
-        <div class="dashboard-tile-body" data-tile="clutches">
-          <p class="dashboard-tile-placeholder">Clutch files and hatch placement (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="clutches" id="dash-clutches-body">
+          <p class="dashboard-tile-placeholder">Loading Clutch status…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('clutches') }}">Open Clutches</a>
       </section>
@@ -123,6 +123,7 @@
   var libraryCta = document.getElementById('dashboard-library-cta');
   var nestsBody = document.getElementById('dash-nests-body');
   var vmsBody = document.getElementById('dash-vms-body');
+  var clutchesBody = document.getElementById('dash-clutches-body');
   var summaryInFlight = false;
 
   function esc(str) {
@@ -214,6 +215,52 @@
     vmsBody.innerHTML = parts.join('');
   }
 
+  function renderClutches(clutches) {
+    if (!clutchesBody) return;
+    if (!clutches) {
+      clutchesBody.innerHTML = '<p class="dashboard-tile-placeholder">Loading Clutch status…</p>';
+      return;
+    }
+    var files = clutches.file_count || 0;
+    var sessions = clutches.session_total || 0;
+    var byStatus = clutches.by_status || {};
+    var nestsUsed = clutches.nests_used || [];
+
+    if (files === 0 && sessions === 0) {
+      clutchesBody.innerHTML =
+        '<p class="dashboard-tile-metric">No Clutches yet</p>' +
+        '<p class="dashboard-tile-meta">' +
+        '<a class="link" href="/hatch-clutch">Hatch</a> an existing file or ' +
+        '<a class="link" href="/build">+ Clutch</a> to create one.' +
+        '</p>';
+      return;
+    }
+
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + files + '</span> Clutch file' + (files === 1 ? '' : 's') + '</p>',
+    ];
+    if (sessions === 0) {
+      parts.push('<p class="dashboard-tile-meta">No active hatches.</p>');
+    } else {
+      parts.push(
+        '<p class="dashboard-tile-metric">' + sessions + ' active hatch' + (sessions === 1 ? '' : 'es') + '</p>'
+      );
+      parts.push('<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">');
+      ['in_progress', 'completed', 'failed', 'degraded', 'unknown'].forEach(function (key) {
+        var n = byStatus[key] || 0;
+        if (!n) return;
+        var label = key.split('_').join(' ');
+        parts.push('<li>' + n + ' ' + label + '</li>');
+      });
+      parts.push('</ul>');
+      if (nestsUsed.length) {
+        var names = nestsUsed.map(function (n) { return esc(n.name || n.id); }).join(', ');
+        parts.push('<p class="dashboard-tile-meta">Hatched on: ' + names + '</p>');
+      }
+    }
+    clutchesBody.innerHTML = parts.join('');
+  }
+
   function applyPlaneStatus(ps) {
     if (!ps) return;
     if (emptyNests) {
@@ -229,17 +276,21 @@
     renderNests(ps);
   }
 
-  function fetchVmSummary(nestTotal) {
+  function fetchDashboardSummary(nestTotal) {
     if (summaryInFlight) return;
     summaryInFlight = true;
     fetch('/api/dashboard-summary')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         renderVms(data && data.vms, nestTotal);
+        renderClutches(data && data.clutches);
       })
       .catch(function () {
         if (vmsBody) {
           vmsBody.innerHTML = '<p class="dashboard-tile-placeholder">Could not load VM summary.</p>';
+        }
+        if (clutchesBody) {
+          clutchesBody.innerHTML = '<p class="dashboard-tile-placeholder">Could not load Clutch summary.</p>';
         }
       })
       .finally(function () { summaryInFlight = false; });
@@ -248,7 +299,7 @@
   hatchery.onStatusTick(function (payload) {
     var ps = payload && payload.planeStatus;
     applyPlaneStatus(ps);
-    fetchVmSummary(ps ? (ps.nest_total || 0) : 0);
+    fetchDashboardSummary(ps ? (ps.nest_total || 0) : 0);
   });
 })();
 </script>

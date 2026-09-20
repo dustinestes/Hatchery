@@ -1,14 +1,15 @@
-"""Dashboard Nest + VM rollups (#329).
+"""Dashboard Nest, VM, and Clutch rollups (#329 / #331).
 
 Nests use stored reachability / validator run data (no probe on paint).
-VMs aggregate ``list_vms`` across registered Nests for the Dashboard only;
-do not put this on ``/api/plane-status`` (that bus polls every pane).
+VMs and Clutches aggregate for the Dashboard only via ``/api/dashboard-summary``;
+do not put them on ``/api/plane-status`` (that bus polls every pane).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from lib import config
 from lib import hatch as hatch_lib
 from lib import nest_reachability as nest_reachability_lib
 from lib import nests as nests_lib
@@ -17,6 +18,7 @@ from lib.validators import runs as validator_runs
 
 
 _PAUSED_POWER = frozenset({"paused", "suspended", "pmsuspended"})
+_SESSION_STATUSES = ("in_progress", "completed", "failed", "degraded", "unknown")
 
 
 def nest_tile_fields(
@@ -143,6 +145,51 @@ def vm_summary() -> dict[str, Any]:
     }
 
 
+def clutch_summary() -> dict[str, Any]:
+    """Clutch file count + active hatch sessions across Nests (#331)."""
+    clutch_dir = config.data_dir() / "clutches"
+    file_count = 0
+    if clutch_dir.is_dir():
+        file_count = sum(
+            1 for p in clutch_dir.iterdir() if p.is_file() and p.suffix.lower() == ".yaml"
+        )
+
+    by_status = {key: 0 for key in _SESSION_STATUSES}
+    sessions: list[dict] = []
+    nest_ids: set[str] = set()
+    clutch_files: set[str] = set()
+
+    for nest in nests_lib.list_nests():
+        nid = nest.get("id")
+        if not nid:
+            continue
+        for session in hatch_lib.list_sessions(nid):
+            sessions.append(session)
+            nest_ids.add(nid)
+            cf = session.get("clutch_file")
+            if isinstance(cf, str) and cf:
+                clutch_files.add(cf)
+            status = session.get("status") or "unknown"
+            if status in by_status:
+                by_status[status] += 1
+            else:
+                by_status["unknown"] += 1
+
+    nests_used: list[dict[str, str]] = []
+    for nid in sorted(nest_ids):
+        row = nests_lib.get_nest(nid)
+        name = (row or {}).get("name") or nid
+        nests_used.append({"id": nid, "name": str(name)})
+
+    return {
+        "file_count": file_count,
+        "session_total": len(sessions),
+        "by_status": by_status,
+        "nests_used": nests_used,
+        "unique_clutch_files": len(clutch_files),
+    }
+
+
 def dashboard_summary() -> dict[str, Any]:
     """Payload for ``GET /api/dashboard-summary``."""
     from lib import alerts as alerts_lib
@@ -159,6 +206,7 @@ def dashboard_summary() -> dict[str, Any]:
             "last_validated_at": nest_fields["nest_last_validated_at"],
         },
         "vms": vm_summary(),
+        "clutches": clutch_summary(),
     }
 
 
