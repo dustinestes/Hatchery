@@ -24,13 +24,17 @@ def isolate_db(tmp_path, monkeypatch):
 
 
 class TestSeedAndList:
-    def test_seeds_local_nest(self):
-        nests = nests_lib.list_nests()
-        assert len(nests) == 1
-        assert nests[0]["id"] == "local"
-        assert nests[0]["location"] == "local"
-        assert nests[0]["provider_type"] == "libvirt"
-        assert nests[0]["name"] == "Local"
+    def test_fresh_registry_empty(self):
+        assert nests_lib.list_nests() == []
+        assert nests_lib.default_nest_id() is None
+
+    def test_ensure_local_seeds(self):
+        nest = nests_lib.ensure_local_nest()
+        assert nest["id"] == "local"
+        assert nest["location"] == "local"
+        assert nest["provider_type"] == "libvirt"
+        assert nest["name"] == "Local"
+        assert nests_lib.default_nest_id() == "local"
 
     def test_ensure_local_idempotent(self):
         nests_lib.ensure_local_nest()
@@ -40,6 +44,7 @@ class TestSeedAndList:
 
 class TestReplaceNests:
     def test_add_remote_ssh_nest(self):
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [
@@ -67,19 +72,23 @@ class TestReplaceNests:
         assert remote["identity_file"] == "~/.ssh/nest"
         assert remote["identity_expires_at"].startswith("2026-12-01")
 
-    def test_cannot_remove_local(self):
-        with pytest.raises(ValueError, match="cannot be removed"):
-            nests_lib.replace_nests(
-                [
-                    {
-                        "id": "only-remote",
-                        "name": "Remote",
-                        "provider_type": "libvirt",
-                        "location": "remote",
-                        "host": "x.example",
-                    }
-                ]
-            )
+    def test_can_remove_local_and_empty_registry(self):
+        nests_lib.ensure_local_nest()
+        nests_lib.replace_nests([])
+        assert nests_lib.list_nests() == []
+        nests_lib.replace_nests(
+            [
+                {
+                    "id": "only-remote",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "x.example",
+                }
+            ]
+        )
+        assert [n["id"] for n in nests_lib.list_nests()] == ["only-remote"]
+        assert nests_lib.default_nest_id() == "only-remote"
 
     def test_local_must_stay_local(self):
         with pytest.raises(ValueError, match="must have location 'local'"):
@@ -98,6 +107,7 @@ class TestReplaceNests:
     def test_removing_nest_resolves_scoped_alerts(self):
         import lib.alerts as alerts_lib
 
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [
@@ -128,12 +138,14 @@ class TestReplaceNests:
 
 class TestConnectionConfig:
     def test_local_has_no_transport(self):
+        nests_lib.ensure_local_nest()
         cfg = nests_lib.to_connection_config(nests_lib.get_nest("local"))
         assert cfg.location == "local"
         with patch(
             "lib.requirements.check_nest",
             return_value=[],
         ):
+            nests_lib.ensure_local_nest()
             result = nests_lib.test_connection(nests_lib.get_nest("local"))
         assert result["ok"] is True
         assert "capability" in result["message"].lower()
@@ -175,6 +187,7 @@ class TestConnectionConfig:
         """Saved Nest Test failure updates snapshot; validators open Alerts (#283)."""
         from lib.nest_transport import NestHealthCheckResult
 
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [
@@ -213,6 +226,7 @@ class TestConnectionConfig:
         """Saved Nest Test success updates snapshot and resolves Alerts (#283)."""
         from lib.nest_transport import NestHealthCheckResult
 
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [
@@ -348,6 +362,7 @@ class TestConnectionConfig:
             )
 
     def test_identities_for_expiry_from_nest_rows(self):
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [
@@ -370,6 +385,7 @@ class TestConnectionConfig:
         assert ids[0].expires_at is not None
 
     def test_rejects_second_local_and_duplicate_name_or_endpoint(self):
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         # Non-builtin rows cannot stay local — coerced to remote, which needs a host.
         with pytest.raises(ValueError, match="requires a host"):
@@ -430,6 +446,7 @@ class TestConnectionConfig:
             )
 
     def test_allows_same_host_different_transport(self):
+        nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
         nests_lib.replace_nests(
             [

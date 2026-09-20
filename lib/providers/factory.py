@@ -30,15 +30,31 @@ class UnsupportedProviderError(RuntimeError):
     """Raised when a Nest's provider cannot be instantiated yet."""
 
 
+class NoNestSelectedError(RuntimeError):
+    """Raised when a Nest id is required but none can be resolved."""
+
+    def __str__(self) -> str:
+        return (
+            "No Nest selected — register a Nest in Settings, or pass an explicit Nest id "
+            "(exactly one registered Nest may be used as the default)"
+        )
+
+
 def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) -> BaseProvider:
-    """Return a ``BaseProvider`` for ``nest_id`` (default: local Nest).
+    """Return a ``BaseProvider`` for ``nest_id``.
+
+    When ``nest_id`` is omitted, uses the sole registered Nest if exactly one
+    exists (ADR-0014). Does not auto-seed Local Nest.
 
     Raises:
+        NoNestSelectedError: Nest id omitted and zero or many Nests registered.
         UnknownNestError: Nest id is not registered.
         UnsupportedProviderError: Nest is remote or provider_type is not wired yet.
     """
-    nests_lib.ensure_local_nest()
-    nid = (nest_id or nests_lib.LOCAL_NEST_ID).strip() or nests_lib.LOCAL_NEST_ID
+    explicit = (nest_id or "").strip()
+    nid = explicit or nests_lib.default_nest_id()
+    if not nid:
+        raise NoNestSelectedError()
     nest = nests_lib.get_nest(nid)
     if nest is None:
         raise UnknownNestError(nid)

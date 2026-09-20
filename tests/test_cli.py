@@ -41,11 +41,13 @@ def isolated_config(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "_pending_yaml_settings", {})
     monkeypatch.setattr(cfg, "_db_bound", False)
     monkeypatch.setattr(cfg, "_runtime_data_dir", None)
+    monkeypatch.setattr(cfg, "_runtime_nest_local", False)
     monkeypatch.setattr(cfg, "_bootstrap_data_dir", None)
     db_module.init_db(tmp_path / "hatchery.db")
     yield tmp_path
     db_module._db_path = None
     cfg.set_runtime_data_dir(None)
+    cfg.set_runtime_nest_local(False)
 
 
 class TestBuildParser:
@@ -56,13 +58,24 @@ class TestBuildParser:
         assert args.host == "0.0.0.0"
         assert args.port == 5000
         assert args.data_dir is None
+        assert args.nest_local is False
 
     def test_serve_flags(self):
         parser = cli.build_parser()
         args = parser.parse_args(
-            ["serve", "--data-dir", "/tmp/sandbox", "--host", "127.0.0.1", "--port", "8080"]
+            [
+                "serve",
+                "--data-dir",
+                "/tmp/sandbox",
+                "--nest-local",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8080",
+            ]
         )
         assert args.data_dir == "/tmp/sandbox"
+        assert args.nest_local is True
         assert args.host == "127.0.0.1"
         assert args.port == 8080
 
@@ -100,3 +113,18 @@ class TestMainAndServe:
         assert called_app is fake_app
         assert called_opts["bind"] == "127.0.0.1:9"
         assert called_opts["workers"] == 1
+
+    def test_serve_sets_nest_local_flag(self, isolated_config, tmp_path):
+        args = cli.build_parser().parse_args(
+            ["serve", "--data-dir", str(tmp_path / "sandbox"), "--nest-local"]
+        )
+        fake_app = MagicMock()
+        hatchery_mod = MagicMock(app=fake_app)
+        with (
+            patch.dict("sys.modules", {"hatchery": hatchery_mod}),
+            patch("lib.cli.serve._run_with_gunicorn"),
+        ):
+            rc = serve_cmd.run(args)
+        assert rc == 0
+        assert cfg.runtime_nest_local() is True
+        assert cfg.nest_local_enabled() is True

@@ -18,6 +18,14 @@ def register(sub: argparse._SubParsersAction) -> None:
         help="Session-only data directory override (never written to Settings)",
     )
     serve.add_argument(
+        "--nest-local",
+        action="store_true",
+        help=(
+            "Session-only: register this Controller as Local Nest id 'local' "
+            "if missing (idempotent; ADR-0014)"
+        ),
+    )
+    serve.add_argument(
         "--host",
         default="0.0.0.0",
         help="Bind address (default: 0.0.0.0)",
@@ -58,8 +66,10 @@ def run(args: argparse.Namespace) -> int:
 
     if args.data_dir:
         cfg.set_runtime_data_dir(args.data_dir)
+    if args.nest_local:
+        cfg.set_runtime_nest_local(True)
 
-    # Import after overrides so module-level config.load() sees the session data_dir.
+    # Import after overrides so module-level config.load() / boot Nest registration see them.
     import hatchery  # noqa: F401
 
     options = {

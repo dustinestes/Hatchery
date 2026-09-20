@@ -153,7 +153,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
     _migrate_nests_columns(conn)
     _migrate_library_cache_provenance(conn)
-    _seed_local_nest(conn)
+    # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
 
 
 def _migrate_library_cache_provenance(conn: sqlite3.Connection) -> None:
@@ -254,27 +254,6 @@ def _migrate_nests_columns(conn: sqlite3.Connection) -> None:
               )
             """
         )
-
-
-def _seed_local_nest(conn: sqlite3.Connection) -> None:
-    """Ensure the built-in local libvirt Nest exists (id ``local``)."""
-    from datetime import datetime, timezone
-
-    row = conn.execute("SELECT id FROM nests WHERE id = 'local'").fetchone()
-    if row:
-        return
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    conn.execute(
-        """
-        INSERT INTO nests (
-            id, name, provider_type, location, transport,
-            host, port, ssh_user, identity_file, cert_path, identity_expires_at,
-            known_hosts, winrm_user, credential_ref, extra_json, created_at, updated_at
-        ) VALUES ('local', 'Local', 'libvirt', 'local', NULL,
-                  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
-        """,
-        (now, now),
-    )
 
 
 def is_initialized() -> bool:

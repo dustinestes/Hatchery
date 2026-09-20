@@ -288,7 +288,6 @@ def run_probes(
     sync_alerts: bool = True,
 ) -> dict[str, Any]:
     """Probe one Nest or all registered Nests; update snapshot and optional Alerts."""
-    nests_lib.ensure_local_nest()
     rows = nests_lib.list_nests()
     if nest_id:
         rows = [n for n in rows if n.get("id") == nest_id]

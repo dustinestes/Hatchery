@@ -21,7 +21,7 @@ We also need clear boundaries:
 2. Parser: **stdlib `argparse`** (no new CLI framework dependency for v1).
 3. **Launch surface:** `hatchery serve` with session-only `--data-dir`, `--host`, and `--port`. Precedence: CLI flag > bootstrap/config > defaults. Flags **never** write Settings or bootstrap YAML.
 4. **Operator surface** (later): subcommands such as `clutch`, `vm`, `hatch`, and `nest` on the same entrypoint, including **list/inspect**. Execution is **in-process**: load registry from `--data-dir`, Nest id → factory / Nest transport. Does not require a running Controller HTTP process.
-5. **Nest targeting:** `--nest <id>` when required; if exactly one Nest is registered it may be the default; if zero or many, require `--nest` (or clear empty-registry guidance once [#266](https://github.com/dustinestes/Hatchery/issues/266) lands).
+5. **Nest targeting:** `--nest <id>` when required; if exactly one Nest is registered it may be the default; if zero or many, require `--nest` (or clear empty-registry guidance per [ADR-0014](0014-optional-local-nest.md)).
 6. **Phase cut:** [#22](https://github.com/dustinestes/Hatchery/issues/22) ships entrypoint + globals + `serve` only (no stub operator subcommands). [#23](https://github.com/dustinestes/Hatchery/issues/23) adds operator commands. [#344](https://github.com/dustinestes/Hatchery/issues/344) may later add `settings get|set` (persist); that is distinct from launch overrides.
 7. Product verbs match the UI (Hatch, Cull, Snapshot, Revert, health / Test Nest). No Brood / Freeze / Thaw / Chirp in user-facing CLI help.
 8. Contributor `gunicorn hatchery:app` remains valid when the same runtime overrides apply.
@@ -38,7 +38,7 @@ We also need clear boundaries:
 **Neutral / follow-on**
 
 - Persisting Settings from the terminal (#344) after Settings stabilize
-- Empty Nest registry (#266) and launch configs (#337)
+- Empty Nest registry ([ADR-0014](0014-optional-local-nest.md) / #266) and launch configs (#337)
 - Nest hatch job agent + async event catch-up (#345 under epic #202)
 
 **Bad / accepted cost**

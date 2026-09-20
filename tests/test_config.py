@@ -40,10 +40,13 @@ def isolated_config(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "_pending_yaml_settings", {})
     monkeypatch.setattr(cfg, "_db_bound", False)
     monkeypatch.setattr(cfg, "_runtime_data_dir", None)
+    monkeypatch.setattr(cfg, "_runtime_nest_local", False)
     monkeypatch.setattr(cfg, "_bootstrap_data_dir", None)
     db_module.init_db(tmp_path / "hatchery.db")
     yield tmp_path
     db_module._db_path = None
+    cfg.set_runtime_data_dir(None)
+    cfg.set_runtime_nest_local(False)
 
 
 def _bootstrap_on_disk():
@@ -297,3 +300,19 @@ class TestRuntimeDataDir:
         cfg.save({**cfg.get(), "bg_interval": 42, "data_dir": str(sandbox)})
         assert cfg.bg_interval() == 42
         assert _bootstrap_on_disk()["data_dir"] == real
+
+
+class TestNestLocal:
+    def test_runtime_flag(self, isolated_config):
+        assert cfg.nest_local_enabled() is False
+        cfg.set_runtime_nest_local(True)
+        assert cfg.runtime_nest_local() is True
+        assert cfg.nest_local_enabled() is True
+
+    def test_env_flag(self, isolated_config, monkeypatch):
+        monkeypatch.setenv("HATCHERY_NEST_LOCAL", "1")
+        assert cfg.nest_local_enabled() is True
+        monkeypatch.setenv("HATCHERY_NEST_LOCAL", "true")
+        assert cfg.nest_local_enabled() is True
+        monkeypatch.setenv("HATCHERY_NEST_LOCAL", "no")
+        assert cfg.nest_local_enabled() is False

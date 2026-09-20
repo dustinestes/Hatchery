@@ -430,19 +430,26 @@
     <h2 class="form-section-title">Connections</h2>
     <p class="form-help-text">
       Named Nest endpoints (local or remote) with provider and transport.
-      Exactly one local Nest (id <code>local</code>) is required; added Nests are always remote.
-      SSH uses an identity file on this Hatchery host; Test Nest connection checks reachability.
-      Display Name is editable; Nest id is stable for sessions and APIs.
+      Local Nest (id <code>local</code>) is optional — at most one. Added remotes are
+      always <code>location=remote</code>. SSH uses an identity file on this Hatchery Controller;
+      Test Nest connection checks reachability. Display Name is editable; Nest id is stable
+      for sessions and APIs.
     </p>
     <div class="section-header">
       <span class="form-label" id="nest-conn-label">Connection rows</span>
-      <button type="button" id="add-nest-conn-btn" class="btn btn-secondary btn-sm"
-              aria-label="Add Nest">+ Add Nest</button>
+      <div class="section-header-actions">
+        <button type="button" id="add-local-nest-btn" class="btn btn-secondary btn-sm"
+                aria-label="Add Local Nest"
+                {% if nests and nests|selectattr('id', 'equalto', 'local')|list %}hidden{% endif %}>
+          + Add Local Nest</button>
+        <button type="button" id="add-nest-conn-btn" class="btn btn-secondary btn-sm"
+                aria-label="Add Nest">+ Add Nest</button>
+      </div>
     </div>
     <div id="nest-conn-rows" class="library-conn-rows nest-conn-rows" role="group" aria-labelledby="nest-conn-label">
       {% for nest in nests %}
       <div class="library-conn-row nest-conn-row" data-nest-id="{{ nest.id }}"
-           data-builtin="{% if nest.id == 'local' %}1{% else %}0{% endif %}">
+           data-local="{% if nest.id == 'local' %}1{% else %}0{% endif %}">
         <input type="hidden" name="nest_id" value="{{ nest.id }}">
         <div class="library-conn-row-header">
           <button type="button" class="library-conn-toggle nest-conn-toggle" aria-expanded="false"
@@ -455,7 +462,6 @@
               <span class="nest-conn-id" title="Stable Nest id">{{ nest.id }}</span>
             </span>
           </button>
-          {% if nest.id != 'local' %}
           <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
                   aria-label="Remove Nest {{ nest.name }}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -467,7 +473,6 @@
               <path d="M9 6V4h6v2"/>
             </svg>
           </button>
-          {% endif %}
         </div>
         <div class="library-conn-row-body nest-conn-row-body" hidden>
           <div class="library-conn-row-fields">
@@ -580,7 +585,7 @@
       {% endfor %}
     </div>
     <p class="empty-state" id="nest-conn-rows-empty" {% if nests %}hidden{% endif %}>
-      No Nests yet. The built-in local Nest is seeded automatically.
+      No Nests registered. Add a Local Nest or a remote Nest to manage guest VMs.
     </p>
   </section>
 {% else %}
@@ -2320,7 +2325,7 @@
 
 {% if section == 'nests' %}
 <template id="nest-conn-row-template">
-  <div class="library-conn-row nest-conn-row" data-nest-id="" data-builtin="0">
+  <div class="library-conn-row nest-conn-row" data-nest-id="" data-local="0">
     <input type="hidden" name="nest_id" value="">
     <div class="library-conn-row-header">
       <button type="button" class="library-conn-toggle nest-conn-toggle" aria-expanded="true"
@@ -2442,12 +2447,80 @@
     </div>
   </div>
 </template>
+<template id="nest-local-row-template">
+  <div class="library-conn-row nest-conn-row" data-nest-id="local" data-local="1">
+    <input type="hidden" name="nest_id" value="local">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle nest-conn-toggle" aria-expanded="true"
+              aria-label="Collapse Nest Local">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="nest-conn-title">
+          <span class="library-conn-summary nest-conn-summary">Local · libvirt · local</span>
+          <span class="nest-conn-id" title="Stable Nest id">local</span>
+        </span>
+      </button>
+      <button type="button" class="btn-icon nest-conn-remove" title="Remove Nest"
+              aria-label="Remove Nest Local">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="library-conn-row-body nest-conn-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group form-group-full">
+          <span class="form-label">Nest id</span>
+          <p class="form-help-text nest-id-readonly">
+            <code class="nest-id-code">local</code> — stable reference (sessions and APIs). Change the display Name freely.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input type="text" name="nest_name" class="form-input nest-name-input" required
+                 value="Local" placeholder="Local">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Provider</label>
+          <select name="nest_provider_type" class="form-select nest-provider-input"
+                  aria-describedby="nest-local-provider-hint">
+            <option value="libvirt" selected>libvirt</option>
+            <option value="utm">UTM</option>
+            <option value="hyperv">Hyper-V</option>
+          </select>
+          <p class="form-help-text" id="nest-local-provider-hint">
+            Local Nest runs on this Controller device. Only libvirt is wired for VM ops today.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <select name="nest_location" class="form-select nest-location-input" disabled>
+            <option value="local" selected>Local</option>
+          </select>
+          <input type="hidden" name="nest_location" value="local">
+        </div>
+      </div>
+      <div class="library-conn-row-actions">
+        <button type="button" class="btn btn-secondary btn-sm nest-test-conn-btn">Test Nest connection</button>
+        <span class="library-test-result nest-test-result" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+</template>
 <script>
 (function () {
   const rows = document.getElementById('nest-conn-rows');
   const empty = document.getElementById('nest-conn-rows-empty');
   const tpl = document.getElementById('nest-conn-row-template');
+  const localTpl = document.getElementById('nest-local-row-template');
   const addBtn = document.getElementById('add-nest-conn-btn');
+  const addLocalBtn = document.getElementById('add-local-nest-btn');
   if (!rows || !tpl || !addBtn) return;
 
   function newId() {
@@ -2461,9 +2534,19 @@
     el.classList.toggle('library-test-result--err', !ok);
   }
 
+  function hasLocalNest() {
+    return !!rows.querySelector('.nest-conn-row[data-local="1"]');
+  }
+
+  function syncLocalButton() {
+    if (!addLocalBtn) return;
+    addLocalBtn.hidden = hasLocalNest();
+  }
+
   function syncEmpty() {
     if (!empty) return;
     empty.hidden = rows.children.length > 0;
+    syncLocalButton();
   }
 
   function updateSummary(row) {
@@ -2540,6 +2623,18 @@
     row.querySelector('.nest-name-input').focus();
   });
 
+  if (addLocalBtn && localTpl) {
+    addLocalBtn.addEventListener('click', function () {
+      if (hasLocalNest()) return;
+      const node = localTpl.content.cloneNode(true);
+      const row = node.querySelector('.nest-conn-row');
+      syncVisibility(row);
+      rows.insertBefore(node, rows.firstChild);
+      syncEmpty();
+      row.querySelector('.nest-name-input').focus();
+    });
+  }
+
   rows.addEventListener('click', function (e) {
     const toggle = e.target.closest('.nest-conn-toggle');
     if (toggle) {
@@ -2555,7 +2650,6 @@
     const remove = e.target.closest('.nest-conn-remove');
     if (remove) {
       const row = remove.closest('.nest-conn-row');
-      if (row && row.dataset.builtin === '1') return;
       if (row) row.remove();
       syncEmpty();
       return;

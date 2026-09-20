@@ -25,6 +25,10 @@ def client():
 @pytest.fixture(autouse=True)
 def isolate_db(tmp_path):
     db_module.init_db(tmp_path / "hatchery.db")
+    # Most app tests expect a Local Nest; empty-registry cases opt out explicitly.
+    import lib.nests as nests_lib
+
+    nests_lib.ensure_local_nest()
     yield
     db_module._db_path = None
 
@@ -132,6 +136,23 @@ class TestActivePane:
         html = client.get("/nests").data.decode()
         assert 'data-nest="local"' in html
         assert "Local" in html
+
+    def test_nests_pane_empty_registry(self, client):
+        import lib.nests as nests_lib
+
+        nests_lib.replace_nests([])
+        html = client.get("/nests").data.decode()
+        assert "No Nests registered" in html
+        assert 'data-nest="local"' not in html
+
+    def test_settings_nests_allows_empty_and_add_local_control(self, client):
+        import lib.nests as nests_lib
+
+        nests_lib.replace_nests([])
+        html = client.get("/settings/nests").data.decode()
+        assert "No Nests registered" in html
+        assert 'id="add-local-nest-btn"' in html
+        assert "Add Local Nest" in html
 
     def test_settings_security_marks_group_and_child(self, client):
         html = client.get("/settings/security").data.decode()
