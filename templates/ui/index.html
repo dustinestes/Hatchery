@@ -83,16 +83,16 @@
 
       <section class="dashboard-tile" id="dash-tile-health" aria-labelledby="dash-tile-health-title">
         <h3 class="dashboard-tile-title" id="dash-tile-health-title">Health</h3>
-        <div class="dashboard-tile-body" data-tile="health">
-          <p class="dashboard-tile-placeholder">Controller and Nest health rollup (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="health" id="dash-health-body">
+          <p class="dashboard-tile-placeholder">Loading health…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-alerts" aria-labelledby="dash-tile-alerts-title">
         <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
-        <div class="dashboard-tile-body" data-tile="alerts">
-          <p class="dashboard-tile-placeholder">Open alert counts by tier (coming soon).</p>
+        <div class="dashboard-tile-body" data-tile="alerts" id="dash-alerts-body">
+          <p class="dashboard-tile-placeholder">Loading alerts…</p>
         </div>
         <a class="dashboard-tile-cta link" href="{{ url_for('alerts_pane') }}">Open Alerts</a>
       </section>
@@ -123,6 +123,8 @@
   var nestsBody = document.getElementById('dash-nests-body');
   var vmsBody = document.getElementById('dash-vms-body');
   var clutchesBody = document.getElementById('dash-clutches-body');
+  var healthBody = document.getElementById('dash-health-body');
+  var alertsBody = document.getElementById('dash-alerts-body');
   var summaryInFlight = false;
 
   function esc(str) {
@@ -310,6 +312,80 @@
     libraryBody.innerHTML = parts.join('');
   }
 
+  function renderHealth(ps) {
+    if (!healthBody || !ps) return;
+    var issues = [];
+    if (!ps.hatchery_ok) {
+      issues.push(ps.hatchery_title || 'Controller needs attention');
+    }
+    if (ps.nest_total && !ps.nests_ok) {
+      issues.push(ps.nests_title || 'Nest health degraded');
+    }
+    if (ps.library_enabled && !ps.libraries_ok) {
+      issues.push(ps.libraries_title || 'Library needs attention');
+    }
+
+    if (!issues.length) {
+      var meta = 'Controller OK';
+      if (ps.nest_total) {
+        meta += '; ' + (ps.nests_title || 'Nests OK');
+      } else {
+        meta += '; no Nests registered';
+      }
+      if (ps.library_enabled) {
+        meta += '; ' + (ps.libraries_title || 'Library OK');
+      }
+      healthBody.innerHTML =
+        '<p class="dashboard-tile-metric">All clear</p>' +
+        '<p class="dashboard-tile-meta">' + esc(meta) + '</p>';
+      return;
+    }
+
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + issues.length + '</span> area' + (issues.length === 1 ? '' : 's') + ' need attention</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Health issues">',
+    ];
+    issues.forEach(function (msg) {
+      parts.push('<li>' + esc(msg) + '</li>');
+    });
+    parts.push('</ul>');
+    parts.push('<p class="dashboard-tile-meta">See Alerts and Nests for detail.</p>');
+    healthBody.innerHTML = parts.join('');
+  }
+
+  function renderAlerts(alertsPayload) {
+    if (!alertsBody) return;
+    if (!alertsPayload) {
+      alertsBody.innerHTML = '<p class="dashboard-tile-placeholder">Loading alerts…</p>';
+      return;
+    }
+    var items = alertsPayload.items || [];
+    var open = items.filter(function (n) { return !n.resolved; });
+    if (!open.length) {
+      alertsBody.innerHTML =
+        '<p class="dashboard-tile-metric">No open alerts</p>' +
+        '<p class="dashboard-tile-meta">The bell and Alerts pane stay quiet when nothing is active.</p>';
+      return;
+    }
+    var byTier = { alert: 0, warning: 0, info: 0 };
+    open.forEach(function (n) {
+      var tier = String(n.tier || 'alert').toLowerCase();
+      if (tier === 'error') tier = 'alert';
+      if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'alert';
+      byTier[tier] += 1;
+    });
+    var parts = [
+      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + open.length + '</span> open alert' + (open.length === 1 ? '' : 's') + '</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Open alerts by tier">',
+      '<li>' + byTier.alert + ' alert</li>',
+      '<li>' + byTier.warning + ' warning</li>',
+      '<li>' + byTier.info + ' info</li>',
+      '</ul>',
+      '<p class="dashboard-tile-meta">Open the Alerts pane for the full list.</p>',
+    ];
+    alertsBody.innerHTML = parts.join('');
+  }
+
   function applyPlaneStatus(ps) {
     if (!ps) return;
     if (emptyNests) {
@@ -317,6 +393,7 @@
     }
     renderNests(ps);
     renderLibrary(ps);
+    renderHealth(ps);
   }
 
   function fetchDashboardSummary(nestTotal) {
@@ -342,6 +419,7 @@
   hatchery.onStatusTick(function (payload) {
     var ps = payload && payload.planeStatus;
     applyPlaneStatus(ps);
+    renderAlerts(payload && payload.alerts);
     fetchDashboardSummary(ps ? (ps.nest_total || 0) : 0);
   });
 })();
