@@ -127,10 +127,15 @@ uv sync
 ## Running Hatchery
 
 ```bash
-uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
+uv run hatchery serve --host 127.0.0.1 --port 5000
+# Session-only data dir (does not write Settings):
+# uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
+
+# Equivalent:
+# uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 ```
 
-Open `http://localhost:5000` in your browser. The dashboard shows all VMs known to libvirt.
+Open `http://localhost:5000` in your browser.
 
 ### Running as a Service
 

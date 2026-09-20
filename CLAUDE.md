@@ -26,7 +26,8 @@ Human-oriented docs:
 
 ```bash
 uv sync
-uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
+uv run hatchery serve --host 127.0.0.1 --port 5000
+# or: uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 # http://localhost:5000
 ```
 

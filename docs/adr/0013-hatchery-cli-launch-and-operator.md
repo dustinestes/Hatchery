@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-20
 - **Issues:** [#343](https://github.com/dustinestes/Hatchery/issues/343) (planning), [#22](https://github.com/dustinestes/Hatchery/issues/22), [#23](https://github.com/dustinestes/Hatchery/issues/23), [#344](https://github.com/dustinestes/Hatchery/issues/344) (epic [#336](https://github.com/dustinestes/Hatchery/issues/336))
-- **How-to:** Contributor run notes in `CONTRIBUTING.md` (updated when `hatchery serve` lands); Nest plane: [architecture-nests.md](../architecture-nests.md)
+- **How-to:** [docs/cli/](../cli/README.md); Nest plane: [architecture-nests.md](../architecture-nests.md)
 
 ## Context
 

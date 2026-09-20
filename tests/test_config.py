@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 import yaml
@@ -38,6 +39,8 @@ def isolated_config(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "_config", {})
     monkeypatch.setattr(cfg, "_pending_yaml_settings", {})
     monkeypatch.setattr(cfg, "_db_bound", False)
+    monkeypatch.setattr(cfg, "_runtime_data_dir", None)
+    monkeypatch.setattr(cfg, "_bootstrap_data_dir", None)
     db_module.init_db(tmp_path / "hatchery.db")
     yield tmp_path
     db_module._db_path = None
@@ -253,3 +256,44 @@ class TestLibraryEnabled:
         cfg.load()
         cfg.bind_db()
         assert cfg.library_enabled() is True
+
+
+class TestRuntimeDataDir:
+    def test_cli_override_does_not_write_bootstrap(self, isolated_config, tmp_path):
+        sandbox = tmp_path / "sandbox-data"
+        cfg.set_runtime_data_dir(sandbox)
+        result = cfg.load()
+        assert Path(result["data_dir"]) == sandbox.resolve()
+        assert not cfg.CONFIG_FILE.exists()
+
+    def test_override_keeps_existing_bootstrap_unchanged(self, isolated_config, tmp_path):
+        real = isolated_config / "data"
+        cfg.load()
+        assert _bootstrap_on_disk() == {"data_dir": str(real)}
+        sandbox = tmp_path / "sandbox-data"
+        cfg.set_runtime_data_dir(sandbox)
+        cfg._config = {}
+        cfg.load()
+        cfg.bind_db()
+        assert Path(cfg.data_dir()) == sandbox.resolve()
+        assert _bootstrap_on_disk() == {"data_dir": str(real)}
+
+    def test_env_override(self, isolated_config, tmp_path, monkeypatch):
+        sandbox = tmp_path / "env-data"
+        monkeypatch.setenv("HATCHERY_DATA_DIR", str(sandbox))
+        cfg.load()
+        assert Path(cfg.data_dir()) == sandbox.resolve()
+        assert not cfg.CONFIG_FILE.exists()
+
+    def test_save_under_override_skips_bootstrap_data_dir(self, isolated_config, tmp_path):
+        cfg.load()
+        cfg.bind_db()
+        real = _bootstrap_on_disk()["data_dir"]
+        sandbox = tmp_path / "sandbox-data"
+        cfg.set_runtime_data_dir(sandbox)
+        cfg._config = {}
+        cfg.load()
+        cfg.bind_db()
+        cfg.save({**cfg.get(), "bg_interval": 42, "data_dir": str(sandbox)})
+        assert cfg.bg_interval() == 42
+        assert _bootstrap_on_disk()["data_dir"] == real
