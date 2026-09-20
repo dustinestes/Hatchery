@@ -47,82 +47,80 @@
 </div>
 
 <div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
+  <div class="notif-filters scripts-cached-filters" role="search" aria-label="Filter Cached scripts">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="scripts-filter-q">Search</label>
+      <input type="search"
+             id="scripts-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="scripts-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="scripts-filter-language">Language</label>
+      <select id="scripts-filter-language" class="form-select" aria-controls="scripts-nav">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="scripts-filter-state">Library state</label>
+      <select id="scripts-filter-state" class="form-select" aria-controls="scripts-nav">
+        <option value="">All</option>
+        <option value="local">Local</option>
+        <option value="in_sync">In sync</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="unknown">Tip unknown</option>
+      </select>
+    </div>
+  </div>
+
 <div class="scripts-layout">
 
-  <div class="scripts-rail">
-    <div class="notif-filters scripts-cached-filters" role="search" aria-label="Filter Cached scripts">
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-filter-q">Search</label>
-        <input type="search"
-               id="scripts-filter-q"
-               class="form-input"
-               placeholder="Name"
-               autocomplete="off"
-               aria-controls="scripts-nav">
+  <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
+    {% if scripts %}
+      {% for s in scripts %}
+      <button type="button"
+              class="scripts-nav-item"
+              data-name="{{ s.name }}"
+              data-relative-path="{{ s.relative_path }}"
+              data-absolute-path="{{ s.absolute_path }}"
+              data-language="{{ s.language }}"
+              data-modified-at="{{ s.modified_at }}"
+              data-drift-state="{{ s.drift_state or 'local' }}"
+              data-orphan="{{ '1' if s.orphan else '0' }}"
+              data-orphan-reason="{{ s.orphan_reason or '' }}"
+              data-lib-rel="{{ (s.library_provenance.relative_path if s.library_provenance else '') }}"
+              data-lib-conn="{{ (s.library_provenance.connection_id if s.library_provenance else '') }}"
+              aria-pressed="false">
+        <span class="scripts-nav-main">
+          <span class="scripts-nav-label">{{ s.name }}</span>
+          <span class="scripts-nav-sub">{{ s.language }}{% if s.drift_state == 'out_of_sync' %} · out of sync{% elif s.orphan %} · orphaned{% endif %}</span>
+        </span>
+        <span class="scripts-nav-drift-icon"
+              {% if s.drift_state != 'out_of_sync' and not s.orphan %}hidden{% endif %}
+              title="{% if s.orphan %}{{ s.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
+              aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+      </button>
+      {% endfor %}
+    {% else %}
+      <div class="scripts-nav-empty" id="scripts-nav-empty">
+        No scripts found. Use <strong>Import</strong>, or place files in
+        <code>automation/scripts/</code>
+        under your Hatchery data directory.
       </div>
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-filter-language">Language</label>
-        <select id="scripts-filter-language" class="form-select" aria-controls="scripts-nav">
-          <option value="">All</option>
-        </select>
-      </div>
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-filter-state">Library state</label>
-        <select id="scripts-filter-state" class="form-select" aria-controls="scripts-nav">
-          <option value="">All</option>
-          <option value="local">Local</option>
-          <option value="in_sync">In sync</option>
-          <option value="out_of_sync">Out of sync</option>
-          <option value="orphan">Orphaned</option>
-          <option value="unknown">Tip unknown</option>
-        </select>
-      </div>
+    {% endif %}
+    <div class="scripts-nav-empty" id="scripts-nav-filtered-empty" role="status" hidden>
+      No scripts match these filters.
     </div>
-
-    <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
-      {% if scripts %}
-        {% for s in scripts %}
-        <button type="button"
-                class="scripts-nav-item"
-                data-name="{{ s.name }}"
-                data-relative-path="{{ s.relative_path }}"
-                data-absolute-path="{{ s.absolute_path }}"
-                data-language="{{ s.language }}"
-                data-modified-at="{{ s.modified_at }}"
-                data-drift-state="{{ s.drift_state or 'local' }}"
-                data-orphan="{{ '1' if s.orphan else '0' }}"
-                data-orphan-reason="{{ s.orphan_reason or '' }}"
-                data-lib-rel="{{ (s.library_provenance.relative_path if s.library_provenance else '') }}"
-                data-lib-conn="{{ (s.library_provenance.connection_id if s.library_provenance else '') }}"
-                aria-pressed="false">
-          <span class="scripts-nav-main">
-            <span class="scripts-nav-label">{{ s.name }}</span>
-            <span class="scripts-nav-sub">{{ s.language }}{% if s.drift_state == 'out_of_sync' %} · out of sync{% elif s.orphan %} · orphaned{% endif %}</span>
-          </span>
-          <span class="scripts-nav-drift-icon"
-                {% if s.drift_state != 'out_of_sync' and not s.orphan %}hidden{% endif %}
-                title="{% if s.orphan %}{{ s.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
-                aria-hidden="true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </span>
-        </button>
-        {% endfor %}
-      {% else %}
-        <div class="scripts-nav-empty" id="scripts-nav-empty">
-          No scripts found. Use <strong>Import</strong>, or place files in
-          <code>automation/scripts/</code>
-          under your Hatchery data directory.
-        </div>
-      {% endif %}
-      <div class="scripts-nav-empty" id="scripts-nav-filtered-empty" role="status" hidden>
-        No scripts match these filters.
-      </div>
-    </nav>
-  </div>
+  </nav>
 
   <div class="scripts-content" id="scripts-content">
     <div class="scripts-content-header" id="scripts-content-header" hidden>
