@@ -343,6 +343,252 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def cache_path_for(
+    domain: str,
+    cache_name: str,
+    *,
+    media_target: str | None = None,
+    data_dir: Path | None = None,
+) -> Path:
+    """Return the operator-cache path for a domain basename."""
+    from lib import config as config_lib
+
+    root = data_dir or config_lib.data_dir()
+    name = Path(cache_name).name
+    domain_n = (domain or "").strip().lower()
+    if domain_n == "scripts":
+        return root / _SCRIPT_PULL_DEST / name
+    if domain_n == "clutches":
+        return root / _CLUTCH_PULL_DEST / name
+    if domain_n == "media":
+        target = (media_target or "iso").strip().lower()
+        if target not in MEDIA_TARGETS:
+            raise ValueError(f"media target must be one of: {', '.join(sorted(MEDIA_TARGETS))}")
+        return root / "media" / target / name
+    raise ValueError(f"unknown cache domain: {domain}")
+
+
+def size_mtime_digest(path: Path) -> str:
+    """Canonical path tip digest: ``{size}:{mtime_ns}``."""
+    st = path.stat()
+    mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
+    return f"{st.st_size}:{mtime_ns}"
+
+
+def git_blob_sha_bytes(data: bytes) -> str:
+    """Git blob object id for ``data`` (sha1 of ``blob {len}\\0{data}``)."""
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def git_blob_sha_file(path: Path) -> str:
+    """Git blob object id for file bytes at ``path``."""
+    return git_blob_sha_bytes(path.read_bytes())
+
+
+def content_identity_for_kind(path: Path, kind: str) -> str | None:
+    """Return the content-addressable identity of ``path`` for tip kinds that allow it."""
+    kind_n = (kind or "").strip().lower()
+    if kind_n == "sha256":
+        return sha256_file(path)
+    if kind_n == "git_blob":
+        return git_blob_sha_file(path)
+    return None
+
+
+def assert_pulled_matches_tip(
+    dest: Path,
+    tip: tuple[str, str] | None,
+    *,
+    content_sha256: str,
+) -> None:
+    """Raise if a content-addressable Library tip does not match the pulled file.
+
+    Prevents marking provenance ``in_sync`` when a download returned stale bytes
+    (e.g. CDN) while the tip API already advanced.
+    """
+    if tip is None:
+        return
+    kind, digest = tip
+    kind_n = (kind or "").strip().lower()
+    expected = (digest or "").strip().lower()
+    if not expected:
+        return
+    if kind_n == "sha256":
+        actual = (content_sha256 or "").strip().lower()
+        if actual != expected:
+            raise ValueError(
+                "Pulled file does not match Library tip digest "
+                f"(got {actual[:12]}…, tip {expected[:12]}…)"
+            )
+        return
+    if kind_n == "git_blob":
+        actual = git_blob_sha_file(dest)
+        if actual != expected:
+            raise ValueError(
+                "Pulled file does not match Library git blob tip "
+                f"(got {actual[:12]}…, tip {expected[:12]}…)"
+            )
+
+
+def _record_provenance(
+    conn: dict,
+    *,
+    domain: str,
+    relative_path: str,
+    result: dict,
+    binding_id: str | None = None,
+    media_target: str | None = None,
+) -> None:
+    """Write provenance after a successful first pull (anchors = observed = in_sync)."""
+    from lib import library_provenance as prov
+
+    tip = resolve_source_digest(conn, relative_path)
+    kind, digest = (tip[0], tip[1]) if tip else (None, None)
+    dest = Path(str(result.get("dest") or ""))
+    content_sha = str(result.get("sha256") or "")
+    if tip is not None and dest.is_file():
+        assert_pulled_matches_tip(dest, tip, content_sha256=content_sha)
+    try:
+        prov.upsert_on_pull(
+            domain=domain,
+            cache_name=result["name"],
+            connection_id=str(conn.get("id") or ""),
+            relative_path=relative_path.replace("\\", "/").lstrip("/"),
+            source_type=str(conn.get("type") or ""),
+            cache_sha256=content_sha,
+            source_digest=digest,
+            source_digest_kind=kind,
+            binding_id=binding_id,
+            media_target=media_target,
+            drift_state="in_sync",
+        )
+    except Exception:
+        # Provenance must not fail a successful first pull into cache.
+        pass
+
+
+class LibraryRateLimitError(Exception):
+    """Remote tip API refused the request (e.g. GitHub 403/429)."""
+
+
+def tip_index_for_connection(conn: dict) -> dict[str, tuple[str, str]]:
+    """Return ``{relative_path: (kind, digest)}`` for a connection (batched when possible).
+
+    Raises ``LibraryRateLimitError`` when the provider signals rate limiting.
+    """
+    ctype = conn.get("type")
+    if ctype == "forge":
+        adapter = _forge_adapter(conn)
+        getter = getattr(adapter, "tip_index", None)
+        if callable(getter):
+            return getter(conn)
+    if ctype == "api":
+        adapter = _api_adapter(conn)
+        getter = getattr(adapter, "tip_index", None)
+        if callable(getter):
+            return getter(conn)
+    return {}
+
+
+def resolve_source_digest(
+    conn: dict,
+    relative_path: str,
+    *,
+    tip_index: dict[str, tuple[str, str]] | None = None,
+    single_file: bool = False,
+) -> tuple[str, str] | None:
+    """Return ``(kind, digest)`` for drift compare — never downloads a file body.
+
+    Returns None when tip identity cannot be obtained cheaply (→ drift ``unknown``).
+    When ``tip_index`` is provided, prefer that map (pass-scoped forge Trees batch).
+    ``single_file`` asks adapters for a cheap one-path tip (e.g. GitHub Contents).
+    """
+    rel = relative_path.replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        raise ValueError("Invalid relative path")
+    if tip_index is not None and rel in tip_index:
+        return tip_index[rel]
+    ctype = conn.get("type")
+    if ctype == "path":
+        src = _expand_base(conn["base_uri"]) / rel
+        if not src.is_file():
+            return None
+        return ("size_mtime", size_mtime_digest(src))
+    if ctype == "https":
+        return _https_source_digest(conn, rel)
+    if ctype == "git":
+        return _git_blob_digest(conn, rel)
+    if ctype == "api":
+        adapter = _api_adapter(conn)
+        if single_file:
+            one = getattr(adapter, "source_digest_one", None)
+            if callable(one):
+                return one(conn, rel)
+        getter = getattr(adapter, "source_digest", None)
+        if callable(getter):
+            return getter(conn, rel)
+        return None
+    if ctype == "forge":
+        adapter = _forge_adapter(conn)
+        if single_file:
+            one = getattr(adapter, "source_digest_one", None)
+            if callable(one):
+                return one(conn, rel)
+        getter = getattr(adapter, "source_digest", None)
+        if callable(getter):
+            return getter(conn, rel)
+        return None
+    return None
+
+
+def _https_source_digest(conn: dict, rel: str) -> tuple[str, str] | None:
+    url = conn["base_uri"].rstrip("/") + "/" + rel
+    req = Request(url, method="HEAD")
+    token = (conn.get("token") or "").strip()
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urlopen(req, timeout=30) as resp:
+            headers = getattr(resp, "headers", None) or {}
+            sha = (
+                headers.get("X-Checksum-Sha256")
+                or headers.get("x-checksum-sha256")
+                or headers.get("Digest")
+                or ""
+            )
+            sha = str(sha).strip().lower()
+            if sha.startswith("sha-256="):
+                sha = sha.split("=", 1)[1].strip()
+            if re.fullmatch(r"[0-9a-f]{64}", sha):
+                return ("sha256", sha)
+    except (HTTPError, URLError, OSError):
+        return None
+    return None
+
+
+def _git_blob_digest(conn: dict, rel: str) -> tuple[str, str] | None:
+    if not git_available():
+        return None
+    try:
+        root = ensure_git_checkout(conn)
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        return None
+    result = _run_git(["ls-tree", "HEAD", "--", rel], cwd=root, timeout=60)
+    if result.returncode != 0:
+        return None
+    line = (result.stdout or "").strip().splitlines()
+    if not line:
+        return None
+    # mode type sha\tpath
+    parts = line[0].split()
+    if len(parts) < 3:
+        return None
+    sha = parts[2]
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
+        return None
+    return ("git_blob", sha)
+
+
 def _expand_base(base_uri: str) -> Path:
     return Path(base_uri).expanduser().resolve()
 
@@ -899,17 +1145,51 @@ def pull_script(
     relative_path: str,
     *,
     dest_dir: Path | None = None,
+    binding_id: str | None = None,
+    overwrite: bool = False,
 ) -> dict:
-    """Copy one script into the operator automation/scripts cache (create-only)."""
+    """Copy one script into the operator automation/scripts cache."""
     from lib import config as config_lib
 
     dest_root = dest_dir or (config_lib.data_dir() / _SCRIPT_PULL_DEST)
-    return _pull_file(
+    result = _pull_file(
         conn,
         relative_path,
         dest_root=dest_root,
         extensions=SCRIPT_EXTENSIONS,
         kind_label="script",
+        overwrite=overwrite,
+    )
+    if overwrite:
+        tip = resolve_source_digest(conn, relative_path, single_file=True)
+        dest = Path(str(result.get("dest") or ""))
+        if dest.is_file():
+            assert_pulled_matches_tip(dest, tip, content_sha256=str(result.get("sha256") or ""))
+    else:
+        _record_provenance(
+            conn,
+            domain="scripts",
+            relative_path=relative_path,
+            result=result,
+            binding_id=binding_id,
+        )
+    return result
+
+
+def sync_script(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+) -> dict:
+    """Overwrite a cached script from its Library source (no provenance upsert)."""
+    return pull_script(
+        conn,
+        relative_path,
+        dest_dir=dest_dir,
+        binding_id=binding_id,
+        overwrite=True,
     )
 
 
@@ -918,17 +1198,51 @@ def pull_clutch(
     relative_path: str,
     *,
     dest_dir: Path | None = None,
+    binding_id: str | None = None,
+    overwrite: bool = False,
 ) -> dict:
-    """Copy one Clutch into the operator clutches/ cache (create-only)."""
+    """Copy one Clutch into the operator clutches/ cache."""
     from lib import config as config_lib
 
     dest_root = dest_dir or (config_lib.data_dir() / _CLUTCH_PULL_DEST)
-    return _pull_file(
+    result = _pull_file(
         conn,
         relative_path,
         dest_root=dest_root,
         extensions=CLUTCH_EXTENSIONS,
         kind_label="clutch",
+        overwrite=overwrite,
+    )
+    if overwrite:
+        tip = resolve_source_digest(conn, relative_path, single_file=True)
+        dest = Path(str(result.get("dest") or ""))
+        if dest.is_file():
+            assert_pulled_matches_tip(dest, tip, content_sha256=str(result.get("sha256") or ""))
+    else:
+        _record_provenance(
+            conn,
+            domain="clutches",
+            relative_path=relative_path,
+            result=result,
+            binding_id=binding_id,
+        )
+    return result
+
+
+def sync_clutch(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+) -> dict:
+    """Overwrite a cached Clutch from its Library source (no provenance upsert)."""
+    return pull_clutch(
+        conn,
+        relative_path,
+        dest_dir=dest_dir,
+        binding_id=binding_id,
+        overwrite=True,
     )
 
 
@@ -938,20 +1252,57 @@ def pull_media(
     *,
     target: str,
     dest_dir: Path | None = None,
+    binding_id: str | None = None,
+    overwrite: bool = False,
 ) -> dict:
-    """Copy one media file into media/iso or media/virtio (create-only)."""
+    """Copy one media file into media/iso or media/virtio."""
     from lib import config as config_lib
 
     target_norm = (target or "").strip().lower()
     if target_norm not in MEDIA_TARGETS:
         raise ValueError(f"media target must be one of: {', '.join(sorted(MEDIA_TARGETS))}")
     dest_root = dest_dir or (config_lib.data_dir() / "media" / target_norm)
-    return _pull_file(
+    result = _pull_file(
         conn,
         relative_path,
         dest_root=dest_root,
         extensions=MEDIA_EXTENSIONS,
         kind_label="media",
+        overwrite=overwrite,
+    )
+    if overwrite:
+        tip = resolve_source_digest(conn, relative_path, single_file=True)
+        dest = Path(str(result.get("dest") or ""))
+        if dest.is_file():
+            assert_pulled_matches_tip(dest, tip, content_sha256=str(result.get("sha256") or ""))
+    else:
+        _record_provenance(
+            conn,
+            domain="media",
+            relative_path=relative_path,
+            result=result,
+            binding_id=binding_id,
+            media_target=target_norm,
+        )
+    return result
+
+
+def sync_media(
+    conn: dict,
+    relative_path: str,
+    *,
+    target: str,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+) -> dict:
+    """Overwrite a cached media file from its Library source."""
+    return pull_media(
+        conn,
+        relative_path,
+        target=target,
+        dest_dir=dest_dir,
+        binding_id=binding_id,
+        overwrite=True,
     )
 
 
@@ -962,6 +1313,7 @@ def _pull_file(
     dest_root: Path,
     extensions: frozenset[str],
     kind_label: str,
+    overwrite: bool = False,
 ) -> dict:
     rel = relative_path.replace("\\", "/").lstrip("/")
     if ".." in Path(rel).parts:
@@ -972,7 +1324,7 @@ def _pull_file(
 
     dest_root.mkdir(parents=True, exist_ok=True)
     dest = dest_root / name
-    if dest.exists():
+    if dest.exists() and not overwrite:
         raise FileExistsError(f"Already in cache: {name}")
 
     ctype = conn["type"]
@@ -993,7 +1345,8 @@ def _pull_file(
             with urlopen(req, timeout=120) as resp, open(dest, "wb") as out:
                 shutil.copyfileobj(resp, out)
         except Exception:
-            dest.unlink(missing_ok=True)
+            if not overwrite:
+                dest.unlink(missing_ok=True)
             raise
         digest = sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}

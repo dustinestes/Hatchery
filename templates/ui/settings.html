@@ -115,6 +115,7 @@
                 <option value="{{ p.id }}" {% if (conn.provider or '') == p.id %}selected{% endif %}>{{ p.title }}</option>
                 {% endfor %}
               </select>
+              <p class="form-hint">GitHub rate limits apply to drift checks (~1 Trees call per connection per validator pass). Prefer a PAT and a longer Library cache drift interval.</p>
             </div>
             <div class="form-group form-group-full">
               <label class="form-label">Base URI / path <span class="required">*</span></label>
@@ -667,6 +668,18 @@
       {% if v.stub %}
       <input type="hidden" name="validator_interval_{{ v.id }}" value="{{ v.interval_seconds }}">
       {% endif %}
+      {% if v.supports_auto_sync %}
+      <div class="form-label-row" style="margin-top:8px">
+        <label class="form-label" for="validator-auto-sync-{{ v.id }}">Auto-sync out-of-sync cache files</label>
+        <span class="form-help-icon" data-tip="When on, the validator overwrites Cached files that are out of sync (cache edited and/or Library tip moved) then re-evaluates; no drift Alerts. When off, Cached views show Sync and one Alert per domain. Forge connections: shorter intervals burn GitHub API quota faster.">i</span>
+      </div>
+      <label class="form-toggle">
+        <input type="checkbox" id="validator-auto-sync-{{ v.id }}" name="validator_auto_sync_{{ v.id }}"
+               {% if v.auto_sync %}checked{% endif %}
+               {% if v.stub %}disabled{% endif %}
+               aria-label="Auto-sync for {{ v.title }}">
+      </label>
+      {% endif %}
     </div>
     {% endfor %}
   </section>
@@ -896,6 +909,7 @@
             <option value="{{ p.id }}">{{ p.title }}</option>
             {% endfor %}
           </select>
+          <p class="form-hint">GitHub rate limits apply to drift checks (~1 Trees call per connection per validator pass). Prefer a PAT and a longer Library cache drift interval.</p>
         </div>
         <div class="form-group form-group-full">
           <label class="form-label">Base URI / path <span class="required">*</span></label>
@@ -1131,6 +1145,19 @@
                 aria-label="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache.">i</span>
         </div>
       </div>
+      <div class="library-conn-remove-cache-opts" style="margin-top:12px">
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-conn-remove-attr-cache">
+            <input type="checkbox" id="library-conn-remove-attr-cache">
+            <span class="form-toggle-label">Also delete Cached files pulled from this connection</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes Scripts, Clutches, and Media in the operator cache that Hatchery attributed to this connection. Off by default — files remain as local inventory (orphaned provenance)."
+                tabindex="0"
+                role="img"
+                aria-label="Also delete Cached inventory files pulled from this connection. Off by default.">i</span>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" id="library-conn-remove-cancel">Cancel</button>
@@ -1310,6 +1337,7 @@
   const removeLabelEl = document.getElementById('library-conn-remove-label');
   const removeGitOpts = document.getElementById('library-conn-remove-git-opts');
   const removeGitCache = document.getElementById('library-conn-remove-git-cache');
+  const removeAttrCache = document.getElementById('library-conn-remove-attr-cache');
   const removeCancel = document.getElementById('library-conn-remove-cancel');
   const removeConfirm = document.getElementById('library-conn-remove-confirm');
   let removePending = null;
@@ -1334,6 +1362,7 @@
       removeGitCache.checked = true;
       removeGitCache.disabled = ctype !== 'git';
     }
+    if (removeAttrCache) removeAttrCache.checked = false;
     removePending = { row: row, cid: cid, ctype: ctype, focusEl: focusEl };
     removeBackdrop.hidden = false;
     removeConfirm.focus();
@@ -1360,13 +1389,17 @@
       const cid = removePending.cid;
       const ctype = removePending.ctype;
       const deleteGit = ctype === 'git' && removeGitCache && removeGitCache.checked;
+      const deleteAttr = removeAttrCache && removeAttrCache.checked;
       removeConfirm.disabled = true;
       const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
         .replace('CONN_ID', encodeURIComponent(cid));
       fetch(delUrl, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delete_git_cache: !!deleteGit }),
+        body: JSON.stringify({
+          delete_git_cache: !!deleteGit,
+          delete_attributed_cache: !!deleteAttr,
+        }),
       })
         .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
         .then(function (res) {
@@ -2063,10 +2096,17 @@
           return;
         }
         if (!window.confirm('Remove this binding from Settings?')) return;
+        const deleteAttr = window.confirm(
+          'Also delete Cached files pulled via this binding?\n\nOK = delete attributed cache files\nCancel = leave files (they become orphans)'
+        );
         const delUrl = {{ url_for('api_library_binding_delete', domain='DOMAIN', binding_id='BIND_ID') | tojson }}
           .replace('DOMAIN', encodeURIComponent(domain))
           .replace('BIND_ID', encodeURIComponent(bid));
-        fetch(delUrl, { method: 'DELETE' })
+        fetch(delUrl, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delete_attributed_cache: !!deleteAttr }),
+        })
           .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
           .then(function (res) {
             if (!res.ok) {

@@ -85,6 +85,7 @@ When adding pane UI that should stay fresh (Validators filters [#280](https://gi
 | `nest_reachability` | Active — endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
 | `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport). **Gated by reachability** on Remotes ([#286](https://github.com/dustinestes/Hatchery/issues/286)): unreachable / never-probed Nests skip capability and clear Nest capability Alerts |
 | `library_connections` | Active — Library connection reachability/auth (path, HTTPS, git, API) + token expiry ([#254](https://github.com/dustinestes/Hatchery/issues/254), [#251](https://github.com/dustinestes/Hatchery/issues/251), [#255](https://github.com/dustinestes/Hatchery/issues/255)). Skips connections with `enabled: false` and resolves their Alerts ([#293](https://github.com/dustinestes/Hatchery/issues/293)). No-ops (and clears Library Alerts) when Library is disabled |
+| `library_cache_drift` | Active — bidirectional cache/source drift vs Library ([#308](https://github.com/dustinestes/Hatchery/issues/308)). Optional **auto_sync** next to interval. Manual: one Alert per domain with count. Forge: ~1 Trees call per connection per pass (rate limits matter; see [library.md](library.md#cache-provenance-and-drift-308)) |
 
 <br>
 

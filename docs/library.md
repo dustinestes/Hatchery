@@ -21,6 +21,7 @@ How Hatchery keeps a local-first operator model while supporting Library **conne
 - [Forge connections (#307)](#forge-connections-307)
 - [API connections (#255)](#api-connections-255)
 - [Connection health (#254)](#connection-health-254)
+- [Cache provenance and drift (#308)](#cache-provenance-and-drift-308)
 - [Inventory: Cache vs Catalog](#inventory-cache-vs-catalog)
 - [Hatch Preflight](#hatch-preflight)
 - [Settings export and import](#settings-export-and-import)
@@ -179,6 +180,48 @@ Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named
 | **Local OSS test** | Contributor Docker harness: [`.hatchery/tooling/artifactory-oss/`](../.hatchery/tooling/artifactory-oss/) (`up` → change admin password → `seed` → Settings base URI `http://127.0.0.1:8082/artifactory`) |
 
 `https` stays explicit single/multi path GET — not a browsable API catalog.
+
+### Cache provenance and drift (#308)
+
+Architecture: [ADR-0012](adr/0012-library-cache-provenance-drift.md). First Library **pull** writes a SQLite provenance row linking the Cached basename to `connection_id` / optional `binding_id` / `relative_path`. Files never pulled via Library stay **local** (no sync, no orphan).
+
+Drift is **bidirectional**: the validator refreshes observed digests for both sides and compares them to sync anchors (and, when possible, live cache vs live tip).
+
+| Column prefix | Meaning |
+|---|---|
+| `cache_sha256` / `cache_sha256_synced` | Observed vs last-sync Hatchery SHA-256 of the Cached file |
+| `source_digest` / `source_digest_synced` | Observed vs last-sync Library tip |
+| `source_digest_kind` | Tip alphabet (`sha256`, `git_blob`, `size_mtime`) |
+
+| | |
+|---|---|
+| **Out of sync when** | Cache bytes changed since sync, **or** Library tip moved since sync, **or** (content-addressable tips) live cache identity ≠ live tip |
+| **Sync** | Overwrites the Cached file from the source, then **evaluates that row** (evaluate owns digests, `drift_state`, and Alerts). Sync does not force `in_sync` by itself |
+| **Orphan** | Connection/binding id missing → warning on Cached views; re-attach modal (Test path, then rewrite ids) |
+| **Delete connection/binding** | Default: leave Cached files (orphans). Optional confirm toggle deletes attributed files |
+| **Validator** | `library_cache_drift` — Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
+
+#### How tip identity works (one story per connection type)
+
+Hatchery never downloads a file body **only** to compare digests. Tip identity is:
+
+| Type | Tip check (Scripts, Clutches, and Media alike) |
+|---|---|
+| **path** | Source file **size + mtime** (no live cache↔tip equality; anchors only) |
+| **api** | Catalog/metadata **SHA-256** (e.g. Artifactory); missing → unknown |
+| **forge** | Git **blob SHA** from Trees/Contents (not Hatchery content SHA-256) |
+| **git** | Blob id from the shallow checkout tree |
+| **https** | Checksum header on HEAD if present; else unknown |
+
+Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
+
+**Sync integrity:** downloads that claim a content-addressable tip must match pulled bytes before evaluate can promote anchors. Forge pulls use the GitHub Contents API (blob sha + body), not `raw.githubusercontent.com` CDN.
+
+#### Forge / GitHub rate limits
+
+Each full validator pass uses about **one Trees request per forge connection** (plus a repo metadata call), not one Trees request per attributed file. Single-file Sync uses Contents metadata for that path when possible.
+
+GitHub still rate-limits aggressive intervals (especially without a PAT: ~60 requests/hour unauthenticated). Prefer a longer `library_cache_drift` interval in production, and attach a token on forge connections. On 403/429, affected rows become `unknown` (no retry storm).
 
 ### Connection health (#254)
 

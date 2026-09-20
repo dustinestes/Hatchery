@@ -56,6 +56,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0009](0009-library-git-checkout-cache.md) | Library git checkout cache on the Controller | Accepted |
 | [0010](0010-library-forge-providers.md) | Library forge connection type + pluggable providers | Accepted |
 | [0011](0011-library-consume-only-no-clutch-roundtrip.md) | Library is consume-only — no Clutch↔forge round-trip | Accepted |
+| [0012](0012-library-cache-provenance-drift.md) | Library cache provenance + drift sync | Accepted |
 
 <br>
 

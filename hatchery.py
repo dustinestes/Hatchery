@@ -554,7 +554,42 @@ def _scan_script_inventory() -> list[dict]:
                 "modified_at": modified,
             }
         )
-    return items
+    return _enrich_library_inventory(items, domain="scripts")
+
+
+def _enrich_library_inventory(
+    items: list[dict],
+    *,
+    domain: str,
+    media_target: str | None = None,
+) -> list[dict]:
+    """Attach Library provenance / drift fields when Library is enabled."""
+    if not config.library_enabled() or not items:
+        for item in items:
+            item.setdefault("drift_state", "local")
+            item.setdefault("orphan", False)
+            item.setdefault("orphan_reason", "")
+            item.setdefault("library_provenance", None)
+        return items
+    try:
+        from lib import library_drift as drift
+        from lib import library_provenance as prov
+
+        cids, bids = drift.connection_and_binding_ids()
+        return prov.enrich_inventory(
+            items,
+            domain=domain,
+            connection_ids=cids,
+            binding_ids=bids,
+            media_target=media_target,
+        )
+    except Exception:
+        for item in items:
+            item.setdefault("drift_state", "local")
+            item.setdefault("orphan", False)
+            item.setdefault("orphan_reason", "")
+            item.setdefault("library_provenance", None)
+        return items
 
 
 def _script_used_by() -> dict[str, list[dict]]:
@@ -610,7 +645,15 @@ def nests():
 @app.route("/clutches")
 def clutches():
     clutch_files = _scan_dir("clutches", [".yaml"])
-    return render_template("clutches.html", active_pane="clutches", clutch_files=clutch_files)
+    items = [{"name": n} for n in clutch_files]
+    items = _enrich_library_inventory(items, domain="clutches")
+    return render_template(
+        "clutches.html",
+        active_pane="clutches",
+        clutch_files=clutch_files,
+        clutch_inventory=items,
+        library_cache_sync_url=url_for("api_library_cache_sync"),
+    )
 
 
 @app.route("/automation")
@@ -625,6 +668,13 @@ def automation_scripts():
         active_pane="automation_scripts",
         scripts=_scan_script_inventory(),
         used_by=_script_used_by(),
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
 
 
@@ -646,13 +696,16 @@ def media_iso():
         delete_url_prefix="/api/media/iso/",
         import_url=url_for("api_import_media_iso"),
         import_accept=".iso",
-        items=media_inspect_lib.scan_media_dir("iso"),
+        items=_enrich_library_inventory(
+            media_inspect_lib.scan_media_dir("iso"), domain="media", media_target="iso"
+        ),
         used_by=media_inspect_lib.media_used_by("os_media"),
         empty_subdir="media/iso/",
         item_kind="ISO",
         library_media_target="iso",
         library_catalog_url=url_for("api_library_media", target="iso"),
         library_pull_url=url_for("api_library_media_pull"),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
     )
 
 
@@ -669,13 +722,16 @@ def media_virtio():
         delete_url_prefix="/api/media/virtio/",
         import_url=url_for("api_import_media_virtio"),
         import_accept=".iso",
-        items=media_inspect_lib.scan_media_dir("virtio"),
+        items=_enrich_library_inventory(
+            media_inspect_lib.scan_media_dir("virtio"), domain="media", media_target="virtio"
+        ),
         used_by=media_inspect_lib.media_used_by("virtio_drivers"),
         empty_subdir="media/virtio/",
         item_kind="VirtIO file",
         library_media_target="virtio",
         library_catalog_url=url_for("api_library_media", target="virtio"),
         library_pull_url=url_for("api_library_media_pull"),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
     )
 
 
@@ -865,7 +921,11 @@ def settings_section_post(section: str):
                     f"Validator interval for '{vid}' must be a whole number of seconds (minimum 10)."
                 )
             enabled = (not stub) and (f"validator_enabled_{vid}" in request.form)
-            configs[vid] = {"enabled": enabled, "interval_seconds": interval}
+            entry: dict = {"enabled": enabled, "interval_seconds": interval}
+            v_obj = next((v for v in all_validators() if v.id == vid), None)
+            if v_obj is not None and getattr(v_obj, "supports_auto_sync", False):
+                entry["auto_sync"] = f"validator_auto_sync_{vid}" in request.form
+            configs[vid] = entry
 
         new_cfg.update(cleaned_validator_settings(configs, retention=retention))
         config.save(new_cfg)
@@ -1303,6 +1363,7 @@ def api_library_connection_delete(conn_id: str):
 
     data = request.get_json(silent=True) or {}
     delete_git_cache = bool(data.get("delete_git_cache"))
+    delete_attributed_cache = bool(data.get("delete_attributed_cache"))
 
     bindings_removed = 0
     for cfg_key, _parse in _BINDING_DOMAIN_KEYS.values():
@@ -1315,8 +1376,16 @@ def api_library_connection_delete(conn_id: str):
     cfg["library_connections"] = connections
     config.save(cfg)
     from lib import library_health as library_health_lib
+    from lib import library_provenance as prov
 
     library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
+
+    attributed_deleted: list[str] = []
+    if delete_attributed_cache:
+        attributed_deleted = prov.delete_attributed_cache_files(
+            prov.rows_for_connection(cid),
+            data_dir=config.data_dir(),
+        )
 
     git_cache_deleted = False
     git_cache_warning = None
@@ -1331,6 +1400,7 @@ def api_library_connection_delete(conn_id: str):
         "id": cid,
         "bindings_removed": bindings_removed,
         "git_cache_deleted": git_cache_deleted,
+        "attributed_cache_deleted": attributed_deleted,
     }
     if git_cache_warning:
         payload["git_cache_warning"] = git_cache_warning
@@ -1394,9 +1464,19 @@ def api_library_binding_delete(domain: str, binding_id: str):
     kept = [b for b in bindings if b.get("id") != bid]
     if len(kept) == len(bindings):
         return jsonify({"ok": False, "error": "Unknown binding id"}), 404
+    data = request.get_json(silent=True) or {}
+    delete_attributed_cache = bool(data.get("delete_attributed_cache"))
     cfg[cfg_key] = kept
     config.save(cfg)
-    return jsonify({"ok": True, "id": bid})
+    attributed_deleted: list[str] = []
+    if delete_attributed_cache:
+        from lib import library_provenance as prov
+
+        attributed_deleted = prov.delete_attributed_cache_files(
+            prov.rows_for_binding(bid),
+            data_dir=config.data_dir(),
+        )
+    return jsonify({"ok": True, "id": bid, "attributed_cache_deleted": attributed_deleted})
 
 
 @app.route("/api/library/scripts")
@@ -1428,7 +1508,11 @@ def api_library_scripts_pull():
         relative_path = str(data.get("relative_path") or "").strip()
         if not relative_path:
             raise ValueError("relative_path is required")
-        result = library_lib.pull_script(conn, relative_path)
+        binding_id = str(data.get("binding_id") or "").strip() or None
+        overwrite = bool(data.get("overwrite") or data.get("sync"))
+        result = library_lib.pull_script(
+            conn, relative_path, binding_id=binding_id, overwrite=overwrite
+        )
     except FileExistsError as exc:
         return jsonify({"error": str(exc)}), 409
     except FileNotFoundError as exc:
@@ -1469,7 +1553,11 @@ def api_library_clutches_pull():
         relative_path = str(data.get("relative_path") or "").strip()
         if not relative_path:
             raise ValueError("relative_path is required")
-        result = library_lib.pull_clutch(conn, relative_path)
+        binding_id = str(data.get("binding_id") or "").strip() or None
+        overwrite = bool(data.get("overwrite") or data.get("sync"))
+        result = library_lib.pull_clutch(
+            conn, relative_path, binding_id=binding_id, overwrite=overwrite
+        )
     except FileExistsError as exc:
         return jsonify({"error": str(exc)}), 409
     except FileNotFoundError as exc:
@@ -1519,7 +1607,11 @@ def api_library_media_pull():
             raise ValueError("relative_path is required")
         if not target:
             raise ValueError("target is required (iso or virtio)")
-        result = library_lib.pull_media(conn, relative_path, target=target)
+        binding_id = str(data.get("binding_id") or "").strip() or None
+        overwrite = bool(data.get("overwrite") or data.get("sync"))
+        result = library_lib.pull_media(
+            conn, relative_path, target=target, binding_id=binding_id, overwrite=overwrite
+        )
     except FileExistsError as exc:
         return jsonify({"error": str(exc)}), 409
     except FileNotFoundError as exc:
@@ -1529,6 +1621,108 @@ def api_library_media_pull():
     except Exception as exc:
         return jsonify({"error": str(exc)}), 502
     return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
+
+
+@app.route("/api/library/cache/sync", methods=["POST"])
+def api_library_cache_sync():
+    """Overwrite one attributed Cached file, then evaluate that row (#308)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    from lib import library_drift as drift
+    from lib import library_provenance as prov
+
+    data = request.get_json(silent=True) or {}
+    domain = str(data.get("domain") or "").strip().lower()
+    name = str(data.get("name") or "").strip()
+    media_target = str(data.get("media_target") or data.get("target") or "").strip().lower() or None
+    if domain not in ("scripts", "clutches", "media"):
+        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    row = prov.get_for_cache(domain, name, media_target=media_target)
+    if row is None:
+        return jsonify({"ok": False, "error": "No Library provenance for this cached file"}), 404
+    connections = drift.connection_by_id()
+    try:
+        summary = drift.sync_row(row, connections)
+    except FileNotFoundError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    if summary is None:
+        return jsonify(
+            {"ok": False, "error": "Connection missing; re-attach provenance first"}
+        ), 400
+    drift.reconcile_domain_alerts(auto_sync=False)
+    return jsonify(
+        {
+            "ok": True,
+            "imported": [name],
+            "sha256": summary.get("cache_sha256"),
+            "drift_state": summary.get("drift_state"),
+            "cache_drifted": summary.get("cache_drifted"),
+            "source_drifted": summary.get("source_drifted"),
+            "live_mismatch": summary.get("live_mismatch"),
+        }
+    )
+
+
+@app.route("/api/library/cache/reattach", methods=["POST"])
+def api_library_cache_reattach():
+    """Test path on a connection and rewrite provenance (#308)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    from lib import library_provenance as prov
+
+    data = request.get_json(silent=True) or {}
+    domain = str(data.get("domain") or "").strip().lower()
+    name = str(data.get("name") or "").strip()
+    media_target = str(data.get("media_target") or data.get("target") or "").strip().lower() or None
+    relative_path = str(data.get("relative_path") or "").strip()
+    binding_id = str(data.get("binding_id") or "").strip() or None
+    commit = bool(data.get("commit"))
+    if domain not in ("scripts", "clutches", "media"):
+        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if not name or not relative_path:
+        return jsonify({"ok": False, "error": "name and relative_path are required"}), 400
+    try:
+        conn = _connection_from_request_body(data)
+        tip = library_lib.resolve_source_digest(conn, relative_path)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    if tip is None:
+        return jsonify(
+            {"ok": False, "error": "Path does not resolve on that source (or tip unknown)"}
+        ), 400
+    kind, digest = tip
+    if not commit:
+        return jsonify(
+            {
+                "ok": True,
+                "tested": True,
+                "source_digest": digest,
+                "source_digest_kind": kind,
+            }
+        )
+    try:
+        row = prov.reattach(
+            domain=domain,
+            cache_name=name,
+            connection_id=str(conn.get("id") or ""),
+            relative_path=relative_path,
+            source_type=str(conn.get("type") or ""),
+            source_digest=digest,
+            source_digest_kind=kind,
+            binding_id=binding_id,
+            media_target=media_target,
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "provenance": row})
 
 
 def _nest_from_request(data: dict) -> NestConnectionConfig:
@@ -2400,7 +2594,7 @@ def api_automation_os_config():
 
 @app.route("/api/automation/scripts")
 def api_automation_scripts():
-    return jsonify(_scan_dir("automation/scripts"))
+    return jsonify(_scan_script_inventory())
 
 
 @app.route("/api/automation/scripts/<path:name>/content")

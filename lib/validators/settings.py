@@ -19,10 +19,13 @@ _RETENTION_KEY = "validators_run_retention"
 def _defaults_map() -> dict[str, dict]:
     out: dict[str, dict] = {}
     for v in all_validators():
-        out[v.id] = {
+        row = {
             "enabled": v.default_enabled,
             "interval_seconds": max(_MIN_INTERVAL, int(v.default_interval_seconds)),
         }
+        if getattr(v, "supports_auto_sync", False):
+            row["auto_sync"] = bool(getattr(v, "default_auto_sync", False))
+        out[v.id] = row
     return out
 
 
@@ -67,17 +70,20 @@ def list_validator_configs() -> list[dict]:
         except (TypeError, ValueError):
             interval = defaults[v.id]["interval_seconds"]
         interval = max(_MIN_INTERVAL, interval)
-        rows.append(
-            {
-                "id": v.id,
-                "title": v.title,
-                "description": v.description,
-                "scope": v.scope,
-                "enabled": enabled,
-                "interval_seconds": interval,
-                "stub": getattr(v, "stub", False),
-            }
-        )
+        row = {
+            "id": v.id,
+            "title": v.title,
+            "description": v.description,
+            "scope": v.scope,
+            "enabled": enabled,
+            "interval_seconds": interval,
+            "stub": getattr(v, "stub", False),
+            "supports_auto_sync": bool(getattr(v, "supports_auto_sync", False)),
+        }
+        if row["supports_auto_sync"]:
+            default_auto = bool(getattr(v, "default_auto_sync", False))
+            row["auto_sync"] = bool(saved.get("auto_sync", default_auto))
+        rows.append(row)
     return rows
 
 
@@ -100,6 +106,11 @@ def cleaned_validator_settings(
             "enabled": bool(raw.get("enabled", True)),
             "interval_seconds": max(_MIN_INTERVAL, interval),
         }
+        # Preserve auto_sync for validators that support it
+        for v in all_validators():
+            if v.id == vid and getattr(v, "supports_auto_sync", False):
+                cleaned[vid]["auto_sync"] = bool(raw.get("auto_sync", False))
+                break
     out: dict = {_SETTINGS_KEY: cleaned}
     if retention is not None:
         out[_RETENTION_KEY] = max(_MIN_RETENTION, min(_MAX_RETENTION, int(retention)))

@@ -113,7 +113,9 @@ class GitHubAdapter(BaseLibraryForgeAdapter):
         relative_path: str,
         dest: Path,
     ) -> dict[str, Any]:
-        from lib.library import sha256_file
+        import base64
+
+        from lib.library import git_blob_sha_bytes, sha256_file
 
         rel = relative_path.replace("\\", "/").lstrip("/")
         if not rel or ".." in Path(rel).parts:
@@ -122,27 +124,127 @@ class GitHubAdapter(BaseLibraryForgeAdapter):
         owner, repo = parse_github_repo(conn.get("base_uri") or "")
         token = conn.get("token") or ""
         branch = _default_branch(owner, repo, token)
-        raw_url = (
-            f"https://raw.githubusercontent.com/{quote(owner)}/{quote(repo)}/"
-            f"{quote(branch, safe='')}/{quote(rel, safe='/')}"
+        # Prefer Contents API (blob sha + body) over raw.githubusercontent.com CDN,
+        # which can return stale bytes after the Trees tip already advanced.
+        meta_url = (
+            f"{_API}/repos/{quote(owner)}/{quote(repo)}/contents/"
+            f"{quote(rel, safe='/')}?ref={quote(branch, safe='')}"
         )
         try:
-            req = _request("GET", raw_url, token=token, accept="*/*")
-            with urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as resp:
-                with open(dest, "wb") as out:
+            code, data = _http_json("GET", meta_url, token=token, timeout=_TIMEOUT_S)
+        except _ForgeError as exc:
+            raise ValueError(f"GitHub contents failed: {exc}") from exc
+        if code != 200 or not isinstance(data, dict):
+            raise ValueError(f"GitHub contents HTTP {code}: {_err_body(data)}")
+        expected_blob = str(data.get("sha") or "").strip().lower()
+        encoding = str(data.get("encoding") or "").strip().lower()
+        raw: bytes
+        if encoding == "base64" and data.get("content"):
+            try:
+                raw = base64.b64decode(data["content"])
+            except (ValueError, TypeError) as exc:
+                raise ValueError("GitHub contents payload was not valid base64") from exc
+        else:
+            download_url = str(data.get("download_url") or "").strip()
+            if not download_url:
+                raise ValueError("GitHub contents response missing file body")
+            try:
+                req = _request("GET", download_url, token=token, accept="*/*")
+                with urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as resp:
+                    chunks: list[bytes] = []
                     while True:
                         chunk = resp.read(1024 * 1024)
                         if not chunk:
                             break
-                        out.write(chunk)
-        except HTTPError as exc:
-            dest.unlink(missing_ok=True)
-            raise ValueError(f"GitHub download HTTP {exc.code}: {exc.reason}") from exc
-        except URLError as exc:
-            dest.unlink(missing_ok=True)
-            raise ValueError(f"GitHub download failed: {exc.reason}") from exc
+                        chunks.append(chunk)
+                raw = b"".join(chunks)
+            except HTTPError as exc:
+                raise ValueError(f"GitHub download HTTP {exc.code}: {exc.reason}") from exc
+            except URLError as exc:
+                raise ValueError(f"GitHub download failed: {exc.reason}") from exc
+        if expected_blob:
+            actual_blob = git_blob_sha_bytes(raw)
+            if actual_blob != expected_blob:
+                raise ValueError(
+                    "GitHub download does not match Contents blob sha "
+                    f"(got {actual_blob[:12]}…, expected {expected_blob[:12]}…)"
+                )
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(raw)
         digest = sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}
+
+    def tip_index(self, conn: dict[str, Any]) -> dict[str, tuple[str, str]]:
+        """One Trees fetch → ``{relative_path: (git_blob, sha)}`` for the default branch.
+
+        Raises ``LibraryRateLimitError`` on GitHub 403/429.
+        """
+        from lib.library import LibraryRateLimitError
+
+        owner, repo = parse_github_repo(conn.get("base_uri") or "")
+        token = conn.get("token") or ""
+        try:
+            branch = _default_branch(owner, repo, token)
+            url = (
+                f"{_API}/repos/{quote(owner)}/{quote(repo)}/git/trees/"
+                f"{quote(branch, safe='')}?recursive=1"
+            )
+            code, data = _http_json("GET", url, token=token, timeout=_TIMEOUT_S)
+        except _ForgeError as exc:
+            raise LibraryRateLimitError(str(exc)) from exc
+        if code in (403, 429):
+            raise LibraryRateLimitError(f"GitHub HTTP {code}: {_err_body(data)}")
+        if code != 200 or not isinstance(data, dict) or data.get("truncated"):
+            return {}
+        out: dict[str, tuple[str, str]] = {}
+        for entry in data.get("tree") or []:
+            if entry.get("type") != "blob":
+                continue
+            rel = str(entry.get("path") or "").replace("\\", "/")
+            if not rel or ".." in Path(rel).parts:
+                continue
+            sha = str(entry.get("sha") or "").strip().lower()
+            if sha:
+                out[rel] = ("git_blob", sha)
+        return out
+
+    def source_digest_one(self, conn: dict[str, Any], relative_path: str) -> tuple[str, str] | None:
+        """Cheap one-path tip via Contents API metadata (no body download)."""
+        from lib.library import LibraryRateLimitError
+
+        rel = relative_path.replace("\\", "/").lstrip("/")
+        if not rel or ".." in Path(rel).parts:
+            return None
+        try:
+            owner, repo = parse_github_repo(conn.get("base_uri") or "")
+        except ValueError:
+            return None
+        token = conn.get("token") or ""
+        try:
+            branch = _default_branch(owner, repo, token)
+            meta_url = (
+                f"{_API}/repos/{quote(owner)}/{quote(repo)}/contents/"
+                f"{quote(rel, safe='/')}?ref={quote(branch, safe='')}"
+            )
+            code, data = _http_json("GET", meta_url, token=token, timeout=_TIMEOUT_S)
+        except _ForgeError:
+            return None
+        if code in (403, 429):
+            raise LibraryRateLimitError(f"GitHub HTTP {code}: {_err_body(data)}")
+        if code != 200 or not isinstance(data, dict):
+            return None
+        sha = str(data.get("sha") or "").strip().lower()
+        if sha:
+            return ("git_blob", sha)
+        return None
+
+    def source_digest(self, conn: dict[str, Any], relative_path: str) -> tuple[str, str] | None:
+        """Return ``(git_blob, sha)`` — prefers Contents for one path; else Trees index."""
+        one = self.source_digest_one(conn, relative_path)
+        if one is not None:
+            return one
+        rel = relative_path.replace("\\", "/").lstrip("/")
+        return self.tip_index(conn).get(rel)
 
 
 def parse_github_repo(base_uri: str) -> tuple[str, str]:

@@ -208,30 +208,36 @@ class TestGitHub:
         dest = tmp_path / "hello.ps1"
         body = b"Write-Host hi"
         expected = hashlib.sha256(body).hexdigest()
+        blob = library_lib.git_blob_sha_bytes(body)
         repo = {"default_branch": "main"}
+        import base64
+
+        contents = {
+            "sha": blob,
+            "encoding": "base64",
+            "content": base64.b64encode(body).decode("ascii"),
+        }
 
         def factory(req, timeout=None):  # noqa: ARG001
             url = req.full_url if hasattr(req, "full_url") else str(req)
-            if "api.github.com" in url:
+            if "/contents/" in url:
+                payload = json.dumps(contents).encode()
+            elif url.rstrip("/").endswith("/repos/acme/widgets") or (
+                "api.github.com/repos/acme/widgets" in url
+                and "/contents/" not in url
+                and "/git/" not in url
+            ):
                 payload = json.dumps(repo).encode()
-                resp = MagicMock()
-                resp.status = 200
-                resp.getcode.return_value = 200
-                resp.read.side_effect = [payload, b""]
-                resp.headers = {}
-                resp.__enter__ = lambda s: s
-                resp.__exit__ = MagicMock(return_value=False)
-                return resp
-            if "raw.githubusercontent.com" in url:
-                resp = MagicMock()
-                resp.status = 200
-                resp.getcode.return_value = 200
-                resp.read.side_effect = [body, b""]
-                resp.headers = {}
-                resp.__enter__ = lambda s: s
-                resp.__exit__ = MagicMock(return_value=False)
-                return resp
-            raise AssertionError(f"unexpected URL: {url}")
+            else:
+                raise AssertionError(f"unexpected URL: {url}")
+            resp = MagicMock()
+            resp.status = 200
+            resp.getcode.return_value = 200
+            resp.read.side_effect = [payload, b""]
+            resp.headers = {}
+            resp.__enter__ = lambda s: s
+            resp.__exit__ = MagicMock(return_value=False)
+            return resp
 
         with patch("lib.library_forge.github.urlopen", side_effect=factory):
             result = adapter.pull_file(_forge_conn(), "scripts/hello.ps1", dest)
@@ -244,20 +250,28 @@ class TestGitHub:
         (tmp_path / "data" / "automation" / "scripts").mkdir(parents=True)
         conn = _forge_conn()
         repo = {"default_branch": "main", "full_name": "acme/widgets"}
+        body = b"# forge script"
+        blob = library_lib.git_blob_sha_bytes(body)
         tree = {
             "truncated": False,
             "tree": [
-                {"type": "blob", "path": "hello.ps1", "sha": "blobsha1"},
+                {"type": "blob", "path": "hello.ps1", "sha": blob},
             ],
         }
-        body = b"# forge script"
+        import base64
+
+        contents = {
+            "sha": blob,
+            "encoding": "base64",
+            "content": base64.b64encode(body).decode("ascii"),
+        }
 
         def factory(req, timeout=None):  # noqa: ARG001
             url = req.full_url if hasattr(req, "full_url") else str(req)
             if "/git/trees/" in url:
                 payload = json.dumps(tree).encode()
-            elif "raw.githubusercontent.com" in url:
-                payload = body
+            elif "/contents/" in url:
+                payload = json.dumps(contents).encode()
             elif "/repos/acme/widgets" in url:
                 payload = json.dumps(repo).encode()
             else:
