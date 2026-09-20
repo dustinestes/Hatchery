@@ -418,7 +418,8 @@ class TestDashboardShell:
         assert 'id="dashboard-library-off" class="dashboard-tile-placeholder" hidden' in html
         assert "Connection health (coming soon)" in html
         assert 'href="/settings/library"' in html
-        assert "Open Library Settings" in html
+        assert "Open Settings" in html
+        assert "Open Library Settings" not in html
 
 
 class TestSettingsRoute:

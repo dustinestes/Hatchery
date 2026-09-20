@@ -43,7 +43,7 @@
         <div class="dashboard-tile-body" data-tile="vms">
           <p class="dashboard-tile-placeholder">VM counts by status and health (coming soon).</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests inventory</a>
+        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
     </div>
@@ -69,7 +69,7 @@
         <a id="dashboard-library-cta"
            class="dashboard-tile-cta link"
            href="{% if library_enabled %}{{ url_for('settings_section', section='library') }}{% else %}{{ url_for('settings_section', section='general') }}{% endif %}">
-          {% if library_enabled %}Open Library Settings{% else %}Open Settings{% endif %}
+          Open Settings
         </a>
       </section>
 
@@ -132,13 +132,8 @@
     if (libraryOff) libraryOff.hidden = enabled;
     if (libraryOn) libraryOn.hidden = !enabled;
     if (libraryCta) {
-      if (enabled) {
-        libraryCta.href = '/settings/library';
-        libraryCta.textContent = 'Open Library Settings';
-      } else {
-        libraryCta.href = '/settings/general';
-        libraryCta.textContent = 'Open Settings';
-      }
+      libraryCta.href = enabled ? '/settings/library' : '/settings/general';
+      libraryCta.textContent = 'Open Settings';
     }
   }
 
