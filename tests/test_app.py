@@ -184,6 +184,9 @@ class TestPageTitles:
         assert 'aria-label="Copy"' in html
         assert "hatchery.onStatusTick" in html
         assert "inventory-nav-drift-icon" in html
+        assert 'aria-label="Filter Cached Clutches"' in html
+        assert 'id="clutches-filter-q"' in html
+        assert "applyClutchFilters" in html
 
     def test_automation_scripts_title(self, client):
         html = client.get("/automation/scripts").data.decode()
@@ -3490,8 +3493,12 @@ class TestMediaPanes:
         assert "Copy file path" in html
         assert "media-nav-drift-icon" in html
         assert 'id="media-library-status-btn"' in html
+        assert 'aria-label="Filter Cached ISO"' in html or "Filter Cached" in html
+        assert 'id="media-filter-q"' in html
+        assert 'id="media-filter-state"' in html
         assert "hatchery.onStatusTick" in html
         assert "refreshDriftInventory" in html
+        assert "applyMediaFilters" in html
 
     def test_virtio_empty_state(self, client, tmp_path, monkeypatch):
         (tmp_path / "media" / "virtio").mkdir(parents=True)

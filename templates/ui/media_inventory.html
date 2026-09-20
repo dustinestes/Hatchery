@@ -40,6 +40,29 @@
 {% endwith %}
 
 <div class="scripts-panel" id="media-panel-cache" role="tabpanel" aria-labelledby="media-tab-cache">
+  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached {{ pane_title }}">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="media-filter-q">Search</label>
+      <input type="search"
+             id="media-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="media-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="media-filter-state">Library state</label>
+      <select id="media-filter-state" class="form-select" aria-controls="media-nav">
+        <option value="">All</option>
+        <option value="local">Local</option>
+        <option value="in_sync">In sync</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="unknown">Tip unknown</option>
+      </select>
+    </div>
+  </div>
+
 <div class="media-layout">
 
   <nav class="media-nav" aria-label="{{ nav_label }}" id="media-nav">
@@ -81,6 +104,9 @@
         under your Hatchery data directory.
       </div>
     {% endif %}
+    <div class="media-nav-empty" id="media-nav-filtered-empty" role="status" hidden>
+      No files match these filters.
+    </div>
   </nav>
 
   <div class="media-content" id="media-content">
@@ -312,10 +338,76 @@
   const deleteFilenameEl = document.getElementById('delete-modal-filename');
   const deleteCancel = document.getElementById('delete-modal-cancel');
   const deleteConfirm = document.getElementById('delete-modal-confirm');
+  const filterQ = document.getElementById('media-filter-q');
+  const filterState = document.getElementById('media-filter-state');
+  const navFilteredEmpty = document.getElementById('media-nav-filtered-empty');
+  const navEmpty = document.getElementById('media-nav-empty');
 
   let selectedName = null;
   let selectedAbsPath = null;
   let libraryMode = 'hidden'; /* hidden | sync | orphan */
+
+  function inventoryLibraryState(btn) {
+    if (!btn) return 'local';
+    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
+    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
+    if (drift === 'unknown' || drift === 'out_of_sync' || drift === 'in_sync') return drift;
+    return 'local';
+  }
+
+  function currentMediaFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
+  }
+
+  function itemMatchesMediaFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearMediaDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    nav.querySelectorAll('.media-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyPathBtn) copyPathBtn.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    libraryMode = 'hidden';
+  }
+
+  function applyMediaFilters() {
+    if (!nav) return;
+    var filters = currentMediaFilters();
+    var items = nav.querySelectorAll('.media-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesMediaFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    var active = nav.querySelector('.media-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearMediaDetail();
+    }
+  }
 
   function escHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, c =>
@@ -497,8 +589,9 @@
           var name = btn.getAttribute('data-name');
           if (name && byName[name]) applyDriftChrome(btn, byName[name]);
         });
+        applyMediaFilters();
         var active = nav.querySelector('.media-nav-item.active');
-        if (active) setLibraryStatus(active);
+        if (active && !active.hidden) setLibraryStatus(active);
       })
       .catch(function () { /* status tick must not break the page */ });
   }
@@ -811,6 +904,10 @@
       refreshDriftInventory();
     });
   }
+
+  if (filterQ) filterQ.addEventListener('input', applyMediaFilters);
+  if (filterState) filterState.addEventListener('change', applyMediaFilters);
+  applyMediaFilters();
 })();
 </script>
 {% endblock %}

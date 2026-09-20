@@ -41,6 +41,29 @@
 {% endwith %}
 
 <div class="scripts-panel" id="clutches-panel-cache" role="tabpanel" aria-labelledby="clutches-tab-cache">
+  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached Clutches">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-q">Search</label>
+      <input type="search"
+             id="clutches-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="clutches-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-state">Library state</label>
+      <select id="clutches-filter-state" class="form-select" aria-controls="clutches-nav">
+        <option value="">All</option>
+        <option value="local">Local</option>
+        <option value="in_sync">In sync</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="unknown">Tip unknown</option>
+      </select>
+    </div>
+  </div>
+
 <div class="scripts-layout">
 
   <nav class="scripts-nav" aria-label="Clutch files" id="clutches-nav">
@@ -81,6 +104,9 @@
         You can also place files in <code>clutches/</code> under your Hatchery data directory.
       </div>
     {% endif %}
+    <div class="scripts-nav-empty" id="clutches-nav-filtered-empty" role="status" hidden>
+      No Clutches match these filters.
+    </div>
   </nav>
 
   <div class="scripts-content" id="clutches-content">
@@ -313,11 +339,81 @@
   var cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
   var cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
   var libraryConnections = {{ library_connections | default([]) | tojson }};
+  var filterQ = document.getElementById('clutches-filter-q');
+  var filterState = document.getElementById('clutches-filter-state');
+  var navFilteredEmpty = document.getElementById('clutches-nav-filtered-empty');
+  var navEmpty = document.getElementById('clutches-nav-empty');
 
   var selectedName = null;
   var selectedAbsPath = null;
   var selectedContent = null;
   var libraryMode = 'hidden'; /* hidden | sync | orphan */
+
+  function inventoryLibraryState(btn) {
+    if (!btn) return 'local';
+    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
+    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
+    if (drift === 'unknown' || drift === 'out_of_sync' || drift === 'in_sync') return drift;
+    return 'local';
+  }
+
+  function currentClutchFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
+  }
+
+  function itemMatchesClutchFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearClutchDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    selectedContent = null;
+    if (!nav) return;
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (editLink) editLink.hidden = true;
+    if (hatchLink) hatchLink.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    libraryMode = 'hidden';
+  }
+
+  function applyClutchFilters() {
+    if (!nav) return;
+    var filters = currentClutchFilters();
+    var items = nav.querySelectorAll('.scripts-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesClutchFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    var active = nav.querySelector('.scripts-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearClutchDetail();
+    }
+  }
 
   function formatModified(iso) {
     if (!iso) return '—';
@@ -471,8 +567,9 @@
           var name = btn.getAttribute('data-name');
           if (name && byName[name]) applyDriftChrome(btn, byName[name]);
         });
+        applyClutchFilters();
         var active = nav.querySelector('.scripts-nav-item.active');
-        if (active) {
+        if (active && !active.hidden) {
           setLibraryStatus(active);
           if (selectedName === active.getAttribute('data-name')) {
             var mod = active.getAttribute('data-modified-at') || '';
@@ -802,6 +899,10 @@
       refreshDriftInventory();
     });
   }
+
+  if (filterQ) filterQ.addEventListener('input', applyClutchFilters);
+  if (filterState) filterState.addEventListener('change', applyClutchFilters);
+  applyClutchFilters();
 })();
 </script>
 {% endblock %}
