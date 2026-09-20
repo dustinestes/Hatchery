@@ -261,11 +261,7 @@ def evaluate_row(
             source_drifted = False
             live_mismatch = False
     else:
-        state = (
-            "out_of_sync"
-            if (cache_drifted or source_drifted or live_mismatch)
-            else "in_sync"
-        )
+        state = "out_of_sync" if (cache_drifted or source_drifted or live_mismatch) else "in_sync"
 
     prov.apply_evaluate_result(
         domain,

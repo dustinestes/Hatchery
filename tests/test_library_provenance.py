@@ -14,7 +14,6 @@ from lib import library_drift as drift
 from lib import library_provenance as prov
 from lib.validators.builtins import LibraryCacheDriftValidator
 from lib.validators.context import ValidatorContext
-from lib.validators.registry import clear_registry, register
 
 
 @pytest.fixture
@@ -374,8 +373,8 @@ class TestBidirectionalDrift:
         assert summary["in_sync"] == 2
 
     def test_validator_message(self, data_env, monkeypatch):
-        clear_registry()
-        register(LibraryCacheDriftValidator())
+        # Call the validator instance directly — do not clear_registry() here;
+        # that would wipe builtins and break later Nest connection tests.
         monkeypatch.setattr("lib.config.library_enabled", lambda: True)
         monkeypatch.setattr(
             "lib.validators.settings.get_validator_config",
@@ -397,4 +396,3 @@ class TestBidirectionalDrift:
         ctx = ValidatorContext(trigger="manual")
         msg = LibraryCacheDriftValidator().run(ctx)
         assert "1 out of sync" in msg
-        clear_registry()
