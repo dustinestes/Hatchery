@@ -512,6 +512,22 @@ def _script_language(name: str) -> str:
     return _SCRIPT_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
 
 
+# Clutch control-plane formats (YAML today; extend for Docker Compose / etc.).
+_CLUTCH_LANGUAGES = {
+    ".yaml": "YAML",
+    ".yml": "YAML",
+}
+
+
+def _clutch_language(name: str) -> str:
+    from pathlib import Path
+
+    ext = Path(name).suffix.lower()
+    if not ext:
+        return "Unknown"
+    return _CLUTCH_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
+
+
 def _resolve_script_path(name: str):
     """Return the path to a script under automation/scripts/, or None if invalid."""
     from pathlib import Path
@@ -555,6 +571,44 @@ def _scan_script_inventory() -> list[dict]:
             }
         )
     return _enrich_library_inventory(items, domain="scripts")
+
+
+def _scan_media_inventory(target: str) -> list[dict]:
+    """Return enriched inventory for media/<target>/ (iso or virtio)."""
+    return _enrich_library_inventory(
+        media_inspect_lib.scan_media_dir(target),
+        domain="media",
+        media_target=target,
+    )
+
+
+def _scan_clutch_inventory() -> list[dict]:
+    """Return enriched inventory metadata for clutches/*.yaml."""
+    from datetime import datetime, timezone
+
+    subdir = "clutches"
+    path = config.data_dir() / subdir
+    if not path.exists():
+        return []
+    items = []
+    for f in sorted(path.glob("*.yaml")):
+        if not f.is_file():
+            continue
+        try:
+            mtime = f.stat().st_mtime
+        except OSError:
+            continue
+        modified = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items.append(
+            {
+                "name": f.name,
+                "relative_path": f"{subdir}/{f.name}",
+                "absolute_path": str(f.resolve()),
+                "language": _clutch_language(f.name),
+                "modified_at": modified,
+            }
+        )
+    return _enrich_library_inventory(items, domain="clutches")
 
 
 def _enrich_library_inventory(
@@ -644,15 +698,19 @@ def nests():
 
 @app.route("/clutches")
 def clutches():
-    clutch_files = _scan_dir("clutches", [".yaml"])
-    items = [{"name": n} for n in clutch_files]
-    items = _enrich_library_inventory(items, domain="clutches")
+    items = _scan_clutch_inventory()
     return render_template(
         "clutches.html",
         active_pane="clutches",
-        clutch_files=clutch_files,
+        clutch_files=[i["name"] for i in items],
         clutch_inventory=items,
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
         library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
 
 
@@ -696,9 +754,7 @@ def media_iso():
         delete_url_prefix="/api/media/iso/",
         import_url=url_for("api_import_media_iso"),
         import_accept=".iso",
-        items=_enrich_library_inventory(
-            media_inspect_lib.scan_media_dir("iso"), domain="media", media_target="iso"
-        ),
+        items=_scan_media_inventory("iso"),
         used_by=media_inspect_lib.media_used_by("os_media"),
         empty_subdir="media/iso/",
         item_kind="ISO",
@@ -706,6 +762,13 @@ def media_iso():
         library_catalog_url=url_for("api_library_media", target="iso"),
         library_pull_url=url_for("api_library_media_pull"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
+        inventory_api_url=url_for("api_media_iso"),
     )
 
 
@@ -722,9 +785,7 @@ def media_virtio():
         delete_url_prefix="/api/media/virtio/",
         import_url=url_for("api_import_media_virtio"),
         import_accept=".iso",
-        items=_enrich_library_inventory(
-            media_inspect_lib.scan_media_dir("virtio"), domain="media", media_target="virtio"
-        ),
+        items=_scan_media_inventory("virtio"),
         used_by=media_inspect_lib.media_used_by("virtio_drivers"),
         empty_subdir="media/virtio/",
         item_kind="VirtIO file",
@@ -732,6 +793,13 @@ def media_virtio():
         library_catalog_url=url_for("api_library_media", target="virtio"),
         library_pull_url=url_for("api_library_media_pull"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
+        inventory_api_url=url_for("api_media_virtio"),
     )
 
 
@@ -2516,12 +2584,12 @@ def _api_import(kind: str):
 
 @app.route("/api/media/iso")
 def api_media_iso():
-    return jsonify(_scan_dir("media/iso"))
+    return jsonify(_scan_media_inventory("iso"))
 
 
 @app.route("/api/media/virtio")
 def api_media_virtio():
-    return jsonify(_scan_dir("media/virtio"))
+    return jsonify(_scan_media_inventory("virtio"))
 
 
 def _api_media_inspect(subdir: str, name: str):
@@ -2667,7 +2735,42 @@ def api_automation_script_params(name):
 
 @app.route("/api/clutches")
 def api_clutches():
-    return jsonify(_scan_dir("clutches", [".yaml"]))
+    return jsonify(_scan_clutch_inventory())
+
+
+def _resolve_clutch_path(name: str):
+    """Resolve a clutch basename under clutches/; None if invalid or missing."""
+    from pathlib import Path
+
+    safe = Path(name).name
+    if not safe or safe != name or not safe.endswith(".yaml"):
+        return None
+    path = (config.data_dir() / "clutches" / safe).resolve()
+    root = (config.data_dir() / "clutches").resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+@app.route("/api/clutches/<path:name>/content")
+def api_clutch_content(name):
+    """Return read-only YAML text of a Cached Clutch file."""
+    clutch_path = _resolve_clutch_path(name)
+    if clutch_path is None or not clutch_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        size = clutch_path.stat().st_size
+    except OSError:
+        return jsonify({"error": "not found"}), 404
+    if size > _SCRIPT_CONTENT_MAX_BYTES:
+        return jsonify({"error": "file too large", "max_bytes": _SCRIPT_CONTENT_MAX_BYTES}), 413
+    try:
+        text = clutch_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return jsonify({"error": "unreadable"}), 500
+    return jsonify({"name": clutch_path.name, "content": text})
 
 
 @app.route("/api/clutch/<filename>")

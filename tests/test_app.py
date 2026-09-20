@@ -178,6 +178,23 @@ class TestPageTitles:
     def test_clutches_title(self, client):
         html = client.get("/clutches").data.decode()
         assert "Clutches" in html
+        assert "scripts-layout" in html
+        assert 'id="clutches-nav"' in html
+        assert 'id="clutches-library-status-btn"' in html
+        assert 'aria-label="Copy"' in html
+        assert "hatchery.onStatusTick" in html
+        assert "inventory-nav-drift-icon" in html
+        assert 'aria-label="Filter Cached Clutches"' in html
+        assert 'id="clutches-filter-q"' in html
+        assert 'id="clutches-filter-language"' in html
+        assert 'id="clutches-filter-state"' in html
+        assert 'id="clutches-meta-language"' in html
+        assert 'id="clutches-body"' in html
+        assert 'id="clutches-copy-path-item">Path</button>' in html
+        assert 'id="clutches-copy-content-item"' in html
+        assert "applyClutchFilters" in html
+        assert "populateLanguageFilter" in html
+        assert "loadClutchContent" in html
 
     def test_automation_scripts_title(self, client):
         html = client.get("/automation/scripts").data.decode()
@@ -2565,7 +2582,7 @@ class TestDeleteClutch:
         _make_clutch(tmp_path)
         html = client.get("/clutches").data.decode()
         assert "delete-modal-backdrop" in html
-        assert "delete-clutch-btn" in html
+        assert 'id="clutches-delete-btn"' in html
         assert "confirm(" not in html
 
 
@@ -2639,8 +2656,10 @@ class TestScanDir:
         (iso / "win11.iso").touch()
         (iso / "win10.iso").touch()
         result = client.get("/api/media/iso").get_json()
-        assert "win10.iso" in result
-        assert "win11.iso" in result
+        names = [i["name"] if isinstance(i, dict) else i for i in result]
+        assert "win10.iso" in names
+        assert "win11.iso" in names
+        assert all(isinstance(i, dict) and "drift_state" in i for i in result)
 
     def test_filters_by_extension(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -2649,8 +2668,23 @@ class TestScanDir:
         (clutches / "lab.yaml").touch()
         (clutches / "notes.txt").touch()
         result = client.get("/api/clutches").get_json()
-        assert "lab.yaml" in result
-        assert "notes.txt" not in result
+        names = [i["name"] if isinstance(i, dict) else i for i in result]
+        assert "lab.yaml" in names
+        assert "notes.txt" not in names
+        assert all(isinstance(i, dict) and "drift_state" in i for i in result)
+        lab = next(i for i in result if i["name"] == "lab.yaml")
+        assert lab["language"] == "YAML"
+
+    def test_api_clutch_content_returns_text(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches = tmp_path / "clutches"
+        clutches.mkdir()
+        (clutches / "lab.yaml").write_text("name: Lab\nvms: []\n")
+        resp = client.get("/api/clutches/lab.yaml/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "lab.yaml"
+        assert "name: Lab" in data["content"]
 
 
 class TestPlaneStatus:
@@ -3477,7 +3511,17 @@ class TestMediaPanes:
         assert "win11.iso" in html
         assert "media/iso/win11.iso" in html
         assert "media-layout" in html
-        assert "Copy file path" in html
+        assert 'aria-label="Copy"' in html
+        assert 'id="media-copy-path-item">Path</button>' in html
+        assert "media-copy-content-item" not in html
+        assert "media-nav-drift-icon" in html
+        assert 'id="media-library-status-btn"' in html
+        assert 'aria-label="Filter Cached ISO"' in html or "Filter Cached" in html
+        assert 'id="media-filter-q"' in html
+        assert 'id="media-filter-state"' in html
+        assert "hatchery.onStatusTick" in html
+        assert "refreshDriftInventory" in html
+        assert "applyMediaFilters" in html
 
     def test_virtio_empty_state(self, client, tmp_path, monkeypatch):
         (tmp_path / "media" / "virtio").mkdir(parents=True)

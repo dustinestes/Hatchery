@@ -41,35 +41,185 @@
 {% endwith %}
 
 <div class="scripts-panel" id="clutches-panel-cache" role="tabpanel" aria-labelledby="clutches-tab-cache">
-  {% if clutch_files %}
-    <ul class="file-list">
+  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached Clutches">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-q">Search</label>
+      <input type="search"
+             id="clutches-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="clutches-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-language">Language</label>
+      <select id="clutches-filter-language" class="form-select" aria-controls="clutches-nav">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="clutches-filter-state">Library state</label>
+      <select id="clutches-filter-state" class="form-select" aria-controls="clutches-nav">
+        <option value="">All</option>
+        <option value="local">Local</option>
+        <option value="in_sync">In sync</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="unknown">Tip unknown</option>
+      </select>
+    </div>
+  </div>
+
+<div class="scripts-layout">
+
+  <nav class="scripts-nav" aria-label="Clutch files" id="clutches-nav">
+    {% if clutch_inventory %}
       {% for item in clutch_inventory %}
-        <li class="file-list-item">
-          <span class="file-name">{{ item.name }}{% if item.drift_state == 'out_of_sync' %} <span class="form-hint">(out of sync)</span>{% elif item.orphan %} <span class="form-hint">(orphaned)</span>{% endif %}</span>
-          <div class="file-actions">
-            {% if item.drift_state == 'out_of_sync' and not item.orphan %}
-            <button type="button" class="btn btn-primary btn-sm library-cache-sync-btn"
-                    data-domain="clutches" data-name="{{ item.name }}"
-                    title="Out of sync — sync from Library"
-                    aria-label="Sync {{ item.name }} from Library">Sync</button>
-            {% endif %}
-            <a href="{{ url_for('edit', clutch=item.name) }}" class="btn-icon" title="Edit {{ item.name }}" aria-label="Edit {{ item.name }}">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </a>
-            <button type="button" class="btn-icon delete-clutch-btn"
-                    data-filename="{{ item.name }}"
-                    data-action="{{ url_for('clutch_delete', filename=item.name) }}"
-                    title="Delete {{ item.name }}" aria-label="Delete {{ item.name }}">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            </button>
-            <a href="{{ url_for('hatch_clutch', clutch=item.name) }}" class="btn btn-primary btn-sm">Hatch</a>
-          </div>
-        </li>
+      <button type="button"
+              class="scripts-nav-item"
+              data-name="{{ item.name }}"
+              data-relative-path="{{ item.relative_path }}"
+              data-absolute-path="{{ item.absolute_path }}"
+              data-language="{{ item.language or 'YAML' }}"
+              data-modified-at="{{ item.modified_at }}"
+              data-drift-state="{{ item.drift_state or 'local' }}"
+              data-orphan="{{ '1' if item.orphan else '0' }}"
+              data-orphan-reason="{{ item.orphan_reason or '' }}"
+              data-lib-rel="{{ (item.library_provenance.relative_path if item.library_provenance else '') }}"
+              data-lib-conn="{{ (item.library_provenance.connection_id if item.library_provenance else '') }}"
+              aria-pressed="false">
+        <span class="scripts-nav-main">
+          <span class="scripts-nav-label">{{ item.name }}</span>
+          <span class="scripts-nav-sub">{{ item.language or 'YAML' }}{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
+        </span>
+        <span class="inventory-nav-drift-icon scripts-nav-drift-icon"
+              {% if item.drift_state != 'out_of_sync' and not item.orphan %}hidden{% endif %}
+              title="{% if item.orphan %}{{ item.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
+              aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+      </button>
       {% endfor %}
-    </ul>
-  {% else %}
-    <p class="empty-state">No Clutch files yet. Use <strong>Import</strong> for an existing <code>.yaml</code>, or <a href="{{ url_for('build') }}" class="link">Build a Clutch</a>. You can also place files in <code>clutches/</code> under your Hatchery data directory.</p>
-  {% endif %}
+    {% else %}
+      <div class="scripts-nav-empty" id="clutches-nav-empty">
+        No Clutch files yet. Use <strong>Import</strong> for an existing <code>.yaml</code>, or
+        <a href="{{ url_for('build') }}" class="link">Build a Clutch</a>.
+        You can also place files in <code>clutches/</code> under your Hatchery data directory.
+      </div>
+    {% endif %}
+    <div class="scripts-nav-empty" id="clutches-nav-filtered-empty" role="status" hidden>
+      No Clutches match these filters.
+    </div>
+  </nav>
+
+  <div class="scripts-content" id="clutches-content">
+    <div class="scripts-content-header" id="clutches-content-header" hidden>
+      <div class="scripts-content-heading">
+        <span class="scripts-content-title" id="clutches-content-title"></span>
+        <span class="scripts-content-meta" id="clutches-content-meta"></span>
+      </div>
+      <div class="scripts-content-actions">
+        <button type="button"
+                class="scripts-copy-btn scripts-library-status-btn"
+                id="clutches-library-status-btn"
+                hidden
+                disabled
+                aria-disabled="true"
+                title=""
+                aria-label="">
+          <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 16h5v5"/>
+          </svg>
+          <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
+        <a href="#"
+           class="btn-icon"
+           id="clutches-edit-link"
+           hidden
+           title="Edit"
+           aria-label="Edit">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </a>
+        <a href="#"
+           class="btn btn-primary btn-sm"
+           id="clutches-hatch-link"
+           hidden>Hatch</a>
+        <div class="import-dropdown scripts-copy-dropdown" id="clutches-copy-dropdown" hidden>
+          <button type="button"
+                  class="scripts-copy-btn"
+                  id="clutches-copy-menu-btn"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="clutches-copy-menu"
+                  title="Copy"
+                  aria-label="Copy">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu import-dropdown-menu" id="clutches-copy-menu" hidden role="menu" aria-label="Copy options">
+            <button type="button" class="dropdown-item" role="menuitem" id="clutches-copy-path-item">Path</button>
+            <button type="button" class="dropdown-item" role="menuitem" id="clutches-copy-content-item" disabled>Contents</button>
+          </div>
+        </div>
+        <button type="button"
+                class="scripts-copy-btn"
+                id="clutches-delete-btn"
+                title="Delete"
+                aria-label="Delete"
+                hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="scripts-detail" id="clutches-detail" hidden>
+      <dl class="scripts-meta-list" id="clutches-meta-list">
+        <div class="scripts-meta-row">
+          <dt>Path</dt>
+          <dd id="clutches-meta-path"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Language</dt>
+          <dd id="clutches-meta-language"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Modified</dt>
+          <dd id="clutches-meta-modified"></dd>
+        </div>
+      </dl>
+
+      <section class="scripts-body-section" aria-labelledby="clutches-body-heading">
+        <h2 class="scripts-section-title" id="clutches-body-heading">Content</h2>
+        <pre class="scripts-body" id="clutches-body" tabindex="0" aria-label="Clutch content"></pre>
+      </section>
+    </div>
+
+    <div class="stub" id="clutches-stub">Select a Clutch to inspect</div>
+  </div>
+
+</div>
 </div>
 
 {% with id_prefix='clutches', filter_aria='Filter Library Clutches', empty_message='No Clutch hits from your Library bindings. Configure connections under Settings → Library.' %}
@@ -91,15 +241,49 @@
     </div>
   </div>
 </div>
+
+{% if library_enabled %}
+<div id="library-reattach-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-reattach-title">
+    <h2 class="modal-title" id="library-reattach-title">Re-attach Library source</h2>
+    <div class="modal-body">
+      <p>This Cached file’s Library connection is missing. Pick a connection and path, then Test.</p>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-conn">Connection</label>
+        <select id="library-reattach-conn" class="form-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-path">Relative path</label>
+        <input type="text" id="library-reattach-path" class="form-input" autocomplete="off">
+      </div>
+      <p class="form-hint" id="library-reattach-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-reattach-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-test">Test</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-save" disabled>Re-attach</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  var backdrop = document.getElementById('delete-modal-backdrop');
-  var filenameEl = document.getElementById('delete-modal-filename');
-  var form = document.getElementById('delete-confirm-form');
   var libraryEnabled = {{ library_enabled | tojson }};
+
+  function clutchDeleteUrl(name) {
+    return {{ url_for('clutch_delete', filename='__N__') | tojson }}.replace('__N__', encodeURIComponent(name));
+  }
+
+  function clutchEditUrl(name) {
+    return {{ url_for('edit', clutch='__N__') | tojson }}.replace('__N__', encodeURIComponent(name));
+  }
+
+  function clutchHatchUrl(name) {
+    return {{ url_for('hatch_clutch', clutch='__N__') | tojson }}.replace('__N__', encodeURIComponent(name));
+  }
 
   var clutchTabs = null;
   if (window.hatchery && typeof hatchery.bindInventoryTabs === 'function') {
@@ -141,42 +325,609 @@
     });
   }
 
-  function openModal(filename, action) {
-    filenameEl.textContent = filename;
-    form.action = action;
-    backdrop.hidden = false;
+  var nav = document.getElementById('clutches-nav');
+  var header = document.getElementById('clutches-content-header');
+  var titleEl = document.getElementById('clutches-content-title');
+  var metaEl = document.getElementById('clutches-content-meta');
+  var detail = document.getElementById('clutches-detail');
+  var stub = document.getElementById('clutches-stub');
+  var pathEl = document.getElementById('clutches-meta-path');
+  var langEl = document.getElementById('clutches-meta-language');
+  var modifiedEl = document.getElementById('clutches-meta-modified');
+  var bodyEl = document.getElementById('clutches-body');
+  var copyDropdown = document.getElementById('clutches-copy-dropdown');
+  var copyMenuBtn = document.getElementById('clutches-copy-menu-btn');
+  var copyMenu = document.getElementById('clutches-copy-menu');
+  var copyPathItem = document.getElementById('clutches-copy-path-item');
+  var copyContentItem = document.getElementById('clutches-copy-content-item');
+  var deleteBtn = document.getElementById('clutches-delete-btn');
+  var editLink = document.getElementById('clutches-edit-link');
+  var hatchLink = document.getElementById('clutches-hatch-link');
+  var libraryStatusBtn = document.getElementById('clutches-library-status-btn');
+  var librarySyncIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--sync')
+    : null;
+  var libraryWarnIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--warn')
+    : null;
+  var deleteBackdrop = document.getElementById('delete-modal-backdrop');
+  var deleteFilenameEl = document.getElementById('delete-modal-filename');
+  var deleteCancel = document.getElementById('delete-modal-cancel');
+  var deleteForm = document.getElementById('delete-confirm-form');
+  var cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
+  var cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
+  var libraryConnections = {{ library_connections | default([]) | tojson }};
+  var filterQ = document.getElementById('clutches-filter-q');
+  var filterLanguage = document.getElementById('clutches-filter-language');
+  var filterState = document.getElementById('clutches-filter-state');
+  var navFilteredEmpty = document.getElementById('clutches-nav-filtered-empty');
+  var navEmpty = document.getElementById('clutches-nav-empty');
+
+  var selectedName = null;
+  var selectedAbsPath = null;
+  var selectedContent = null;
+  var libraryMode = 'hidden'; /* hidden | sync | orphan */
+
+  function inventoryLibraryState(btn) {
+    if (!btn) return 'local';
+    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
+    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
+    if (drift === 'unknown' || drift === 'out_of_sync' || drift === 'in_sync') return drift;
+    return 'local';
   }
 
-  function closeModal() {
-    backdrop.hidden = true;
+  function currentClutchFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      language: filterLanguage ? (filterLanguage.value || '') : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
   }
 
-  document.querySelectorAll('.delete-clutch-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      openModal(btn.dataset.filename, btn.dataset.action);
+  function itemMatchesClutchFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.language) {
+      var lang = btn.getAttribute('data-language') || '';
+      if (lang !== filters.language) return false;
+    }
+    if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearClutchDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    selectedContent = null;
+    if (!nav) return;
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
     });
-  });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (editLink) editLink.hidden = true;
+    if (hatchLink) hatchLink.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    libraryMode = 'hidden';
+    if (bodyEl) bodyEl.textContent = '';
+    if (pathEl) pathEl.textContent = '';
+    if (langEl) langEl.textContent = '';
+    if (modifiedEl) modifiedEl.textContent = '';
+    closeCopyMenu();
+  }
 
-  document.getElementById('delete-modal-cancel').addEventListener('click', closeModal);
+  function populateLanguageFilter() {
+    if (!filterLanguage || !nav) return;
+    var selected = filterLanguage.value || '';
+    var langs = {};
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+      var lang = (btn.getAttribute('data-language') || '').trim();
+      if (lang) langs[lang] = true;
+    });
+    var keys = Object.keys(langs).sort(function (a, b) {
+      return a.localeCompare(b);
+    });
+    filterLanguage.innerHTML = '';
+    var all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'All';
+    filterLanguage.appendChild(all);
+    keys.forEach(function (lang) {
+      var opt = document.createElement('option');
+      opt.value = lang;
+      opt.textContent = lang;
+      filterLanguage.appendChild(opt);
+    });
+    if (selected && langs[selected]) filterLanguage.value = selected;
+  }
 
-  backdrop.addEventListener('click', function (e) {
-    if (e.target === backdrop) { closeModal(); }
-  });
+  function applyClutchFilters() {
+    if (!nav) return;
+    var filters = currentClutchFilters();
+    var items = nav.querySelectorAll('.scripts-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesClutchFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    var active = nav.querySelector('.scripts-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearClutchDetail();
+    }
+  }
 
+  function formatModified(iso) {
+    if (!iso) return '—';
+    try {
+      var d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  function clutchSubLabel(language, drift, orphan) {
+    var base = language || 'YAML';
+    if (drift === 'out_of_sync') return base + ' · out of sync';
+    if (orphan) return base + ' · orphaned';
+    return base;
+  }
+
+  function notifyCopy(ok, kind) {
+    var noun = kind === 'content' ? 'Contents' : 'Path';
+    var msg = ok ? (noun + ' copied') : ('Could not copy ' + noun.toLowerCase());
+    if (window.hatchery && typeof hatchery.showToast === 'function') {
+      hatchery.showToast(msg, 'info', 2200);
+    }
+  }
+
+  function copyText(text, kind) {
+    if (text == null) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        notifyCopy(true, kind);
+      }).catch(function () {
+        notifyCopy(false, kind);
+      });
+    } else {
+      notifyCopy(false, kind);
+    }
+  }
+
+  function closeCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = true;
+    copyMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = false;
+    copyMenuBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function setLibraryStatus(btn) {
+    if (!libraryStatusBtn) return;
+    var drift = btn.getAttribute('data-drift-state') || 'local';
+    var orphan = btn.getAttribute('data-orphan') === '1';
+    var reason = (btn.getAttribute('data-orphan-reason') || '').trim();
+
+    libraryStatusBtn.classList.remove(
+      'scripts-library-status-btn--warn',
+      'scripts-library-status-btn--action'
+    );
+    libraryMode = 'hidden';
+
+    if (drift === 'local') {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+      libraryStatusBtn.setAttribute('aria-disabled', 'true');
+      libraryStatusBtn.title = '';
+      libraryStatusBtn.setAttribute('aria-label', '');
+      if (librarySyncIcon) librarySyncIcon.hidden = false;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      return;
+    }
+
+    libraryStatusBtn.hidden = false;
+
+    if (orphan) {
+      libraryMode = 'orphan';
+      var tip = reason || 'Library source missing';
+      libraryStatusBtn.disabled = false;
+      libraryStatusBtn.setAttribute('aria-disabled', 'false');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
+      libraryStatusBtn.title = tip;
+      libraryStatusBtn.setAttribute('aria-label', tip);
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      return;
+    }
+
+    libraryMode = 'sync';
+    var canSync = drift === 'out_of_sync';
+    libraryStatusBtn.disabled = !canSync;
+    libraryStatusBtn.setAttribute('aria-disabled', canSync ? 'false' : 'true');
+    if (librarySyncIcon) librarySyncIcon.hidden = false;
+    if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+    if (canSync) {
+      libraryStatusBtn.classList.add('scripts-library-status-btn--action');
+      libraryStatusBtn.title = 'Out of sync';
+      libraryStatusBtn.setAttribute('aria-label', 'Sync ' + (btn.getAttribute('data-name') || '') + ' from Library');
+    } else if (drift === 'in_sync') {
+      libraryStatusBtn.title = 'In sync';
+      libraryStatusBtn.setAttribute('aria-label', 'In sync with Library');
+    } else {
+      libraryStatusBtn.title = 'Tip unknown';
+      libraryStatusBtn.setAttribute('aria-label', 'Library tip unknown');
+    }
+  }
+
+  function applyDriftChrome(btn, item) {
+    if (!btn || !item) return;
+    var drift = item.drift_state || 'local';
+    var orphan = !!item.orphan;
+    var reason = (item.orphan_reason || '').trim();
+    var lang = item.language || btn.getAttribute('data-language') || 'YAML';
+    var modified = item.modified_at || btn.getAttribute('data-modified-at') || '';
+    btn.setAttribute('data-drift-state', drift);
+    btn.setAttribute('data-orphan', orphan ? '1' : '0');
+    btn.setAttribute('data-orphan-reason', reason);
+    btn.setAttribute('data-language', lang);
+    if (item.modified_at) btn.setAttribute('data-modified-at', item.modified_at);
+    if (item.library_provenance) {
+      btn.setAttribute('data-lib-rel', item.library_provenance.relative_path || '');
+      btn.setAttribute('data-lib-conn', item.library_provenance.connection_id || '');
+    }
+    var sub = btn.querySelector('.scripts-nav-sub');
+    if (sub) {
+      sub.textContent = clutchSubLabel(lang, drift, orphan);
+    }
+    var icon = btn.querySelector('.inventory-nav-drift-icon, .scripts-nav-drift-icon');
+    if (icon) {
+      var show = drift === 'out_of_sync' || orphan;
+      icon.hidden = !show;
+      icon.title = orphan ? (reason || 'Library source missing') : 'Out of sync';
+    }
+  }
+
+  function refreshDriftInventory() {
+    return fetch('/api/clutches')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (items) {
+        if (!Array.isArray(items) || !nav) return;
+        var byName = {};
+        items.forEach(function (it) {
+          if (it && it.name) byName[it.name] = it;
+        });
+        nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+          var name = btn.getAttribute('data-name');
+          if (name && byName[name]) applyDriftChrome(btn, byName[name]);
+        });
+        populateLanguageFilter();
+        applyClutchFilters();
+        var active = nav.querySelector('.scripts-nav-item.active');
+        if (active && !active.hidden) {
+          setLibraryStatus(active);
+          if (selectedName === active.getAttribute('data-name')) {
+            var mod = active.getAttribute('data-modified-at') || '';
+            var lang = active.getAttribute('data-language') || 'YAML';
+            if (metaEl) metaEl.textContent = lang;
+            if (langEl) langEl.textContent = lang;
+            if (modifiedEl) modifiedEl.textContent = formatModified(mod);
+          }
+        }
+      })
+      .catch(function () { /* status tick must not break the page */ });
+  }
+
+  function loadClutchContent(name) {
+    selectedContent = null;
+    if (copyContentItem) copyContentItem.disabled = true;
+    if (bodyEl) bodyEl.textContent = 'Loading…';
+    fetch('/api/clutches/' + encodeURIComponent(name) + '/content')
+      .then(function (resp) {
+        if (!resp.ok) {
+          return resp.json().then(function (data) {
+            throw new Error((data && data.error) || ('HTTP ' + resp.status));
+          }, function () {
+            throw new Error('HTTP ' + resp.status);
+          });
+        }
+        return resp.json();
+      })
+      .then(function (data) {
+        if (selectedName !== name) return;
+        selectedContent = data.content != null ? data.content : '';
+        if (bodyEl) bodyEl.textContent = selectedContent;
+        if (copyContentItem) copyContentItem.disabled = false;
+      })
+      .catch(function (err) {
+        if (selectedName !== name) return;
+        selectedContent = null;
+        if (bodyEl) bodyEl.textContent = 'Could not load content' + (err && err.message ? ': ' + err.message : '');
+        if (copyContentItem) copyContentItem.disabled = true;
+      });
+  }
+
+  function selectItem(btn) {
+    if (!btn || !nav) return;
+    var name = btn.getAttribute('data-name');
+    var rel = btn.getAttribute('data-relative-path') || '';
+    var abs = btn.getAttribute('data-absolute-path') || '';
+    var language = btn.getAttribute('data-language') || 'YAML';
+    var modified = btn.getAttribute('data-modified-at') || '';
+
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.toggle('active', el === btn);
+      el.setAttribute('aria-pressed', el === btn ? 'true' : 'false');
+    });
+
+    selectedName = name;
+    selectedAbsPath = abs;
+    selectedContent = null;
+    stub.hidden = true;
+    header.hidden = false;
+    detail.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = false;
+    closeCopyMenu();
+    if (copyContentItem) copyContentItem.disabled = true;
+    deleteBtn.hidden = false;
+    deleteBtn.title = 'Delete ' + name;
+    deleteBtn.setAttribute('aria-label', 'Delete ' + name);
+    if (editLink) {
+      editLink.hidden = false;
+      editLink.href = clutchEditUrl(name);
+      editLink.title = 'Edit ' + name;
+      editLink.setAttribute('aria-label', 'Edit ' + name);
+    }
+    if (hatchLink) {
+      hatchLink.hidden = false;
+      hatchLink.href = clutchHatchUrl(name);
+      hatchLink.setAttribute('aria-label', 'Hatch ' + name);
+    }
+    setLibraryStatus(btn);
+
+    titleEl.textContent = name;
+    metaEl.textContent = language;
+    pathEl.textContent = rel;
+    if (langEl) langEl.textContent = language;
+    modifiedEl.textContent = formatModified(modified);
+    loadClutchContent(name);
+  }
+
+  if (nav) {
+    nav.addEventListener('click', function (e) {
+      var btn = e.target.closest('.scripts-nav-item');
+      if (!btn || !nav.contains(btn)) return;
+      selectItem(btn);
+    });
+
+    nav.addEventListener('keydown', function (e) {
+      var items = Array.from(nav.querySelectorAll('.scripts-nav-item'));
+      if (!items.length) return;
+      var current = document.activeElement && document.activeElement.closest
+        ? document.activeElement.closest('.scripts-nav-item')
+        : null;
+      var idx = current ? items.indexOf(current) : -1;
+      var next = -1;
+      if (e.key === 'ArrowDown') next = Math.min(items.length - 1, Math.max(0, idx) + 1);
+      else if (e.key === 'ArrowUp') next = Math.max(0, idx < 0 ? 0 : idx - 1);
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = items.length - 1;
+      else if (e.key === 'Enter' || e.key === ' ') {
+        if (current) {
+          e.preventDefault();
+          selectItem(current);
+        }
+        return;
+      } else {
+        return;
+      }
+      e.preventDefault();
+      items[next].focus();
+    });
+
+    /* Format rail subtitles once on load (ISO → locale). */
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+      applyDriftChrome(btn, {
+        drift_state: btn.getAttribute('data-drift-state') || 'local',
+        orphan: btn.getAttribute('data-orphan') === '1',
+        orphan_reason: btn.getAttribute('data-orphan-reason') || '',
+        language: btn.getAttribute('data-language') || 'YAML',
+        modified_at: btn.getAttribute('data-modified-at') || '',
+      });
+    });
+  }
+
+  if (copyMenuBtn && copyMenu) {
+    copyMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (copyMenu.hidden) openCopyMenu();
+      else closeCopyMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (!copyDropdown || copyMenu.hidden) return;
+      if (copyDropdown.contains(e.target)) return;
+      closeCopyMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && copyMenu && !copyMenu.hidden) {
+        e.preventDefault();
+        closeCopyMenu();
+        copyMenuBtn.focus();
+      }
+    });
+  }
+
+  if (copyPathItem) {
+    copyPathItem.addEventListener('click', function () {
+      closeCopyMenu();
+      if (!selectedAbsPath) return;
+      copyText(selectedAbsPath, 'path');
+    });
+  }
+
+  if (copyContentItem) {
+    copyContentItem.addEventListener('click', function () {
+      if (copyContentItem.disabled) return;
+      closeCopyMenu();
+      if (selectedContent == null) return;
+      copyText(selectedContent, 'content');
+    });
+  }
+
+  function openDeleteModal(name) {
+    deleteFilenameEl.textContent = name;
+    deleteForm.action = clutchDeleteUrl(name);
+    deleteBackdrop.hidden = false;
+    var confirmBtn = deleteForm.querySelector('button[type="submit"]');
+    if (confirmBtn) confirmBtn.focus();
+  }
+
+  function closeDeleteModal() {
+    deleteBackdrop.hidden = true;
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function () {
+      if (!selectedName) return;
+      openDeleteModal(selectedName);
+    });
+  }
+
+  if (deleteCancel) deleteCancel.addEventListener('click', closeDeleteModal);
+  if (deleteBackdrop) {
+    deleteBackdrop.addEventListener('click', function (e) {
+      if (e.target === deleteBackdrop) closeDeleteModal();
+    });
+  }
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !backdrop.hidden) { closeModal(); }
+    if (e.key === 'Escape' && deleteBackdrop && !deleteBackdrop.hidden) closeDeleteModal();
   });
 
-  var syncUrl = {{ library_cache_sync_url | default('') | tojson }};
-  document.querySelectorAll('.library-cache-sync-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var name = btn.getAttribute('data-name');
-      if (!syncUrl || !name) return;
-      btn.disabled = true;
-      fetch(syncUrl, {
+  var reattachBackdrop = document.getElementById('library-reattach-backdrop');
+  var reattachConn = document.getElementById('library-reattach-conn');
+  var reattachPath = document.getElementById('library-reattach-path');
+  var reattachTest = document.getElementById('library-reattach-test');
+  var reattachSave = document.getElementById('library-reattach-save');
+  var reattachCancel = document.getElementById('library-reattach-cancel');
+  var reattachStatus = document.getElementById('library-reattach-status');
+  var reattachName = null;
+
+  function closeReattach() {
+    if (reattachBackdrop) reattachBackdrop.hidden = true;
+    reattachName = null;
+  }
+
+  function openReattach() {
+    var active = nav && nav.querySelector('.scripts-nav-item.active');
+    if (!active || !reattachBackdrop || !reattachConn) return;
+    reattachName = active.getAttribute('data-name');
+    reattachPath.value = active.getAttribute('data-lib-rel') || reattachName;
+    if (reattachStatus) reattachStatus.textContent = '';
+    reattachSave.disabled = true;
+    reattachBackdrop.hidden = false;
+    reattachConn.focus();
+  }
+
+  if (reattachBackdrop && reattachConn) {
+    libraryConnections.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = (c.label || c.id) + ' (' + (c.type || '') + ')';
+      reattachConn.appendChild(opt);
+    });
+    if (reattachCancel) reattachCancel.addEventListener('click', closeReattach);
+    reattachBackdrop.addEventListener('click', function (e) {
+      if (e.target === reattachBackdrop) closeReattach();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && reattachBackdrop && !reattachBackdrop.hidden) {
+        e.preventDefault();
+        closeReattach();
+      }
+    });
+    function reattachBody(commit) {
+      return {
+        domain: 'clutches',
+        name: reattachName,
+        connection_id: reattachConn.value,
+        relative_path: (reattachPath.value || '').trim(),
+        commit: !!commit,
+      };
+    }
+    if (reattachTest) {
+      reattachTest.addEventListener('click', function () {
+        if (!cacheReattachUrl || !reattachName) return;
+        fetch(cacheReattachUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reattachBody(false)),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              reattachStatus.textContent = (res.data && res.data.error) || 'Test failed';
+              reattachSave.disabled = true;
+              return;
+            }
+            reattachStatus.textContent = 'Path resolves (' + (res.data.source_digest_kind || 'tip') + ')';
+            reattachSave.disabled = false;
+          });
+      });
+    }
+    if (reattachSave) {
+      reattachSave.addEventListener('click', function () {
+        if (!cacheReattachUrl || !reattachName) return;
+        fetch(cacheReattachUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reattachBody(true)),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              reattachStatus.textContent = (res.data && res.data.error) || 'Re-attach failed';
+              return;
+            }
+            window.location.reload();
+          });
+      });
+    }
+  }
+
+  if (libraryStatusBtn) {
+    libraryStatusBtn.addEventListener('click', function () {
+      if (libraryMode === 'orphan') {
+        openReattach();
+        return;
+      }
+      if (libraryMode !== 'sync' || libraryStatusBtn.disabled || !selectedName || !cacheSyncUrl) {
+        return;
+      }
+      libraryStatusBtn.disabled = true;
+      fetch(cacheSyncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: 'clutches', name: name }),
+        body: JSON.stringify({ domain: 'clutches', name: selectedName }),
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
@@ -184,14 +935,39 @@
             if (window.hatchery && hatchery.showToast) {
               hatchery.showToast((res.data && res.data.error) || 'Sync failed', 'warning', 5000);
             }
-            btn.disabled = false;
             return;
+          }
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Synced ' + selectedName, 'info', 2200);
           }
           window.location.reload();
         })
-        .catch(function () { btn.disabled = false; });
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Sync failed: network or server error.', 'alert', 5000);
+          }
+        })
+        .finally(function () {
+          if (libraryMode === 'sync') {
+            var active = nav && nav.querySelector('.scripts-nav-item.active');
+            if (active) setLibraryStatus(active);
+            else libraryStatusBtn.disabled = false;
+          }
+        });
     });
-  });
+  }
+
+  if (window.hatchery && typeof hatchery.onStatusTick === 'function') {
+    hatchery.onStatusTick(function () {
+      refreshDriftInventory();
+    });
+  }
+
+  if (filterQ) filterQ.addEventListener('input', applyClutchFilters);
+  if (filterLanguage) filterLanguage.addEventListener('change', applyClutchFilters);
+  if (filterState) filterState.addEventListener('change', applyClutchFilters);
+  populateLanguageFilter();
+  applyClutchFilters();
 })();
 </script>
 {% endblock %}

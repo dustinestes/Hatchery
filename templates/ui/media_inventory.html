@@ -40,6 +40,29 @@
 {% endwith %}
 
 <div class="scripts-panel" id="media-panel-cache" role="tabpanel" aria-labelledby="media-tab-cache">
+  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached {{ pane_title }}">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="media-filter-q">Search</label>
+      <input type="search"
+             id="media-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="media-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="media-filter-state">Library state</label>
+      <select id="media-filter-state" class="form-select" aria-controls="media-nav">
+        <option value="">All</option>
+        <option value="local">Local</option>
+        <option value="in_sync">In sync</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="unknown">Tip unknown</option>
+      </select>
+    </div>
+  </div>
+
 <div class="media-layout">
 
   <nav class="media-nav" aria-label="{{ nav_label }}" id="media-nav">
@@ -53,9 +76,25 @@
               data-size-bytes="{{ item.size_bytes }}"
               data-modified-at="{{ item.modified_at }}"
               data-drift-state="{{ item.drift_state or 'local' }}"
+              data-orphan="{{ '1' if item.orphan else '0' }}"
+              data-orphan-reason="{{ item.orphan_reason or '' }}"
+              data-lib-rel="{{ (item.library_provenance.relative_path if item.library_provenance else '') }}"
+              data-lib-conn="{{ (item.library_provenance.connection_id if item.library_provenance else '') }}"
               aria-pressed="false">
-        <span class="media-nav-label">{{ item.name }}</span>
-        <span class="media-nav-sub">{{ item.size_bytes }} bytes{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
+        <span class="media-nav-main">
+          <span class="media-nav-label">{{ item.name }}</span>
+          <span class="media-nav-sub">{{ item.size_bytes }} bytes{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
+        </span>
+        <span class="inventory-nav-drift-icon media-nav-drift-icon"
+              {% if item.drift_state != 'out_of_sync' and not item.orphan %}hidden{% endif %}
+              title="{% if item.orphan %}{{ item.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
+              aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
       </button>
       {% endfor %}
     {% else %}
@@ -65,6 +104,9 @@
         under your Hatchery data directory.
       </div>
     {% endif %}
+    <div class="media-nav-empty" id="media-nav-filtered-empty" role="status" hidden>
+      No files match these filters.
+    </div>
   </nav>
 
   <div class="media-content" id="media-content">
@@ -75,25 +117,45 @@
       </div>
       <div class="media-content-actions">
         <button type="button"
-                class="btn btn-sm library-cache-sync-btn"
-                id="media-library-sync-btn"
+                class="scripts-copy-btn scripts-library-status-btn"
+                id="media-library-status-btn"
                 hidden
                 disabled
-                aria-label="Sync from Library">Sync</button>
-        <button type="button"
-                class="media-copy-btn"
-                id="media-copy-path-btn"
-                aria-label="Copy file path"
-                title="Copy file path"
-                hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                aria-disabled="true"
+                title=""
+                aria-label="">
+          <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 16h5v5"/>
           </svg>
-          <span class="media-copy-label">Path</span>
+          <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
         </button>
+        <div class="import-dropdown scripts-copy-dropdown" id="media-copy-dropdown" hidden>
+          <button type="button"
+                  class="scripts-copy-btn"
+                  id="media-copy-menu-btn"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="media-copy-menu"
+                  title="Copy"
+                  aria-label="Copy">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu import-dropdown-menu" id="media-copy-menu" hidden role="menu" aria-label="Copy options">
+            <button type="button" class="dropdown-item" role="menuitem" id="media-copy-path-item">Path</button>
+          </div>
+        </div>
         <button type="button"
-                class="media-copy-btn"
+                class="scripts-copy-btn"
                 id="media-delete-btn"
                 title="Delete"
                 aria-label="Delete"
@@ -161,6 +223,28 @@
 {% with id_prefix='media', filter_aria=('Filter Library ' ~ pane_title), empty_message=('No media hits from your Library bindings for this target. Configure connections under Settings → Library.') %}
   {% include "_library_browser_panel.html" %}
 {% endwith %}
+
+<div id="library-reattach-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-reattach-title">
+    <h2 class="modal-title" id="library-reattach-title">Re-attach Library source</h2>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-conn">Connection</label>
+        <select id="library-reattach-conn" class="form-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-path">Relative path</label>
+        <input type="text" id="library-reattach-path" class="form-input" autocomplete="off">
+      </div>
+      <p class="form-hint" id="library-reattach-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-reattach-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-test">Test</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-save" disabled>Re-attach</button>
+    </div>
+  </div>
+</div>
 
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
@@ -242,18 +326,97 @@
   const bootEl = document.getElementById('media-meta-boot');
   const usedByList = document.getElementById('media-used-by-list');
   const usedByEmpty = document.getElementById('media-used-by-empty');
-  const copyPathBtn = document.getElementById('media-copy-path-btn');
+  const copyDropdown = document.getElementById('media-copy-dropdown');
+  const copyMenuBtn = document.getElementById('media-copy-menu-btn');
+  const copyMenu = document.getElementById('media-copy-menu');
+  const copyPathItem = document.getElementById('media-copy-path-item');
   const deleteBtn = document.getElementById('media-delete-btn');
-  const syncBtn = document.getElementById('media-library-sync-btn');
+  const libraryStatusBtn = document.getElementById('media-library-status-btn');
+  const librarySyncIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--sync')
+    : null;
+  const libraryWarnIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--warn')
+    : null;
   const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
+  const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
+  const libraryConnections = {{ library_connections | default([]) | tojson }};
+  const inventoryApiUrl = {{ inventory_api_url | default('') | tojson }};
   const mediaTarget = {{ library_media_target | default('iso') | tojson }};
   const deleteBackdrop = document.getElementById('delete-modal-backdrop');
   const deleteFilenameEl = document.getElementById('delete-modal-filename');
   const deleteCancel = document.getElementById('delete-modal-cancel');
   const deleteConfirm = document.getElementById('delete-modal-confirm');
+  const filterQ = document.getElementById('media-filter-q');
+  const filterState = document.getElementById('media-filter-state');
+  const navFilteredEmpty = document.getElementById('media-nav-filtered-empty');
+  const navEmpty = document.getElementById('media-nav-empty');
 
   let selectedName = null;
   let selectedAbsPath = null;
+  let libraryMode = 'hidden'; /* hidden | sync | orphan */
+
+  function inventoryLibraryState(btn) {
+    if (!btn) return 'local';
+    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
+    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
+    if (drift === 'unknown' || drift === 'out_of_sync' || drift === 'in_sync') return drift;
+    return 'local';
+  }
+
+  function currentMediaFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
+  }
+
+  function itemMatchesMediaFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    if (filters.q && name.indexOf(filters.q) === -1) return false;
+    if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearMediaDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    nav.querySelectorAll('.media-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    libraryMode = 'hidden';
+  }
+
+  function applyMediaFilters() {
+    if (!nav) return;
+    var filters = currentMediaFilters();
+    var items = nav.querySelectorAll('.media-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesMediaFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    var active = nav.querySelector('.media-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearMediaDetail();
+    }
+  }
 
   function escHtml(str) {
     return String(str ?? '').replace(/[&<>"']/g, c =>
@@ -309,6 +472,18 @@
     }
   }
 
+  function closeCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = true;
+    copyMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = false;
+    copyMenuBtn.setAttribute('aria-expanded', 'true');
+  }
+
   function renderUsedBy(name) {
     const refs = USED_BY[name] || [];
     usedByList.innerHTML = '';
@@ -346,6 +521,102 @@
     bootEl.textContent = probe.boot || '—';
   }
 
+  function setLibraryStatus(btn) {
+    if (!libraryStatusBtn) return;
+    libraryStatusBtn.classList.remove(
+      'scripts-library-status-btn--warn',
+      'scripts-library-status-btn--action'
+    );
+    libraryStatusBtn.hidden = true;
+    libraryStatusBtn.disabled = true;
+    libraryStatusBtn.setAttribute('aria-disabled', 'true');
+    libraryMode = 'hidden';
+    if (!btn || !libraryEnabled) return;
+    var drift = btn.getAttribute('data-drift-state') || 'local';
+    var orphan = btn.getAttribute('data-orphan') === '1';
+    var reason = (btn.getAttribute('data-orphan-reason') || '').trim();
+    if (drift === 'local' && !orphan) return;
+    libraryStatusBtn.hidden = false;
+    if (librarySyncIcon) librarySyncIcon.hidden = false;
+    if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+    if (orphan) {
+      libraryMode = 'orphan';
+      libraryStatusBtn.disabled = false;
+      libraryStatusBtn.setAttribute('aria-disabled', 'false');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      libraryStatusBtn.title = reason || 'Library source missing';
+      libraryStatusBtn.setAttribute('aria-label', 'Re-attach Library source for ' + (btn.getAttribute('data-name') || ''));
+      return;
+    }
+    var canSync = drift === 'out_of_sync';
+    libraryMode = canSync ? 'sync' : 'hidden';
+    libraryStatusBtn.disabled = !canSync;
+    libraryStatusBtn.setAttribute('aria-disabled', canSync ? 'false' : 'true');
+    if (canSync) {
+      libraryStatusBtn.classList.add('scripts-library-status-btn--action');
+      libraryStatusBtn.title = 'Out of sync';
+      libraryStatusBtn.setAttribute('aria-label', 'Sync ' + (btn.getAttribute('data-name') || '') + ' from Library');
+    } else if (drift === 'in_sync') {
+      libraryStatusBtn.title = 'In sync';
+      libraryStatusBtn.setAttribute('aria-label', 'In sync with Library');
+    } else {
+      libraryStatusBtn.title = 'Tip unknown';
+      libraryStatusBtn.setAttribute('aria-label', 'Library tip unknown');
+    }
+  }
+
+  function applyDriftChrome(btn, item) {
+    if (!btn || !item) return;
+    var drift = item.drift_state || 'local';
+    var orphan = !!item.orphan;
+    var reason = (item.orphan_reason || '').trim();
+    btn.setAttribute('data-drift-state', drift);
+    btn.setAttribute('data-orphan', orphan ? '1' : '0');
+    btn.setAttribute('data-orphan-reason', reason);
+    if (item.library_provenance) {
+      btn.setAttribute('data-lib-rel', item.library_provenance.relative_path || '');
+      btn.setAttribute('data-lib-conn', item.library_provenance.connection_id || '');
+    }
+    if (item.size_bytes != null) btn.setAttribute('data-size-bytes', String(item.size_bytes));
+    if (item.modified_at) btn.setAttribute('data-modified-at', item.modified_at);
+    var sub = btn.querySelector('.media-nav-sub');
+    if (sub) {
+      var suffix = '';
+      if (drift === 'out_of_sync') suffix = ' · out of sync';
+      else if (orphan) suffix = ' · orphaned';
+      sub.textContent = formatBytes(btn.getAttribute('data-size-bytes')) + suffix;
+    }
+    var icon = btn.querySelector('.media-nav-drift-icon');
+    if (icon) {
+      var show = drift === 'out_of_sync' || orphan;
+      icon.hidden = !show;
+      icon.title = orphan ? (reason || 'Library source missing') : 'Out of sync';
+    }
+  }
+
+  function refreshDriftInventory() {
+    if (!inventoryApiUrl || !nav) return;
+    return fetch(inventoryApiUrl)
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (items) {
+        if (!Array.isArray(items)) return;
+        var byName = {};
+        items.forEach(function (it) {
+          if (it && it.name) byName[it.name] = it;
+        });
+        nav.querySelectorAll('.media-nav-item').forEach(function (btn) {
+          var name = btn.getAttribute('data-name');
+          if (name && byName[name]) applyDriftChrome(btn, byName[name]);
+        });
+        applyMediaFilters();
+        var active = nav.querySelector('.media-nav-item.active');
+        if (active && !active.hidden) setLibraryStatus(active);
+      })
+      .catch(function () { /* status tick must not break the page */ });
+  }
+
   function selectItem(btn) {
     if (!btn) return;
     const name = btn.getAttribute('data-name');
@@ -364,22 +635,12 @@
     stub.hidden = true;
     header.hidden = false;
     detail.hidden = false;
-    copyPathBtn.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = false;
+    closeCopyMenu();
     deleteBtn.hidden = false;
     deleteBtn.title = 'Delete ' + name;
     deleteBtn.setAttribute('aria-label', 'Delete ' + name);
-
-    const drift = btn.getAttribute('data-drift-state') || 'local';
-    if (syncBtn) {
-      const canSync = drift === 'out_of_sync';
-      syncBtn.hidden = drift === 'local';
-      syncBtn.disabled = !canSync;
-      syncBtn.classList.toggle('btn-primary', canSync);
-      syncBtn.setAttribute('aria-label', canSync
-        ? ('Sync ' + name + ' from Library (out of sync)')
-        : 'Sync from Library');
-      syncBtn.title = canSync ? 'Out of sync — sync from Library' : 'In sync or tip unknown';
-    }
+    setLibraryStatus(btn);
 
     titleEl.textContent = name;
     metaEl.textContent = formatBytes(sizeBytes);
@@ -421,10 +682,16 @@
       });
   }
 
-  /* Replace raw byte subtitles with human sizes after paint. */
+  /* Replace raw byte subtitles with human sizes after paint (keep drift suffix). */
   nav.querySelectorAll('.media-nav-item').forEach(function (btn) {
     const sub = btn.querySelector('.media-nav-sub');
-    if (sub) sub.textContent = formatBytes(btn.getAttribute('data-size-bytes'));
+    if (!sub) return;
+    var drift = btn.getAttribute('data-drift-state') || 'local';
+    var orphan = btn.getAttribute('data-orphan') === '1';
+    var suffix = '';
+    if (drift === 'out_of_sync') suffix = ' · out of sync';
+    else if (orphan) suffix = ' · orphaned';
+    sub.textContent = formatBytes(btn.getAttribute('data-size-bytes')) + suffix;
   });
 
   nav.addEventListener('click', function (e) {
@@ -458,10 +725,33 @@
     items[next].focus();
   });
 
-  copyPathBtn.addEventListener('click', function () {
-    if (!selectedAbsPath) return;
-    copyText(selectedAbsPath);
-  });
+  if (copyMenuBtn && copyMenu) {
+    copyMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (copyMenu.hidden) openCopyMenu();
+      else closeCopyMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (!copyDropdown || copyMenu.hidden) return;
+      if (copyDropdown.contains(e.target)) return;
+      closeCopyMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && copyMenu && !copyMenu.hidden) {
+        e.preventDefault();
+        closeCopyMenu();
+        copyMenuBtn.focus();
+      }
+    });
+  }
+
+  if (copyPathItem) {
+    copyPathItem.addEventListener('click', function () {
+      closeCopyMenu();
+      if (!selectedAbsPath) return;
+      copyText(selectedAbsPath);
+    });
+  }
 
   function openDeleteModal(name) {
     deleteFilenameEl.textContent = name;
@@ -522,10 +812,106 @@
       });
   });
 
-  if (syncBtn && cacheSyncUrl) {
-    syncBtn.addEventListener('click', function () {
-      if (syncBtn.disabled || !selectedName) return;
-      syncBtn.disabled = true;
+  if (libraryStatusBtn && cacheSyncUrl) {
+    var reattachBackdrop = document.getElementById('library-reattach-backdrop');
+    var reattachConn = document.getElementById('library-reattach-conn');
+    var reattachPath = document.getElementById('library-reattach-path');
+    var reattachTest = document.getElementById('library-reattach-test');
+    var reattachSave = document.getElementById('library-reattach-save');
+    var reattachCancel = document.getElementById('library-reattach-cancel');
+    var reattachStatus = document.getElementById('library-reattach-status');
+    var reattachName = null;
+
+    function closeReattach() {
+      if (reattachBackdrop) reattachBackdrop.hidden = true;
+      reattachName = null;
+    }
+
+    function openReattach() {
+      var active = nav.querySelector('.media-nav-item.active');
+      if (!active || !reattachBackdrop || !reattachConn) return;
+      reattachName = active.getAttribute('data-name');
+      reattachPath.value = active.getAttribute('data-lib-rel') || reattachName;
+      if (reattachStatus) reattachStatus.textContent = '';
+      reattachSave.disabled = true;
+      reattachBackdrop.hidden = false;
+      reattachConn.focus();
+    }
+
+    if (reattachBackdrop && reattachConn) {
+      reattachConn.innerHTML = '';
+      (libraryConnections || []).forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.label || c.id;
+        reattachConn.appendChild(opt);
+      });
+      if (reattachCancel) reattachCancel.addEventListener('click', closeReattach);
+      reattachBackdrop.addEventListener('click', function (e) {
+        if (e.target === reattachBackdrop) closeReattach();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && reattachBackdrop && !reattachBackdrop.hidden) {
+          closeReattach();
+        }
+      });
+      function reattachBody(commit) {
+        return {
+          domain: 'media',
+          name: reattachName,
+          connection_id: reattachConn.value,
+          relative_path: (reattachPath.value || '').trim(),
+          media_target: mediaTarget,
+          commit: !!commit,
+        };
+      }
+      if (reattachTest) {
+        reattachTest.addEventListener('click', function () {
+          if (!cacheReattachUrl || !reattachName) return;
+          fetch(cacheReattachUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reattachBody(false)),
+          })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+              if (!res.ok) {
+                reattachStatus.textContent = (res.data && res.data.error) || 'Test failed';
+                reattachSave.disabled = true;
+                return;
+              }
+              reattachStatus.textContent = 'Path resolves (' + (res.data.source_digest_kind || 'tip') + ')';
+              reattachSave.disabled = false;
+            });
+        });
+      }
+      if (reattachSave) {
+        reattachSave.addEventListener('click', function () {
+          if (!cacheReattachUrl || !reattachName) return;
+          fetch(cacheReattachUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reattachBody(true)),
+          })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+              if (!res.ok) {
+                reattachStatus.textContent = (res.data && res.data.error) || 'Re-attach failed';
+                return;
+              }
+              window.location.reload();
+            });
+        });
+      }
+    }
+
+    libraryStatusBtn.addEventListener('click', function () {
+      if (libraryMode === 'orphan') {
+        openReattach();
+        return;
+      }
+      if (libraryMode !== 'sync' || libraryStatusBtn.disabled || !selectedName) return;
+      libraryStatusBtn.disabled = true;
       fetch(cacheSyncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -541,14 +927,32 @@
             if (window.hatchery && hatchery.showToast) {
               hatchery.showToast((res.data && res.data.error) || 'Sync failed', 'warning', 5000);
             }
-            syncBtn.disabled = false;
             return;
           }
           window.location.reload();
         })
-        .catch(function () { syncBtn.disabled = false; });
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Sync failed: network or server error.', 'alert', 5000);
+          }
+        })
+        .finally(function () {
+          var active = nav.querySelector('.media-nav-item.active');
+          if (active) setLibraryStatus(active);
+          else libraryStatusBtn.disabled = false;
+        });
     });
   }
+
+  if (window.hatchery && typeof hatchery.onStatusTick === 'function') {
+    hatchery.onStatusTick(function () {
+      refreshDriftInventory();
+    });
+  }
+
+  if (filterQ) filterQ.addEventListener('input', applyMediaFilters);
+  if (filterState) filterState.addEventListener('change', applyMediaFilters);
+  applyMediaFilters();
 })();
 </script>
 {% endblock %}
