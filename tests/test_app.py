@@ -3354,12 +3354,18 @@ class TestAutomationScriptsPane:
         assert "Shell" in html
         assert "automation/scripts/setup.ps1" in html
         assert "scripts-layout" in html
+        assert 'aria-label="Filter Cached scripts"' in html
+        assert 'id="scripts-filter-q"' in html
+        assert 'id="scripts-filter-language"' in html
+        assert 'id="scripts-filter-state"' in html
+        assert "scripts-nav-filtered-empty" in html
         assert 'aria-label="Copy"' in html
         assert 'id="scripts-copy-path-item">Path</button>' in html
         assert 'id="scripts-copy-content-item"' in html
         assert ">Contents</button>" in html
         assert "scripts-nav-drift-icon" in html
         assert "hatchery.onStatusTick" in html
+        assert "applyScriptFilters" in html
 
     def test_page_shows_used_by_from_clutch_string_and_object(self, client, tmp_path, monkeypatch):
         scripts = tmp_path / "automation" / "scripts"
