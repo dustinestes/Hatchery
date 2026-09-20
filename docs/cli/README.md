@@ -75,7 +75,7 @@ HATCHERY_DATA_DIR=/path/to/sandbox uv run gunicorn hatchery:app --bind 127.0.0.1
 uv run python -m lib.cli serve --host 127.0.0.1 --port 5000
 ```
 
-Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.md](../getting-started.md). Contributor notes: [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.md](../getting-started.md). Contributor notes and Run and Debug configs: [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 <br>
 

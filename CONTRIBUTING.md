@@ -77,14 +77,26 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 ```bash
 # Preferred: see docs/cli/ — session-only --data-dir never writes Settings
 uv run hatchery serve --host 127.0.0.1 --port 5000
-# Optional sandbox data root:
-# uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
+# Optional sandbox data root (empty Nest registry):
+# uv run hatchery serve --data-dir .temp/hatchery-sandbox --host 127.0.0.1 --port 5001
+# Same sandbox with this Controller registered as Local Nest:
+# uv run hatchery serve --data-dir .temp/hatchery-sandbox-local --nest-local --host 127.0.0.1 --port 5002
 
 # Equivalent contributor path (same app object):
 uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1
 # Session data dir for gunicorn: HATCHERY_DATA_DIR=/path/to/sandbox uv run gunicorn ...
 # http://localhost:5000
 ```
+
+**Run and Debug (Cursor / VS Code):** use the configs in [`.vscode/launch.json`](.vscode/launch.json) (#337):
+
+| Config | Data dir | Nest registry | Port |
+|---|---|---|---|
+| **Hatchery: production** | Normal Controller `data_dir` (no override) | Whatever this machine already has | `5000` |
+| **Hatchery: sandbox** | `${workspaceFolder}/.temp/hatchery-sandbox` | Empty (Controller-only) | `5001` |
+| **Hatchery: sandbox (Local Nest)** | `${workspaceFolder}/.temp/hatchery-sandbox-local` | Registers Local via `--nest-local` if missing | `5002` |
+
+Sandbox dirs live under `.temp/` (already gitignored as Hatchery runtime artifacts). They do not rewrite Settings or the production data dir. Delete a sandbox folder to reset it.
 
 ### A note on devcontainers
 
