@@ -52,6 +52,20 @@
 
 </form>
 
+<div id="unsaved-leave-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unsaved-leave-title">
+    <h2 class="modal-title" id="unsaved-leave-title">Unsaved changes</h2>
+    <div class="modal-body">
+      <p>You have unsaved changes to this Clutch. Leave without saving?</p>
+      <p class="modal-warning">Unsaved edits will be discarded.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="unsaved-leave-stay">Stay</button>
+      <button type="button" class="btn btn-danger" id="unsaved-leave-discard">Discard and leave</button>
+    </div>
+  </div>
+</div>
+
 {% include '_vm_row_template.html' %}
 {% if form_vms %}
 <script type="application/json" id="build-form-vms">{{ form_vms | tojson }}</script>
@@ -93,12 +107,14 @@
     rows.markClean();
   });
 
-  document.getElementById('cancel-btn').addEventListener('click', function () {
-    rows.markClean();
-  });
-
-  window.addEventListener('beforeunload', function (e) {
-    if (rows.dirty()) { e.preventDefault(); e.returnValue = ''; }
+  hatchery.bindUnsavedLeave({
+    isDirty: function () { return rows.dirty(); },
+    markClean: function () { rows.markClean(); },
+    markDirty: function () { rows.markDirty(); },
+    form: form,
+    backdrop: document.getElementById('unsaved-leave-backdrop'),
+    stayBtn: document.getElementById('unsaved-leave-stay'),
+    leaveBtn: document.getElementById('unsaved-leave-discard'),
   });
 })();
 </script>

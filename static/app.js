@@ -306,6 +306,102 @@ hatchery.vmRows = (function () {
   return { init: init };
 })();
 
+/**
+ * Guard in-app navigation when a Clutch editor is dirty (#325).
+ * Keeps native beforeunload for tab close / refresh (custom modals cannot block that).
+ *
+ * @param {object} opts
+ * @param {function(): boolean} opts.isDirty
+ * @param {function()} opts.markClean
+ * @param {function()} [opts.markDirty]
+ * @param {HTMLElement|null} opts.backdrop
+ * @param {HTMLElement|null} opts.stayBtn
+ * @param {HTMLElement|null} opts.leaveBtn
+ * @param {HTMLFormElement|null} [opts.form] - clutch header fields also mark dirty
+ */
+hatchery.bindUnsavedLeave = function (opts) {
+  var isDirty = opts.isDirty;
+  var markClean = opts.markClean;
+  var markDirty = opts.markDirty;
+  var backdrop = opts.backdrop;
+  var stayBtn = opts.stayBtn;
+  var leaveBtn = opts.leaveBtn;
+  var form = opts.form || null;
+  if (!backdrop || !stayBtn || !leaveBtn || typeof isDirty !== 'function') return;
+
+  var pendingHref = null;
+
+  function closeModal() {
+    backdrop.hidden = true;
+    pendingHref = null;
+  }
+
+  function openModal(href) {
+    pendingHref = href || null;
+    backdrop.hidden = false;
+    stayBtn.focus();
+  }
+
+  function navigatePending() {
+    var href = pendingHref;
+    markClean && markClean();
+    closeModal();
+    if (href) window.location.href = href;
+  }
+
+  if (form && typeof markDirty === 'function') {
+    form.addEventListener('input', function (e) {
+      if (e.target && e.target.closest('.vm-rows')) return;
+      markDirty();
+    });
+    form.addEventListener('change', function (e) {
+      if (e.target && e.target.closest('.vm-rows')) return;
+      markDirty();
+    });
+  }
+
+  document.addEventListener(
+    'click',
+    function (e) {
+      if (!isDirty()) return;
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest('a[href]');
+      if (!a) return;
+      if (a.target && a.target !== '_self') return;
+      var href = a.getAttribute('href');
+      if (!href || href.charAt(0) === '#') return;
+      if (/^javascript:/i.test(href)) return;
+      e.preventDefault();
+      openModal(href);
+    },
+    true
+  );
+
+  stayBtn.addEventListener('click', function () {
+    closeModal();
+  });
+  leaveBtn.addEventListener('click', function () {
+    navigatePending();
+  });
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) closeModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !backdrop.hidden) {
+      e.preventDefault();
+      closeModal();
+    }
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (isDirty()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+};
+
 /* Topbar — Hatch dropdown */
 (function () {
   var btn = document.getElementById('hatch-dropdown-btn');
