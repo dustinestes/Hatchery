@@ -1170,6 +1170,32 @@
     </div>
   </div>
 </div>
+
+<div id="library-bind-remove-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-bind-remove-title">
+    <h2 class="modal-title" id="library-bind-remove-title">Remove Library binding</h2>
+    <div class="modal-body">
+      <p>Remove <strong id="library-bind-remove-label"></strong> from Settings?</p>
+      <div class="library-conn-remove-cache-opts" style="margin-top:12px">
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-bind-remove-attr-cache">
+            <input type="checkbox" id="library-bind-remove-attr-cache">
+            <span class="form-toggle-label">Also delete Cached files pulled via this binding</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes operator-cache files Hatchery attributed to this binding. Off by default - files remain as local inventory (orphaned provenance)."
+                tabindex="0"
+                role="img"
+                aria-label="Also delete Cached inventory files pulled via this binding. Off by default.">i</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-bind-remove-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-bind-remove-confirm">Remove</button>
+    </div>
+  </div>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -1347,6 +1373,13 @@
   const removeConfirm = document.getElementById('library-conn-remove-confirm');
   let removePending = null;
 
+  const bindRemoveBackdrop = document.getElementById('library-bind-remove-backdrop');
+  const bindRemoveLabelEl = document.getElementById('library-bind-remove-label');
+  const bindRemoveAttrCache = document.getElementById('library-bind-remove-attr-cache');
+  const bindRemoveCancel = document.getElementById('library-bind-remove-cancel');
+  const bindRemoveConfirm = document.getElementById('library-bind-remove-confirm');
+  let bindRemovePending = null;
+
   function closeConnRemoveModal() {
     if (!removeBackdrop) return;
     removeBackdrop.hidden = true;
@@ -1373,6 +1406,33 @@
     removeConfirm.focus();
   }
 
+  function closeBindRemoveModal() {
+    if (!bindRemoveBackdrop) return;
+    bindRemoveBackdrop.hidden = true;
+    const focusEl = bindRemovePending && bindRemovePending.focusEl;
+    bindRemovePending = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+  }
+
+  function openBindRemoveModal(row, domain, bid, syncEmpty, focusEl, domainLabel) {
+    if (!bindRemoveBackdrop || !bindRemoveConfirm) return;
+    const summary = row.querySelector('.library-bind-summary');
+    const label = (summary && summary.textContent.trim())
+      || domainLabel
+      || 'binding';
+    if (bindRemoveLabelEl) bindRemoveLabelEl.textContent = label;
+    if (bindRemoveAttrCache) bindRemoveAttrCache.checked = false;
+    bindRemovePending = {
+      row: row,
+      domain: domain,
+      bid: bid,
+      syncEmpty: syncEmpty,
+      focusEl: focusEl,
+    };
+    bindRemoveBackdrop.hidden = false;
+    bindRemoveConfirm.focus();
+  }
+
   if (removeCancel) {
     removeCancel.addEventListener('click', closeConnRemoveModal);
   }
@@ -1381,12 +1441,64 @@
       if (e.target === removeBackdrop) closeConnRemoveModal();
     });
   }
+  if (bindRemoveCancel) {
+    bindRemoveCancel.addEventListener('click', closeBindRemoveModal);
+  }
+  if (bindRemoveBackdrop) {
+    bindRemoveBackdrop.addEventListener('click', function (e) {
+      if (e.target === bindRemoveBackdrop) closeBindRemoveModal();
+    });
+  }
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && removeBackdrop && !removeBackdrop.hidden) {
+    if (e.key !== 'Escape') return;
+    if (bindRemoveBackdrop && !bindRemoveBackdrop.hidden) {
+      e.preventDefault();
+      closeBindRemoveModal();
+      return;
+    }
+    if (removeBackdrop && !removeBackdrop.hidden) {
       e.preventDefault();
       closeConnRemoveModal();
     }
   });
+  if (bindRemoveConfirm) {
+    bindRemoveConfirm.addEventListener('click', function () {
+      if (!bindRemovePending) return;
+      const row = bindRemovePending.row;
+      const domain = bindRemovePending.domain;
+      const bid = bindRemovePending.bid;
+      const syncEmpty = bindRemovePending.syncEmpty;
+      const deleteAttr = bindRemoveAttrCache && bindRemoveAttrCache.checked;
+      bindRemoveConfirm.disabled = true;
+      const delUrl = {{ url_for('api_library_binding_delete', domain='DOMAIN', binding_id='BIND_ID') | tojson }}
+        .replace('DOMAIN', encodeURIComponent(domain))
+        .replace('BIND_ID', encodeURIComponent(bid));
+      fetch(delUrl, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_attributed_cache: !!deleteAttr }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          bindRemoveConfirm.disabled = false;
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Could not remove binding', 'error', 5000);
+            }
+            return;
+          }
+          closeBindRemoveModal();
+          row.remove();
+          if (typeof syncEmpty === 'function') syncEmpty();
+        })
+        .catch(function () {
+          bindRemoveConfirm.disabled = false;
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Network or server error', 'error', 5000);
+          }
+        });
+    });
+  }
   if (removeConfirm) {
     removeConfirm.addEventListener('click', function () {
       if (!removePending) return;
@@ -2100,34 +2212,7 @@
           syncEmpty();
           return;
         }
-        if (!window.confirm('Remove this binding from Settings?')) return;
-        const deleteAttr = window.confirm(
-          'Also delete Cached files pulled via this binding?\n\nOK = delete attributed cache files\nCancel = leave files (they become orphans)'
-        );
-        const delUrl = {{ url_for('api_library_binding_delete', domain='DOMAIN', binding_id='BIND_ID') | tojson }}
-          .replace('DOMAIN', encodeURIComponent(domain))
-          .replace('BIND_ID', encodeURIComponent(bid));
-        fetch(delUrl, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ delete_attributed_cache: !!deleteAttr }),
-        })
-          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-          .then(function (res) {
-            if (!res.ok) {
-              if (window.hatchery && hatchery.showToast) {
-                hatchery.showToast((res.data && res.data.error) || 'Could not remove binding', 'error', 5000);
-              }
-              return;
-            }
-            row.remove();
-            syncEmpty();
-          })
-          .catch(function () {
-            if (window.hatchery && hatchery.showToast) {
-              hatchery.showToast('Network or server error', 'error', 5000);
-            }
-          });
+        openBindRemoveModal(row, domain, bid, syncEmpty, remove, domainLabel);
         return;
       }
       const saveBtn = e.target.closest('.library-save-bind-btn');
