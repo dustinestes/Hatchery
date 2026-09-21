@@ -6,7 +6,7 @@
 <h1>Events</h1>
 <br clear="both">
 
-Per-VM event log written throughout the hatching and provisioning lifecycle — what gets recorded, when, and why.
+Per-VM event log written throughout the hatching and provisioning lifecycle - what gets recorded, when, and why.
 
 <br>
 
@@ -35,8 +35,8 @@ Per-VM event log written throughout the hatching and provisioning lifecycle — 
 
 Every VM in a hatch session has its own event log stored in the `hatch_events` table. Events are written by two sources:
 
-- **Hatchery** — host-side lifecycle events emitted as each stage of the hatch progresses (VM creation, Windows setup detection, script execution, reboots, errors). These use context `'hatchery'`.
-- **Scripts** — structured log lines emitted by `Write-HatchEvent` inside automation scripts, parsed from script output after each script completes. These use context `'script'`.
+- **Hatchery** - host-side lifecycle events emitted as each stage of the hatch progresses (VM creation, Windows setup detection, script execution, reboots, errors). These use context `'hatchery'`.
+- **Scripts** - structured log lines emitted by `Write-HatchEvent` inside automation scripts, parsed from script output after each script completes. These use context `'script'`.
 
 Events are ordered by insertion and scoped to `(session_id, vm_name)`. They are displayed in the **Events** pane under Notifications in the sidebar (`/notifications/events`).
 
@@ -53,14 +53,14 @@ Each event row in `hatch_events` has these columns:
 | Column | Type | Description |
 |---|---|---|
 | `id` | integer | Auto-incrementing primary key; also determines insertion order |
-| `session_id` | text | References `hatch_sessions.id` — the clutch hatch this event belongs to |
+| `session_id` | text | References `hatch_sessions.id` - the clutch hatch this event belongs to |
 | `vm_name` | text | Name of the VM this event was recorded for |
-| `context` | text | `'hatchery'` or `'script'` — who emitted this event |
+| `context` | text | `'hatchery'` or `'script'` - who emitted this event |
 | `level` | text | `'INFO'`, `'WARN'`, or `'ERROR'` |
 | `script_name` | text \| null | Script file name (`.ps1`) when the event is tied to a specific script; null for session-level events |
 | `component` | text \| null | Optional sub-label from `Write-HatchEvent -Component`; always null for `'hatchery'` context events |
 | `message` | text | The event message |
-| `received_at` | text | UTC ISO 8601 timestamp. For host-side events this is the time Hatchery wrote the record. For events imported from a guest log file (e.g. `hatchery-setup.log`), this is the guest-side timestamp embedded in the log line — preserving the time each step actually ran. |
+| `received_at` | text | UTC ISO 8601 timestamp. For host-side events this is the time Hatchery wrote the record. For events imported from a guest log file (e.g. `hatchery-setup.log`), this is the guest-side timestamp embedded in the log line - preserving the time each step actually ran. |
 
 <br>
 
@@ -72,7 +72,7 @@ Each event row in `hatch_events` has these columns:
 
 | Context | Emitted by | When |
 |---|---|---|
-| `hatchery` | Hatchery (Python) | Host-side lifecycle stages — VM creation, setup detection, provisioning control flow, errors |
+| `hatchery` | Hatchery (Python) | Host-side lifecycle stages - VM creation, setup detection, provisioning control flow, errors |
 | `script` | `Write-HatchEvent` (PowerShell) | Lines emitted by automation scripts, parsed from script output after each script completes |
 
 <br>
@@ -85,9 +85,9 @@ Each event row in `hatch_events` has these columns:
 
 | Level | Meaning |
 |---|---|
-| `INFO` | Normal progress — stage started, stage completed, values observed |
-| `WARN` | Non-fatal advisory — fallback taken, optional step skipped |
-| `ERROR` | Failure — VM creation failed, script failed, WinRM connection lost |
+| `INFO` | Normal progress - stage started, stage completed, values observed |
+| `WARN` | Non-fatal advisory - fallback taken, optional step skipped |
+| `ERROR` | Failure - VM creation failed, script failed, WinRM connection lost |
 
 <br>
 
@@ -129,13 +129,13 @@ Emitted in `_sync_hatch_status` (Hatch status poller, runs every `bg_interval` s
 
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|
-| `INFO` | `Starting VM: virsh start <name>` | null | VM found shut off during hatching phase — Windows OOBE triggered ACPI power-off; Hatchery restarts it |
-| `INFO` | `Windows setup complete — starting provisioning (<n> scripts)` | null | `hatchery-ready` flag detected on guest, scripts are queued |
-| `INFO` | `Windows setup complete — no automation scripts configured` | null | `hatchery-ready` flag detected, no scripts declared for this VM |
+| `INFO` | `Starting VM: virsh start <name>` | null | VM found shut off during hatching phase - Windows OOBE triggered ACPI power-off; Hatchery restarts it |
+| `INFO` | `Windows setup complete - starting provisioning (<n> scripts)` | null | `hatchery-ready` flag detected on guest, scripts are queued |
+| `INFO` | `Windows setup complete - no automation scripts configured` | null | `hatchery-ready` flag detected, no scripts declared for this VM |
 
 The `hatchery-ready` flag is a file written by the last `FirstLogonCommand` in every answer file template. Hatchery polls for it (via WinRM) to ensure all first-boot setup finishes before automation scripts begin. It is deleted immediately on detection.
 
-The "Starting VM" event may appear multiple times during a long Windows install — OOBE issues several ACPI power-off signals at different stages (driver installation, region selection, user account creation). Each one triggers a restart and a new event.
+The "Starting VM" event may appear multiple times during a long Windows install - OOBE issues several ACPI power-off signals at different stages (driver installation, region selection, user account creation). Each one triggers a restart and a new event.
 
 ---
 
@@ -146,12 +146,12 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|
 | `INFO` | `Starting script: <name>.ps1` | `<name>.ps1` | Before the script is sent to the guest over WinRM |
-| `INFO` | `Script complete: <name>.ps1 — Exit Code: 0` | `<name>.ps1` | Script returned exit code 0 |
-| `ERROR` | `Script failed: <name>.ps1 — Exit Code: <n>` | `<name>.ps1` | Script returned a non-zero exit code |
-| `ERROR` | `Script failed: WinRM connection error — <detail>` | `<name>.ps1` | WinRM connection raised an exception before or during script execution |
+| `INFO` | `Script complete: <name>.ps1 - Exit Code: 0` | `<name>.ps1` | Script returned exit code 0 |
+| `ERROR` | `Script failed: <name>.ps1 - Exit Code: <n>` | `<name>.ps1` | Script returned a non-zero exit code |
+| `ERROR` | `Script failed: WinRM connection error - <detail>` | `<name>.ps1` | WinRM connection raised an exception before or during script execution |
 | `INFO` | `Rebooting VM after script: <name>.ps1` | `<name>.ps1` | Script has `reboot_after: true`; guest restart initiated |
 | `INFO` | `WinRM reconnected after reboot` | `<name>.ps1` | WinRM connection re-established after the `reboot_after` restart |
-| `INFO` | `All scripts succeeded — VM is fledged` | null | All scripts completed successfully; VM status set to `fledged` |
+| `INFO` | `All scripts succeeded - VM is fledged` | null | All scripts completed successfully; VM status set to `fledged` |
 
 When a script fails (non-zero exit code or WinRM error), all remaining scripts in the queue are marked `skipped` and provisioning halts. The VM is set to `failed` state and can be retried from the Nests panel.
 
@@ -175,9 +175,9 @@ Emitted in `api_retry_vm` when a failed VM is retried from the Nests panel.
 
 Script events come from two sources, both using context `'script'`:
 
-**Automation scripts** — `Write-HatchEvent` lines emitted inside user-authored `.ps1` scripts. Parsed from captured output after each script completes and inserted in order.
+**Automation scripts** - `Write-HatchEvent` lines emitted inside user-authored `.ps1` scripts. Parsed from captured output after each script completes and inserted in order.
 
-**First-boot setup** — structured log lines written by `hatchery-setup.ps1` to `C:\Windows\Temp\hatchery-setup.log` during the Windows first-boot phase, before WinRM is even available. Hatchery imports this file immediately after WinRM connects (issue #133), then deletes it. Because these events come from a log file rather than live output, each line carries a guest-side UTC timestamp that is used directly as `received_at` — so step durations are preserved as they happened on the guest, not at import time.
+**First-boot setup** - structured log lines written by `hatchery-setup.ps1` to `C:\Windows\Temp\hatchery-setup.log` during the Windows first-boot phase, before WinRM is even available. Hatchery imports this file immediately after WinRM connects (issue #133), then deletes it. Because these events come from a log file rather than live output, each line carries a guest-side UTC timestamp that is used directly as `received_at` - so step durations are preserved as they happened on the guest, not at import time.
 
 | Context | Level | `script_name` | `component` | Source |
 |---|---|---|---|---|
@@ -245,7 +245,7 @@ Returns a JSON object with an `events` array in insertion order:
 
 The **Events** pane (`/notifications/events`) polls this endpoint for the selected VM (alongside `GET /api/sessions` for the picker) and formats `received_at` using `resolved_timezone` from `/api/config`. The log remains viewable after a VM reaches `fledged` or `failed` for as long as the hatch session is active (not archived).
 
-`received_at` is always stored in UTC. **Settings → Display** lets you choose whether timestamps are shown in UTC or host local time — conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
+`received_at` is always stored in UTC. **Settings → Display** lets you choose whether timestamps are shown in UTC or host local time - conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
 
 <br>
 
@@ -257,7 +257,7 @@ The **Events** pane (`/notifications/events`) polls this endpoint for the select
 
 Event rows are kept for the life of the **active** hatch session so the transcript stays complete while the environment is still tracked. When the session is archived (dismissed from Nests, or auto-archived after a terminal/degraded state), Hatchery deletes that session's `hatch_events` along with related `hatch_vm_scripts` and `hatch_vm_status` rows. The `hatch_sessions` row remains with `archived_at` set.
 
-Hatchery does not trim event rows by age or count while a session is active — a partial transcript is not useful. Space is reclaimed only when the session is archived (no longer applicable). Broader DB capacity is the operator's concern; a future file-size alert is tracked in [#169](https://github.com/dustinestes/Hatchery/issues/169).
+Hatchery does not trim event rows by age or count while a session is active - a partial transcript is not useful. Space is reclaimed only when the session is archived (no longer applicable). Broader DB capacity is the operator's concern; a future file-size alert is tracked in [#169](https://github.com/dustinestes/Hatchery/issues/169).
 
 <br>
 

@@ -30,7 +30,7 @@ class ControllerRequirementsValidator(BaseValidator):
         missing = 0
         for req in req_lib.check_controller():
             base = f"{_CONTROLLER_ALERT_PREFIX} '{req.name}' is not installed"
-            msg = f"{base} — {req.required_for}"
+            msg = f"{base} - {req.required_for}"
             if req.optional:
                 if req.present:
                     ctx.resolve_alerts_by_prefix(base)
@@ -74,7 +74,7 @@ class ClutchFilesValidator(BaseValidator):
             except Exception as exc:
                 invalid += 1
                 detail = _clutch_error_detail(path.name, str(exc))
-                msg = f"{prefix} — {detail}"
+                msg = f"{prefix} - {detail}"
                 if not ctx.has_active_alert(msg):
                     ctx.resolve_alerts_by_prefix(prefix)
                     ctx.record_alert(msg)
@@ -159,7 +159,7 @@ class NestCapabilityValidator(BaseValidator):
                 tool_prefix = f"{nest_prefix} '{req.name}'"
                 if not req.present:
                     missing_total += 1
-                    msg = f"{tool_prefix} is not available — {req.required_for}"
+                    msg = f"{tool_prefix} is not available - {req.required_for}"
                     if req.install_hint and location == "local":
                         msg = f"{msg} ({req.install_hint})"
                     if not ctx.has_active_alert(msg):
@@ -229,7 +229,7 @@ class LibraryConnectionsValidator(BaseValidator):
             connections = library_lib.parse_connections(raw, enforce_expiry_future=False)
         except ValueError as exc:
             ctx.record_alert(
-                f"{lh.CONNECTION_ALERT_PREFIX} registry invalid — {exc}",
+                f"{lh.CONNECTION_ALERT_PREFIX} registry invalid - {exc}",
                 tier="alert",
             )
             return f"Library connection registry invalid: {exc}"

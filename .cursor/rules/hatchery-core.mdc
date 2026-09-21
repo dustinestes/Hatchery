@@ -7,9 +7,9 @@ alwaysApply: true
 
 Windows-first VM manager; **Hatchery Controller** (Controller plane) runs on Linux / macOS / Windows; **Nests** (Nest plane) are libvirt / UTM / Hyper-V (**Local Nest** or **Remote Nest**). See `docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
 
-## Naming (1:1:1 — UI, docs, code)
+## Naming (1:1:1 - UI, docs, code)
 
-Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood". Avoid “host” in product copy — say **Controller** or **Nest**.
+Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood". Avoid “host” in product copy - say **Controller** or **Nest**.
 
 | Term | Meaning |
 |---|---|
@@ -25,7 +25,7 @@ Use Hatchery terms where they clarify product concepts. Prefer **clear, universa
 | Cull | destroy / delete / terminate (VM remove) |
 | Snapshot | Freeze (retired brand verb) |
 | Revert (to snapshot) | Thaw (retired brand verb) |
-| Delete snapshot | — |
+| Delete snapshot | - |
 | Health check / connectivity check | Chirp (retired as primary UI label) |
 | Fledged | ready / healthy (post-provision) |
 
@@ -42,16 +42,16 @@ Power actions stay plain: Start, Stop, Force Stop, Pause, Resume.
 ✅ Follow existing provider names (create_snapshot / revert_snapshot / delete_snapshot)
 ```
 
-Provider method names already use snapshot language — keep them. Do not rename code to Freeze/Thaw.
+Provider method names already use snapshot language - keep them. Do not rename code to Freeze/Thaw.
 ## Design constraints
 
-- Vanilla HTML/CSS/JS only — no JS framework
+- Vanilla HTML/CSS/JS only - no JS framework
 - Hypervisor differences stay in `lib/providers/`
-- Answer files and provisioning adapt to guest OS — do not assume Windows everywhere
+- Answer files and provisioning adapt to guest OS - do not assume Windows everywhere
 - Surface errors in the UI, not only logs
 - Prefer editing existing files; no new abstraction layers beyond the task
 - Product/contributor docs live in root `docs/`; other project meta belongs in `.hatchery/` (not required to run the app)
-- No devcontainers — Local Nest libvirt/KVM still needs a real Nest environment when used
+- No devcontainers - Local Nest libvirt/KVM still needs a real Nest environment when used
 - **Consumer distribution north star ([#273](https://github.com/dustinestes/Hatchery/issues/273)):** OS package managers install **Controller only** (empty Nest registry); Nest setup is docs + validators. Contributor paths may keep `uv` / gunicorn for development and tests.
 
 When adding VM features, read `lib/providers/base.py` before extending the provider interface.

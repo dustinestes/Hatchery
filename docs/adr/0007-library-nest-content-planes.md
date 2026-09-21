@@ -21,7 +21,7 @@ We needed a content architecture that:
 2. For a **local Nest**, operator data dir **is** the Nest cache
 3. For a **remote Nest**, ensure/sync fills Nest cache before hatch; do not stream multi-GB ISOs over the control plane at attach time (v1)
 4. **Identity:** basename + **SHA-256** (no GUID catalog)
-5. **Settings owns** source config; domain panes keep in-context Import (file always; library browse when enabled — see [ADR-0002](0002-library-in-pane-browser.md))
+5. **Settings owns** source config; domain panes keep in-context Import (file always; library browse when enabled - see [ADR-0002](0002-library-in-pane-browser.md))
 6. Default hatch contract: **validate Nest cache** has required content before provider create/attach
 
 Explicit non-goals (v1): CMS, live remote ISO URLs in Clutches, allow-remote-content attach, continuous settings git watch.

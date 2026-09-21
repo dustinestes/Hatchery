@@ -29,9 +29,9 @@ Hatchery/
 │   ├── adr/                      # Architecture Decision Records
 │   ├── schema/                   # Clutch YAML + database schema references
 │   └── assets/                   # Screenshots and doc images
-├── .hatchery/                    # Project meta — not required to run the application
+├── .hatchery/                    # Project meta - not required to run the application
 │   ├── audits/                   # Security and quality audit artifacts
-│   ├── branding/                 # Brand assets — dragon scale mark (icons/logos/banners); dragon_egg.svg kept for history
+│   ├── branding/                 # Brand assets - dragon scale mark (icons/logos/banners); dragon_egg.svg kept for history
 │   ├── examples/                 # Sample scripts and fixtures
 │   ├── tooling/                  # Contributor harnesses (e.g. Artifactory OSS)
 │   └── ui/                       # Interface mockups and interactive examples
@@ -59,13 +59,13 @@ Hatchery/
 │   │   └── hyperv.py             # Hyper-V remote implementation (future)
 │   ├── answerfile.py             # Unattended install file rendering (OS-aware)
 │   ├── nest_transport.py         # Nest control plane (SSH default; key reference)
-│   ├── import_files.py           # UI Import — create-only copy into data dir
+│   ├── import_files.py           # UI Import - create-only copy into data dir
 │   └── provision.py              # Post-install guest provisioning (WinRM / SSH)
 ├── templates/
 │   ├── ui/                       # HTML pages rendered by Flask/Jinja2
 │   │   ├── index.html            # Dashboard - at-a-glance tile shell (#328)
 │   │   ├── create.html           # Hatch a new VM
-│   │   └── manage.html           # Per-VM controls — power, snapshots
+│   │   └── manage.html           # Per-VM controls - power, snapshots
 │   └── answerfiles/              # Unattended install Jinja2 templates
 │       ├── win10.xml.j2
 │       ├── win11.xml.j2
@@ -95,15 +95,15 @@ Flask entry point. Defines all routes: the dashboard (`/`), single-VM hatch form
 
 ### `scripts/`
 
-Service installation helpers. Run `bash scripts/install-service.sh` to install Hatchery as a systemd user service — the script detects the install directory and `uv` path automatically. Run `bash scripts/uninstall-service.sh` to remove the service and any `/etc/hosts` entry. See [Getting Started — Running as a Service](getting-started.md#running-as-a-service).
+Service installation helpers. Run `bash scripts/install-service.sh` to install Hatchery as a systemd user service - the script detects the install directory and `uv` path automatically. Run `bash scripts/uninstall-service.sh` to remove the service and any `/etc/hosts` entry. See [Getting Started - Running as a Service](getting-started.md#running-as-a-service).
 
 ### `lib/providers/`
 
-Hypervisor abstraction layer. All VM operations go through the interface defined in `base.py`. Add a new hypervisor by implementing that interface — nothing else changes.
+Hypervisor abstraction layer. All VM operations go through the interface defined in `base.py`. Add a new hypervisor by implementing that interface - nothing else changes.
 
 | File | Purpose |
 |---|---|
-| `base.py` | Abstract base class — all providers must implement this interface |
+| `base.py` | Abstract base class - all providers must implement this interface |
 | `libvirt.py` | KVM/QEMU via `virt-install` and `virsh` subprocess calls |
 | `hyperv.py` | Hyper-V via Nest transport + PowerShell (SSH default #218; WinRM Nest #220) |
 
@@ -111,7 +111,7 @@ Feature support vs Nest type (local/remote): [Provider and feature support matri
 
 ### `lib/nest_transport.py`
 
-Nest **control plane** — Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). WinRM is an explicit Nest fallback for Windows hosts. See [Nest transport](nest-transport.md). Nest SSH identity expiry alerts: [Nest SSH identity expiry](nest-key-expiry.md). Guest WinRM stays in `provision.py`.
+Nest **control plane** - Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). WinRM is an explicit Nest fallback for Windows hosts. See [Nest transport](nest-transport.md). Nest SSH identity expiry alerts: [Nest SSH identity expiry](nest-key-expiry.md). Guest WinRM stays in `provision.py`.
 
 ### `lib/answerfile.py`
 
@@ -123,7 +123,7 @@ Post-install provisioning. Connects to the guest over WinRM (Windows) or SSH (Li
 
 ### `templates/ui/`
 
-Jinja2 HTML templates served by Flask. No frontend framework — vanilla HTML, CSS, and JS only.
+Jinja2 HTML templates served by Flask. No frontend framework - vanilla HTML, CSS, and JS only.
 
 ### `templates/answerfiles/`
 

@@ -1,9 +1,9 @@
-# ADR-0004: Status surfaces — gather → store → poll
+# ADR-0004: Status surfaces - gather → store → poll
 
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issue:** [#282](https://github.com/dustinestes/Hatchery/issues/282)
-- **How-to:** [notifications.md — Status surfaces](../notifications.md#status-surfaces), [validators.md](../validators.md)
+- **How-to:** [notifications.md - Status surfaces](../notifications.md#status-surfaces), [validators.md](../validators.md)
 
 ## Context
 
@@ -37,7 +37,7 @@ Surfaces **must not** invent health logic or re-run checks. Client bus: `hatcher
 
 **Neutral / follow-on**
 
-- Optional later `GET /api/status-bundle` or SSE — not required for v1
+- Optional later `GET /api/status-bundle` or SSE - not required for v1
 - Nest reachability may keep a thin snapshot between validator ticks (documented dual read)
 
 **Bad / accepted cost**

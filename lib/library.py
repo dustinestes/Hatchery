@@ -233,7 +233,7 @@ def parse_media_bindings(raw: list | None, connections: list[dict]) -> list[dict
         conn = by_id[conn_id]
         if "media" not in conn["kinds"]:
             raise ValueError(
-                f"connection '{conn['label']}' does not serve media — "
+                f"connection '{conn['label']}' does not serve media - "
                 "enable the media artifact type on the connection"
             )
         target = str(item.get("target") or "iso").strip().lower()
@@ -283,7 +283,7 @@ def _parse_domain_bindings(
         conn = by_id[conn_id]
         if kind not in conn["kinds"]:
             raise ValueError(
-                f"connection '{conn['label']}' does not serve {kind} — "
+                f"connection '{conn['label']}' does not serve {kind} - "
                 f"enable the {kind} artifact type on the connection"
             )
         filt = str(item.get("filter") or "").strip() or "*"
@@ -702,7 +702,7 @@ def _test_git(conn: dict) -> dict:
     if not git_available():
         return {
             "ok": False,
-            "message": "git is not installed on this Hatchery Controller — install git to use Library git connections.",
+            "message": "git is not installed on this Hatchery Controller - install git to use Library git connections.",
         }
     try:
         url = git_remote_url(conn["base_uri"], conn.get("token") or "")
@@ -803,7 +803,7 @@ def ensure_git_checkout(conn: dict) -> Path:
     """Clone or update a shallow checkout for ``conn``; return the working tree path."""
     if not git_available():
         raise ValueError(
-            "git is not installed on this Hatchery Controller — install git to use Library git connections."
+            "git is not installed on this Hatchery Controller - install git to use Library git connections."
         )
     url = git_remote_url(conn["base_uri"], conn.get("token") or "")
     cache = git_cache_dir(conn)

@@ -38,9 +38,9 @@ Hatchery does not become a CMS. Content moves through explicit planes:
 | Plane | Role |
 |---|---|
 | **Library** | Product feature and Settings section (when enabled) |
-| **Connections** | Named endpoints: type, base URI, auth — defined once |
+| **Connections** | Named endpoints: type, base URI, auth - defined once |
 | **Bindings** | Per-domain rows: connection + path/filter (Clutches, Scripts, Media) |
-| **Operator cache** | This Hatchery instance’s data directory — `media/`, `automation/`, `clutches/` |
+| **Operator cache** | This Hatchery instance’s data directory - `media/`, `automation/`, `clutches/` |
 | **Nest cache** | The same layout on the Nest host that will attach or run the content |
 | **Attach / run** | Hypervisor (or guest tooling) uses Nest-reachable paths |
 
@@ -62,9 +62,9 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 | Concept | Example |
 |---|---|
-| Connection | `Artifactory` — type API / provider Artifactory + token; kinds: media |
+| Connection | `Artifactory` - type API / provider Artifactory + token; kinds: media |
 | Binding | Media → that connection + filter `win-isos/**/*.iso` |
-| Connection | `Ops git` — forge URL + token; kinds: scripts, clutches |
+| Connection | `Ops git` - forge URL + token; kinds: scripts, clutches |
 | Binding | Scripts → that connection + path `automation/scripts` |
 
 **Test connection** checks reachability/auth without a full catalog. **Test filter** applies a domain binding and returns a small sample (about five hits) so locators can be validated before rely-on-hatch.
@@ -73,7 +73,7 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 ## Identity
 
-Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
+Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 - Basename matches how Clutches already reference media and scripts (e.g. `win11.iso`)
 - Checksum ensures the Nest cache has the intended bytes when multiple connections or machines are involved
@@ -87,13 +87,13 @@ Content is identified by **basename + SHA-256** checksum — not a GUID catalog.
 
 | `library_enabled` | Import control |
 |---|---|
-| Off (default) | Single **Import** — file into the operator cache |
+| Off (default) | Single **Import** - file into the operator cache |
 | On | Import becomes a dropdown: **From file…** \| **From library…** |
 
 When Library is on, Settings gains a **Library** section with:
 
-- **Connections** — registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together (right-aligned); Save is dimmed until that row has unsaved field changes — Library no longer uses a page-wide Save that would write every section at once.
-- **Scripts / Clutches / Media** — binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles (immediate save when already stored) and the same right-aligned **Test** / **Save** pattern (Save dimmed until that binding’s fields change).
+- **Connections** - registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together (right-aligned); Save is dimmed until that row has unsaved field changes - Library no longer uses a page-wide Save that would write every section at once.
+- **Scripts / Clutches / Media** - binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles (immediate save when already stored) and the same right-aligned **Test** / **Save** pattern (Save dimmed until that binding’s fields change).
 
 ### Enable / disable
 
@@ -108,7 +108,7 @@ Operators can park a connection or binding without deleting its config:
 
 `binding_effective = connection.enabled AND binding.enabled`
 
-Disabling a connection **cascades in the UI** (dependent bindings dim + note “**ConnectionName** connection is disabled”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles — re-enable the connection and previously-on bindings become effective again.
+Disabling a connection **cascades in the UI** (dependent bindings dim + note “**ConnectionName** connection is disabled”; binding Enabled control is non-operative while cascaded). Stored binding `enabled` flags are **not** rewritten when the parent connection toggles - re-enable the connection and previously-on bindings become effective again.
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
@@ -123,25 +123,25 @@ Strategy: **shallow clone to a Controller-side cache**, then list/pull like a pa
 | | |
 |---|---|
 | **Base URI** | HTTPS (`https://github.com/org/repo.git`), SSH (`git@host:org/repo.git`), or a local repo path / `file://` |
-| **Token** | Optional HTTPS PAT — embedded for `git ls-remote` / clone (GitHub: `x-access-token`; other HTTPS hosts: `oauth2`). SSH remotes use the Controller’s SSH agent/keys; token is ignored |
+| **Token** | Optional HTTPS PAT - embedded for `git ls-remote` / clone (GitHub: `x-access-token`; other HTTPS hosts: `oauth2`). SSH remotes use the Controller’s SSH agent/keys; token is ignored |
 | **Test** | `git ls-remote --heads` (requires `git` on the Controller PATH). Does **not** refresh the local checkout |
 | **List / pull** | Before walking files, `ensure_git_checkout` refreshes a shallow `--depth 1` tree under `{data_dir}/library/git/{connection_id}/` (clone on first use; later `fetch` + hard reset to tip). Checkouts force `core.autocrlf=false` / `core.eol=lf` so working-tree bytes match git blob tips on Windows Controllers. Binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
-| **Lifecycle** | No background forge sync. Disabling a connection ([#293](https://github.com/dustinestes/Hatchery/issues/293)) does not prune the checkout. Removing a connection also removes all domain bindings that use it; for **git**, Settings offers to delete that clone cache (not Scripts / Clutches / Media files already pulled). Connection **id** is stable — changing the URI keeps the same cache directory |
-| **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched — without `git-lfs`, LFS pointer files may be copied as-is |
+| **Lifecycle** | No background forge sync. Disabling a connection ([#293](https://github.com/dustinestes/Hatchery/issues/293)) does not prune the checkout. Removing a connection also removes all domain bindings that use it; for **git**, Settings offers to delete that clone cache (not Scripts / Clutches / Media files already pulled). Connection **id** is stable - changing the URI keeps the same cache directory |
+| **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched - without `git-lfs`, LFS pointer files may be copied as-is |
 
 Path and HTTPS behavior are unchanged. Operator-cache drift vs source (sync UI): [#308](https://github.com/dustinestes/Hatchery/issues/308).
 
 ### Forge connections (#307)
 
-Strategy: connection **`type: forge`** + **`provider`** plugin — list/pull via forge HTTP APIs with **no** Controller working tree under `library/git/`. Architecture: [ADR-0010](adr/0010-library-forge-providers.md). Package: [`lib/library_forge/`](../../lib/library_forge/). Dual-run with [Git connections](#git-connections-251) (clone path unchanged).
+Strategy: connection **`type: forge`** + **`provider`** plugin - list/pull via forge HTTP APIs with **no** Controller working tree under `library/git/`. Architecture: [ADR-0010](adr/0010-library-forge-providers.md). Package: [`lib/library_forge/`](../../lib/library_forge/). Dual-run with [Git connections](#git-connections-251) (clone path unchanged).
 
 | | |
 |---|---|
 | **Type** | `forge` |
-| **Provider** | Registry id (first: `github`) — Settings shows Forge + provider dropdown |
+| **Provider** | Registry id (first: `github`) - Settings shows Forge + provider dropdown |
 | **Shared hit** | `{ name, relative_path, sha256\|null, connection_id, source_type: "forge" }` |
-| **SHA-256** | Git blob SHAs are not Hatchery identity — list may omit `sha256`; pull hashes file contents |
-| **Add a vendor** | New `lib/library_forge/<id>.py` + `register` in `register_builtins()` — follow-ons: [#310](https://github.com/dustinestes/Hatchery/issues/310) GitLab, [#311](https://github.com/dustinestes/Hatchery/issues/311) Bitbucket, [#312](https://github.com/dustinestes/Hatchery/issues/312) Gitea |
+| **SHA-256** | Git blob SHAs are not Hatchery identity - list may omit `sha256`; pull hashes file contents |
+| **Add a vendor** | New `lib/library_forge/<id>.py` + `register` in `register_builtins()` - follow-ons: [#310](https://github.com/dustinestes/Hatchery/issues/310) GitLab, [#311](https://github.com/dustinestes/Hatchery/issues/311) Bitbucket, [#312](https://github.com/dustinestes/Hatchery/issues/312) Gitea |
 
 #### GitHub provider
 
@@ -150,11 +150,11 @@ Strategy: connection **`type: forge`** + **`provider`** plugin — list/pull via
 | **Base URI** | `https://github.com/owner/repo` (optional `.git`) or `owner/repo` |
 | **Token** | Optional Bearer PAT (private repos / rate limits) |
 | **Test** | `GET /repos/{owner}/{repo}` |
-| **Filter** | Path glob under the default branch — e.g. `*.ps1`, `scripts/**/*.ps1` |
+| **Filter** | Path glob under the default branch - e.g. `*.ps1`, `scripts/**/*.ps1` |
 | **List** | Git Trees API (`recursive=1`); truncated trees fail closed |
 | **Pull** | Raw content download; SHA-256 of bytes written to the domain cache |
 
-Library stays **consume-only** — no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)). A sample public catalog for demos is tracked as [#315](https://github.com/dustinestes/Hatchery/issues/315) (`hatchery_catalog`).
+Library stays **consume-only** - no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)). A sample public catalog for demos is tracked as [#315](https://github.com/dustinestes/Hatchery/issues/315) (`hatchery_catalog`).
 
 ### API connections (#255)
 
@@ -163,7 +163,7 @@ Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named
 | | |
 |---|---|
 | **Type** | `api` |
-| **Provider** | Registry id (first: `artifactory`) — Settings shows API + provider dropdown |
+| **Provider** | Registry id (first: `artifactory`) - Settings shows API + provider dropdown |
 | **Shared hit** | `{ name, relative_path, sha256\|null, connection_id, source_type: "api" }` |
 | **Add a vendor** | New `lib/library_api/<id>.py` implementing `BaseLibraryApiAdapter` + `register` in `register_builtins()` |
 
@@ -174,12 +174,12 @@ Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named
 | **Base URI** | Artifactory root (e.g. `https://host/artifactory`) |
 | **Token** | Optional Bearer PAT (anonymous OSS setups may omit) |
 | **Test** | `GET …/api/system/ping` |
-| **Filter** | `repoKey[/path/glob]` — e.g. `media-isos/**/*.iso`, `scripts/*.ps1` |
+| **Filter** | `repoKey[/path/glob]` - e.g. `media-isos/**/*.iso`, `scripts/*.ps1` |
 | **List** | AQL when available; Storage API walk as fallback |
 | **Pull** | Download artifact; prefer `X-Checksum-Sha256` / metadata, else hash the file |
 | **Local OSS test** | Contributor Docker harness: [`.hatchery/tooling/artifactory-oss/`](../.hatchery/tooling/artifactory-oss/) (`up` → change admin password → `seed` → Settings base URI `http://127.0.0.1:8082/artifactory`) |
 
-`https` stays explicit single/multi path GET — not a browsable API catalog.
+`https` stays explicit single/multi path GET - not a browsable API catalog.
 
 ### Cache provenance and drift (#308)
 
@@ -199,7 +199,7 @@ Drift is **bidirectional**: the validator refreshes observed digests for both si
 | **Sync** | Overwrites the Cached file from the source, then **evaluates that row** (evaluate owns digests, `drift_state`, and Alerts). Sync does not force `in_sync` by itself |
 | **Orphan** | Connection/binding id missing → warning on Cached views; re-attach modal (Test path, then rewrite ids) |
 | **Delete connection/binding** | Default: leave Cached files (orphans). Optional confirm toggle deletes attributed files |
-| **Validator** | `library_cache_drift` — Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
+| **Validator** | `library_cache_drift` - Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
 
 #### How tip identity works (one story per connection type)
 
@@ -236,7 +236,7 @@ The `library_connections` validator probes registered connections (via the same 
 
 Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. **Disabling a connection** (`enabled: false`, [#293](https://github.com/dustinestes/Hatchery/issues/293)) also skips it in the validator and resolves its Library-scoped Alerts while it stays in Settings. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
 
-Footer **Libraries** chip (when Library is enabled): muted with zero **enabled** connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md — Footer vs Alerts](notifications.md#footer-vs-alerts-277).
+Footer **Libraries** chip (when Library is enabled): muted with zero **enabled** connections; green when healthy; red when any Library-scoped Alert is active. Hidden when Library is disabled (same clean-UI rule as the Library nav item). See [notifications.md - Footer vs Alerts](notifications.md#footer-vs-alerts-277).
 
 Pull copies selected items into the normal data-dir paths (`automation/scripts/` for Scripts, `clutches/` for Clutches) so inventory, Used-by, and provisioning keep using local files by default.
 
@@ -252,7 +252,7 @@ Domain inventory panes (Scripts, Media, Clutches) use a **Cached | Library** tab
 | **Library** | Binding catalog: name + muted path, connection, copyable SHA, Cached vs Library-only; filter/sort, multi-select, batch pull. Dimmed when Library is disabled in Settings |
 | **Import** | From file…; Browse library… switches to the Library tab when Library is enabled |
 
-**Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached — left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Cached filter bars sit full-width above the rail and detail pane.
+**Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Cached filter bars sit full-width above the rail and detail pane.
 
 An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded** by the Cached | Library tab model above.
 
@@ -260,7 +260,7 @@ An optional overlay of Library hits inside the Cached list was considered ([#250
 
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **Browse library…** opens the in-pane **Library** tab (Scripts, Media, Clutches) and pulls chosen items into the cache. Catalog discovery, Cached vs Library-only badges, and pull-into-cache live on the Library tab — not merged into the Cached list.
+**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **Browse library…** opens the in-pane **Library** tab (Scripts, Media, Clutches) and pulls chosen items into the cache. Catalog discovery, Cached vs Library-only badges, and pull-into-cache live on the Library tab - not merged into the Cached list.
 
 Visibility on the Library tab is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
 
@@ -272,7 +272,7 @@ Default hatch contract:
 
 1. Resolve required content (media, answer files, scripts, and other cache-backed artifacts) for the target Nest
 2. Verify each item exists in the **Nest cache** (basename; SHA-256 when ensure/Library metadata is present)
-3. If missing, fail with a clear UI/API error — or run ensure/sync first when the operator requested it (`ensure_cache` on Hatch form; `POST /api/nest-cache/ensure`)
+3. If missing, fail with a clear UI/API error - or run ensure/sync first when the operator requested it (`ensure_cache` on Hatch form; `POST /api/nest-cache/ensure`)
 4. Only then call the provider create/attach path with Nest-local paths
 
 **Local Nest:** preflight is a filesystem check under the operator data directory (no network ensure). Hatch Clutch POST runs this check before starting the hatch session.
@@ -283,26 +283,26 @@ Default hatch contract:
 
 ## Settings export and import
 
-Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a YAML **Settings document** (`version: 1`): export from / import into the DB as a **full replace**. The same format serves personal multi-host backup/restore and light “golden” config handoff — including Library connections/bindings when present.
+Live operational Settings remain in SQLite (`app_settings`). Portability across machines uses a YAML **Settings document** (`version: 1`): export from / import into the DB as a **full replace**. The same format serves personal multi-host backup/restore and light “golden” config handoff - including Library connections/bindings when present.
 
-Bootstrap `data_dir` stays in the external bootstrap file — imports do not replace the need to know where the database lives.
+Bootstrap `data_dir` stays in the external bootstrap file - imports do not replace the need to know where the database lives.
 
 ### Intentional scope (UI vs tooling)
 
 The Settings UI export/import controls are a **manual escape hatch**: what you export is what you get on import (omitted keys reset to defaults; `data_dir` never changes). They are **not** a conflict-aware merge UI and **not** the surface for fleet push or per-property updates. Richer property-level configuration belongs on Hatchery’s **CLI/API** later so Hatchery stays extensible without growing a noisy in-app config platform.
 
-Continuous path/git watch of a Settings file is also a later enhancement — not this UI.
+Continuous path/git watch of a Settings file is also a later enhancement - not this UI.
 
 ### UI
 
 Settings → **General** header:
 
-- **Export** — downloads `hatchery-settings.yaml` via the browser (Save As / downloads folder)
-- **Import** — confirms, then file-selects a YAML document and **replaces** operational Settings
+- **Export** - downloads `hatchery-settings.yaml` via the browser (Save As / downloads folder)
+- **Import** - confirms, then file-selects a YAML document and **replaces** operational Settings
 
-`data_dir` in a document (top-level or under `settings`) is **ignored** with a warning — set the data directory on each machine under General.
+`data_dir` in a document (top-level or under `settings`) is **ignored** with a warning - set the data directory on each machine under General.
 
-Validation (hard fail vs soft-ignore unknown keys) is documented under [Settings storage — Export and import](settings.md#export-and-import).
+Validation (hard fail vs soft-ignore unknown keys) is documented under [Settings storage - Export and import](settings.md#export-and-import).
 
 ### Shape
 

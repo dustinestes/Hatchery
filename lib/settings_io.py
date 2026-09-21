@@ -69,7 +69,7 @@ def validate_document(raw: dict[str, Any]) -> dict[str, Any]:
         isinstance(raw.get("settings"), dict) and "data_dir" in raw["settings"]
     ):
         warnings.append(
-            "Bootstrap data_dir in the file was ignored — set the data directory under "
+            "Bootstrap data_dir in the file was ignored - set the data directory under "
             "Settings → General on this machine."
         )
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ pane_title }} — Settings — Hatchery{% endblock %}
+{% block title %}{{ pane_title }} - Settings - Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
@@ -125,7 +125,7 @@
             <div class="form-group">
               <label class="form-label">Token / API key</label>
               <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                     value="{{ conn.token or '' }}" placeholder="Optional — HTTPS / git / API / Forge">
+                     value="{{ conn.token or '' }}" placeholder="Optional - HTTPS / git / API / Forge">
             </div>
             <div class="form-group">
               <label class="form-label">Token expiry</label>
@@ -430,7 +430,7 @@
     <h2 class="form-section-title">Connections</h2>
     <p class="form-help-text">
       Named Nest endpoints (local or remote) with provider and transport.
-      Local Nest (id <code>local</code>) is optional — at most one. Added remotes are
+      Local Nest (id <code>local</code>) is optional - at most one. Added remotes are
       always <code>location=remote</code>. SSH uses an identity file on this Hatchery Controller;
       Test Nest connection checks reachability. Display Name is editable; Nest id is stable
       for sessions and APIs.
@@ -479,7 +479,7 @@
             <div class="form-group form-group-full">
               <span class="form-label">Nest id</span>
               <p class="form-help-text nest-id-readonly">
-                <code>{{ nest.id }}</code> — stable reference (sessions and APIs). Change the display Name freely.
+                <code>{{ nest.id }}</code> - stable reference (sessions and APIs). Change the display Name freely.
               </p>
             </div>
             <div class="form-group">
@@ -537,7 +537,7 @@
               <label class="form-label">Identity file</label>
               <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
                      value="{{ nest.identity_file or '' }}"
-                     placeholder="~/.ssh/id_ed25519 — Hatchery host path (never key bytes)">
+                     placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
             </div>
             <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
               <label class="form-label">Certificate path</label>
@@ -573,7 +573,7 @@
             <div class="form-group nest-winrm-only" {% if nest.transport != 'winrm' %}hidden{% endif %}>
               <label class="form-label">WinRM password (test only)</label>
               <input type="password" class="form-input nest-winrm-password-input" autocomplete="off"
-                     value="" placeholder="Not saved — used for Test Nest connection">
+                     value="" placeholder="Not saved - used for Test Nest connection">
             </div>
           </div>
           <div class="library-conn-row-actions">
@@ -597,7 +597,7 @@
       <div class="form-group">
         <div class="form-label-row">
           <label class="form-label" for="data-dir">Path <span class="required">*</span></label>
-          <span class="form-help-icon" data-tip="Root directory for all Hatchery user data — Clutch files, media, and automation scripts. Subdirectories are created automatically. Tilde (~) is expanded to your home directory.">i</span>
+          <span class="form-help-icon" data-tip="Root directory for all Hatchery user data - Clutch files, media, and automation scripts. Subdirectories are created automatically. Tilde (~) is expanded to your home directory.">i</span>
         </div>
         <input type="text" id="data-dir" name="data_dir" class="form-input"
                value="{{ cfg.data_dir }}" required placeholder="e.g. /home/user/.local/share/hatchery">
@@ -654,7 +654,7 @@
       {% set last = validator_latest.get(v.id) %}
       {% if last %}
       <p class="form-hint" role="status">
-        Last run: {{ last.status }} — {{ last.message }}
+        Last run: {{ last.status }} - {{ last.message }}
         <span class="form-hint">({{ last.finished_at or last.started_at }})</span>
       </p>
       {% endif %}
@@ -712,7 +712,7 @@
       <div class="form-group">
         <div class="form-label-row">
           <label class="form-label" for="show-passwords">Show admin passwords in VM inventory</label>
-          <span class="form-help-icon" data-tip="When enabled, admin passwords are displayed in the Nests VM inventory. Passwords are always stored in the database — this setting controls visibility only. Recommended for dev environments with throwaway VMs. See documentation for credential rotation options.">i</span>
+          <span class="form-help-icon" data-tip="When enabled, admin passwords are displayed in the Nests VM inventory. Passwords are always stored in the database - this setting controls visibility only. Recommended for dev environments with throwaway VMs. See documentation for credential rotation options.">i</span>
         </div>
         <label class="form-toggle">
           <input type="checkbox" id="show-passwords" name="show_passwords"
@@ -730,7 +730,7 @@
         <div class="section-header">
           <div class="form-label-row" style="margin-bottom:0">
             <span class="form-label" id="nest-key-tiers-label">Alert tiers</span>
-            <span class="form-help-icon" data-tip="Within N days of Nest identity expiry (set on each Nest row under Settings → Nests), fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry — set Identity expiry on the Nest.">i</span>
+            <span class="form-help-icon" data-tip="Within N days of Nest identity expiry (set on each Nest row under Settings → Nests), fire up to M alerts per day. Tightest matching window wins. Plain SSH keys have no in-file expiry - set Identity expiry on the Nest.">i</span>
           </div>
           <button type="button" id="add-nest-tier-btn" class="btn btn-secondary btn-sm"
                   aria-label="Add alert tier">+ Add tier</button>
@@ -781,7 +781,7 @@
       <div class="form-group">
         <div class="form-label-row">
           <label class="form-label">Timezone Format</label>
-          <span class="form-help-icon" data-tip="How event timestamps are displayed in the Events panel. Timestamps are always stored in UTC — this controls how they are shown to you.">i</span>
+          <span class="form-help-icon" data-tip="How event timestamps are displayed in the Events panel. Timestamps are always stored in UTC - this controls how they are shown to you.">i</span>
         </div>
         <div class="form-radio-group">
           <label class="form-radio">
@@ -924,7 +924,7 @@
         <div class="form-group">
           <label class="form-label">Token / API key</label>
           <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                 value="" placeholder="Optional — HTTPS / git / API / Forge">
+                 value="" placeholder="Optional - HTTPS / git / API / Forge">
         </div>
         <div class="form-group">
           <label class="form-label">Token expiry</label>
@@ -1157,7 +1157,7 @@
             <span class="form-toggle-label">Also delete Cached files pulled from this connection</span>
           </label>
           <span class="form-help-icon"
-                data-tip="Deletes Scripts, Clutches, and Media in the operator cache that Hatchery attributed to this connection. Off by default — files remain as local inventory (orphaned provenance)."
+                data-tip="Deletes Scripts, Clutches, and Media in the operator cache that Hatchery attributed to this connection. Off by default - files remain as local inventory (orphaned provenance)."
                 tabindex="0"
                 role="img"
                 aria-label="Also delete Cached inventory files pulled from this connection. Off by default.">i</span>
@@ -1238,7 +1238,7 @@
           return;
         }
         var warn = (data.warnings && data.warnings.length)
-          ? (' — ' + data.warnings.join(' '))
+          ? (' - ' + data.warnings.join(' '))
           : '';
         var msg = 'Settings imported' + warn;
         if (window.hatchery && hatchery.showToast) {
@@ -2296,7 +2296,7 @@
   var form = document.querySelector('form');
   if (form) {
     form.addEventListener('submit', function (e) {
-      // Library uses per-row Save APIs — never submit the whole page.
+      // Library uses per-row Save APIs - never submit the whole page.
       e.preventDefault();
     });
   }
@@ -2355,7 +2355,7 @@
         <div class="form-group form-group-full">
           <span class="form-label">Nest id</span>
           <p class="form-help-text nest-id-readonly">
-            <code class="nest-id-code"></code> — stable reference (sessions and APIs). Change the display Name freely.
+            <code class="nest-id-code"></code> - stable reference (sessions and APIs). Change the display Name freely.
           </p>
         </div>
         <div class="form-group">
@@ -2403,7 +2403,7 @@
         <div class="form-group nest-ssh-only">
           <label class="form-label">Identity file</label>
           <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
-                 value="" placeholder="~/.ssh/id_ed25519 — Hatchery host path (never key bytes)">
+                 value="" placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
         </div>
         <div class="form-group nest-ssh-only">
           <label class="form-label">Certificate path</label>
@@ -2437,7 +2437,7 @@
         <div class="form-group nest-winrm-only" hidden>
           <label class="form-label">WinRM password (test only)</label>
           <input type="password" class="form-input nest-winrm-password-input" autocomplete="off"
-                 value="" placeholder="Not saved — used for Test Nest connection">
+                 value="" placeholder="Not saved - used for Test Nest connection">
         </div>
       </div>
       <div class="library-conn-row-actions">
@@ -2478,7 +2478,7 @@
         <div class="form-group form-group-full">
           <span class="form-label">Nest id</span>
           <p class="form-help-text nest-id-readonly">
-            <code class="nest-id-code">local</code> — stable reference (sessions and APIs). Change the display Name freely.
+            <code class="nest-id-code">local</code> - stable reference (sessions and APIs). Change the display Name freely.
           </p>
         </div>
         <div class="form-group">

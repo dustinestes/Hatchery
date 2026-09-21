@@ -31,7 +31,7 @@ class TestFooterStatus:
 
     def test_hatchery_red_on_controller_alert(self):
         nests_lib.ensure_local_nest()
-        alerts_lib.record_alert("Controller requirement: 'ssh' is not installed — x")
+        alerts_lib.record_alert("Controller requirement: 'ssh' is not installed - x")
         status = ps.footer_status()
         assert status["hatchery_dot"] == "red"
         assert status["hatchery_issue_count"] == 1
@@ -68,7 +68,7 @@ class TestFooterStatus:
 
     def test_nests_red_on_nest_scoped_alert(self):
         nests_lib.ensure_local_nest()
-        alerts_lib.record_alert("Nest capability: 'Local' (local): 'virsh' is not available — x")
+        alerts_lib.record_alert("Nest capability: 'Local' (local): 'virsh' is not available - x")
         status = ps.footer_status()
         assert status["nests_dot"] == "red"
         assert status["nest_alert_count"] == 1
@@ -185,7 +185,7 @@ class TestFooterStatus:
         ]
         cfg.save(c)
         alerts_lib.record_alert(
-            "Library connection: 'Share' (c1) — Path does not exist: /x",
+            "Library connection: 'Share' (c1) - Path does not exist: /x",
             tier="alert",
         )
         status = ps.footer_status()

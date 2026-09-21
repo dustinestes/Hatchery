@@ -12,7 +12,7 @@ if [[ -f "$SERVICE_FILE" ]]; then
     systemctl --user daemon-reload
     echo "Service file removed: $SERVICE_FILE"
 else
-    echo "Service file not found — nothing to remove."
+    echo "Service file not found - nothing to remove."
 fi
 
 if grep -q "hatchery\.local" /etc/hosts 2>/dev/null; then
@@ -20,7 +20,7 @@ if grep -q "hatchery\.local" /etc/hosts 2>/dev/null; then
     sudo sed -i '/hatchery\.local/d' /etc/hosts
     echo "Done."
 else
-    echo "No hatchery.local entry found in /etc/hosts — nothing to remove."
+    echo "No hatchery.local entry found in /etc/hosts - nothing to remove."
 fi
 
 echo ""

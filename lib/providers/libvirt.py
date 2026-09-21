@@ -140,7 +140,7 @@ def _check_media_accessible(path: Path) -> None:
         raise PermissionError(
             f"Media file is not world-readable: {path}\n"
             f"Run: chmod o+r '{path}'\n"
-            "See Getting Started — Media Access for the recommended setup."
+            "See Getting Started - Media Access for the recommended setup."
         )
 
     blocked = []
@@ -156,7 +156,7 @@ def _check_media_accessible(path: Path) -> None:
         raise PermissionError(
             f"The hypervisor (libvirt-qemu) cannot access: {path.name}\n"
             f"Run: chmod o+x {dirs}\n"
-            "See Getting Started — Media Access for the recommended setup."
+            "See Getting Started - Media Access for the recommended setup."
         )
 
 

@@ -30,11 +30,11 @@ How to write, configure, and run automation scripts against guest VMs after firs
 
 ## Overview
 
-Automation scripts are PowerShell scripts that Hatchery executes against a guest VM over WinRM after it has completed its unattended Windows install. They are the primary mechanism for post-install provisioning — installing software, configuring the OS, renaming the machine, joining a domain, or anything else that needs to happen before a VM is considered fledged.
+Automation scripts are PowerShell scripts that Hatchery executes against a guest VM over WinRM after it has completed its unattended Windows install. They are the primary mechanism for post-install provisioning - installing software, configuring the OS, renaming the machine, joining a domain, or anything else that needs to happen before a VM is considered fledged.
 
-Scripts are stored in the `automation/scripts/` subdirectory of your Hatchery data directory (`~/.local/share/hatchery/automation/scripts/` by default). Add scripts with **Import** on Automations → Scripts, or place files there on the Nest; remove them with the trash control in the script detail header. Any `.ps1` (and other supported script types) becomes available for selection in the Clutch builder. The Automations → Scripts pane inventories those files for discovery and audit (metadata, Clutch usage, read-only content, copy path) — editing stays in your host editor.
+Scripts are stored in the `automation/scripts/` subdirectory of your Hatchery data directory (`~/.local/share/hatchery/automation/scripts/` by default). Add scripts with **Import** on Automations → Scripts, or place files there on the Nest; remove them with the trash control in the script detail header. Any `.ps1` (and other supported script types) becomes available for selection in the Clutch builder. The Automations → Scripts pane inventories those files for discovery and audit (metadata, Clutch usage, read-only content, copy path) - editing stays in your host editor.
 
-Scripts are declared per VM in a Clutch file under the `automations` key and run in order. A failed script (non-zero exit code) halts provisioning for that VM — remaining scripts are skipped, and the VM is marked failed. Failed VMs can be retried from the Nests panel.
+Scripts are declared per VM in a Clutch file under the `automations` key and run in order. A failed script (non-zero exit code) halts provisioning for that VM - remaining scripts are skipped, and the VM is marked failed. Failed VMs can be retried from the Nests panel.
 
 <br>
 
@@ -46,13 +46,13 @@ Scripts are declared per VM in a Clutch file under the `automations` key and run
 
 Hatchery connects to the guest over WinRM using `pywinrm` and executes each script's content. The connection uses the admin credentials declared in the Clutch file.
 
-Hatchery injects a `Write-HatchEvent` helper function into every script before execution. You do not need to define it, source it, or import it — it is always available. See [Write-HatchEvent](#write-hatchevent).
+Hatchery injects a `Write-HatchEvent` helper function into every script before execution. You do not need to define it, source it, or import it - it is always available. See [Write-HatchEvent](#write-hatchevent).
 
 If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the content in a PowerShell scriptblock and appends the configured values as named arguments. PowerShell requires `param()` to be the first statement inside a scriptblock, so Hatchery places it first, injects `Write-HatchEvent` immediately after, then appends the rest of the script:
 
 ```powershell
 & {
-    param($ComputerName, $TimeZone)   # param() block — must be first
+    param($ComputerName, $TimeZone)   # param() block - must be first
     function Write-HatchEvent { ... } # injected by Hatchery
     # ... rest of script ...
 } -ComputerName 'dc01' -TimeZone 'Central Standard Time'
@@ -64,8 +64,8 @@ All script output (stdout and stderr) is captured and stored per-script in the d
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Success — next script runs, or VM is marked fledged if this was the last |
-| `> 0` | Failure — provisioning halts, remaining scripts are skipped, VM is marked failed |
+| `0` | Success - next script runs, or VM is marked fledged if this was the last |
+| `> 0` | Failure - provisioning halts, remaining scripts are skipped, VM is marked failed |
 
 The actual non-zero exit code is stored and shown in the Nests panel, so you can use specific codes (e.g. `exit 2`, `exit 99`) for diagnostic purposes.
 
@@ -81,7 +81,7 @@ If `reboot_after: true` is set for a script, Hatchery reboots the VM after the s
 
 ### Write-HatchEvent
 
-Hatchery injects a `Write-HatchEvent` helper function into every script before execution (see [How Hatchery Runs Scripts](#how-hatchery-runs-scripts) for placement details). You do not need to define it, source it, or import it — it is always available.
+Hatchery injects a `Write-HatchEvent` helper function into every script before execution (see [How Hatchery Runs Scripts](#how-hatchery-runs-scripts) for placement details). You do not need to define it, source it, or import it - it is always available.
 
 ```powershell
 Write-HatchEvent -Message "text" [-Level INFO|WARN|ERROR] [-Component "label"]
@@ -90,16 +90,16 @@ Write-HatchEvent -Message "text" [-Level INFO|WARN|ERROR] [-Component "label"]
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `-Message` | string | *(required)* | The log line to emit |
-| `-Level` | `INFO` \| `WARN` \| `ERROR` | `INFO` | Event level — controls styling in the event log |
+| `-Level` | `INFO` \| `WARN` \| `ERROR` | `INFO` | Event level - controls styling in the event log |
 | `-Component` | string | *(none)* | Optional sub-label grouping related lines (e.g. `"Chocolatey"`, `"Registry"`) |
 
 **Levels:**
 
 | Level | When to use |
 |---|---|
-| `INFO` | Normal progress — steps starting, completing, values confirmed |
-| `WARN` | Non-fatal advisory — fallback taken, optional step skipped, value defaulted |
-| `ERROR` | Failure you caught but want flagged — the exit code still controls the actual outcome |
+| `INFO` | Normal progress - steps starting, completing, values confirmed |
+| `WARN` | Non-fatal advisory - fallback taken, optional step skipped, value defaulted |
+| `ERROR` | Failure you caught but want flagged - the exit code still controls the actual outcome |
 
 **Examples:**
 
@@ -120,7 +120,7 @@ exit 1
 
 `Write-HatchEvent` emits lines in the format `[HATCH:LEVEL] message` or `[HATCH:LEVEL][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
 
-The parser also accepts an optional ISO timestamp bracket: `[HATCH:LEVEL][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock — this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
+The parser also accepts an optional ISO timestamp bracket: `[HATCH:LEVEL][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock - this is used by the first-boot setup log (`hatchery-setup.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
 
 > **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
 
@@ -130,7 +130,7 @@ The parser also accepts an optional ISO timestamp bracket: `[HATCH:LEVEL][Compon
 
 Follow these conventions to ensure your scripts work reliably with Hatchery:
 
-**Use `Write-HatchEvent` for progress lines.** Lines emitted through `Write-HatchEvent` appear as structured events in the event log with level styling and optional component labels. Avoid bare `Write-Host` — it targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
+**Use `Write-HatchEvent` for progress lines.** Lines emitted through `Write-HatchEvent` appear as structured events in the event log with level styling and optional component labels. Avoid bare `Write-Host` - it targets the information stream (stream 6) and may not be captured depending on the Windows version and WinRM setup.
 
 **Set `$ErrorActionPreference = "Stop"`** at the top of every script. This turns unhandled cmdlet errors into terminating exceptions that your `try/catch` block can catch. Without it, many cmdlets write to the error stream and continue, leaving your script in an unknown state.
 
@@ -165,7 +165,7 @@ try {
 |---|---|
 | `0` | Success |
 | `1` | General failure (use in `catch` blocks) |
-| `2`–`255` | Custom diagnostic codes — stored and displayed in the Nests panel |
+| `2`–`255` | Custom diagnostic codes - stored and displayed in the Nests panel |
 
 <br>
 
@@ -178,7 +178,7 @@ Scripts can declare a `param()` block to accept configurable inputs. Hatchery re
 | `Mandatory = $true` | Field is marked required in the Clutch builder UI; saving is blocked until a value is provided |
 | `HelpMessage = "..."` | Shown as tooltip text on the help icon next to the field in the UI |
 
-PowerShell's built-in common parameters (`Verbose`, `Debug`, `ErrorAction`, `WarningAction`, `InformationAction`, `ProgressAction`, `WhatIf`, `Confirm`, and related variable parameters) are automatically excluded from the Hatchery UI — they are injected by the PowerShell runtime and are not user-configurable via the Clutch builder.
+PowerShell's built-in common parameters (`Verbose`, `Debug`, `ErrorAction`, `WarningAction`, `InformationAction`, `ProgressAction`, `WhatIf`, `Confirm`, and related variable parameters) are automatically excluded from the Hatchery UI - they are injected by the PowerShell runtime and are not user-configurable via the Clutch builder.
 
 Example parameter block:
 
@@ -193,7 +193,7 @@ param(
 )
 ```
 
-Parameters with a default value are optional in the UI — the field is pre-populated with the default and can be left as-is or overridden per-VM in the Clutch builder.
+Parameters with a default value are optional in the UI - the field is pre-populated with the default and can be left as-is or overridden per-VM in the Clutch builder.
 
 <br>
 
@@ -203,7 +203,7 @@ Parameters with a default value are optional in the UI — the field is pre-popu
 
 ## Parameter Introspection (pwsh)
 
-To automatically discover and render parameter fields in the Clutch builder UI, Hatchery needs `pwsh` (PowerShell Core) installed on the **Ubuntu host** — not the guest VM. When `pwsh` is available, Hatchery runs:
+To automatically discover and render parameter fields in the Clutch builder UI, Hatchery needs `pwsh` (PowerShell Core) installed on the **Ubuntu host** - not the guest VM. When `pwsh` is available, Hatchery runs:
 
 ```bash
 pwsh -Command "(Get-Command <script-path>).Parameters.Values | ConvertTo-Json"
@@ -211,7 +211,7 @@ pwsh -Command "(Get-Command <script-path>).Parameters.Values | ConvertTo-Json"
 
 This introspects the script's `param()` block and returns metadata (name, mandatory flag, help message, default value) that Hatchery uses to render the appropriate input fields in the Clutch builder.
 
-**`pwsh` is optional.** If it is not installed, you can still use automation scripts — you just configure parameters manually in the Clutch YAML file under each script's `parameters` key. The Clutch builder will still show scripts in the automations list, but no inline parameter fields will be rendered for them.
+**`pwsh` is optional.** If it is not installed, you can still use automation scripts - you just configure parameters manually in the Clutch YAML file under each script's `parameters` key. The Clutch builder will still show scripts in the automations list, but no inline parameter fields will be rendered for them.
 
 **Installing `pwsh` on Ubuntu:**
 
@@ -234,7 +234,7 @@ After installation, the Requirements check in the Settings pane will show `pwsh`
 
 The `automations` key under a VM accepts a list of scripts. Each entry is either a plain script name (no parameters, no reboot) or an object with optional `parameters` and `reboot_after` keys.
 
-**Simple form** — no parameters, no reboot:
+**Simple form** - no parameters, no reboot:
 
 ```yaml
 automations:
@@ -242,7 +242,7 @@ automations:
   - install-dev-tools.ps1
 ```
 
-**Object form** — with parameters and/or reboot:
+**Object form** - with parameters and/or reboot:
 
 ```yaml
 automations:
@@ -258,7 +258,7 @@ You can mix both forms freely in the same list. Hatchery normalizes them on load
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `name` | string | — | Filename of the script in `automation/scripts/` |
+| `name` | string | - | Filename of the script in `automation/scripts/` |
 | `reboot_after` | boolean | `false` | Reboot the VM after this script succeeds before running the next |
 | `parameters` | map | `{}` | Named values passed to the script's `param()` block |
 
@@ -275,7 +275,7 @@ Example files ship with Hatchery under `.hatchery/examples/scripts/`:
 | File | Purpose |
 |---|---|
 | [`hatchery-script-template.ps1`](../examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
-| [`configure-vm-basics.ps1`](../examples/scripts/configure-vm-basics.ps1) | Real working script — renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
+| [`configure-vm-basics.ps1`](../examples/scripts/configure-vm-basics.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
 | [`hatchery-cleanup.ps1`](../examples/scripts/hatchery-cleanup.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
 
 Copy any file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts.

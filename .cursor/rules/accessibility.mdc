@@ -15,7 +15,7 @@ A fuller accessibility pass is chartered in GitHub [#161](https://github.com/dus
 - Every icon-only control needs an accessible name (`aria-label` and/or `title`)
 - Primary flows must work **keyboard-only** with a **visible focus** ring/state
 - Custom widgets (sidebar flyouts, notification tray, password toggles, dialogs) support Escape / Enter consistently with existing patterns
-- Status and alerts must not rely on **color alone** — keep text (or another non-color cue)
+- Status and alerts must not rely on **color alone** - keep text (or another non-color cue)
 - Live regions (toasts, trays, event feeds) get appropriate roles/labels; don’t leave updates announce-hostile
 - Respect `prefers-reduced-motion` when adding motion
 
@@ -31,4 +31,4 @@ A fuller accessibility pass is chartered in GitHub [#161](https://github.com/dus
 ❌ “We’ll fix a11y in the v2 pass” for a regression you introduced
 ```
 
-Human-facing guidance: [`CONTRIBUTING.md` — Accessibility](../../CONTRIBUTING.md#accessibility).
+Human-facing guidance: [`CONTRIBUTING.md` - Accessibility](../../CONTRIBUTING.md#accessibility).

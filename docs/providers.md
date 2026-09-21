@@ -8,7 +8,7 @@
 
 Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × local and remote. Update this file whenever provider capability changes.
 
-**Architecture:** Hatchery is one app with a **Controller plane** (where the UI runs) and a **Nest plane** (hypervisors that hold guest VMs). Nest backends are modular first-class adapters — see [Controller plane vs Nest plane](architecture-nests.md).
+**Architecture:** Hatchery is one app with a **Controller plane** (where the UI runs) and a **Nest plane** (hypervisors that hold guest VMs). Nest backends are modular first-class adapters - see [Controller plane vs Nest plane](architecture-nests.md).
 
 <br>
 
@@ -40,12 +40,12 @@ Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × 
 
 | Column | Nest |
 |---|---|
-| **libvirt local** | KVM/QEMU on the same machine as Hatchery (`LibvirtProvider`) — v1 |
+| **libvirt local** | KVM/QEMU on the same machine as Hatchery (`LibvirtProvider`) - v1 |
 | **libvirt remote** | libvirt Nest reached over Nest transport |
 | **UTM local / remote** | macOS UTM Nest ([#210](https://github.com/dustinestes/Hatchery/issues/210)–[#212](https://github.com/dustinestes/Hatchery/issues/212)) |
 | **Hyper-V local / remote** | Windows Hyper-V Nest ([#213](https://github.com/dustinestes/Hatchery/issues/213); stub `lib/providers/hyperv.py`) |
 
-Guest WinRM provisioning is **not** Nest transport — see [Nest transport](nest-transport.md).
+Guest WinRM provisioning is **not** Nest transport - see [Nest transport](nest-transport.md).
 
 <br>
 
@@ -90,7 +90,7 @@ Guest health check is tracked in [#14](https://github.com/dustinestes/Hatchery/i
 | Media layout (`media/iso`, VirtIO) | Works | Partial | Planned | Planned | Planned | Planned |
 | Hatch media to remote Nest | N/A | Planned | N/A | Planned | N/A | Planned |
 
-Media for local libvirt uses the Hatchery data directory on the Nest (operator cache = Nest cache). Remote hatch must use Nest-local cache (or Nest-mounted share) after ensure/sync — not operator paths over WAN. See [Library and Nest cache](library.md) and [#215](https://github.com/dustinestes/Hatchery/issues/215) / [#234](https://github.com/dustinestes/Hatchery/issues/234). Guest provision stays in `lib/provision.py` regardless of Nest type.
+Media for local libvirt uses the Hatchery data directory on the Nest (operator cache = Nest cache). Remote hatch must use Nest-local cache (or Nest-mounted share) after ensure/sync - not operator paths over WAN. See [Library and Nest cache](library.md) and [#215](https://github.com/dustinestes/Hatchery/issues/215) / [#234](https://github.com/dustinestes/Hatchery/issues/234). Guest provision stays in `lib/provision.py` regardless of Nest type.
 
 <br>
 
@@ -119,7 +119,7 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 | Linux guests | Planned | Phase D of epic #202 |
 | Hatchery Controller OS | Linux / macOS / Windows | Portable Controller checks vs Nest tools: [#208](https://github.com/dustinestes/Hatchery/issues/208) |
 
-Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator — not as Controller requirements. On **Remote** Nests, capability is gated by Nest reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)): if the Nest is unreachable (or not yet probed), capability does not invent missing-tool Alerts. UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
+Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator - not as Controller requirements. On **Remote** Nests, capability is gated by Nest reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)): if the Nest is unreachable (or not yet probed), capability does not invent missing-tool Alerts. UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
 
 <br>
 
@@ -129,7 +129,7 @@ When a PR changes what a provider can do (new Nest type, local↔remote parity, 
 
 1. Update the relevant cell(s) in this file (Works / Partial / Planned / N/A + short caveat if needed).
 2. Keep README’s guest/provider summary aligned if the high-level story changed.
-3. Agents: see [providers-and-automation](../../.cursor/rules/providers-and-automation.mdc) — capability changes must update this matrix.
+3. Agents: see [providers-and-automation](../../.cursor/rules/providers-and-automation.mdc) - capability changes must update this matrix.
 
 <br>
 

@@ -3,11 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issues:** [#244](https://github.com/dustinestes/Hatchery/issues/244), [#297](https://github.com/dustinestes/Hatchery/issues/297)
-- **How-to:** [library.md — Inventory browse](../library.md#inventory-browse-cached--library)
+- **How-to:** [library.md - Inventory browse](../library.md#inventory-browse-cached--library)
 
 ## Context
 
-Library catalogs outgrew the compact **Import → From library…** modal checklist. Operators need connection/path metadata, filter/sort, and batch pull — without losing a fast file Import path. Two shapes were on the table:
+Library catalogs outgrew the compact **Import → From library…** modal checklist. Operators need connection/path metadata, filter/sort, and batch pull - without losing a fast file Import path. Two shapes were on the table:
 
 1. Richer **tabbed browse on each domain inventory page** (Scripts, later Media/Clutches)
 2. A **dedicated Library browser route** plus per-domain quick Import
@@ -16,7 +16,7 @@ Maintaining both a full standalone browser and per-domain quick import adds IA/r
 
 ## Decision
 
-1. Use **Cached | Library** tabs on domain inventory panes (Scripts, Media, Clutches) — not a separate Library browser route
+1. Use **Cached | Library** tabs on domain inventory panes (Scripts, Media, Clutches) - not a separate Library browser route
 2. Keep the in-pane **Import** control: file upload always; **Browse library…** switches to the Library tab when Library is enabled
 3. Keep the tab strip **always visible**: Cached stays labeled; Library is interactive when Settings enables Library, otherwise dimmed/disabled (stable chrome for later tabs)
 4. Library rows reuse Cached’s **name + muted path** pattern; connection column; SHA as copy-to-clipboard when known; no Source column in the browse table (connection type stays Settings/config)
@@ -34,7 +34,7 @@ Shared UI: `hatchery.bindInventoryTabs` / `hatchery.bindLibraryBrowser` (+ ByPre
 **Neutral / follow-on**
 
 - Media/Clutches parity landed with Scripts (#297)
-- Cache+catalog overlay (#250) closed as superseded — no longer planned
+- Cache+catalog overlay (#250) closed as superseded - no longer planned
 
 **Bad / accepted cost**
 

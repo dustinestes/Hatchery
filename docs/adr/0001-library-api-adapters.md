@@ -4,7 +4,7 @@
 - **Date:** 2026-09-19
 - **Issue:** [#255](https://github.com/dustinestes/Hatchery/issues/255)
 - **Code:** [`lib/library_api/`](../../lib/library_api/)
-- **How-to:** [library.md — API connections](../library.md#api-connections-255)
+- **How-to:** [library.md - API connections](../library.md#api-connections-255)
 
 ## Context
 
@@ -29,7 +29,7 @@ Artifactory is the **first adapter**, not the product model. Settings labels: ty
 
 **Good**
 
-- New catalogs = new module + `register` — isolation by default
+- New catalogs = new module + `register` - isolation by default
 - Settings provider dropdown is registry-driven
 - Path / HTTPS / git remain unchanged
 

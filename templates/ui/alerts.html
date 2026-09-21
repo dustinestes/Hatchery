@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Alerts — Hatchery{% endblock %}
+{% block title %}Alerts - Hatchery{% endblock %}
 
 {% block content %}
 <div class="list-shell">
@@ -69,7 +69,7 @@
 {% block scripts %}
 <script>
 (function () {
-  /* Same status-surfaces bus as Validators (#282) — Alerts pane was SSR-only. */
+  /* Same status-surfaces bus as Validators (#282) - Alerts pane was SSR-only. */
   if (!window.hatchery || typeof hatchery.onStatusTick !== 'function') return;
 
   var table = document.getElementById('alert-table');

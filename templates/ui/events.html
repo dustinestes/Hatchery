@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Events — Hatchery{% endblock %}
+{% block title %}Events - Hatchery{% endblock %}
 
 {% block content %}
 <div class="list-shell">
@@ -137,7 +137,7 @@
       const opt = document.createElement('option');
       opt.value = item.key;
       opt.textContent =
-        item.vm_name + ' — ' + item.clutch_name + ' (' + statusLabel(item.status) + ')';
+        item.vm_name + ' - ' + item.clutch_name + ' (' + statusLabel(item.status) + ')';
       vmSelect.appendChild(opt);
     });
 

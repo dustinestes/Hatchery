@@ -4,14 +4,14 @@
 - **Date:** 2026-09-19
 - **Issues:** [#308](https://github.com/dustinestes/Hatchery/issues/308)
 - **Code:** [`lib/library_provenance.py`](../../lib/library_provenance.py), [`lib/library_drift.py`](../../lib/library_drift.py), validator `library_cache_drift`
-- **How-to:** [library.md — Cache provenance and drift](../library.md#cache-provenance-and-drift-308)
+- **How-to:** [library.md - Cache provenance and drift](../library.md#cache-provenance-and-drift-308)
 - **Related:** [ADR-0009](0009-library-git-checkout-cache.md), [ADR-0010](0010-library-forge-providers.md), [ADR-0011](0011-library-consume-only-no-clutch-roundtrip.md), [ADR-0006](0006-pluggable-validators.md)
 
 ## Context
 
-Library pull is **create-only** into the operator domain cache. Once a basename exists, source updates do not overwrite it — operators can hatch stale Scripts / Clutches / Media with no signal. Local edits to attributed cache files are equally invisible without a durable compare.
+Library pull is **create-only** into the operator domain cache. Once a basename exists, source updates do not overwrite it - operators can hatch stale Scripts / Clutches / Media with no signal. Local edits to attributed cache files are equally invisible without a durable compare.
 
-Drift detection needs durable attribution of cached files → Library source. Re-resolve-by-bindings alone is fragile (filters change, multiple bindings). Forge list often omits Hatchery SHA-256 (git blob SHAs ≠ content SHA-256 — ADR-0010). Downloading media bodies solely to hash them for compare is unacceptable. Forge tip checks that hit the network once per file burn API rate limits.
+Drift detection needs durable attribution of cached files → Library source. Re-resolve-by-bindings alone is fragile (filters change, multiple bindings). Forge list often omits Hatchery SHA-256 (git blob SHAs ≠ content SHA-256 - ADR-0010). Downloading media bodies solely to hash them for compare is unacceptable. Forge tip checks that hit the network once per file burn API rate limits.
 
 ## Decision
 
@@ -34,15 +34,15 @@ Drift detection needs durable attribution of cached files → Library source. Re
 
 3. **Files never pulled via Library stay local** (no row → no sync / no orphan).
 
-4. **One tip-identity story per connection type** (all domains share it — no mixed strategies within a type):
+4. **One tip-identity story per connection type** (all domains share it - no mixed strategies within a type):
 
 | Type | Tip identity for drift |
 |---|---|
 | `path` | `size` + `mtime` (`size_mtime`) |
-| `api` | Metadata SHA-256 when present (`sha256`); else unknown — no download |
-| `forge` | Git blob SHA from Trees/Contents (`git_blob`) — no raw download for drift |
-| `git` | Blob id from checkout tree (`git_blob`) — no content-hash for drift |
-| `https` | Checksum header on HEAD if present; else unknown — no GET for drift |
+| `api` | Metadata SHA-256 when present (`sha256`); else unknown - no download |
+| `forge` | Git blob SHA from Trees/Contents (`git_blob`) - no raw download for drift |
+| `git` | Blob id from checkout tree (`git_blob`) - no content-hash for drift |
+| `https` | Checksum header on HEAD if present; else unknown - no GET for drift |
 
 5. **Never download an artifact body solely to compare digests.** Sync (manual or auto) is the only overwrite/download path into the operator cache.
 
@@ -56,7 +56,7 @@ Drift detection needs durable attribution of cached files → Library source. Re
 
 10. **Validator `library_cache_drift`:** interval + optional **auto_sync**. Manual mode → at most **one Alert per domain** with count. Auto-sync on → sync out-of-sync items then evaluate; **no** drift Alerts.
 
-11. Sync updates local cache only — **no forge/git push** (ADR-0011).
+11. Sync updates local cache only - **no forge/git push** (ADR-0011).
 
 ## Consequences
 

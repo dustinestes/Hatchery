@@ -43,7 +43,7 @@ def format_failure_detail(failure_class: str, detail: str) -> str:
     detail = (detail or "").strip()
     if not detail:
         return label
-    return f"{label} — {detail}"
+    return f"{label} - {detail}"
 
 
 def alert_message(nest: dict, detail: str) -> str:
@@ -95,7 +95,7 @@ def probe_tcp_endpoint(host: str, port: int, *, timeout: float = 5.0) -> NestHea
             ok=False,
             detail=format_failure_detail(
                 "endpoint",
-                f"{host}:{port_n} — {exc}",
+                f"{host}:{port_n} - {exc}",
             ),
             failure_class="endpoint",
         )
@@ -107,7 +107,7 @@ def probe_nest(nest: dict, *, winrm_password: str | None = None) -> NestHealthCh
     if location == "local":
         return NestHealthCheckResult(
             ok=True,
-            detail="Local Nest — co-located with the Controller (no Nest transport).",
+            detail="Local Nest - co-located with the Controller (no Nest transport).",
         )
 
     transport_name = nest.get("transport") or "ssh"
@@ -116,7 +116,7 @@ def probe_nest(nest: dict, *, winrm_password: str | None = None) -> NestHealthCh
             ok=False,
             detail=format_failure_detail(
                 "config",
-                "WinRM password required to probe reachability (not stored — #110).",
+                "WinRM password required to probe reachability (not stored - #110).",
             ),
             failure_class="config",
         )
@@ -134,7 +134,7 @@ def probe_nest(nest: dict, *, winrm_password: str | None = None) -> NestHealthCh
     if transport is None:
         return NestHealthCheckResult(
             ok=True,
-            detail="Local Nest — co-located with the Controller (no Nest transport).",
+            detail="Local Nest - co-located with the Controller (no Nest transport).",
         )
 
     # Endpoint contract: can we open TCP to the Nest's transport port?

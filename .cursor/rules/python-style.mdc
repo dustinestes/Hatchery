@@ -1,5 +1,5 @@
 ---
-description: Python style — ruff, uv, and tests-with-code
+description: Python style - ruff, uv, and tests-with-code
 globs: **/*.py,**/pyproject.toml
 alwaysApply: false
 ---

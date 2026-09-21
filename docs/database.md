@@ -25,7 +25,7 @@ What Hatchery stores in SQLite, what it doesn't, and why.
 
 ## Overview
 
-Hatchery uses a single SQLite database (`hatchery.db`) for internal state — things the application generates and tracks at runtime. It requires no configuration, no installation step, and no database skills. The file is created automatically on first startup.
+Hatchery uses a single SQLite database (`hatchery.db`) for internal state - things the application generates and tracks at runtime. It requires no configuration, no installation step, and no database skills. The file is created automatically on first startup.
 
 The database uses Python's built-in `sqlite3` module. No additional dependencies.
 
@@ -63,11 +63,11 @@ If the database is lost or corrupted, Hatchery recreates it on next startup. No 
 
 The database lives at the root of the data directory alongside `clutches/`, `media/`, and `automation/`. If the data directory is relocated in Settings, the database moves with it. The `automation/` directory is further divided into `os_config/` (answer files, cloud-init) and `scripts/` (post-boot scripts).
 
-**First run:** Created automatically. Schema is initialized with `CREATE TABLE IF NOT EXISTS` — safe to call on every startup.
+**First run:** Created automatically. Schema is initialized with `CREATE TABLE IF NOT EXISTS` - safe to call on every startup.
 
 **Upgrades:** Existing data is preserved. The idempotent schema creation means upgrading Hatchery never destroys the database.
 
-**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses app-generated state (alert history, instance tracking, and **Settings** stored in `app_settings`) — not Clutch definitions. The bootstrap file still points at the data directory; defaults are re-seeded for missing Settings keys.
+**Reset:** Delete the file. Hatchery recreates it on next startup. Because user-authored data lives in flat files, a database reset loses app-generated state (alert history, instance tracking, and **Settings** stored in `app_settings`) - not Clutch definitions. The bootstrap file still points at the data directory; defaults are re-seeded for missing Settings keys.
 
 The file is not included in the Hatchery source repository.
 
@@ -79,14 +79,14 @@ The file is not included in the Hatchery source repository.
 
 | Data | Table | Why here |
 |---|---|---|
-| Environment alerts | `alerts` | App-generated, stateful — tracks active/resolved health conditions; needs filtering and querying |
-| Application Settings | `app_settings` | Operational knobs (intervals, display, Nest key expiry) — see [Settings storage](settings.md); bootstrap file keeps only `data_dir` |
-| Nest connections | `nests` | Nest registry — name, provider type, local/remote endpoint, credential refs (not key bytes) |
-| Hatch session records | `hatch_sessions` | App-generated — groups VMs hatched together, tracks lifecycle timestamps; `nest` column stores a Nest id |
-| VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH — see note below |
-| Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored — tracks which VMs were hatched from which Clutch |
+| Environment alerts | `alerts` | App-generated, stateful - tracks active/resolved health conditions; needs filtering and querying |
+| Application Settings | `app_settings` | Operational knobs (intervals, display, Nest key expiry) - see [Settings storage](settings.md); bootstrap file keeps only `data_dir` |
+| Nest connections | `nests` | Nest registry - name, provider type, local/remote endpoint, credential refs (not key bytes) |
+| Hatch session records | `hatch_sessions` | App-generated - groups VMs hatched together, tracks lifecycle timestamps; `nest` column stores a Nest id |
+| VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH - see note below |
+| Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored - tracks which VMs were hatched from which Clutch |
 
-> **Note on credential storage:** `admin_username` and `admin_password` are stored in plaintext in `hatch_vm_status`. This is required — post-install automation needs them to authenticate to the VM after it fledges. Credentials are protected only by host filesystem permissions. For mitigation options and the v2 hardening roadmap, see [`schema/database.md — Credential storage`](schema/database.md#credential-storage).
+> **Note on credential storage:** `admin_username` and `admin_password` are stored in plaintext in `hatch_vm_status`. This is required - post-install automation needs them to authenticate to the VM after it fledges. Credentials are protected only by host filesystem permissions. For mitigation options and the v2 hardening roadmap, see [`schema/database.md - Credential storage`](schema/database.md#credential-storage).
 
 <br>
 
@@ -96,14 +96,14 @@ The file is not included in the Hatchery source repository.
 
 | Data | Where it lives | Why |
 |---|---|---|
-| Clutch definitions | `clutches/*.yaml` | User-authored — version controlled, human-readable, shareable |
-| OS config files | `automation/os_config/*` | User-authored — same reasons |
-| Post-boot scripts | `automation/scripts/*` | User-authored — same reasons |
-| Data directory pointer | Bootstrap `config.yaml` | Must exist before the DB can open — see [Settings storage](settings.md) |
-| Source images | `media/*` | Binary files — not relational data |
+| Clutch definitions | `clutches/*.yaml` | User-authored - version controlled, human-readable, shareable |
+| OS config files | `automation/os_config/*` | User-authored - same reasons |
+| Post-boot scripts | `automation/scripts/*` | User-authored - same reasons |
+| Data directory pointer | Bootstrap `config.yaml` | Must exist before the DB can open - see [Settings storage](settings.md) |
+| Source images | `media/*` | Binary files - not relational data |
 | Frozen VM states (snapshots) | Managed by libvirt/virsh | Owned by the hypervisor, not Hatchery |
 
-For the full schema reference — table definitions, columns, and maintenance details — see [`schema/database.md`](schema/database.md).
+For the full schema reference - table definitions, columns, and maintenance details - see [`schema/database.md`](schema/database.md).
 
 <br>
 

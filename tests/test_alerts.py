@@ -158,7 +158,7 @@ class TestResolveAlertsByPrefix:
 class TestResolveAlertsForNestId:
     def test_resolves_nest_scoped_prefixes(self):
         a = alerts.record_alert("Nest reachability: 'Lab' (lab1): endpoint not reachable")
-        b = alerts.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available — x")
+        b = alerts.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available - x")
         c = alerts.record_alert(
             "Nest SSH identity expiry: 'Lab' (lab1) expires in 3 day(s) (2026-09-20)"
         )
@@ -172,7 +172,7 @@ class TestResolveAlertsForNestId:
         assert rows[a]["resolved_at"] is not None
 
     def test_leaves_unrelated_prefixes(self):
-        nid = alerts.record_alert("Controller requirement: 'ssh' is not installed — x")
+        nid = alerts.record_alert("Controller requirement: 'ssh' is not installed - x")
         alerts.resolve_alerts_for_nest_id("ssh")
         row = next(r for r in alerts.list_recent() if r["id"] == nid)
         assert row["resolved"] == 0
@@ -189,15 +189,15 @@ class TestResolveAlertsForNestId:
 
 class TestCountActiveByPrefixes:
     def test_counts_matching_prefixes(self):
-        alerts.record_alert("Controller requirement: 'ssh' is not installed — x")
-        alerts.record_alert("Invalid Clutch file: bad.yaml — err")
+        alerts.record_alert("Controller requirement: 'ssh' is not installed - x")
+        alerts.record_alert("Invalid Clutch file: bad.yaml - err")
         alerts.record_alert("Nest reachability: 'Lab' (lab1): down")
         assert alerts.count_active_by_prefixes(alerts.CONTROLLER_ALERT_PREFIXES) == 2
         assert alerts.count_active_by_prefixes(alerts.NEST_SCOPED_ALERT_PREFIXES) == 1
 
     def test_exclude_info_tier(self):
         alerts.record_alert("Controller requirement: noise", tier="info")
-        alerts.record_alert("Controller requirement: real — x", tier="alert")
+        alerts.record_alert("Controller requirement: real - x", tier="alert")
         assert (
             alerts.count_active_by_prefixes(
                 alerts.CONTROLLER_ALERT_PREFIXES, exclude_tiers=("info",)
@@ -220,7 +220,7 @@ class TestHasActiveAlert:
         assert alerts.has_active_alert("virsh missing") is False
 
     def test_exact_match_only(self):
-        alerts.record_alert("virsh missing — details")
+        alerts.record_alert("virsh missing - details")
         assert alerts.has_active_alert("virsh missing") is False
 
 

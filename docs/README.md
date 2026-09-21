@@ -23,26 +23,26 @@ Reference documentation for Hatchery.
 
 | Document | Description |
 |---|---|
-| [`project-structure.md`](project-structure.md) | Root directory layout — every file and folder explained |
-| [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane — cross-platform foundation (epic #202); Controller-only package-manager distribution north star (#273) |
-| [`validators.md`](validators.md) | Pluggable background validators — Settings, run history, Alerts vs runs |
+| [`project-structure.md`](project-structure.md) | Root directory layout - every file and folder explained |
+| [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane - cross-platform foundation (epic #202); Controller-only package-manager distribution north star (#273) |
+| [`validators.md`](validators.md) | Pluggable background validators - Settings, run history, Alerts vs runs |
 | [`providers.md`](providers.md) | Provider × feature support matrix (libvirt, UTM, Hyper-V; local/remote) |
 | [`settings.md`](settings.md) | Bootstrap file vs SQLite Settings storage |
 | [`library.md`](library.md) | Library connections, bindings, operator/Nest caches, hatch preflight |
-| [`cli/`](cli/) | Controller CLI (`hatchery serve` and planned operator commands) — [index](cli/README.md) |
-| [`adr/`](adr/) | Architecture Decision Records — why we chose lasting shapes ([index](adr/README.md)) |
+| [`cli/`](cli/) | Controller CLI (`hatchery serve` and planned operator commands) - [index](cli/README.md) |
+| [`adr/`](adr/) | Architecture Decision Records - why we chose lasting shapes ([index](adr/README.md)) |
 | [`getting-started.md`](getting-started.md) | Host setup, installation, and first VM walkthrough |
 | [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
-| [`errors.md`](errors.md) | Error handling model — HTTP codes, VM operation errors, UI surfacing |
-| [`examples.md`](examples.md) | Real-world scenarios — hatching VMs, managing snapshots, teardown |
-| [`automations.md`](automations.md) | Automation scripts — writing, parameterizing, and wiring scripts to VMs in Clutch files |
-| [`orchestration.md`](orchestration.md) | Hatching lifecycle — VM creation, OS install, setup-complete handoff, automation, and retry |
+| [`errors.md`](errors.md) | Error handling model - HTTP codes, VM operation errors, UI surfacing |
+| [`examples.md`](examples.md) | Real-world scenarios - hatching VMs, managing snapshots, teardown |
+| [`automations.md`](automations.md) | Automation scripts - writing, parameterizing, and wiring scripts to VMs in Clutch files |
+| [`orchestration.md`](orchestration.md) | Hatching lifecycle - VM creation, OS install, setup-complete handoff, automation, and retry |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |
-| [`database.md`](database.md) | Database design — what lives in SQLite, what doesn't, and why |
-| [`notifications.md`](notifications.md) | Notifications umbrella — Alerts vs Events vs Audit; status surfaces (gather → store → poll); alert UI, lifecycle, sync, and seed tooling |
-| [`events.md`](events.md) | Per-VM event log — what gets recorded, when, schema, and API |
+| [`database.md`](database.md) | Database design - what lives in SQLite, what doesn't, and why |
+| [`notifications.md`](notifications.md) | Notifications umbrella - Alerts vs Events vs Audit; status surfaces (gather → store → poll); alert UI, lifecycle, sync, and seed tooling |
+| [`events.md`](events.md) | Per-VM event log - what gets recorded, when, schema, and API |
 | [`schema/clutch.yaml`](schema/clutch.yaml) | Annotated Clutch file schema reference with single-VM and multi-VM examples |
-| [`schema/database.md`](schema/database.md) | Database schema reference — table definitions, columns, archive purge, migration plan |
+| [`schema/database.md`](schema/database.md) | Database schema reference - table definitions, columns, archive purge, migration plan |
 
 <br>
 

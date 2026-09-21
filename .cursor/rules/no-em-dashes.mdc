@@ -12,6 +12,8 @@ Never use the em dash character (Unicode U+2014) in anything you write for this 
 - Docs, ADRs, issue/PR/commit text
 - Cursor rules and agent instructions (except naming the forbidden character once)
 
+En dashes (U+2013) and ASCII hyphens (`-`) are fine.
+
 ## Prefer
 
 | Instead of em dash | Use |
@@ -30,4 +32,6 @@ Never use the em dash character (Unicode U+2014) in anything you write for this 
 ✅ Status-surfaces bus (#282): no per-pane setInterval.
 ```
 
-Do not rewrite unrelated historical em dashes across the tree unless that file is already in scope. New and edited prose must stay em-dash-free.
+## Allowed exception
+
+A lone em dash used as an empty-value UI placeholder (missing field, unknown SHA, N/A cell) may stay. Prefer not to introduce new ones; ASCII `-` is also fine for empty display.

@@ -195,7 +195,7 @@ def parse_nests(raw: list | None) -> list[dict]:
 
         if nest["id"] != LOCAL_NEST_ID and nest["location"] == "local":
             raise ValueError(
-                "only the Nest id 'local' may use location 'local' — "
+                "only the Nest id 'local' may use location 'local' - "
                 "other Nests must be remote (even for localhost / WSL)"
             )
 
@@ -225,7 +225,7 @@ def _normalize_one(item: dict) -> dict:
     nid = str(item.get("id") or "").strip() or new_id()
     if not _ID_RE.match(nid):
         raise ValueError(
-            f"invalid Nest id {nid!r} — use letters, digits, ._- (max 64), start alphanumeric"
+            f"invalid Nest id {nid!r} - use letters, digits, ._- (max 64), start alphanumeric"
         )
 
     name = str(item.get("name") or "").strip()
@@ -494,7 +494,7 @@ def test_connection(
 
     nest = _normalize_one(nest)
     registered = get_nest(nest["id"]) is not None
-    reach_msg = "Local Nest — co-located with the Controller."
+    reach_msg = "Local Nest - co-located with the Controller."
 
     if nest["location"] == "local":
         local_result = nr.probe_nest(nest)
@@ -504,7 +504,7 @@ def test_connection(
         if nest["transport"] == "winrm" and not (winrm_password or "").strip():
             return {
                 "ok": False,
-                "message": "WinRM password is required for Test Nest connection (not stored — #110).",
+                "message": "WinRM password is required for Test Nest connection (not stored - #110).",
             }
 
         result = nr.probe_nest(nest, winrm_password=winrm_password)

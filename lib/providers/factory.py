@@ -35,7 +35,7 @@ class NoNestSelectedError(RuntimeError):
 
     def __str__(self) -> str:
         return (
-            "No Nest selected — register a Nest in Settings, or pass an explicit Nest id "
+            "No Nest selected - register a Nest in Settings, or pass an explicit Nest id "
             "(exactly one registered Nest may be used as the default)"
         )
 

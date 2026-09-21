@@ -47,7 +47,7 @@
             </button>
           </div>
           <select name="vm_os_media[]" class="form-select" required>
-            <option value="">— none —</option>
+            <option value="">- none -</option>
             {% for f in media_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
@@ -61,7 +61,7 @@
             </button>
           </div>
           <select name="vm_virtio_drivers[]" class="form-select">
-            <option value="">— none —</option>
+            <option value="">- none -</option>
             {% for f in virtio_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
@@ -83,7 +83,7 @@
             </button>
           </div>
           <select name="vm_os_config[]" class="form-select">
-            <option value="">— none —</option>
+            <option value="">- none -</option>
             {% for f in os_config_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
@@ -106,7 +106,7 @@
         </div>
         <div class="script-add-row">
           <select class="form-select vm-script-select">
-            <option value="">— select a script to add —</option>
+            <option value="">- select a script to add -</option>
             {% for f in scripts_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}

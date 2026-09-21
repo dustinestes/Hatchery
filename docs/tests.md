@@ -26,12 +26,12 @@ pytest test suite for Hatchery.
 
 ```
 tests/
-├── test_providers.py          — libvirt provider (KVM/QEMU); Hyper-V TBD
-├── test_factory.py            — Nest id → BaseProvider factory (#206)
-├── test_nest_transport.py     — Nest SSH control plane (#218); mocked ssh
-├── test_config.py             — application config and data directory
-├── test_answerfile.py         — answer file generation (OS-aware)
-└── test_provision.py          — post-install guest provisioning
+├── test_providers.py          - libvirt provider (KVM/QEMU); Hyper-V TBD
+├── test_factory.py            - Nest id → BaseProvider factory (#206)
+├── test_nest_transport.py     - Nest SSH control plane (#218); mocked ssh
+├── test_config.py             - application config and data directory
+├── test_answerfile.py         - answer file generation (OS-aware)
+└── test_provision.py          - post-install guest provisioning
 ```
 
 Tests mirror the structure of `lib/`. Every module in `lib/` should have a corresponding test file.
@@ -89,8 +89,8 @@ Portable unit/integration tests must pass on **all three** host OS runners. The 
 
 | Suite | CI | When to use |
 |---|---|---|
-| Default (no mark) | Yes — all three OSes | Mocked providers, Nest transport, Flask, library, etc. |
-| `@pytest.mark.hypervisor` | **No** — excluded via `-m "not hypervisor"` | Needs a real Nest (libvirt/UTM/Hyper-V). Run locally when the Nest is available. |
+| Default (no mark) | Yes - all three OSes | Mocked providers, Nest transport, Flask, library, etc. |
+| `@pytest.mark.hypervisor` | **No** - excluded via `-m "not hypervisor"` | Needs a real Nest (libvirt/UTM/Hyper-V). Run locally when the Nest is available. |
 
 Optional tools (e.g. `pwsh` for PowerShell syntax checks) may `skipif` when absent; that is fine on CI.
 
@@ -110,7 +110,7 @@ Both lint and the full OS matrix must pass before merge.
 
 1. Create or open the test file mirroring the module: `lib/foo.py` → `tests/test_foo.py`
 2. Use `pytest` fixtures for Flask app context where needed (`app.test_client()`)
-3. Mock `subprocess` calls for VM operations — default tests must not require a real Nest
+3. Mock `subprocess` calls for VM operations - default tests must not require a real Nest
 4. Mark tests that need a live hypervisor with `@pytest.mark.hypervisor` (excluded from multi-OS CI)
 5. Use `pytest.mark.parametrize` for multiple OS type variants
 

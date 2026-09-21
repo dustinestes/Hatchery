@@ -14,10 +14,10 @@ How Hatchery takes a Clutch definition from form submission to a fully provision
 
 - [Contents](#contents)
 - [Overview](#overview)
-- [Phase 1 — VM Creation](#phase-1--vm-creation)
-- [Phase 2 — OS Installation](#phase-2--os-installation)
-- [Phase 3 — Setup Complete Handoff](#phase-3--setup-complete-handoff)
-- [Phase 4 — Automation](#phase-4--automation)
+- [Phase 1 - VM Creation](#phase-1--vm-creation)
+- [Phase 2 - OS Installation](#phase-2--os-installation)
+- [Phase 3 - Setup Complete Handoff](#phase-3--setup-complete-handoff)
+- [Phase 4 - Automation](#phase-4--automation)
 - [VM Status Reference](#vm-status-reference)
 - [Resilience and Retry](#resilience-and-retry)
 - [Multi-VM Clutches](#multi-vm-clutches)
@@ -28,7 +28,7 @@ How Hatchery takes a Clutch definition from form submission to a fully provision
 
 ## Overview
 
-Hatching a VM is a multi-phase process. Hatchery coordinates two distinct execution contexts — a background thread that creates VMs, and a polling loop that monitors them — to advance each VM through its lifecycle without blocking the UI or requiring user interaction.
+Hatching a VM is a multi-phase process. Hatchery coordinates two distinct execution contexts - a background thread that creates VMs, and a polling loop that monitors them - to advance each VM through its lifecycle without blocking the UI or requiring user interaction.
 
 ```
 Clutch submitted
@@ -57,7 +57,7 @@ Failure at any phase lands the VM in `failed` status. The VM can be retried from
 
 <br>
 
-## Phase 1 — VM Creation
+## Phase 1 - VM Creation
 
 When the user submits a Clutch for hatching:
 
@@ -79,7 +79,7 @@ If the VM has an admin username and password configured, Hatchery renders two fi
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
-The floppy image is **not** cleaned up on success — it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
+The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 
 ### virt-install flags
 
@@ -90,11 +90,11 @@ The floppy image is **not** cleaned up on success — it must persist on disk un
 | `--disk path=<virtio>,device=cdrom` | VirtIO drivers ISO (if configured) |
 | `--boot uefi` | Win11 / Server 2025 only |
 | `--tpm emulator,model=tpm-crb,version=2.0` | Win11 / Server 2025 only |
-| `--noautoconsole` | Do not attach a console — Hatchery manages the VM headlessly |
+| `--noautoconsole` | Do not attach a console - Hatchery manages the VM headlessly |
 
 ### Boot prompt
 
-Some BIOS/UEFI firmware displays a "Press any key to boot from CD/DVD" prompt when the VM first powers on. Libvirt reports the domain as `running` as soon as QEMU starts — often before that prompt appears — so Hatchery waits briefly after `running`, then sends `KEY_ENTER` via `virsh send-key` (100 ms holdtime) repeatedly for about 30 seconds to cover the prompt window. Transient send failures are ignored so an early miss does not abort the burst.
+Some BIOS/UEFI firmware displays a "Press any key to boot from CD/DVD" prompt when the VM first powers on. Libvirt reports the domain as `running` as soon as QEMU starts - often before that prompt appears - so Hatchery waits briefly after `running`, then sends `KEY_ENTER` via `virsh send-key` (100 ms holdtime) repeatedly for about 30 seconds to cover the prompt window. Transient send failures are ignored so an early miss does not abort the burst.
 
 <br>
 
@@ -102,13 +102,13 @@ Some BIOS/UEFI firmware displays a "Press any key to boot from CD/DVD" prompt wh
 
 <br>
 
-## Phase 2 — OS Installation
+## Phase 2 - OS Installation
 
 Windows Setup runs entirely unattended from the answer file. The process takes several minutes and involves multiple reboots.
 
 ### Boot cycle detection
 
-Windows sends an ACPI power-off signal at certain points during setup (notably after initial file copy and after OOBE). From libvirt's perspective the VM simply shuts off — there is no signal distinguishing a setup reboot from a user shutdown.
+Windows sends an ACPI power-off signal at certain points during setup (notably after initial file copy and after OOBE). From libvirt's perspective the VM simply shuts off - there is no signal distinguishing a setup reboot from a user shutdown.
 
 Hatchery's background polling loop (`_sync_hatch_status`) runs on a configurable interval (default: 10 seconds) and detects when a VM in `hatching` status is shut off. It restarts the VM automatically via `virsh start`. This continues until Windows reaches the desktop and AutoLogon triggers.
 
@@ -120,7 +120,7 @@ This behaviour is **scoped to `hatching` status only**. Fledged VMs that are shu
 
 <br>
 
-## Phase 3 — Setup Complete Handoff
+## Phase 3 - Setup Complete Handoff
 
 After the OS install finishes, Windows logs in automatically (via `AutoLogon`) and runs a single `<FirstLogonCommand>` from the answer file:
 
@@ -159,7 +159,7 @@ If any step fails, it is marked `[!]`, the failure message is displayed, and a "
 
 ### The race condition and why the flag exists
 
-WinRM becomes available as soon as step 2 completes — but steps 5 through 9 (notably the SSH capability install, which can take over a minute) are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
+WinRM becomes available as soon as step 2 completes - but steps 5 through 9 (notably the SSH capability install, which can take over a minute) are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
 
 The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It cannot exist until every preceding step has completed. Hatchery's polling loop:
 
@@ -167,11 +167,11 @@ The `hatchery-ready` flag file is written as the **last step** of `hatchery-setu
 2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over WinRM (actual command execution)
 3. Only advances to the next phase when the flag is present
 
-The flag is **deleted immediately** upon detection — `Remove-Item` is called before any scripts run.
+The flag is **deleted immediately** upon detection - `Remove-Item` is called before any scripts run.
 
 ### Log file
 
-`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM, it imports this log into `hatch_events` using the guest timestamps as `received_at` — so step durations are visible in the event log exactly as they happened — then deletes the file.
+`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM, it imports this log into `hatch_events` using the guest timestamps as `received_at` - so step durations are visible in the event log exactly as they happened - then deletes the file.
 
 ### Hatchery guest directory
 
@@ -180,7 +180,7 @@ The flag is **deleted immediately** upon detection — `Remove-Item` is called b
 | Subdirectory | Contents |
 |---|---|
 | `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script) |
-| `temp\` | Ephemeral files — currently only `hatchery-ready` (deleted immediately on detection) |
+| `temp\` | Ephemeral files - currently only `hatchery-ready` (deleted immediately on detection) |
 
 Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
 
@@ -192,7 +192,7 @@ If you want to remove all Hatchery artifacts from the guest after provisioning c
 
 <br>
 
-## Phase 4 — Automation
+## Phase 4 - Automation
 
 Once the setup-complete handoff occurs, Hatchery transitions the VM to `provisioning` and spawns a dedicated thread (`_provision_vm_thread`) to run the automation scripts.
 
@@ -251,15 +251,15 @@ When all scripts have succeeded, the VM is marked `fledged` and a hatch event is
 
 If Hatchery restarts while a VM is in `provisioning` status, the background polling loop detects the orphaned state on its next tick and re-spawns the provision thread. Scripts already marked `succeeded` are skipped; execution resumes from the first non-succeeded script.
 
-Because a script that was `running` at restart time will be re-run from the beginning, **automation scripts should be written to be idempotent** — running a script twice should produce the same result as running it once. Most configuration operations (setting a registry value, installing a Chocolatey package, renaming the computer) are naturally idempotent. Operations that accumulate state (appending to a file, adding firewall rules without checking for duplicates) should include an existence check before acting.
+Because a script that was `running` at restart time will be re-run from the beginning, **automation scripts should be written to be idempotent** - running a script twice should produce the same result as running it once. Most configuration operations (setting a registry value, installing a Chocolatey package, renaming the computer) are naturally idempotent. Operations that accumulate state (appending to a file, adding firewall rules without checking for duplicates) should include an existence check before acting.
 
 ### Manual retry
 
-A `failed` VM can be retried from the Nests panel. Retry resets the status of every **non-succeeded** script (`failed`, `skipped`, `running`, `pending`) back to `pending` — scripts already marked `succeeded` are preserved and skipped during the re-run. This means:
+A `failed` VM can be retried from the Nests panel. Retry resets the status of every **non-succeeded** script (`failed`, `skipped`, `running`, `pending`) back to `pending` - scripts already marked `succeeded` are preserved and skipped during the re-run. This means:
 
 - A script that failed partway through is re-run from the start
 - Scripts that succeeded before the failure are not re-run
-- The OS is not reinstalled — retry replays the automation phase only
+- The OS is not reinstalled - retry replays the automation phase only
 
 Re-spawns the provision thread immediately if WinRM is reachable, or queues it for the next polling tick if not.
 
@@ -273,7 +273,7 @@ Re-spawns the provision thread immediately if WinRM is reachable, or queues it f
 
 When a Clutch defines multiple VMs, `_run_hatch_session` creates them **sequentially** in the order they appear in the Clutch file. Each VM's `virt-install` call must complete before the next VM begins creation. Once created, all VMs are monitored concurrently by the polling loop and their automation phases run in parallel.
 
-`depends_on` declarations are validated at Clutch load time (no unknown references, no cycles) and stored in the Clutch YAML, but **do not currently affect execution order**. Dependency-ordered hatching — waiting for a prerequisite VM to reach `fledged` before starting a dependent VM — is tracked in issue #123 and planned for a future release.
+`depends_on` declarations are validated at Clutch load time (no unknown references, no cycles) and stored in the Clutch YAML, but **do not currently affect execution order**. Dependency-ordered hatching - waiting for a prerequisite VM to reach `fledged` before starting a dependent VM - is tracked in issue #123 and planned for a future release.
 
 <br>
 

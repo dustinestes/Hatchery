@@ -24,7 +24,7 @@ Write or update an ADR in the **same PR** (or planning handoff that lands with t
 
 ## How to write
 
-1. Next free `NNNN` — never renumber after merge
+1. Next free `NNNN` - never renumber after merge
 2. Nygard fields: Status, Date, Context, Decision, Consequences; Alternatives when useful
 3. Status `Accepted` when the implementing PR merges (or in that PR)
 4. Link related issues and code paths; link operator how-to under `docs/` instead of duplicating it
@@ -49,4 +49,4 @@ When a new decision replaces an old one:
 
 ## Plans and issues
 
-Locked bullets in a plan or GitHub issue comment are not enough by themselves — promote them into an ADR when implementation starts (or in the PR that ships them). Follow-on issues may defer schema/UX detail, but the **decision** still gets an ADR when it lands.
+Locked bullets in a plan or GitHub issue comment are not enough by themselves - promote them into an ADR when implementation starts (or in the PR that ships them). Follow-on issues may defer schema/UX detail, but the **decision** still gets an ADR when it lands.
