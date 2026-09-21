@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Hatch Clutch — Hatchery{% endblock %}
+{% block title %}Hatch Clutch - Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
@@ -20,7 +20,7 @@
     <div class="form-group form-group-half">
       <label class="form-label" for="clutch-file-select">Clutch File <span class="required">*</span></label>
       <select id="clutch-file-select" name="clutch_file" class="form-select" required>
-        <option value="">— select a Clutch —</option>
+        <option value="">- select a Clutch -</option>
         {% for f in clutch_files %}
           <option value="{{ f }}" {% if preselected == f %}selected{% endif %}>{{ f }}</option>
         {% endfor %}
@@ -40,7 +40,7 @@
               {% if nest.id == selected_nest_id %}selected{% endif %}
               {% if nest.location != 'local' or nest.provider_type != 'libvirt' %}disabled{% endif %}>
               {{ nest.name }} ({{ nest.id }})
-              {%- if nest.location != 'local' or nest.provider_type != 'libvirt' %} — not available yet{% endif %}
+              {%- if nest.location != 'local' or nest.provider_type != 'libvirt' %} - not available yet{% endif %}
             </option>
           {% endfor %}
         {% endif %}
@@ -79,14 +79,14 @@
 
   <section class="form-section" id="clutch-credentials-section" {% if not clutch_obj or not clutch_obj.vms|selectattr('admin_username')|list %}hidden{% endif %}>
     <h2 class="form-section-title">Credentials</h2>
-    <p class="form-hint" style="margin-bottom: 12px;">Passwords are not stored — provide them here to render the unattended install answer file at hatch time.</p>
+    <p class="form-hint" style="margin-bottom: 12px;">Passwords are not stored - provide them here to render the unattended install answer file at hatch time.</p>
     <div id="clutch-credentials">
       {% if clutch_obj %}
         {% for vm in clutch_obj.vms %}
           {% if vm.admin_username %}
             <div class="form-grid form-grid-1" style="margin-bottom: 12px;">
               <div class="form-group">
-                <label class="form-label">{{ vm.name }} — password for <strong>{{ vm.admin_username }}</strong></label>
+                <label class="form-label">{{ vm.name }} - password for <strong>{{ vm.admin_username }}</strong></label>
                 <input type="password" name="credentials[{{ vm.name }}]" class="form-input" autocomplete="new-password">
               </div>
             </div>
@@ -147,7 +147,7 @@
       group.className = 'form-group';
       var label = document.createElement('label');
       label.className = 'form-label';
-      label.innerHTML = vm.name + ' — password for <strong>' + vm.admin_username + '</strong>';
+      label.innerHTML = vm.name + ' - password for <strong>' + vm.admin_username + '</strong>';
       var input = document.createElement('input');
       input.type = 'password';
       input.name = 'credentials[' + vm.name + ']';

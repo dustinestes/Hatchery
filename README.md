@@ -37,13 +37,13 @@ Hatchery is a local web application for creating, provisioning, and managing VMs
 
 ## What It Does
 
-- **Hatch** — create guest VMs from source media using unattended install methods on local and remote hosts
-- **Provision** — runs defined script automations on the new guest to baseline the configuration
-- **Scale** — operate one local Nest or many remote Nests from a single control plane
-- **Library** — pull Clutches, scripts, and media from shares, forges, and API catalogs into a local-first cache
-- **Manage** — start, stop, destroy, snapshot, and restore from a browser UI
-- **Observe** — monitor Hatchery, Nests (local and remote), and individual VMs
-- **Notify** — alerting, event tracking, and auditing across the fleet
+- **Hatch** - create guest VMs from source media using unattended install methods on local and remote hosts
+- **Provision** - runs defined script automations on the new guest to baseline the configuration
+- **Scale** - operate one local Nest or many remote Nests from a single control plane
+- **Library** - pull Clutches, scripts, and media from shares, forges, and API catalogs into a local-first cache
+- **Manage** - start, stop, destroy, snapshot, and restore from a browser UI
+- **Observe** - monitor Hatchery, Nests (local and remote), and individual VMs
+- **Notify** - alerting, event tracking, and auditing across the fleet
 
 ---
 
@@ -58,7 +58,7 @@ Connections are named endpoints (base URI + optional token); **bindings** attach
 | **Path / share** | Local directory or mounted NAS | Recursive glob |
 | **HTTPS** | Static HTTP(S) base | Explicit relative file path(s) in the binding filter |
 | **Git** | Forge or local repo (shallow clone cache) | Path glob on the default branch |
-| **API** | Catalog backends via **provider plugins** | Provider-specific filter (first: **Artifactory** — `repoKey[/path/glob]`) |
+| **API** | Catalog backends via **provider plugins** | Provider-specific filter (first: **Artifactory** - `repoKey[/path/glob]`) |
 
 ---
 
@@ -116,9 +116,9 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 | Guest OS | Provider | Status |
 |---|---|---|
 | Windows 10 | KVM/QEMU | v1 |
-| Windows 11 | KVM/QEMU | v1 — requires UEFI + TPM |
+| Windows 11 | KVM/QEMU | v1 - requires UEFI + TPM |
 | Windows Server 2022 | KVM/QEMU | v1 |
-| Windows Server 2025 | KVM/QEMU | v1 — requires UEFI + TPM |
+| Windows Server 2025 | KVM/QEMU | v1 - requires UEFI + TPM |
 | Linux guests | KVM/QEMU | Planned |
 | Windows (Hyper-V) | Remote Nest via SSH (WinRM Nest fallback planned) | Planned |
 
@@ -154,7 +154,7 @@ Best effort today: Hatchery stores **paths only** (never private key bytes). Win
 | `swtpm`, `swtpm-tools` | TPM emulation (Win11 / Server 2025) |
 | Python ≥3.11 | Runtime |
 | Windows ISO(s) | Your own eval or licensed copies |
-| VirtIO driver ISO | Optional — higher performance disk/network |
+| VirtIO driver ISO | Optional - higher performance disk/network |
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
@@ -167,12 +167,12 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 
 ## Where To Start
 
-1. **Install host dependencies** — see requirements above
-2. **Clone and install Python deps** — `uv sync`
-3. **Run Hatchery** — `uv run hatchery serve --host 127.0.0.1 --port 5000` (or `uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1`)
+1. **Install host dependencies** - see requirements above
+2. **Clone and install Python deps** - `uv sync`
+3. **Run Hatchery** - `uv run hatchery serve --host 127.0.0.1 --port 5000` (or `uv run gunicorn hatchery:app --bind 127.0.0.1:5000 --workers 1`)
    > To run as a background service that starts automatically, see [Running as a Service](docs/getting-started.md#running-as-a-service).
-4. **Open the dashboard** — `http://localhost:5000`
-5. **Hatch a VM** — go to `/create`, fill in the form, click Hatch
+4. **Open the dashboard** - `http://localhost:5000`
+5. **Hatch a VM** - go to `/create`, fill in the form, click Hatch
 
 <br>
 
@@ -209,7 +209,7 @@ MIT License. See [LICENSE](LICENSE) for full terms.
 
 ## With Thanks To
 
-- **Dustin Estes** — creator, product design, and development
+- **Dustin Estes** - creator, product design, and development
 
 <br>
 

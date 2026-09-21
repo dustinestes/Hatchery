@@ -39,7 +39,7 @@ read -r -p "Add 'hatchery.local' to /etc/hosts for a short hostname? [y/N] " REP
 echo ""
 if [[ "${REPLY,,}" == "y" ]]; then
     if grep -q "hatchery\.local" /etc/hosts; then
-        echo "hatchery.local is already in /etc/hosts — skipped."
+        echo "hatchery.local is already in /etc/hosts - skipped."
     else
         echo "127.0.0.1  hatchery.local" | sudo tee -a /etc/hosts > /dev/null
         echo "Added. Open http://hatchery.local:5000 in your browser."

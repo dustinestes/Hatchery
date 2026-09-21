@@ -13,7 +13,7 @@ We needed a shape that:
 
 1. Lets operators register zero or more Nest connections in Settings
 2. Resolves every list / hatch / power / snapshot / IP path by Nest id → `BaseProvider`
-3. Keeps hypervisor differences in Nest adapters — not forked product apps
+3. Keeps hypervisor differences in Nest adapters - not forked product apps
 
 ## Decision
 

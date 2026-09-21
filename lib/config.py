@@ -350,7 +350,7 @@ def _read_db_settings() -> dict:
 
 def _write_db_settings(settings: dict) -> None:
     if not _db_path_ready():
-        raise RuntimeError("db not initialized — call init_db() before saving settings")
+        raise RuntimeError("db not initialized - call init_db() before saving settings")
     conn = db_module.get_connection()
     try:
         for key in _DB_SETTING_KEYS:

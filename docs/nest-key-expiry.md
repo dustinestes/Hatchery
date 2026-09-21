@@ -6,7 +6,7 @@
 <h1>Nest SSH Identity Expiry</h1>
 <br clear="both">
 
-How Hatchery alerts when a Nest SSH identity is nearing expiry — without storing private keys.
+How Hatchery alerts when a Nest SSH identity is nearing expiry - without storing private keys.
 
 <br>
 
@@ -27,9 +27,9 @@ How Hatchery alerts when a Nest SSH identity is nearing expiry — without stori
 
 | Material | Expiry in file? |
 |---|---|
-| Normal OpenSSH private/public key | **No** — set Identity expiry on the Nest row |
-| OpenSSH **certificate** | **Yes** — `Valid before` via `ssh-keygen -L` |
-| Operator policy date | **Yes** — `identity_expires_at` on the Nest |
+| Normal OpenSSH private/public key | **No** - set Identity expiry on the Nest row |
+| OpenSSH **certificate** | **Yes** - `Valid before` via `ssh-keygen -L` |
+| Operator policy date | **Yes** - `identity_expires_at` on the Nest |
 
 Hatchery never invents an expiry for a plain key. If Identity expiry is omitted and a certificate path is available (`cert_path` or `identity_file-cert.pub`), Valid-before may be used.
 
@@ -47,7 +47,7 @@ Example: within 30 days, once per day; within 7 days, twice per day.
 
 SSH identity **paths** and optional **expiry** live on each Nest under Settings → Nests (`identity_file`, `cert_path`, `identity_expires_at`). Hatchery is the SSH client: point the Nest row at a private key path on the Hatchery host, and trust the matching public key on the Nest (`authorized_keys`).
 
-Private key bytes are not stored — only paths and policy dates. The legacy Security JSON list (`nest_ssh_identities`) is cleared on upgrade; alert evaluation reads Nest rows via `lib/nests.identities_for_expiry()`.
+Private key bytes are not stored - only paths and policy dates. The legacy Security JSON list (`nest_ssh_identities`) is cleared on upgrade; alert evaluation reads Nest rows via `lib/nests.identities_for_expiry()`.
 
 <br>
 
@@ -61,7 +61,7 @@ Module: [`lib/nest_key_expiry.py`](../../lib/nest_key_expiry.py).
 
 ## Testing
 
-You do not need a special key file for a quick test. Plain OpenSSH keys have no in-file expiry — setting Identity expiry on a remote Nest row is enough.
+You do not need a special key file for a quick test. Plain OpenSSH keys have no in-file expiry - setting Identity expiry on a remote Nest row is enough.
 
 ### Fast path (manual Identity expiry)
 

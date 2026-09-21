@@ -6,7 +6,7 @@
 <h1>Nest Transport</h1>
 <br clear="both">
 
-How Hatchery talks to a Nest (hypervisor host) over the network — the control plane, not guest provisioning.
+How Hatchery talks to a Nest (hypervisor host) over the network - the control plane, not guest provisioning.
 
 <br>
 
@@ -29,9 +29,9 @@ How Hatchery talks to a Nest (hypervisor host) over the network — the control 
 
 | Layer | Talks to | Protocol (v1+) |
 |---|---|---|
-| Nest transport | Nest host (Linux / macOS / Windows) | **SSH** (default) — [#218](https://github.com/dustinestes/Hatchery/issues/218) |
-| Nest transport fallback | Windows Nest when OpenSSH is unavailable or WinRM is preferred | **WinRM** — [#220](https://github.com/dustinestes/Hatchery/issues/220) |
-| Guest provision | The VM after it fledges | WinRM for Windows guests (`lib/provision.py`) — unchanged |
+| Nest transport | Nest host (Linux / macOS / Windows) | **SSH** (default) - [#218](https://github.com/dustinestes/Hatchery/issues/218) |
+| Nest transport fallback | Windows Nest when OpenSSH is unavailable or WinRM is preferred | **WinRM** - [#220](https://github.com/dustinestes/Hatchery/issues/220) |
+| Guest provision | The VM after it fledges | WinRM for Windows guests (`lib/provision.py`) - unchanged |
 
 Module: [`lib/nest_transport.py`](../../lib/nest_transport.py).
 
@@ -64,7 +64,7 @@ Use when a Windows Nest cannot (or should not) expose OpenSSH. `WinrmNestTranspo
 |---|---|
 | `host` | Nest hostname or IP |
 | `username` | WinRM user |
-| `password` | Session password (in-memory for the transport; encrypt at rest when Nest registry persists it — #110) |
+| `password` | Session password (in-memory for the transport; encrypt at rest when Nest registry persists it - #110) |
 | `port` | WinRM port (default `5985`; `5986` typical for HTTPS) |
 | `use_ssl` | Use `https://…/wsman` when true |
 | `auth_transport` | pywinrm auth transport (default `ntlm`) |
@@ -82,15 +82,15 @@ Guest WinRM in `lib/provision.py` is separate and unchanged.
 | **Endpoint** | TCP connect to Nest `host:port` succeeds | `endpoint` when it fails |
 | **Nest transport** | Authenticated SSH / WinRM session runs a trivial command | `transport` when endpoint is up but session fails |
 
-Local Nests skip both (co-located). Alerts and Test connection messages carry the class label so operators know whether to fix network/address vs Nest SSH/WinRM setup — hard contracts documented here, not transient magic.
+Local Nests skip both (co-located). Alerts and Test connection messages carry the class label so operators know whether to fix network/address vs Nest SSH/WinRM setup - hard contracts documented here, not transient magic.
 
 **Test Nest connection** side effects ([#283](https://github.com/dustinestes/Hatchery/issues/283)):
 
 | Nest row | Snapshot | Reachability Alerts |
 |---|---|---|
 | **Draft / unsaved** (id not in registry) | no write | no open / no resolve |
-| **Saved** — failure | update (footer / Nests status) | **do not open** (validator owns opens) |
-| **Saved** — success | update | **resolve** open Alert for that Nest |
+| **Saved** - failure | update (footer / Nests status) | **do not open** (validator owns opens) |
+| **Saved** - success | update | **resolve** open Alert for that Nest |
 
 The Settings button always refreshes UI status surfaces after the request so bell/footer catch up without waiting for the next poll.
 
@@ -118,7 +118,7 @@ If OpenSSH cannot be enabled, set the Nest transport to **WinRM** and open the W
 
 ## Local Nests
 
-`NestConnectionConfig(location="local")` needs no transport — providers talk to the hypervisor on the same machine as Hatchery.
+`NestConnectionConfig(location="local")` needs no transport - providers talk to the hypervisor on the same machine as Hatchery.
 
 <br>
 

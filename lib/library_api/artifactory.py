@@ -28,7 +28,7 @@ class ArtifactoryAdapter(BaseLibraryApiAdapter):
     id = "artifactory"
     title = "Artifactory"
     description = (
-        "JFrog Artifactory (or compatible) artifact repository — filter is repoKey[/path/glob]."
+        "JFrog Artifactory (or compatible) artifact repository - filter is repoKey[/path/glob]."
     )
 
     def test(self, conn: dict[str, Any]) -> dict[str, Any]:

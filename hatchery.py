@@ -126,7 +126,7 @@ def _provision_vm_thread(
                     vm_name,
                     "hatchery",
                     "ERROR",
-                    f"Script failed: WinRM connection error — {exc}",
+                    f"Script failed: WinRM connection error - {exc}",
                     script_name=sname,
                 )
                 hatch_lib.set_script_status(
@@ -159,7 +159,7 @@ def _provision_vm_thread(
                     vm_name,
                     "hatchery",
                     "ERROR",
-                    f"Script failed: {sname} — Exit Code: {exit_code}",
+                    f"Script failed: {sname} - Exit Code: {exit_code}",
                     script_name=sname,
                 )
                 hatch_lib.set_script_status(
@@ -179,7 +179,7 @@ def _provision_vm_thread(
                 vm_name,
                 "hatchery",
                 "INFO",
-                f"Script complete: {sname} — Exit Code: {exit_code}",
+                f"Script complete: {sname} - Exit Code: {exit_code}",
                 script_name=sname,
             )
             hatch_lib.set_script_status(
@@ -220,7 +220,7 @@ def _provision_vm_thread(
             vm_name,
             "hatchery",
             "INFO",
-            "All scripts succeeded — VM is fledged",
+            "All scripts succeeded - VM is fledged",
         )
         hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -370,7 +370,7 @@ def _sync_hatch_status() -> None:
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Windows setup complete — starting provisioning "
+                    f"Windows setup complete - starting provisioning "
                     f"({n} script{'s' if n != 1 else ''})",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
@@ -387,7 +387,7 @@ def _sync_hatch_status() -> None:
                     vm_name,
                     "hatchery",
                     "INFO",
-                    "Windows setup complete — no automation scripts configured",
+                    "Windows setup complete - no automation scripts configured",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -1009,7 +1009,7 @@ def settings_section_post(section: str):
         days_list = request.form.getlist("nest_tier_days_before")
         alerts_list = request.form.getlist("nest_tier_alerts_per_day")
         if len(days_list) != len(alerts_list):
-            return _rerender("Nest key alert tiers are incomplete — each row needs both fields.")
+            return _rerender("Nest key alert tiers are incomplete - each row needs both fields.")
         tiers_parsed: list[dict] = []
         try:
             for days_raw, alerts_raw in zip(days_list, alerts_list, strict=True):
@@ -1068,7 +1068,7 @@ def settings_section_post(section: str):
             and len(conn_kinds) == n
             and len(conn_enabled) == n
         ):
-            return _rerender("Library connections are incomplete — each row needs all fields.")
+            return _rerender("Library connections are incomplete - each row needs all fields.")
         raw_conns = []
         for i in range(n):
             raw_conns.append(
@@ -1104,7 +1104,7 @@ def settings_section_post(section: str):
         bn = len(bind_conn_ids)
         if not (len(bind_ids) == bn and len(bind_filters) == bn and len(bind_enabled) == bn):
             return _rerender(
-                "Script bindings are incomplete — each row needs a connection and filter."
+                "Script bindings are incomplete - each row needs a connection and filter."
             )
         raw_binds = []
         for i in range(bn):
@@ -1140,7 +1140,7 @@ def settings_section_post(section: str):
         cn = len(clutch_conn_ids)
         if not (len(clutch_ids) == cn and len(clutch_filters) == cn and len(clutch_enabled) == cn):
             return _rerender(
-                "Clutch bindings are incomplete — each row needs a connection and filter."
+                "Clutch bindings are incomplete - each row needs a connection and filter."
             )
         raw_clutches = []
         for i in range(cn):
@@ -1180,7 +1180,7 @@ def settings_section_post(section: str):
             and len(media_enabled) == mn
         ):
             return _rerender(
-                "Media bindings are incomplete — each row needs a connection, target, and filter."
+                "Media bindings are incomplete - each row needs a connection, target, and filter."
             )
         raw_media = []
         for i in range(mn):
@@ -1320,7 +1320,7 @@ def api_settings_import():
 
 def _library_require_enabled():
     if not config.library_enabled():
-        return jsonify({"error": "Library is disabled — enable it under Settings → General."}), 403
+        return jsonify({"error": "Library is disabled - enable it under Settings → General."}), 403
     return None
 
 
@@ -2960,7 +2960,7 @@ def api_retry_vm(session_id, vm_name):
         return jsonify({"ok": True, "queued": True})
 
     return jsonify(
-        {"ok": True, "queued": False, "message": "VM unreachable — will retry on next sync"}
+        {"ok": True, "queued": False, "message": "VM unreachable - will retry on next sync"}
     )
 
 

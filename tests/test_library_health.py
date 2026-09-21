@@ -209,7 +209,7 @@ class TestValidator:
 
     def test_prune_removed_connection(self):
         alerts_lib.record_alert(
-            "Library connection: 'Gone' (gone1) — Path does not exist: /x",
+            "Library connection: 'Gone' (gone1) - Path does not exist: /x",
             tier="alert",
         )
         lh.prune_alerts_for_removed_connections({"still-here"})

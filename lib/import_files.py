@@ -151,11 +151,11 @@ def import_uploads(kind: str, files: list) -> dict:
         n_ok = len(imported)
         n_err = len(errors)
         if n_ok and not n_err:
-            finished = f"{_FINISHED_PREFIX} {n_ok} imported into {subdir}/ — ready to use"
+            finished = f"{_FINISHED_PREFIX} {n_ok} imported into {subdir}/ - ready to use"
             finished_tier = "info"
         elif n_ok:
             finished = (
-                f"{_FINISHED_PREFIX} {n_ok} imported, {n_err} skipped into {subdir}/ — ready to use"
+                f"{_FINISHED_PREFIX} {n_ok} imported, {n_err} skipped into {subdir}/ - ready to use"
             )
             finished_tier = "warning"
         else:

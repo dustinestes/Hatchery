@@ -49,7 +49,7 @@ _OPTIONAL_CONTROLLER_TOOLS = [
             "macos": "powershell",
             "windows": "Microsoft.PowerShell",
         },
-        "Script parameter introspection — required to detect and configure automation script parameters",
+        "Script parameter introspection - required to detect and configure automation script parameters",
     ),
 ]
 

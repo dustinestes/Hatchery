@@ -33,7 +33,7 @@ class GitHubAdapter(BaseLibraryForgeAdapter):
     id = "github"
     title = "GitHub"
     description = (
-        "GitHub.com repositories via Trees/Contents APIs — no Controller clone. "
+        "GitHub.com repositories via Trees/Contents APIs - no Controller clone. "
         "Filter is a path glob under the default branch."
     )
 
@@ -78,7 +78,7 @@ class GitHubAdapter(BaseLibraryForgeAdapter):
             raise ValueError(f"GitHub tree HTTP {code}: {_err_body(data)}")
         if data.get("truncated"):
             raise ValueError(
-                "GitHub tree is truncated — narrow the binding filter or use a smaller repo"
+                "GitHub tree is truncated - narrow the binding filter or use a smaller repo"
             )
 
         hits: list[dict[str, Any]] = []

@@ -1,7 +1,7 @@
 # Clutch file schema reference
 #
 # A Clutch file defines one or more related VMs to be hatched together.
-# A single-VM Clutch is valid. Multi-VM Clutches define an environment —
+# A single-VM Clutch is valid. Multi-VM Clutches define an environment -
 # for example, a domain controller and a joined client.
 #
 # Loaded and validated by: lib/clutch.py
@@ -27,13 +27,13 @@ vms:
     # Controls: answer file template selection, UEFI/TPM requirements
     os: win11
 
-    # vcpus (required): number of virtual CPUs — must be >= 1
+    # vcpus (required): number of virtual CPUs - must be >= 1
     vcpus: 4
 
-    # ram_gb (required): RAM in GB — must be >= 1
+    # ram_gb (required): RAM in GB - must be >= 1
     ram_gb: 8
 
-    # disk_gb (required): disk size in GB — must be >= 1
+    # disk_gb (required): disk size in GB - must be >= 1
     disk_gb: 80
 
     # os_media (required): source image for this VM
@@ -48,7 +48,7 @@ vms:
     virtio_drivers: virtio-win.iso
 
     # admin_username (optional): administrator account name for unattended install
-    # When set alongside an admin password (supplied at hatch time — never stored),
+    # When set alongside an admin password (supplied at hatch time - never stored),
     # Hatchery renders an Autounattend.xml automatically. Leave unset to provide
     # a pre-authored os_config file instead.
     admin_username: admin
@@ -56,7 +56,7 @@ vms:
     # os_config (optional): OS deployment configuration file
     # Filename relative to automation/os_config/ in the data directory, or an absolute path.
     # Windows: Autounattend.xml (pre-authored); ignored when admin_username is set
-    # and a password is provided at hatch time — rendered automatically instead.
+    # and a password is provided at hatch time - rendered automatically instead.
     # Linux (future): cloud-init user-data, kickstart, or preseed file
     os_config: win11-unattend.xml
 
@@ -77,7 +77,7 @@ vms:
 # ── Multi-VM example ───────────────────────────────────────────────────────────
 #
 # name: ad-test-lab
-# description: Active Directory test lab — domain controller and joined client
+# description: Active Directory test lab - domain controller and joined client
 #
 # vms:
 #   - name: dc01

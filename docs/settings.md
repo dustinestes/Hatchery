@@ -26,7 +26,7 @@ How Hatchery splits the external bootstrap file from Settings stored in SQLite.
 
 ## Why Two Places
 
-Hatchery must know the **data directory** before it can open `hatchery.db`. That pointer cannot live only inside the database. Everything else that the Settings panes edit can — and should — live next to other app state in SQLite (Nest registry, secrets later, expiry tiers today).
+Hatchery must know the **data directory** before it can open `hatchery.db`. That pointer cannot live only inside the database. Everything else that the Settings panes edit can - and should - live next to other app state in SQLite (Nest registry, secrets later, expiry tiers today).
 
 | Concern | Store |
 |---|---|
@@ -68,7 +68,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `bg_interval` | General | Hatch status poll interval seconds (minimum 10) |
 | `validators` | General | Per-validator `{enabled, interval_seconds}` map (JSON) |
 | `validators_run_retention` | General | Max run history rows per validator (10–500, default 50) |
-| `nest_reachability_status` | (runtime) | Last Nest reachability snapshot — not Settings-exportable |
+| `nest_reachability_status` | (runtime) | Last Nest reachability snapshot - not Settings-exportable |
 | `show_passwords` | Security | VM inventory password visibility |
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
@@ -78,7 +78,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `library_clutch_bindings` | Library | Clutches domain bindings |
 | `library_media_bindings` | Library | Media domain bindings (include cache target) |
 
-Nest **connections** (including SSH identity file path, optional cert path, and optional identity expiry) live in the `nests` table — see [schema/database.md — nests](schema/database.md#nests). Security keeps Nest SSH **alert tiers** only.
+Nest **connections** (including SSH identity file path, optional cert path, and optional identity expiry) live in the `nests` table - see [schema/database.md - nests](schema/database.md#nests). Security keeps Nest SSH **alert tiers** only.
 
 Managed by `lib/config.py` after `db.init_db` via `bind_db()` / `save()`.
 
@@ -98,14 +98,14 @@ Existing installs keep their Settings without manual edits.
 
 ## Settings UI
 
-- **General** — edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch — property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
-- **Security** / **Display** — write only to SQLite; bootstrap is unchanged. Security holds password visibility and Nest SSH **alert tiers** (identity paths/expiry are on Nest rows).
-- **Nests** — Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
-- **Library** — connections and domain bindings (when Library is enabled).
+- **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
+- **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility and Nest SSH **alert tiers** (identity paths/expiry are on Nest rows).
+- **Nests** - Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
+- **Library** - connections and domain bindings (when Library is enabled).
 
 The disabled “Bootstrap file” field on General shows the path to the external YAML pointer.
 
-Product framing (escape hatch vs CLI/API) also lives under [Library and Nest cache — Settings export and import](library.md#settings-export-and-import).
+Product framing (escape hatch vs CLI/API) also lives under [Library and Nest cache - Settings export and import](library.md#settings-export-and-import).
 
 <br>
 
@@ -133,7 +133,7 @@ settings:
 
 ### Validation
 
-**Hard fail** (import rejected — API `400`, UI error toast):
+**Hard fail** (import rejected - API `400`, UI error toast):
 
 - Empty / non-YAML / not a mapping
 - `version` missing, not an integer, or not `1`
@@ -142,12 +142,12 @@ settings:
 
 **Soft ignore** (import proceeds; warning returned in the response / toast):
 
-- Unknown keys under `settings` — not written (`"Unknown settings key ignored: …"`)
-- `data_dir` anywhere in the document — ignored as above
+- Unknown keys under `settings` - not written (`"Unknown settings key ignored: …"`)
+- `data_dir` anywhere in the document - ignored as above
 
 Extra top-level fields that are not settings (e.g. `exported_at`) are harmless. If the file has no `settings:` map, only top-level keys that match exportable names are considered.
 
-This is intentionally a simple document replace — not a merge or conflict UI. Per-property / fleet updates belong on CLI/API later.
+This is intentionally a simple document replace - not a merge or conflict UI. Per-property / fleet updates belong on CLI/API later.
 
 <br>
 

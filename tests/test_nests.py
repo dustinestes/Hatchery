@@ -126,7 +126,7 @@ class TestReplaceNests:
             ]
         )
         alerts_lib.record_alert("Nest reachability: 'Lab' (lab1): endpoint not reachable")
-        alerts_lib.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available — x")
+        alerts_lib.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available - x")
         assert alerts_lib.count_active_alerts() == 2
         nests_lib.replace_nests([local])
         assert [n["id"] for n in nests_lib.list_nests()] == ["local"]
@@ -167,7 +167,7 @@ class TestConnectionConfig:
         }
         fail = NestHealthCheckResult(
             ok=False,
-            detail="endpoint not reachable — down",
+            detail="endpoint not reachable - down",
             failure_class="endpoint",
         )
         with (
@@ -208,7 +208,7 @@ class TestConnectionConfig:
         nest = nests_lib.get_nest("lab1")
         fail = NestHealthCheckResult(
             ok=False,
-            detail="endpoint not reachable — down",
+            detail="endpoint not reachable - down",
             failure_class="endpoint",
         )
         with (

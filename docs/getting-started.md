@@ -50,7 +50,7 @@ sudo apt install qemu-system-x86 libvirt-daemon-system virt-manager virtinst \
     libguestfs-tools swtpm swtpm-tools python3 python3-gi
 ```
 
-> **Note:** On older Ubuntu releases, `qemu-kvm` is a valid alias for `qemu-system-x86`. On 24.04 and later, `qemu-kvm` is a virtual package that may not resolve correctly — use `qemu-system-x86` directly.
+> **Note:** On older Ubuntu releases, `qemu-kvm` is a valid alias for `qemu-system-x86`. On 24.04 and later, `qemu-kvm` is a virtual package that may not resolve correctly - use `qemu-system-x86` directly.
 
 ### Group Membership
 
@@ -65,7 +65,7 @@ sudo usermod -aG libvirt,kvm $USER
 
 Before Hatchery can create a VM, the QEMU process needs to be able to read the ISO file from the media directory. QEMU runs as the `libvirt-qemu` system user, not as your own account. How you satisfy this depends on where your media lives.
 
-**Local storage** (default) — Your media directory is under your home directory (`~/.local/share/hatchery/media/`). Home directories are typically mode `750` — no world-execute bit — so `libvirt-qemu` cannot traverse into them. Configure QEMU to run as your user account instead:
+**Local storage** (default) - Your media directory is under your home directory (`~/.local/share/hatchery/media/`). Home directories are typically mode `750` - no world-execute bit - so `libvirt-qemu` cannot traverse into them. Configure QEMU to run as your user account instead:
 
 ```bash
 sudo nano /etc/libvirt/qemu.conf
@@ -86,7 +86,7 @@ sudo systemctl restart libvirtd
 
 QEMU will now run with your user's permissions and can access files anywhere your account can.
 
-**Remote / NAS storage** — If your media directory is on a network mount or outside `/home` (e.g. `/mnt/nas/hatchery/media/`), paths outside `/home` are world-traversable by default and `libvirt-qemu` can access them without any configuration change. Point Hatchery's data directory at your mount via Settings.
+**Remote / NAS storage** - If your media directory is on a network mount or outside `/home` (e.g. `/mnt/nas/hatchery/media/`), paths outside `/home` are world-traversable by default and `libvirt-qemu` can access them without any configuration change. Point Hatchery's data directory at your mount via Settings.
 
 If Hatchery detects a permission problem when you click Hatch, it will surface the exact `chmod` command needed and record an alert. See the [Appendix](#appendix-alternative-media-access-configurations) for fallback options if you cannot configure QEMU to run as your user.
 
@@ -96,7 +96,7 @@ If any required tools are not installed when you start Hatchery, an alert is rec
 
 ### Media inspection
 
-The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Use **Import** on those panes (or place files on the Nest) to load media; select a file and use the trash control to remove it from the data directory. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery — no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
+The **Media → ISO** and **Media → VirtIO** panes inventory files under `media/iso/` and `media/virtio/`. Use **Import** on those panes (or place files on the Nest) to load media; select a file and use the trash control to remove it from the data directory. Image metadata (volume ID, publisher, application ID, creation time, and El Torito boot platforms) is read with the portable **`pycdlib`** Python library bundled with Hatchery - no extra Nest package install is required on Linux, macOS, or Windows. Windows install image indexes (WIM/ESD inside modern UDF ISOs) remain a separate follow-up.
 
 ---
 
@@ -153,7 +153,7 @@ Check that the service is running:
 systemctl --user status hatchery
 ```
 
-**Optional — short hostname**
+**Optional - short hostname**
 
 The install script prompts you to add a short hostname. If you want to add it manually instead:
 
@@ -163,7 +163,7 @@ echo "127.0.0.1  hatchery.local" | sudo tee -a /etc/hosts
 
 You can then open `http://hatchery.local:5000` in your browser.
 
-> **Note:** Browsers will show a "Not Secure" warning for `http://hatchery.local` because it is HTTP rather than HTTPS. On first visit you may be prompted to confirm you want to proceed. This is expected — all traffic stays on your machine and there is no real security risk. If you prefer to avoid the warning, answer **No** when the install script asks about the hostname and use `http://localhost:5000` instead, which browsers treat as a secure context.
+> **Note:** Browsers will show a "Not Secure" warning for `http://hatchery.local` because it is HTTP rather than HTTPS. On first visit you may be prompted to confirm you want to proceed. This is expected - all traffic stays on your machine and there is no real security risk. If you prefer to avoid the warning, answer **No** when the install script asks about the hostname and use `http://localhost:5000` instead, which browsers treat as a secure context.
 
 ### Uninstalling the Service
 
@@ -179,20 +179,20 @@ bash scripts/uninstall-service.sh
 
 ## Hatching Your First VM
 
-1. Add your Windows ISO to the media directory — either use **Import** on **Media → ISO**, or copy on the Nest:
+1. Add your Windows ISO to the media directory - either use **Import** on **Media → ISO**, or copy on the Nest:
    ```bash
    cp /path/to/Win11.iso ~/.local/share/hatchery/media/iso/
    ```
    Large imports (network drives, multi‑GB ISOs) show an active **Alert** while the copy runs and a finished Alert when the file is ready. Existing basenames are never overwritten.
 2. Go to `http://localhost:5000/hatch`
 3. Fill in the form:
-   - **VM name** — a short identifier, e.g. `win11-dev`
-   - **Guest OS** — selects the answer file template and configures UEFI/TPM automatically
-   - **OS Media** — select your ISO from the dropdown (refresh the list if you just added it)
-   - **vCPUs, RAM, Disk** — 4 vCPUs / 8 GB RAM / 80 GB disk is a reasonable default
+   - **VM name** - a short identifier, e.g. `win11-dev`
+   - **Guest OS** - selects the answer file template and configures UEFI/TPM automatically
+   - **OS Media** - select your ISO from the dropdown (refresh the list if you just added it)
+   - **vCPUs, RAM, Disk** - 4 vCPUs / 8 GB RAM / 80 GB disk is a reasonable default
 4. Click **Hatch**
 5. Hatchery creates the VM, generates the `Autounattend.xml` answer file, and boots the installer
-6. Windows installs unattended — no interaction needed
+6. Windows installs unattended - no interaction needed
 7. After first boot, Hatchery connects over WinRM and runs the provisioning sequence
 
 The VM appears on the dashboard while hatching. Provisioning completes in the background; the VM status updates to **fledged** when ready.
@@ -207,7 +207,7 @@ For better disk and network performance, pass a VirtIO driver ISO alongside the 
 
 In the creation form, select it from the **VirtIO Drivers** dropdown. Hatchery will configure the VM to use VirtIO disk and network adapters and make the driver ISO available during install.
 
-Leave this field empty to use standard IDE/e1000 adapters — slower, but zero extra setup.
+Leave this field empty to use standard IDE/e1000 adapters - slower, but zero extra setup.
 
 ---
 
@@ -215,7 +215,7 @@ Leave this field empty to use standard IDE/e1000 adapters — slower, but zero e
 
 ## Windows 11 and Server 2025
 
-These OS versions require UEFI firmware and TPM 2.0 emulation. Hatchery configures both automatically when you select Win11 or Server 2025 as the OS type — `swtpm` handles the TPM emulation. No manual steps required beyond having `swtpm` and `swtpm-tools` installed on the host.
+These OS versions require UEFI firmware and TPM 2.0 emulation. Hatchery configures both automatically when you select Win11 or Server 2025 as the OS type - `swtpm` handles the TPM emulation. No manual steps required beyond having `swtpm` and `swtpm-tools` installed on the host.
 
 ---
 
@@ -247,7 +247,7 @@ This works but opens more of your home directory to system users than necessary.
 
 ### Move the data directory outside `/home`
 
-Store media on a path that is world-traversable by default — a network mount or a dedicated directory under `/srv` or `/var`:
+Store media on a path that is world-traversable by default - a network mount or a dedicated directory under `/srv` or `/var`:
 
 ```bash
 sudo mkdir -p /srv/hatchery

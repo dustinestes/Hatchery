@@ -1,5 +1,5 @@
 ---
-description: Portable GitHub workflow — issue, branch, commit, label, PR
+description: Portable GitHub workflow - issue, branch, commit, label, PR
 alwaysApply: true
 ---
 
@@ -16,7 +16,7 @@ Do not commit, push, or create/close/comment on issues/PRs unless explicitly ask
 - Commit: `{type}: {present-tense summary} (#{issue})`
 - Issue: exactly **one** type label matching the commit prefix
 
-Types / labels (required — create with `gh label` if missing; do not substitute `bug` / `enhancement`):
+Types / labels (required - create with `gh label` if missing; do not substitute `bug` / `enhancement`):
 
 `feat` | `fix` | `docs` | `chore` | `refactor` | `sec` | `breaking`
 
@@ -46,7 +46,7 @@ After merge: checkout default branch, pull, delete local feature branch.
 
 ❌ Kitchen-sink PR
 ❌ "CI will catch it" without running local checks
-❌ Issue only in the title/branch/commit — without Closes/Fixes/Resolves in the body
+❌ Issue only in the title/branch/commit - without Closes/Fixes/Resolves in the body
 ```
 
-If the repo has a `CONTRIBUTING.md`, follow it for human-oriented detail — this rule is the agent source of truth for git shape.
+If the repo has a `CONTRIBUTING.md`, follow it for human-oriented detail - this rule is the agent source of truth for git shape.

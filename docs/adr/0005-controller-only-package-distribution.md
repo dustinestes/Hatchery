@@ -3,11 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issue:** [#273](https://github.com/dustinestes/Hatchery/issues/273) (epic [#202](https://github.com/dustinestes/Hatchery/issues/202))
-- **How-to:** [architecture-nests.md — Distribution north star](../architecture-nests.md#distribution-north-star)
+- **How-to:** [architecture-nests.md - Distribution north star](../architecture-nests.md#distribution-north-star)
 
 ## Context
 
-Cross-platform Nest work can accidentally bake “clone the repo, install KVM, run gunicorn” into every path. Consumers expect familiar OS installers. Nest hypervisors are optional, OS-specific, and often remote — shipping them inside the Controller package couples the wrong planes and blocks Controller-only devices ([#266](https://github.com/dustinestes/Hatchery/issues/266)).
+Cross-platform Nest work can accidentally bake “clone the repo, install KVM, run gunicorn” into every path. Consumers expect familiar OS installers. Nest hypervisors are optional, OS-specific, and often remote - shipping them inside the Controller package couples the wrong planes and blocks Controller-only devices ([#266](https://github.com/dustinestes/Hatchery/issues/266)).
 
 We needed a finish-line distribution model that:
 

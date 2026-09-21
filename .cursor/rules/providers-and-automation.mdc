@@ -10,16 +10,16 @@ alwaysApply: false
 
 All hypervisor ops go through `lib/providers/base.py`.
 
-- `libvirt.py` — KVM/QEMU (v1)
-- `hyperv.py` — Hyper-V (local/remote; Nest control via SSH by default — #218)
-- Nest control plane: `lib/nest_transport.py` — SSH default (key **reference**); WinRM Nest fallback (#220)
+- `libvirt.py` - KVM/QEMU (v1)
+- `hyperv.py` - Hyper-V (local/remote; Nest control via SSH by default - #218)
+- Nest control plane: `lib/nest_transport.py` - SSH default (key **reference**); WinRM Nest fallback (#220)
 - Guest provision stays in `lib/provision.py` (WinRM for Windows guests)
 
 ```
 ❌ Add a method to BaseProvider "just in case" or for one provider only
 ✅ Implement in the Nest provider using existing BaseProvider methods;
    extend base.py only if every provider must support it
-❌ Put Nest WinRM/SSH session code in provision.py — use nest_transport for Nest hosts
+❌ Put Nest WinRM/SSH session code in provision.py - use nest_transport for Nest hosts
 ❌ Change provider capability without updating the support matrix
 ✅ When Nest/provider support changes, update `docs/providers.md`
 ```
@@ -28,7 +28,7 @@ Docs: [`docs/providers.md`](../../docs/providers.md) (feature matrix), [`docs/ne
 
 ## Answer files
 
-Request by OS type via `lib/answerfile.py` — it picks the strategy. Templates: `templates/answerfiles/` (`win10`, `win11`, `server2022`, `server2025`).
+Request by OS type via `lib/answerfile.py` - it picks the strategy. Templates: `templates/answerfiles/` (`win10`, `win11`, `server2022`, `server2025`).
 
 ```
 ❌ Hardcode Autounattend paths in the Flask route

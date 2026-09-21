@@ -6,7 +6,7 @@
 <h1>Error Handling</h1>
 <br clear="both">
 
-How Hatchery surfaces errors — HTTP codes, VM operation failures, and UI error display.
+How Hatchery surfaces errors - HTTP codes, VM operation failures, and UI error display.
 
 <br>
 
@@ -24,9 +24,9 @@ How Hatchery surfaces errors — HTTP codes, VM operation failures, and UI error
 
 ## Principles
 
-- Errors always surface in the UI — never silently swallowed into server logs only
+- Errors always surface in the UI - never silently swallowed into server logs only
 - VM operation failures include the underlying `virsh` / `virt-install` stderr so the user knows what went wrong
-- Provisioning failures are non-fatal — the VM exists and is accessible even if post-install steps partially fail
+- Provisioning failures are non-fatal - the VM exists and is accessible even if post-install steps partially fail
 
 ---
 
@@ -36,10 +36,10 @@ How Hatchery surfaces errors — HTTP codes, VM operation failures, and UI error
 
 | Code | Meaning |
 |---|---|
-| `400` | Bad request — invalid form input or missing required field |
-| `404` | VM not found — the named VM does not exist in the brood |
-| `409` | Conflict — operation not valid for current VM state (e.g. start on a running VM) |
-| `500` | Internal error — unexpected failure in a VM operation; includes the underlying error message |
+| `400` | Bad request - invalid form input or missing required field |
+| `404` | VM not found - the named VM does not exist in the brood |
+| `409` | Conflict - operation not valid for current VM state (e.g. start on a running VM) |
+| `500` | Internal error - unexpected failure in a VM operation; includes the underlying error message |
 
 ---
 

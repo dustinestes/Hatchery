@@ -263,7 +263,7 @@ def is_initialized() -> bool:
 
 def get_connection() -> sqlite3.Connection:
     if _db_path is None:
-        raise RuntimeError("db not initialized — call init_db() first")
+        raise RuntimeError("db not initialized - call init_db() first")
     conn = sqlite3.connect(str(_db_path))
     conn.row_factory = sqlite3.Row
     return conn

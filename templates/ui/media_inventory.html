@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ pane_title }} — Media — Hatchery{% endblock %}
+{% block title %}{{ pane_title }} - Media - Hatchery{% endblock %}
 
 {% block content %}
 <div class="pane-header">
@@ -507,7 +507,7 @@
   function setProbeFields(probe) {
     if (!probe || !probe.available) {
       const reason = (probe && probe.error) ? probe.error : 'unavailable';
-      volumeEl.textContent = '— (' + reason + ')';
+      volumeEl.textContent = '- (' + reason + ')';
       publisherEl.textContent = '—';
       appIdEl.textContent = '—';
       createdEl.textContent = '—';
@@ -803,7 +803,7 @@
       })
       .catch(function () {
         if (window.hatchery && typeof hatchery.showToast === 'function') {
-          hatchery.showToast('Delete failed — network or server error.', 'alert', 5000);
+          hatchery.showToast('Delete failed - network or server error.', 'alert', 5000);
         }
       })
       .finally(function () {

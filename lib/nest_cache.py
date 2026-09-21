@@ -206,7 +206,7 @@ def preflight(
         # No Nest file transport yet (#207 / #215) — fail closed.
         raise NestCacheError(
             "Remote Nest cache ensure is not available yet "
-            "(Nest registry / transport copy — see #207 / #215). "
+            "(Nest registry / transport copy - see #207 / #215). "
             "Hatch requires content in the Nest cache; operator-only paths are not attached over WAN."
         )
     return verify_local(artifacts, nest_root=nest_root)
@@ -230,7 +230,7 @@ def ensure(
         _ = operator_root  # reserved for remote copy source
         raise NestCacheError(
             "Remote Nest cache ensure is not available yet "
-            "(Nest registry / transport copy — see #207 / #215)."
+            "(Nest registry / transport copy - see #207 / #215)."
         )
     return verify_local(artifacts, nest_root=nest_root)
 

@@ -30,7 +30,7 @@ LIBRARY_SCOPED_ALERT_PREFIXES = (
 def connection_alert_message(conn: dict, detail: str) -> str:
     label = conn.get("label") or conn.get("id") or "?"
     cid = conn.get("id") or "?"
-    return f"{CONNECTION_ALERT_PREFIX} '{label}' ({cid}) — {detail}"
+    return f"{CONNECTION_ALERT_PREFIX} '{label}' ({cid}) - {detail}"
 
 
 def token_expiry_alert_message(conn: dict, expires: date, days_left: int) -> str:

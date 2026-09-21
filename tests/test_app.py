@@ -1796,7 +1796,7 @@ class TestEditRoute:
     def test_post_save_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some validation error")
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' - some validation error")
         assert alerts_lib.count_active_alerts() == 1
         form = {
             "existing_filename": "my-lab.yaml",
@@ -2769,7 +2769,7 @@ class TestDeleteClutch:
     def test_delete_resolves_active_alert_for_file(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some error")
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' - some error")
         assert alerts_lib.count_active_alerts() == 1
         client.post("/clutch/my-lab.yaml/delete")
         assert alerts_lib.count_active_alerts() == 0
@@ -2928,7 +2928,7 @@ class TestPlaneStatus:
             "lib.plane_status.footer_status",
             return_value={
                 "hatchery_ok": False,
-                "hatchery_title": "Hatchery: 1 Controller issue(s) — see Alerts",
+                "hatchery_title": "Hatchery: 1 Controller issue(s) - see Alerts",
                 "hatchery_dot": "red",
                 "hatchery_issue_count": 1,
                 "nests_ok": True,
@@ -2974,7 +2974,7 @@ class TestPlaneStatus:
                 "hatchery_dot": "green",
                 "hatchery_issue_count": 0,
                 "nests_ok": False,
-                "nests_title": "Nests: 1 of 2 unreachable — see Alerts",
+                "nests_title": "Nests: 1 of 2 unreachable - see Alerts",
                 "nests_dot": "red",
                 "nest_total": 2,
                 "nest_unreachable": 1,
@@ -3106,7 +3106,7 @@ class TestRequirementsSync:
         assert alerts_lib.count_active_alerts() == 0
 
     def test_resolves_legacy_nest_tool_alerts(self):
-        alerts_lib.record_alert("Missing requirement: 'virsh' is not installed — VM lifecycle")
+        alerts_lib.record_alert("Missing requirement: 'virsh' is not installed - VM lifecycle")
         assert alerts_lib.count_active_alerts() == 1
         with patch("lib.requirements.check_controller", return_value=[]):
             app_module._sync_requirements()
@@ -3114,7 +3114,7 @@ class TestRequirementsSync:
 
     def test_resolves_stale_alert_when_tool_now_present(self):
         alerts_lib.record_alert(
-            "Controller requirement: 'ssh' is not installed — Nest transport client for Remote Nests"
+            "Controller requirement: 'ssh' is not installed - Nest transport client for Remote Nests"
         )
         assert alerts_lib.count_active_alerts() == 1
         with patch(
@@ -3211,7 +3211,7 @@ class TestClutchesSync:
 
     def test_resolves_stale_alert_when_clutch_fixed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' — some old error")
+        alerts_lib.record_alert("Invalid Clutch file: 'my-lab.yaml' - some old error")
         assert alerts_lib.count_active_alerts() == 1
         _make_clutch(tmp_path)
         app_module._sync_clutches()

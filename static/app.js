@@ -109,7 +109,7 @@ hatchery.vmRows = (function () {
             .then(function (r) { return r.json(); })
             .then(function (files) {
               var current = select.value;
-              select.innerHTML = '<option value="">— select a script to add —</option>';
+              select.innerHTML = '<option value="">- select a script to add -</option>';
               files.forEach(function (f) {
                 var opt = document.createElement('option');
                 opt.value = f;
@@ -666,7 +666,7 @@ hatchery.vmRows = (function () {
             var text = document.createElement('span');
             text.className = 'library-import-item-text';
             text.textContent = item.name +
-              (item.connection_label ? (' — ' + item.connection_label) : '') +
+              (item.connection_label ? (' - ' + item.connection_label) : '') +
               (item.relative_path && item.relative_path !== item.name
                 ? (' (' + item.relative_path + ')')
                 : '');
@@ -744,7 +744,7 @@ hatchery.vmRows = (function () {
             var msg = imported.length === 1
               ? ('Pulled ' + imported[0])
               : ('Pulled ' + imported.length + ' scripts');
-            showToast(msg + ' — ready to use.', 'info', 3200);
+            showToast(msg + ' - ready to use.', 'info', 3200);
             closeLibraryModal();
             window.setTimeout(function () { window.location.reload(); }, 400);
             return;
@@ -765,7 +765,7 @@ hatchery.vmRows = (function () {
 
       button.disabled = true;
       button.textContent = 'Importing…';
-      showToast('Import started — watch Alerts for progress on large files.', 'info', 3200);
+      showToast('Import started - watch Alerts for progress on large files.', 'info', 3200);
 
       fetch(url, { method: 'POST', body: form })
         .then(function (r) {
@@ -787,7 +787,7 @@ hatchery.vmRows = (function () {
             var msg = imported.length === 1
               ? ('Imported ' + imported[0])
               : ('Imported ' + imported.length + ' files');
-            showToast(msg + ' — ready to use.', 'info', 3200);
+            showToast(msg + ' - ready to use.', 'info', 3200);
             window.setTimeout(function () { window.location.reload(); }, 400);
             return;
           }
@@ -797,7 +797,7 @@ hatchery.vmRows = (function () {
           }
         })
         .catch(function () {
-          showToast('Import failed — network or server error.', 'alert', 5000);
+          showToast('Import failed - network or server error.', 'alert', 5000);
         })
         .finally(function () {
           input.value = '';
@@ -1173,7 +1173,7 @@ hatchery.vmRows = (function () {
           var msg = imported.length === 1
             ? ('Pulled ' + imported[0])
             : ('Pulled ' + imported.length + ' items');
-          showToast(msg + ' — ready to use.', 'info', 3200);
+          showToast(msg + ' - ready to use.', 'info', 3200);
           window.setTimeout(function () { window.location.reload(); }, 400);
           return;
         }
@@ -1437,7 +1437,7 @@ hatchery.vmRows = (function () {
     if (hasEmpty) {
       var empty = document.createElement('option');
       empty.value = '';
-      empty.textContent = '— none —';
+      empty.textContent = '- none -';
       select.appendChild(empty);
     }
     var names = (files || []).map(function (f) {

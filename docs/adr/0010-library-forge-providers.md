@@ -4,7 +4,7 @@
 - **Date:** 2026-09-19
 - **Issues:** [#307](https://github.com/dustinestes/Hatchery/issues/307)
 - **Code:** [`lib/library_forge/`](../../lib/library_forge/)
-- **How-to:** [library.md — Forge connections](../library.md#forge-connections-307)
+- **How-to:** [library.md - Forge connections](../library.md#forge-connections-307)
 - **Related:** [ADR-0001](0001-library-api-adapters.md) (API catalogs), [ADR-0009](0009-library-git-checkout-cache.md) (git shallow clone)
 
 ## Context
@@ -20,8 +20,8 @@ Artifact HTTP catalogs already use `type: api` + `provider` ([ADR-0001](0001-lib
 3. Keep dispatch and shared catalog hits in [`lib/library.py`](../../lib/library.py); `source_type` is `"forge"`.
 4. **Dual-run** with `type: git`: shallow clone remains for existing connections; forge never writes `{data_dir}/library/git/{id}/`. No auto-migrate in #307.
 5. **First provider: `github`**. GitLab / Bitbucket / Gitea are separate issues (#310 / #311 / #312).
-6. Git blob SHAs are **not** Hatchery SHA-256 — list hits may have `sha256: null`; compute SHA-256 on pull into the operator domain cache (create-only).
-7. Pull **provenance** (SQLite, orphan/re-attach UX) is **[#308](https://github.com/dustinestes/Hatchery/issues/308)** — not this ADR.
+6. Git blob SHAs are **not** Hatchery SHA-256 - list hits may have `sha256: null`; compute SHA-256 on pull into the operator domain cache (create-only).
+7. Pull **provenance** (SQLite, orphan/re-attach UX) is **[#308](https://github.com/dustinestes/Hatchery/issues/308)** - not this ADR.
 
 ## Consequences
 

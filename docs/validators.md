@@ -29,8 +29,8 @@ Pluggable background health checks for the Hatchery Controller, Nests, and conte
 
 | Channel | Purpose |
 |---|---|
-| **Alerts** | Findings that need attention (missing tool, invalid Clutch) — bell / tray |
-| **Validator runs** (`validator_runs`) | History of each validation execution — Notifications → Validators |
+| **Alerts** | Findings that need attention (missing tool, invalid Clutch) - bell / tray |
+| **Validator runs** (`validator_runs`) | History of each validation execution - Notifications → Validators |
 
 Run row **status** ([#280](https://github.com/dustinestes/Hatchery/issues/280)):
 
@@ -48,18 +48,18 @@ Run row **status** ([#280](https://github.com/dustinestes/Hatchery/issues/280)):
 
 Package: [`lib/validators/`](../../lib/validators/).
 
-- `BaseValidator` — `id`, `title`, `description`, `scope` (`controller` \| `nest` \| `content`), defaults, `run(ctx) -> summary`
-- `ValidatorContext` — data dir, alert helpers, optional `nest_id` / `trigger`
-- Registry + scheduler — per-validator enable / interval; hatch lifecycle polling stays separate (`bg_interval`)
-- `run_validator(id, trigger=…)` — schedule, manual, or connection
+- `BaseValidator` - `id`, `title`, `description`, `scope` (`controller` \| `nest` \| `content`), defaults, `run(ctx) -> summary`
+- `ValidatorContext` - data dir, alert helpers, optional `nest_id` / `trigger`
+- Registry + scheduler - per-validator enable / interval; hatch lifecycle polling stays separate (`bg_interval`)
+- `run_validator(id, trigger=…)` - schedule, manual, or connection
 
 <br>
 
 ## Status surfaces
 
-Validators are the **gather** layer only. They must not push to the DOM. Findings land in Alerts (and run history in `validator_runs`); the Controller UI **surfaces** poll stored state through `hatchery.refreshStatusSurfaces` / `onStatusTick` ([notifications.md — Status surfaces](notifications.md#status-surfaces), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
+Validators are the **gather** layer only. They must not push to the DOM. Findings land in Alerts (and run history in `validator_runs`); the Controller UI **surfaces** poll stored state through `hatchery.refreshStatusSurfaces` / `onStatusTick` ([notifications.md - Status surfaces](notifications.md#status-surfaces), [#282](https://github.com/dustinestes/Hatchery/issues/282)).
 
-When adding pane UI that should stay fresh (Validators filters [#280](https://github.com/dustinestes/Hatchery/issues/280), Libraries chip [#254](https://github.com/dustinestes/Hatchery/issues/254)), subscribe to the status tick — do not add another `setInterval` for health.
+When adding pane UI that should stay fresh (Validators filters [#280](https://github.com/dustinestes/Hatchery/issues/280), Libraries chip [#254](https://github.com/dustinestes/Hatchery/issues/254)), subscribe to the status tick - do not add another `setInterval` for health.
 
 The **Dashboard Validators** tile rolls up enabled/off counts and latest-run status from Settings + `validator_runs` via `GET /api/dashboard-summary` on the same tick ([#334](https://github.com/dustinestes/Hatchery/issues/334)). It does not re-run validators on paint.
 
@@ -73,7 +73,7 @@ The **Dashboard Validators** tile rolls up enabled/off counts and latest-run sta
 
 ## Notifications
 
-**Notifications → Validators** lists recent runs (time, validator, status, tier, trigger, message). Filters: validator, status (`ok` / `findings` / `error`), tier. Does not drive the Alerts bell — findings still appear under Alerts.
+**Notifications → Validators** lists recent runs (time, validator, status, tier, trigger, message). Filters: validator, status (`ok` / `findings` / `error`), tier. Does not drive the Alerts bell - findings still appear under Alerts.
 
 <br>
 
@@ -81,13 +81,13 @@ The **Dashboard Validators** tile rolls up enabled/off counts and latest-run sta
 
 | Id | Status |
 |---|---|
-| `controller_requirements` | Active — Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
+| `controller_requirements` | Active - Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active |
-| `nest_reachability` | Active — endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
-| `nest_capability` | Active — provider-declared Nest tools (Local on-box; Remote over transport). **Gated by reachability** on Remotes ([#286](https://github.com/dustinestes/Hatchery/issues/286)): unreachable / never-probed Nests skip capability and clear Nest capability Alerts |
-| `library_connections` | Active — Library connection reachability/auth (path, HTTPS, git, API) + token expiry ([#254](https://github.com/dustinestes/Hatchery/issues/254), [#251](https://github.com/dustinestes/Hatchery/issues/251), [#255](https://github.com/dustinestes/Hatchery/issues/255)). Skips connections with `enabled: false` and resolves their Alerts ([#293](https://github.com/dustinestes/Hatchery/issues/293)). No-ops (and clears Library Alerts) when Library is disabled |
-| `library_cache_drift` | Active — bidirectional cache/source drift vs Library ([#308](https://github.com/dustinestes/Hatchery/issues/308)). Optional **auto_sync** next to interval. Manual: one Alert per domain with count. Forge: ~1 Trees call per connection per pass (rate limits matter; see [library.md](library.md#cache-provenance-and-drift-308)) |
+| `nest_reachability` | Active - endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
+| `nest_capability` | Active - provider-declared Nest tools (Local on-box; Remote over transport). **Gated by reachability** on Remotes ([#286](https://github.com/dustinestes/Hatchery/issues/286)): unreachable / never-probed Nests skip capability and clear Nest capability Alerts |
+| `library_connections` | Active - Library connection reachability/auth (path, HTTPS, git, API) + token expiry ([#254](https://github.com/dustinestes/Hatchery/issues/254), [#251](https://github.com/dustinestes/Hatchery/issues/251), [#255](https://github.com/dustinestes/Hatchery/issues/255)). Skips connections with `enabled: false` and resolves their Alerts ([#293](https://github.com/dustinestes/Hatchery/issues/293)). No-ops (and clears Library Alerts) when Library is disabled |
+| `library_cache_drift` | Active - bidirectional cache/source drift vs Library ([#308](https://github.com/dustinestes/Hatchery/issues/308)). Optional **auto_sync** next to interval. Manual: one Alert per domain with count. Forge: ~1 Trees call per connection per pass (rate limits matter; see [library.md](library.md#cache-provenance-and-drift-308)) |
 
 <br>
 

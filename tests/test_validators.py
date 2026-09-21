@@ -241,12 +241,12 @@ class TestNestCapability:
             nest,
             NestHealthCheckResult(
                 ok=False,
-                detail="endpoint not reachable — down",
+                detail="endpoint not reachable - down",
                 failure_class="endpoint",
             ),
         )
         alerts_lib.record_alert(
-            "Nest capability: 'Lab' (r1): 'virsh' is not available — VM lifecycle"
+            "Nest capability: 'Lab' (r1): 'virsh' is not available - VM lifecycle"
         )
         with (
             patch("lib.nests.list_nests", return_value=[nest]),
@@ -320,7 +320,7 @@ class TestNestReachability:
                 "lib.nest_reachability.probe_nest",
                 return_value=NestHealthCheckResult(
                     ok=False,
-                    detail="endpoint not reachable — Connection refused",
+                    detail="endpoint not reachable - Connection refused",
                     failure_class="endpoint",
                 ),
             ),

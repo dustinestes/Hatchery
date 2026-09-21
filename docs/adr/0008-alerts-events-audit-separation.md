@@ -21,7 +21,7 @@ We needed an explicit separation of concerns so:
 |---|---|---|
 | **Alerts** | Conditions that threaten working Hatchery (missing tools, invalid Clutches, Nest reachability, …) | Bell, tray, toasts, Alerts pane, footer chips |
 | **Events** | Hatch / provision transcript (`hatch_events`, script `Write-HatchEvent` lines) | Events pane |
-| **Audit (v2)** | Who/what changed Clutches; Cull / rename / session archive — not validation, not provision log | Deferred; not toast spam |
+| **Audit (v2)** | Who/what changed Clutches; Cull / rename / session archive - not validation, not provision log | Deferred; not toast spam |
 
 **Naming:** use **Notifications** only for the **umbrella** sidebar group and group docs. Alert-specific modules/APIs use **alerts** (`lib/alerts.py`, `/api/alerts`, …). Do not keep alert-only artifacts named `notifications`.
 
@@ -37,7 +37,7 @@ Remove the activity path; do not mirror hatch lifecycle into Alerts toasts. Vali
 
 **Neutral / follow-on**
 
-- Until Events UX is rich, operators may miss global “VM fledged” toasts — intentional
+- Until Events UX is rich, operators may miss global “VM fledged” toasts - intentional
 - Validators pane shows run history separately from Alerts findings
 
 **Bad / accepted cost**

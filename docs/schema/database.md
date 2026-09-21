@@ -50,7 +50,7 @@ Stores active and resolved environment alerts. An alert is created when a host c
 
 #### Managed by
 
-`lib/alerts.py` — `record_alert()`, `resolve()`, `resolve_alerts_by_prefix()`, `has_active_alert()`, `count_active_alerts()`, `list_recent()`
+`lib/alerts.py` - `record_alert()`, `resolve()`, `resolve_alerts_by_prefix()`, `has_active_alert()`, `count_active_alerts()`, `list_recent()`
 
 <br>
 
@@ -64,7 +64,7 @@ History of pluggable validator executions (Notifications → Validators). Separa
 | `validator_id` | `TEXT` | `NOT NULL` | Registry id (e.g. `clutch_files`) |
 | `started_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 | `finished_at` | `TEXT` | | ISO 8601 UTC when complete |
-| `status` | `TEXT` | `NOT NULL` | `ok`, `findings`, or `error` (execution outcome — [#280](https://github.com/dustinestes/Hatchery/issues/280)) |
+| `status` | `TEXT` | `NOT NULL` | `ok`, `findings`, or `error` (execution outcome - [#280](https://github.com/dustinestes/Hatchery/issues/280)) |
 | `tier` | `TEXT` | `NOT NULL DEFAULT 'info'` | `info` / `warning` / `alert` |
 | `trigger` | `TEXT` | `NOT NULL` | `schedule`, `manual`, or `connection` |
 | `message` | `TEXT` | `NOT NULL` | Short summary |
@@ -74,7 +74,7 @@ History of pluggable validator executions (Notifications → Validators). Separa
 
 #### Managed by
 
-`lib/validators/runs.py` — `record_run()`, `list_runs()`, `latest_by_validator()`
+`lib/validators/runs.py` - `record_run()`, `list_runs()`, `latest_by_validator()`
 
 <br>
 
@@ -105,13 +105,13 @@ Attribution of operator-cache files pulled via Library ([#308](https://github.co
 
 #### Managed by
 
-`lib/library_provenance.py` — `upsert_on_pull()`, `apply_evaluate_result()`, `reattach()`, …
+`lib/library_provenance.py` - `upsert_on_pull()`, `apply_evaluate_result()`, `reattach()`, …
 
 <br>
 
 ### app_settings
 
-Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` — see [Settings storage](../settings.md).
+Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` - see [Settings storage](../settings.md).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -120,13 +120,13 @@ Key/value store for operational Settings (JSON-encoded values). The external boo
 
 #### Managed by
 
-`lib/config.py` — `bind_db()`, `save()`
+`lib/config.py` - `bind_db()`, `save()`
 
 <br>
 
 ### nests
 
-Registered Nest connections (where VMs live). Fresh databases start with an **empty** registry ([ADR-0014](../adr/0014-optional-local-nest.md) / [#266](https://github.com/dustinestes/Hatchery/issues/266)). Local Nest id `local` is optional (session `--nest-local`, Settings Add Local Nest, or an existing migrated row). Remote Nests store endpoint and credential **references** — not private key bytes or long-lived WinRM passwords (those wait on [#110](https://github.com/dustinestes/Hatchery/issues/110)).
+Registered Nest connections (where VMs live). Fresh databases start with an **empty** registry ([ADR-0014](../adr/0014-optional-local-nest.md) / [#266](https://github.com/dustinestes/Hatchery/issues/266)). Local Nest id `local` is optional (session `--nest-local`, Settings Add Local Nest, or an existing migrated row). Remote Nests store endpoint and credential **references** - not private key bytes or long-lived WinRM passwords (those wait on [#110](https://github.com/dustinestes/Hatchery/issues/110)).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -143,14 +143,14 @@ Registered Nest connections (where VMs live). Fresh databases start with an **em
 | `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601); plain keys have no in-file expiry |
 | `known_hosts` | `TEXT` | | `default`, `accept-new`, or `skip` |
 | `winrm_user` | `TEXT` | | WinRM username when transport is `winrm` |
-| `credential_ref` | `TEXT` | | Placeholder for secrets store (#110) — not a password |
+| `credential_ref` | `TEXT` | | Placeholder for secrets store (#110) - not a password |
 | `extra_json` | `TEXT` | | Optional JSON object |
 | `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 | `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 
 #### Managed by
 
-`lib/nests.py` — `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()` (opt-in `--nest-local`), `default_nest_id()`, `test_connection()`, `identities_for_expiry()`
+`lib/nests.py` - `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()` (opt-in `--nest-local`), `default_nest_id()`, `test_connection()`, `identities_for_expiry()`
 
 <br>
 
@@ -170,7 +170,7 @@ One row per Clutch hatch initiated by the user. Groups the VMs hatched together 
 
 #### Managed by
 
-`lib/hatch.py` — `create_session()`, `list_sessions()`, `archive_session()`, `archive_if_terminal()`
+`lib/hatch.py` - `create_session()`, `list_sessions()`, `archive_session()`, `archive_if_terminal()`
 
 <br>
 
@@ -188,12 +188,12 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 | `started_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `hatching` |
 | `fledged_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `fledged` |
 | `admin_username` | `TEXT` | | Admin account username configured in the answer file; stored for post-install automation and Nests inventory display |
-| `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation — see [Credential storage](#credential-storage) |
+| `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation - see [Credential storage](#credential-storage) |
 | `error` | `TEXT` | | Error message if the VM failed to hatch; `NULL` on success |
 
 #### Managed by
 
-`lib/hatch.py` — `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `update_vm_name()`, `get_vm_record()`
+`lib/hatch.py` - `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `update_vm_name()`, `get_vm_record()`
 
 <br>
 
@@ -218,11 +218,11 @@ One row per automation script per VM per session. Records the declared scripts a
 
 #### Constraints
 
-`UNIQUE(session_id, vm_name, run_order)` — each (session, VM, position) is unique; enforces that scripts are not double-inserted.
+`UNIQUE(session_id, vm_name, run_order)` - each (session, VM, position) is unique; enforces that scripts are not double-inserted.
 
 #### Managed by
 
-`lib/hatch.py` — `add_vm_scripts()`, `get_vm_scripts()`, `set_script_status()`, `reset_scripts_for_retry()`
+`lib/hatch.py` - `add_vm_scripts()`, `get_vm_scripts()`, `set_script_status()`, `reset_scripts_for_retry()`
 
 <br>
 
@@ -236,11 +236,11 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 | `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
 | `vm_name` | `TEXT` | `NOT NULL` | VM this event belongs to |
 | `context` | `TEXT` | `NOT NULL` | `'hatchery'` for host-side lifecycle events; `'script'` for `Write-HatchEvent` lines |
-| `level` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` — controls styling in the UI |
+| `level` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` - controls styling in the UI |
 | `script_name` | `TEXT` | | Script file that generated this event; `NULL` for session-level hatchery events |
 | `component` | `TEXT` | | Optional sub-label from `Write-HatchEvent -Component`; `NULL` for hatchery events and script events without a component |
 | `message` | `TEXT` | `NOT NULL` | Human-readable event text |
-| `received_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) recorded by Hatchery when the event was stored — not the guest's clock |
+| `received_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) recorded by Hatchery when the event was stored - not the guest's clock |
 
 #### Context and component
 
@@ -250,9 +250,9 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 
 #### Managed by
 
-`lib/hatch.py` — `add_event()`, `get_events()`, `parse_hatch_event_lines()`
+`lib/hatch.py` - `add_event()`, `get_events()`, `parse_hatch_event_lines()`
 
-`GET /api/sessions/<session_id>/vms/<vm_name>/events` — returns all events for a VM in insertion order.
+`GET /api/sessions/<session_id>/vms/<vm_name>/events` - returns all events for a VM in insertion order.
 
 <br>
 
@@ -260,12 +260,12 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 
 Tracks observed runtime state of VMs hatched from Clutch definitions. Associates each running VM with the Clutch that defined it, enabling instance-aware reconciliation.
 
-> **Stub** — additional columns are defined in issue [#19](https://github.com/dustinestes/Hatchery/issues/19). The table is created in this schema so the database structure is in place before the feature is implemented.
+> **Stub** - additional columns are defined in issue [#19](https://github.com/dustinestes/Hatchery/issues/19). The table is created in this schema so the database structure is in place before the feature is implemented.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
-| _(additional columns)_ | — | — | Defined in #19 |
+| _(additional columns)_ | - | - | Defined in #19 |
 
 <br>
 
@@ -273,7 +273,7 @@ Tracks observed runtime state of VMs hatched from Clutch definitions. Associates
 
 ## Maintenance
 
-Hatchery does **not** auto-delete historical rows by age, count, or FIFO. Records stay until they are **no longer applicable**. Further capacity management (including any DB file-size alert) is the operator's concern — see [#169](https://github.com/dustinestes/Hatchery/issues/169).
+Hatchery does **not** auto-delete historical rows by age, count, or FIFO. Records stay until they are **no longer applicable**. Further capacity management (including any DB file-size alert) is the operator's concern - see [#169](https://github.com/dustinestes/Hatchery/issues/169).
 
 ### Hatch session archive purge
 
@@ -288,11 +288,11 @@ When a hatch session is archived (manual dismiss or `archive_if_terminal`), its 
 
 Active sessions keep a complete event transcript until archive. Alert rows are never auto-trimmed; resolved alerts remain as history.
 
-Implemented in `lib/hatch.py` — `_purge_session_children()`, called from `archive_session()` and `archive_if_terminal()`.
+Implemented in `lib/hatch.py` - `_purge_session_children()`, called from `archive_session()` and `archive_if_terminal()`.
 
 ### Migrations
 
-Schema creation uses `CREATE TABLE IF NOT EXISTS` on startup. Additive column changes for existing local DBs are applied in `lib/db._migrate` (for example adding `alerts.tier`). There is no versioned migration list yet — delete `hatchery.db` (or use a fresh data dir) only if a local DB is too old for a simple `ALTER TABLE` to repair.
+Schema creation uses `CREATE TABLE IF NOT EXISTS` on startup. Additive column changes for existing local DBs are applied in `lib/db._migrate` (for example adding `alerts.tier`). There is no versioned migration list yet - delete `hatchery.db` (or use a fresh data dir) only if a local DB is too old for a simple `ALTER TABLE` to repair.
 
 When a real migration framework becomes necessary:
 
@@ -306,7 +306,7 @@ When a real migration framework becomes necessary:
 
 ## Credential storage
 
-Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** — post-install automation (issue [#77](https://github.com/dustinestes/Hatchery/issues/77)) requires them to authenticate over WinRM or SSH after a VM fledges in order to run provisioning scripts. Re-entering credentials at that point would break the zero-manual-steps automation goal.
+Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** - post-install automation (issue [#77](https://github.com/dustinestes/Hatchery/issues/77)) requires them to authenticate over WinRM or SSH after a VM fledges in order to run provisioning scripts. Re-entering credentials at that point would break the zero-manual-steps automation goal.
 
 ### What is stored and where
 

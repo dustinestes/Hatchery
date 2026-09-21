@@ -41,7 +41,7 @@ class TestProbeNest:
             "lib.nest_reachability.probe_tcp_endpoint",
             return_value=NestHealthCheckResult(
                 ok=False,
-                detail="endpoint not reachable — timed out",
+                detail="endpoint not reachable - timed out",
                 failure_class="endpoint",
             ),
         ):
@@ -95,7 +95,7 @@ class TestSnapshotAndAlerts:
             nest,
             NestHealthCheckResult(
                 ok=False,
-                detail="endpoint not reachable — down",
+                detail="endpoint not reachable - down",
                 failure_class="endpoint",
             ),
         )
@@ -113,7 +113,7 @@ class TestSnapshotAndAlerts:
             nest,
             NestHealthCheckResult(
                 ok=False,
-                detail="endpoint reachable; Nest transport not accessible — auth",
+                detail="endpoint reachable; Nest transport not accessible - auth",
                 failure_class="transport",
             ),
         )
@@ -125,14 +125,14 @@ class TestSnapshotAndAlerts:
         """Rename / detail churn must not leave multiple active reachability Alerts."""
         from lib import alerts as alerts_lib
 
-        alerts_lib.record_alert("Nest reachability: 'UTM Box' (r1): endpoint not reachable — a")
-        alerts_lib.record_alert("Nest reachability: 'Lab' (r1): endpoint not reachable — b")
+        alerts_lib.record_alert("Nest reachability: 'UTM Box' (r1): endpoint not reachable - a")
+        alerts_lib.record_alert("Nest reachability: 'Lab' (r1): endpoint not reachable - b")
         nest = {"id": "r1", "name": "Lab", "location": "remote"}
         nr.sync_alert_for_probe(
             nest,
             NestHealthCheckResult(
                 ok=False,
-                detail="endpoint not reachable — still down",
+                detail="endpoint not reachable - still down",
                 failure_class="endpoint",
             ),
         )

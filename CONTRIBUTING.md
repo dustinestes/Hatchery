@@ -6,7 +6,7 @@
 <h1>Contributing</h1>
 <br clear="both">
 
-Thanks for your interest in contributing. Hatchery is a focused project and contributions are welcome — whether that's a bug fix, a new feature, documentation improvements, or just opening an issue with a thoughtful idea.
+Thanks for your interest in contributing. Hatchery is a focused project and contributions are welcome - whether that's a bug fix, a new feature, documentation improvements, or just opening an issue with a thoughtful idea.
 
 <br>
 
@@ -27,10 +27,10 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 
 ## Ways to Contribute
 
-- **Bug reports** — something broken or behaving unexpectedly? Open an issue.
-- **Feature requests** — have an idea that fits the project's direction? Open an issue and describe the use case.
-- **Pull requests** — fixes, improvements, or new functionality. See the process below.
-- **Documentation** — clearer explanations, better examples, or corrected typos are always appreciated.
+- **Bug reports** - something broken or behaving unexpectedly? Open an issue.
+- **Feature requests** - have an idea that fits the project's direction? Open an issue and describe the use case.
+- **Pull requests** - fixes, improvements, or new functionality. See the process below.
+- **Documentation** - clearer explanations, better examples, or corrected typos are always appreciated.
 
 ---
 
@@ -39,9 +39,9 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 ## Before You Open a PR
 
 1. **Check existing issues and PRs** to avoid duplicating work in progress.
-2. **Open an issue first** for anything significant — a new provider, a change to the answer file schema, or a new provisioning target. This keeps effort aligned before code is written.
+2. **Open an issue first** for anything significant - a new provider, a change to the answer file schema, or a new provisioning target. This keeps effort aligned before code is written.
 3. **Keep PRs focused.** One concern per pull request makes review faster and merging cleaner.
-4. **Close the issue from the PR body.** Include a GitHub closing keyword for every issue the PR completes (for example `Closes #11`, or `Fixes` / `Resolves`). Referencing the number only in the title, branch, or commit is not enough — without a closing keyword, merge will not auto-close the issue.
+4. **Close the issue from the PR body.** Include a GitHub closing keyword for every issue the PR completes (for example `Closes #11`, or `Fixes` / `Resolves`). Referencing the number only in the title, branch, or commit is not enough - without a closing keyword, merge will not auto-close the issue.
 
 ---
 
@@ -75,7 +75,7 @@ sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
 **Run the app:**
 
 ```bash
-# Preferred: see docs/cli/ — session-only --data-dir never writes Settings
+# Preferred: see docs/cli/ - session-only --data-dir never writes Settings
 uv run hatchery serve --host 127.0.0.1 --port 5000
 # Optional sandbox data root (empty Nest registry):
 # uv run hatchery serve --data-dir .temp/hatchery-sandbox --host 127.0.0.1 --port 5001
@@ -108,13 +108,13 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 
 ## Code & Style Guidelines
 
-- **Python** — formatted and linted with `ruff`. Run `uv run ruff check . && uv run ruff format --check .` before pushing.
-- **Tests** — `uv run pytest` locally. CI runs the portable suite on **Linux, macOS, and Windows** (see [`docs/tests.md`](docs/tests.md)). Do not add host-only assumptions that break another OS. Real Nest/hypervisor tests use `@pytest.mark.hypervisor` and are skipped in CI.
-- **Line length** — 100 characters.
-- **HTML/CSS/JS** — follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
-- **Providers** — new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`docs/providers.md`](docs/providers.md) when capability changes.
-- **Answer files** — new guest OS types get a template under `templates/answerfiles/` and a corresponding branch in `answerfile.py`.
-- **Comments** — write one only when the *why* is non-obvious. Don't describe what the code does.
+- **Python** - formatted and linted with `ruff`. Run `uv run ruff check . && uv run ruff format --check .` before pushing.
+- **Tests** - `uv run pytest` locally. CI runs the portable suite on **Linux, macOS, and Windows** (see [`docs/tests.md`](docs/tests.md)). Do not add host-only assumptions that break another OS. Real Nest/hypervisor tests use `@pytest.mark.hypervisor` and are skipped in CI.
+- **Line length** - 100 characters.
+- **HTML/CSS/JS** - follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
+- **Providers** - new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`docs/providers.md`](docs/providers.md) when capability changes.
+- **Answer files** - new guest OS types get a template under `templates/answerfiles/` and a corresponding branch in `answerfile.py`.
+- **Comments** - write one only when the *why* is non-obvious. Don't describe what the code does.
 
 ---
 
@@ -124,11 +124,11 @@ Hatchery does not ship devcontainer configurations. The app requires direct acce
 
 Inclusive UI is a **standing expectation**, not a follow-up cleanup pass. A broader accessibility investment is tracked under [#161](https://github.com/dustinestes/Hatchery/issues/161); until then, do not regress the basics when you touch the UI.
 
-- **Labels first** — panes and controls should expose clear text names. The collapsed icon rail is an opt-in density mode for people who already know the app; it is not a substitute for readable navigation. Icon-only states still need accessible names (`aria-label` / `title`).
-- **Keyboard** — primary flows must work without a pointer. Keep focus visible; interactive custom widgets (trays, flyouts, toggles) should support Escape / Enter in line with existing patterns.
-- **Don’t rely on color alone** — hatch/script status and alerts need text (or another non-color cue), not only badge color.
-- **Dynamic UI** — toasts, trays, and live regions should remain understandable to assistive tech (sensible roles, labels, and updates — don’t invent a parallel design system).
-- **Motion** — prefer respecting `prefers-reduced-motion` when adding transitions.
+- **Labels first** - panes and controls should expose clear text names. The collapsed icon rail is an opt-in density mode for people who already know the app; it is not a substitute for readable navigation. Icon-only states still need accessible names (`aria-label` / `title`).
+- **Keyboard** - primary flows must work without a pointer. Keep focus visible; interactive custom widgets (trays, flyouts, toggles) should support Escape / Enter in line with existing patterns.
+- **Don’t rely on color alone** - hatch/script status and alerts need text (or another non-color cue), not only badge color.
+- **Dynamic UI** - toasts, trays, and live regions should remain understandable to assistive tech (sensible roles, labels, and updates - don’t invent a parallel design system).
+- **Motion** - prefer respecting `prefers-reduced-motion` when adding transitions.
 
 When in doubt, favor the labeled, keyboard-reachable control over a mouse-only shortcut.
 

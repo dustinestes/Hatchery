@@ -6,7 +6,7 @@
 <h1>Customization</h1>
 <br clear="both">
 
-How to customize Hatchery — provisioning scripts, VM configuration profiles, and answer file templates.
+How to customize Hatchery - provisioning scripts, VM configuration profiles, and answer file templates.
 
 <br>
 
