@@ -82,7 +82,13 @@ def _parse_extra(raw: str | None) -> dict:
 
 
 def list_nests() -> list[dict]:
-    """Return all registered Nests, local first then by name."""
+    """Return all registered Nests, local first then by name.
+
+    Returns an empty list when the Controller database is not open yet
+    (inspect against a data dir with no ``hatchery.db``).
+    """
+    if not db_module.is_initialized():
+        return []
     conn = db_module.get_connection()
     try:
         rows = conn.execute(
@@ -101,6 +107,8 @@ def get_nest(nest_id: str) -> dict | None:
     """Return one Nest by id, or None."""
     nid = str(nest_id or "").strip()
     if not nid:
+        return None
+    if not db_module.is_initialized():
         return None
     conn = db_module.get_connection()
     try:

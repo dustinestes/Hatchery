@@ -25,6 +25,7 @@ We also need clear boundaries:
 6. **Phase cut:** [#22](https://github.com/dustinestes/Hatchery/issues/22) ships entrypoint + globals + `serve` only (no stub operator subcommands). [#23](https://github.com/dustinestes/Hatchery/issues/23) adds operator commands. [#344](https://github.com/dustinestes/Hatchery/issues/344) may later add `settings get|set` (persist); that is distinct from launch overrides.
 7. Product verbs match the UI (Hatch, Cull, Snapshot, Revert, health / Test Nest). No Brood / Freeze / Thaw / Chirp in user-facing CLI help.
 8. Contributor `gunicorn hatchery:app` remains valid when the same runtime overrides apply.
+9. **Inspect is non-creating:** Operator inspect (`nest` / `clutch` / `vm` list, show, test) requires an existing Controller data directory. It must not mkdir the data tree or create `hatchery.db`. Missing `--data-dir` (or default path) exits with an error. Launch (`serve`) still creates on startup.
 
 ## Consequences
 
