@@ -28,7 +28,7 @@ uv run hatchery nest [--data-dir PATH] test <id>
 | `list` | Controller Nest registry only (no control plane) |
 | `test` | Live check: Local Nest tools on this Controller, or remote Nest transport |
 
-`--data-dir` is session-only (same rule as `serve`).
+`--data-dir` is session-only (same rule as `serve`). Inspect does not create a missing data directory or database.
 
 <br>
 

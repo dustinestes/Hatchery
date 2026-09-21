@@ -25,6 +25,8 @@ uv run hatchery clutch [--data-dir PATH] show <file>
 
 Reads `data_dir/clutches/*.yaml` on the Controller. Does not reach Nest transport.
 
+Inspect is read-only: the data directory must already exist. A missing `--data-dir` path exits with an error and does **not** create folders or `hatchery.db` (unlike `serve`).
+
 <br>
 
 ## Examples

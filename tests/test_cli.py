@@ -155,10 +155,32 @@ class TestMainAndServe:
 class TestOperatorInspect:
     def test_nest_list_empty(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
+        sandbox.mkdir()
         args = cli.build_parser().parse_args(["nest", "--data-dir", str(sandbox), "list"])
         rc = nest_cmd.run(args)
         assert rc == 0
         assert "No Nests registered" in capsys.readouterr().out
+        assert not (sandbox / "hatchery.db").exists()
+        assert not (sandbox / "clutches").exists()
+
+    def test_inspect_missing_data_dir_does_not_create(self, isolated_config, tmp_path, capsys):
+        missing = tmp_path / "does-not-exist"
+        for cmd in (
+            ["clutch", "--data-dir", str(missing), "list"],
+            ["nest", "--data-dir", str(missing), "list"],
+            ["vm", "--data-dir", str(missing), "list"],
+        ):
+            args = cli.build_parser().parse_args(cmd)
+            if cmd[0] == "clutch":
+                rc = clutch_cmd.run(args)
+            elif cmd[0] == "nest":
+                rc = nest_cmd.run(args)
+            else:
+                rc = vm_cmd.run(args)
+            assert rc == 1
+            err = capsys.readouterr().err
+            assert "does not exist" in err
+            assert not missing.exists()
 
     def test_nest_list_shows_local(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
@@ -177,6 +199,7 @@ class TestOperatorInspect:
 
     def test_nest_test_unknown(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
+        sandbox.mkdir()
         args = cli.build_parser().parse_args(
             ["nest", "--data-dir", str(sandbox), "test", "missing"]
         )
@@ -231,12 +254,23 @@ class TestOperatorInspect:
         assert "name: Lab" in out
         assert "dc01" in out
 
+    def test_clutch_list_empty_dir_no_create(self, isolated_config, tmp_path, capsys):
+        sandbox = tmp_path / "sandbox"
+        sandbox.mkdir()
+        args = cli.build_parser().parse_args(["clutch", "--data-dir", str(sandbox), "list"])
+        assert clutch_cmd.run(args) == 0
+        assert "No Clutch files" in capsys.readouterr().out
+        assert not (sandbox / "hatchery.db").exists()
+        assert not (sandbox / "clutches").exists()
+
     def test_vm_list_no_nest(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
+        sandbox.mkdir()
         args = cli.build_parser().parse_args(["vm", "--data-dir", str(sandbox), "list"])
         rc = vm_cmd.run(args)
         assert rc == 1
         assert "No Nests registered" in capsys.readouterr().err
+        assert not (sandbox / "hatchery.db").exists()
 
     def test_vm_list_mocked_provider(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"

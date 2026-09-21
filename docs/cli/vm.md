@@ -25,9 +25,9 @@ uv run hatchery vm [--data-dir PATH] list [--nest <id>]
 | Flag | Notes |
 |---|---|
 | `--nest` | Required unless exactly one Nest is registered (ADR-0014) |
-| `--data-dir` | Session-only Controller data dir |
+| `--data-dir` | Session-only Controller data dir (must already exist for inspect) |
 
-`list` asks the Nest hypervisor via the provider factory (local libvirt → `virsh`). Remote Nest VM ops are not available yet (clear error). Live inventory is not a Controller SQLite table; remote last-known cache is Nest-plane work ([#345](https://github.com/dustinestes/Hatchery/issues/345)).
+`list` asks the Nest hypervisor via the provider factory (local libvirt → `virsh`). Remote Nest VM ops are not available yet (clear error). Live inventory is not a Controller SQLite table; remote last-known cache is Nest-plane work ([#345](https://github.com/dustinestes/Hatchery/issues/345)). Inspect does not create a missing data directory or database.
 
 <br>
 

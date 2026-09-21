@@ -27,7 +27,11 @@ def register(sub: argparse._SubParsersAction) -> None:
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``vm`` subcommands."""
-    bootstrap.bootstrap(args)
+    try:
+        bootstrap.bootstrap(args, create=False)
+    except bootstrap.DataDirMissingError as exc:
+        bootstrap.print_err(str(exc))
+        return 1
     cmd = args.vm_command
     if cmd == "list":
         return _list_vms(args.nest)

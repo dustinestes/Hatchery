@@ -24,7 +24,11 @@ def register(sub: argparse._SubParsersAction) -> None:
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``clutch`` subcommands."""
-    bootstrap.bootstrap(args)
+    try:
+        bootstrap.bootstrap(args, create=False)
+    except bootstrap.DataDirMissingError as exc:
+        bootstrap.print_err(str(exc))
+        return 1
     cmd = args.clutch_command
     if cmd == "list":
         return _list_clutches()
