@@ -6,26 +6,38 @@
 <h1>CLI: vm</h1>
 <br clear="both">
 
-**Planned.** Code will live at `lib/cli/vm.py`. Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
+Code: [`lib/cli/vm.py`](../../lib/cli/vm.py). Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23) (inspect slice). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
 
 <br>
 
 ## Purpose
 
-Nest-scoped VM inventory and lifecycle (Start, Stop, Cull, Snapshot, Revert, health check).
+Nest-scoped VM inventory. Lifecycle (Start, Stop, Cull, Snapshot, Revert, health) is deferred to a follow-on under [#23](https://github.com/dustinestes/Hatchery/issues/23).
 
 <br>
 
-## Intended surface
+## Usage (shipped)
 
 ```bash
-hatchery vm list --nest <id>
+uv run hatchery vm [--data-dir PATH] list [--nest <id>]
+```
+
+| Flag | Notes |
+|---|---|
+| `--nest` | Required unless exactly one Nest is registered (ADR-0014) |
+| `--data-dir` | Session-only Controller data dir |
+
+`list` asks the Nest hypervisor via the provider factory (local libvirt → `virsh`). Remote Nest VM ops are not available yet (clear error). Live inventory is not a Controller SQLite table; remote last-known cache is Nest-plane work ([#345](https://github.com/dustinestes/Hatchery/issues/345)).
+
+<br>
+
+## Planned (not in this slice)
+
+```bash
 hatchery vm start|stop|cull --nest <id> <vm-name>
 hatchery vm snapshot|revert --nest <id> <vm-name> --label <name>
 hatchery vm health --nest <id> <vm-name>
 ```
-
-In-process Nest factory / transport. Nest targeting per ADR-0013. Not implemented until #23.
 
 <br>
 

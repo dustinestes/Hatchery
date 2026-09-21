@@ -22,7 +22,7 @@ Hatch a Clutch onto a Nest from the terminal (same orchestration paths as the UI
 hatchery hatch --clutch <file> [--nest <id>]
 ```
 
-Not implemented until #23. Long-running Remote Nest hatch resilience is Nest-plane work ([#345](https://github.com/dustinestes/Hatchery/issues/345)), not this command’s packaging.
+Not implemented until a follow-on under [#23](https://github.com/dustinestes/Hatchery/issues/23) (inspect slice shipped `nest` / `clutch` / `vm list` first). Long-running Remote Nest hatch resilience is Nest-plane work ([#345](https://github.com/dustinestes/Hatchery/issues/345)), not this command’s packaging.
 
 <br>
 
