@@ -5,16 +5,22 @@ from __future__ import annotations
 import argparse
 from typing import Sequence
 
+from lib.cli import clutch as clutch_cmd
+from lib.cli import nest as nest_cmd
 from lib.cli import serve as serve_cmd
+from lib.cli import vm as vm_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hatchery",
-        description="Hatchery Controller CLI - launch and (later) Nest-scoped operator commands.",
+        description="Hatchery Controller CLI - launch and Nest-scoped operator commands.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     serve_cmd.register(sub)
+    nest_cmd.register(sub)
+    clutch_cmd.register(sub)
+    vm_cmd.register(sub)
     return parser
 
 
@@ -23,6 +29,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.command == "serve":
         return serve_cmd.run(args)
+    if args.command == "nest":
+        return nest_cmd.run(args)
+    if args.command == "clutch":
+        return clutch_cmd.run(args)
+    if args.command == "vm":
+        return vm_cmd.run(args)
     parser.error(f"unknown command: {args.command}")
     return 2
 

@@ -6,24 +6,33 @@
 <h1>CLI: clutch</h1>
 <br clear="both">
 
-**Planned.** Code will live at `lib/cli/clutch.py`. Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
+Code: [`lib/cli/clutch.py`](../../lib/cli/clutch.py). Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23) (inspect slice). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
 
 <br>
 
 ## Purpose
 
-List and show Clutch files under the effective `--data-dir` (operator / inspect surface).
+List and show Clutch files under the effective Controller `data_dir` (operator inspect surface).
 
 <br>
 
-## Intended surface
+## Usage
 
 ```bash
-hatchery clutch list
-hatchery clutch show <file>
+uv run hatchery clutch [--data-dir PATH] list
+uv run hatchery clutch [--data-dir PATH] show <file>
 ```
 
-Global `--data-dir` will apply like other operator commands. Not implemented until #23.
+Reads `data_dir/clutches/*.yaml` on the Controller. Does not reach Nest transport.
+
+<br>
+
+## Examples
+
+```bash
+uv run hatchery clutch list
+uv run hatchery clutch --data-dir .temp/hatchery-sandbox show lab.yaml
+```
 
 <br>
 

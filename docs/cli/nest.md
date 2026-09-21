@@ -6,24 +6,39 @@
 <h1>CLI: nest</h1>
 <br clear="both">
 
-**Planned.** Code will live at `lib/cli/nest.py`. Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
+Code: [`lib/cli/nest.py`](../../lib/cli/nest.py). Parent: [CLI index](README.md). Issue: [#23](https://github.com/dustinestes/Hatchery/issues/23) (inspect slice). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
 
 <br>
 
 ## Purpose
 
-Inspect registered Nests and run connectivity checks (Test Nest connection).
+Inspect registered Nests (Controller SQLite registry) and run Test Nest connection.
 
 <br>
 
-## Intended surface
+## Usage
 
 ```bash
-hatchery nest list
-hatchery nest test <id>
+uv run hatchery nest [--data-dir PATH] list
+uv run hatchery nest [--data-dir PATH] test <id>
 ```
 
-Not implemented until #23.
+| Command | Source |
+|---|---|
+| `list` | Controller Nest registry only (no control plane) |
+| `test` | Live check: Local Nest tools on this Controller, or remote Nest transport |
+
+`--data-dir` is session-only (same rule as `serve`).
+
+<br>
+
+## Examples
+
+```bash
+uv run hatchery nest list
+uv run hatchery nest --data-dir .temp/hatchery-sandbox list
+uv run hatchery nest test local
+```
 
 <br>
 

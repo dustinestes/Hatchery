@@ -49,7 +49,7 @@ Hatchery/
 │   ├── install-service.sh        # installs the systemd service and optional hostname
 │   └── uninstall-service.sh      # removes the service and hostname entry
 ├── lib/
-│   ├── cli/                      # Controller CLI (hatchery serve; operator cmds planned)
+│   ├── cli/                      # Controller CLI (serve + nest/clutch/vm inspect; #23)
 │   │   ├── __init__.py           # argparse entry + subcommand dispatch
 │   │   ├── __main__.py           # python -m lib.cli
 │   │   └── serve.py              # hatchery serve

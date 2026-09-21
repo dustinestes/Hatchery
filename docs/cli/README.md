@@ -6,7 +6,7 @@
 <h1>CLI</h1>
 <br clear="both">
 
-Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and (later) **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
+Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
 
 Code lives under [`lib/cli/`](../../lib/cli/). Docs here mirror that layout: each command module has a matching page.
 
@@ -61,6 +61,9 @@ After `uv sync` in a clone:
 uv run hatchery serve --host 127.0.0.1 --port 5000
 uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
 uv run hatchery serve --data-dir /path/to/sandbox-local --nest-local --host 127.0.0.1 --port 5000
+uv run hatchery nest list
+uv run hatchery clutch list
+uv run hatchery vm list --nest local
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -84,13 +87,13 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 | Doc | Code | Status | Description |
 |---|---|---|---|
 | [serve.md](serve.md) | [`lib/cli/serve.py`](../../lib/cli/serve.py) | **Shipped** (#22, #266 `--nest-local`) | Start the Controller HTTP server |
-| [clutch.md](clutch.md) | `lib/cli/clutch.py` | Planned (#23) | List/show Clutch files |
-| [vm.md](vm.md) | `lib/cli/vm.py` | Planned (#23) | Nest-scoped VM list and lifecycle |
-| [hatch.md](hatch.md) | `lib/cli/hatch.py` | Planned (#23) | Hatch a Clutch onto a Nest |
-| [nest.md](nest.md) | `lib/cli/nest.py` | Planned (#23) | List Nests / Test Nest connection |
+| [clutch.md](clutch.md) | [`lib/cli/clutch.py`](../../lib/cli/clutch.py) | **Shipped (inspect)** (#23) | List/show Clutch files |
+| [vm.md](vm.md) | [`lib/cli/vm.py`](../../lib/cli/vm.py) | **Shipped (inspect)** (#23) | Nest-scoped VM list (lifecycle later) |
+| [hatch.md](hatch.md) | `lib/cli/hatch.py` | Planned (#23 follow-on) | Hatch a Clutch onto a Nest |
+| [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
 
-Operator and settings command modules are not in the tree until those issues land; the doc pages describe the intended surface so layout stays aligned.
+Operator inspect commands (`nest`, `clutch`, `vm list`) ship under [#23](https://github.com/dustinestes/Hatchery/issues/23); mutating VM lifecycle and `hatch` remain follow-on work on that issue.
 
 <br>
 
