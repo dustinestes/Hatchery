@@ -146,9 +146,68 @@ class TestCascadeAndOrphan:
             source_type="path",
             source_digest=tip[1],
             source_digest_kind=tip[0],
+            binding_id="bind-new",
         )
         assert row["connection_id"] == "new"
+        assert row["binding_id"] == "bind-new"
         assert row["drift_state"] == "unknown"
+
+    def test_reattach_binding_cascade_delete(self, data_env, tmp_path):
+        """Orphan → reattach with binding_id → binding cascade deletes the file (#357)."""
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1", binding_id="bind-old")
+        dest = data_env / "automation" / "scripts" / "hello.ps1"
+        assert dest.is_file()
+        # Simulate orphan recovery onto a new binding id for the same connection.
+        tip = library_lib.resolve_source_digest(conn, "hello.ps1")
+        assert tip
+        row = prov.reattach(
+            domain="scripts",
+            cache_name="hello.ps1",
+            connection_id="c1",
+            relative_path="hello.ps1",
+            source_type="path",
+            source_digest=tip[1],
+            source_digest_kind=tip[0],
+            binding_id="bind-new",
+        )
+        assert row["binding_id"] == "bind-new"
+        assert prov.rows_for_binding("bind-old") == []
+        deleted = prov.delete_attributed_cache_files(
+            prov.rows_for_binding("bind-new"), data_dir=data_env
+        )
+        assert "hello.ps1" in deleted
+        assert not dest.exists()
+        assert prov.get_for_cache("scripts", "hello.ps1") is None
+
+    def test_reattach_without_binding_misses_binding_cascade(self, data_env, tmp_path):
+        """Connection-only reattach leaves binding cascade empty (pre-#357 bug shape)."""
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1", binding_id="bind-1")
+        tip = library_lib.resolve_source_digest(conn, "hello.ps1")
+        assert tip
+        prov.reattach(
+            domain="scripts",
+            cache_name="hello.ps1",
+            connection_id="c1",
+            relative_path="hello.ps1",
+            source_type="path",
+            source_digest=tip[1],
+            source_digest_kind=tip[0],
+            binding_id=None,
+        )
+        assert prov.rows_for_binding("bind-1") == []
+        deleted = prov.delete_attributed_cache_files(
+            prov.rows_for_binding("bind-1"), data_dir=data_env
+        )
+        assert deleted == []
+        assert (data_env / "automation" / "scripts" / "hello.ps1").is_file()
 
 
 class TestBidirectionalDrift:
