@@ -713,6 +713,7 @@ def clutches():
             if config.library_enabled()
             else []
         ),
+        library_bindings=_library_reattach_bindings("clutches"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
@@ -735,6 +736,7 @@ def automation_scripts():
             if config.library_enabled()
             else []
         ),
+        library_bindings=_library_reattach_bindings("scripts"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
@@ -772,6 +774,7 @@ def media_iso():
             if config.library_enabled()
             else []
         ),
+        library_bindings=_library_reattach_bindings("media", media_target="iso"),
         inventory_api_url=url_for("api_media_iso"),
     )
 
@@ -803,6 +806,7 @@ def media_virtio():
             if config.library_enabled()
             else []
         ),
+        library_bindings=_library_reattach_bindings("media", media_target="virtio"),
         inventory_api_url=url_for("api_media_virtio"),
     )
 
@@ -1324,6 +1328,71 @@ def _library_require_enabled():
     return None
 
 
+def _library_reattach_bindings(domain: str, *, media_target: str | None = None) -> list[dict]:
+    """Bindings for re-attach pickers (id, connection_id, filter, optional target)."""
+    if not config.library_enabled():
+        return []
+    try:
+        connections = library_lib.parse_connections(
+            config.library_connections(), enforce_expiry_future=False
+        )
+    except ValueError:
+        return []
+    key = (domain or "").strip().lower()
+    try:
+        if key == "scripts":
+            binds = library_lib.parse_script_bindings(config.library_script_bindings(), connections)
+        elif key == "clutches":
+            binds = library_lib.parse_clutch_bindings(config.library_clutch_bindings(), connections)
+        elif key == "media":
+            binds = library_lib.parse_media_bindings(config.library_media_bindings(), connections)
+            if media_target:
+                mt = media_target.strip().lower()
+                binds = [b for b in binds if str(b.get("target") or "") == mt]
+        else:
+            return []
+    except ValueError:
+        return []
+    out: list[dict] = []
+    for b in binds:
+        row = {
+            "id": b["id"],
+            "connection_id": b["connection_id"],
+            "filter": b.get("filter") or "*",
+            "enabled": bool(b.get("enabled", True)),
+        }
+        if key == "media":
+            row["target"] = b.get("target") or ""
+        out.append(row)
+    return out
+
+
+def _validate_reattach_binding(
+    *,
+    domain: str,
+    connection_id: str,
+    binding_id: str | None,
+    media_target: str | None = None,
+) -> str | None:
+    """Return an error message if binding_id is required/invalid for reattach (#357)."""
+    cid = (connection_id or "").strip()
+    binds = [
+        b
+        for b in _library_reattach_bindings(domain, media_target=media_target)
+        if b.get("connection_id") == cid
+    ]
+    if not binds:
+        if binding_id:
+            return "No Library bindings on that connection for this domain"
+        return None
+    bid = (binding_id or "").strip()
+    if not bid:
+        return "Select a Library binding for this connection"
+    if not any(b.get("id") == bid for b in binds):
+        return "Binding does not belong to that connection"
+    return None
+
+
 def _connection_from_request_body(data: dict) -> dict:
     """Normalize a connection object from JSON (Settings test or pull)."""
     raw = data.get("connection")
@@ -1779,6 +1848,14 @@ def api_library_cache_reattach():
                 "source_digest_kind": kind,
             }
         )
+    bind_err = _validate_reattach_binding(
+        domain=domain,
+        connection_id=str(conn.get("id") or ""),
+        binding_id=binding_id,
+        media_target=media_target if domain == "media" else None,
+    )
+    if bind_err:
+        return jsonify({"ok": False, "error": bind_err}), 400
     try:
         row = prov.reattach(
             domain=domain,

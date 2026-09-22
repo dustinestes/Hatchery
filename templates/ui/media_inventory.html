@@ -228,9 +228,15 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-reattach-title">
     <h2 class="modal-title" id="library-reattach-title">Re-attach Library source</h2>
     <div class="modal-body">
+      <p>Pick a connection, binding, and path, then Test.</p>
       <div class="form-group">
         <label class="form-label" for="library-reattach-conn">Connection</label>
         <select id="library-reattach-conn" class="form-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-bind">Binding</label>
+        <select id="library-reattach-bind" class="form-select" aria-describedby="library-reattach-bind-hint"></select>
+        <p class="form-hint" id="library-reattach-bind-hint">Required when this connection has Media bindings - cascade delete keys on binding id.</p>
       </div>
       <div class="form-group">
         <label class="form-label" for="library-reattach-path">Relative path</label>
@@ -341,6 +347,7 @@
   const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
   const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
   const libraryConnections = {{ library_connections | default([]) | tojson }};
+  const libraryBindings = {{ library_bindings | default([]) | tojson }};
   const inventoryApiUrl = {{ inventory_api_url | default('') | tojson }};
   const mediaTarget = {{ library_media_target | default('iso') | tojson }};
   const deleteBackdrop = document.getElementById('delete-modal-backdrop');
@@ -815,16 +822,59 @@
   if (libraryStatusBtn && cacheSyncUrl) {
     var reattachBackdrop = document.getElementById('library-reattach-backdrop');
     var reattachConn = document.getElementById('library-reattach-conn');
+    var reattachBind = document.getElementById('library-reattach-bind');
+    var reattachBindHint = document.getElementById('library-reattach-bind-hint');
     var reattachPath = document.getElementById('library-reattach-path');
     var reattachTest = document.getElementById('library-reattach-test');
     var reattachSave = document.getElementById('library-reattach-save');
     var reattachCancel = document.getElementById('library-reattach-cancel');
     var reattachStatus = document.getElementById('library-reattach-status');
     var reattachName = null;
+    var reattachTested = false;
 
     function closeReattach() {
       if (reattachBackdrop) reattachBackdrop.hidden = true;
       reattachName = null;
+      reattachTested = false;
+    }
+
+    function refreshReattachBindings() {
+      if (!reattachBind || !reattachConn) return;
+      var cid = reattachConn.value;
+      var matches = (libraryBindings || []).filter(function (b) {
+        return b.connection_id === cid;
+      });
+      reattachBind.innerHTML = '';
+      if (!matches.length) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No bindings on this connection';
+        reattachBind.appendChild(opt);
+        reattachBind.disabled = true;
+        if (reattachBindHint) {
+          reattachBindHint.textContent =
+            'No Media bindings on this connection - provenance will be connection-only until you add a binding.';
+        }
+      } else {
+        reattachBind.disabled = false;
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a binding';
+        reattachBind.appendChild(placeholder);
+        matches.forEach(function (b) {
+          var o = document.createElement('option');
+          o.value = b.id;
+          o.textContent = (b.filter || '*') + (b.enabled === false ? ' (off)' : '');
+          reattachBind.appendChild(o);
+        });
+        if (matches.length === 1) reattachBind.value = matches[0].id;
+        if (reattachBindHint) {
+          reattachBindHint.textContent =
+            'Required so binding remove can cascade-delete this Cached file.';
+        }
+      }
+      reattachTested = false;
+      if (reattachSave) reattachSave.disabled = true;
     }
 
     function openReattach() {
@@ -834,6 +884,8 @@
       reattachPath.value = active.getAttribute('data-lib-rel') || reattachName;
       if (reattachStatus) reattachStatus.textContent = '';
       reattachSave.disabled = true;
+      reattachTested = false;
+      refreshReattachBindings();
       reattachBackdrop.hidden = false;
       reattachConn.focus();
     }
@@ -846,6 +898,13 @@
         opt.textContent = c.label || c.id;
         reattachConn.appendChild(opt);
       });
+      reattachConn.addEventListener('change', refreshReattachBindings);
+      if (reattachBind) {
+        reattachBind.addEventListener('change', function () {
+          reattachTested = false;
+          if (reattachSave) reattachSave.disabled = true;
+        });
+      }
       if (reattachCancel) reattachCancel.addEventListener('click', closeReattach);
       reattachBackdrop.addEventListener('click', function (e) {
         if (e.target === reattachBackdrop) closeReattach();
@@ -856,7 +915,7 @@
         }
       });
       function reattachBody(commit) {
-        return {
+        var body = {
           domain: 'media',
           name: reattachName,
           connection_id: reattachConn.value,
@@ -864,10 +923,22 @@
           media_target: mediaTarget,
           commit: !!commit,
         };
+        var bid = reattachBind && !reattachBind.disabled ? (reattachBind.value || '').trim() : '';
+        if (bid) body.binding_id = bid;
+        return body;
+      }
+      function bindingReady() {
+        if (!reattachBind || reattachBind.disabled) return true;
+        return !!(reattachBind.value || '').trim();
       }
       if (reattachTest) {
         reattachTest.addEventListener('click', function () {
           if (!cacheReattachUrl || !reattachName) return;
+          if (!bindingReady()) {
+            if (reattachStatus) reattachStatus.textContent = 'Select a Library binding first';
+            reattachSave.disabled = true;
+            return;
+          }
           fetch(cacheReattachUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -878,16 +949,26 @@
               if (!res.ok) {
                 reattachStatus.textContent = (res.data && res.data.error) || 'Test failed';
                 reattachSave.disabled = true;
+                reattachTested = false;
                 return;
               }
               reattachStatus.textContent = 'Path resolves (' + (res.data.source_digest_kind || 'tip') + ')';
-              reattachSave.disabled = false;
+              reattachTested = true;
+              reattachSave.disabled = !bindingReady();
             });
         });
       }
       if (reattachSave) {
         reattachSave.addEventListener('click', function () {
           if (!cacheReattachUrl || !reattachName) return;
+          if (!bindingReady()) {
+            if (reattachStatus) reattachStatus.textContent = 'Select a Library binding first';
+            return;
+          }
+          if (!reattachTested) {
+            if (reattachStatus) reattachStatus.textContent = 'Test the path before re-attaching';
+            return;
+          }
           fetch(cacheReattachUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
