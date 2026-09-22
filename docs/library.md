@@ -197,7 +197,7 @@ Drift is **bidirectional**: the validator refreshes observed digests for both si
 |---|---|
 | **Out of sync when** | Cache bytes changed since sync, **or** Library tip moved since sync, **or** (content-addressable tips) live cache identity ≠ live tip |
 | **Sync** | Overwrites the Cached file from the source, then **evaluates that row** (evaluate owns digests, `drift_state`, and Alerts). Sync does not force `in_sync` by itself |
-| **Orphan** | Connection/binding id missing → warning on Cached views; re-attach modal (connection + **binding** + path, Test, then rewrite ids). When the connection has domain bindings, binding is required so binding remove can cascade-delete attributed cache ([#357](https://github.com/dustinestes/Hatchery/issues/357)) |
+| **Orphan** | Connection/binding id missing → warning on Cached views; re-attach modal (connection + **binding** + path, Test, then rewrite ids). A binding is always required ([#363](https://github.com/dustinestes/Hatchery/issues/363)); if the connection has none for this domain, add one under Settings → Library first. Binding remove can then cascade-delete attributed cache ([#357](https://github.com/dustinestes/Hatchery/issues/357)) |
 | **Delete connection/binding** | Default: leave Cached files (orphans). Optional confirm toggle deletes attributed files (binding cascade matches `binding_id`; connection cascade matches `connection_id`) |
 | **Validator** | `library_cache_drift` - Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
 

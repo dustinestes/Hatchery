@@ -184,7 +184,7 @@ class TestCascadeAndOrphan:
         assert prov.get_for_cache("scripts", "hello.ps1") is None
 
     def test_reattach_without_binding_misses_binding_cascade(self, data_env, tmp_path):
-        """Connection-only reattach leaves binding cascade empty (pre-#357 bug shape)."""
+        """Low-level reattach with null binding_id skips cascade (API forbids this; #363)."""
         share = tmp_path / "share"
         share.mkdir()
         (share / "hello.ps1").write_text("x\n", encoding="utf-8")
