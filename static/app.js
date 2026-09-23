@@ -985,6 +985,247 @@ hatchery.bindUnsavedLeave = function (opts) {
   };
 
   /**
+   * Shared Library re-attach modal for Cached Scripts / Clutches / Media (#364).
+   * opts: reattachUrl, connections, bindings, domain, bindingNoun,
+   *   getActiveItem() -> { name, relativePath } | null,
+   *   mediaTarget (optional), includeTypeInConnLabel (default true)
+   * Returns { open: function } or null when modal markup is absent.
+   */
+  hatchery.bindLibraryReattach = function (opts) {
+    var backdrop = document.getElementById('library-reattach-backdrop');
+    var connSel = document.getElementById('library-reattach-conn');
+    var bindSel = document.getElementById('library-reattach-bind');
+    var bindHint = document.getElementById('library-reattach-bind-hint');
+    var pathInput = document.getElementById('library-reattach-path');
+    var testBtn = document.getElementById('library-reattach-test');
+    var saveBtn = document.getElementById('library-reattach-save');
+    var cancelBtn = document.getElementById('library-reattach-cancel');
+    var statusEl = document.getElementById('library-reattach-status');
+    if (!backdrop || !connSel || !opts || !opts.reattachUrl || !opts.domain) {
+      return null;
+    }
+
+    var noun = opts.bindingNoun || 'Library';
+    var connections = opts.connections || [];
+    var bindings = opts.bindings || [];
+    var includeType = opts.includeTypeInConnLabel !== false;
+    var cacheName = null;
+    var tested = false;
+
+    function basename(p) {
+      var s = String(p || '').replace(/\\/g, '/');
+      var i = s.lastIndexOf('/');
+      return i >= 0 ? s.slice(i + 1) : s;
+    }
+
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg || '';
+    }
+
+    function close() {
+      backdrop.hidden = true;
+      cacheName = null;
+      tested = false;
+    }
+
+    function bindingReady() {
+      if (!bindSel || bindSel.disabled) return false;
+      return !!(bindSel.value || '').trim();
+    }
+
+    function noBindingMessage() {
+      return 'Add a ' + noun + ' binding under Settings → Library for this connection first';
+    }
+
+    function refreshBindings() {
+      if (!bindSel) return;
+      var cid = connSel.value;
+      var matches = bindings.filter(function (b) {
+        return b.connection_id === cid;
+      });
+      bindSel.innerHTML = '';
+      if (!matches.length) {
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'No bindings on this connection';
+        bindSel.appendChild(empty);
+        bindSel.disabled = true;
+        if (bindHint) {
+          bindHint.textContent =
+            noBindingMessage() + '. Re-attach always requires a binding.';
+        }
+      } else {
+        bindSel.disabled = false;
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a binding';
+        bindSel.appendChild(placeholder);
+        matches.forEach(function (b) {
+          var opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = (b.filter || '*') + (b.enabled === false ? ' (off)' : '');
+          bindSel.appendChild(opt);
+        });
+        if (matches.length === 1) {
+          bindSel.value = matches[0].id;
+        }
+        if (bindHint) {
+          bindHint.textContent =
+            'Required so binding remove can cascade-delete this Cached file.';
+        }
+      }
+      tested = false;
+      if (saveBtn) saveBtn.disabled = true;
+    }
+
+    function lockedRelativePath(name, preferred) {
+      var preferredBn = basename(preferred);
+      var nameBn = basename(name);
+      if (preferred && preferredBn === nameBn) {
+        return String(preferred).replace(/\\/g, '/');
+      }
+      return nameBn;
+    }
+
+    function open() {
+      if (typeof opts.getActiveItem !== 'function') return;
+      var item = opts.getActiveItem();
+      if (!item || !item.name) return;
+      cacheName = item.name;
+      if (pathInput) {
+        pathInput.value = lockedRelativePath(item.name, item.relativePath);
+        pathInput.disabled = true;
+        pathInput.readOnly = true;
+      }
+      setStatus('');
+      if (saveBtn) saveBtn.disabled = true;
+      tested = false;
+      refreshBindings();
+      backdrop.hidden = false;
+      connSel.focus();
+    }
+
+    function body(commit) {
+      var payload = {
+        domain: opts.domain,
+        name: cacheName,
+        connection_id: connSel.value,
+        relative_path: pathInput ? (pathInput.value || '').trim() : '',
+        commit: !!commit,
+      };
+      if (opts.mediaTarget) {
+        payload.media_target = opts.mediaTarget;
+      }
+      var bid = bindSel && !bindSel.disabled ? (bindSel.value || '').trim() : '';
+      if (bid) payload.binding_id = bid;
+      return payload;
+    }
+
+    connSel.innerHTML = '';
+    connections.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = includeType
+        ? (c.label || c.id) + ' (' + (c.type || '') + ')'
+        : (c.label || c.id);
+      connSel.appendChild(opt);
+    });
+    connSel.addEventListener('change', refreshBindings);
+    if (bindSel) {
+      bindSel.addEventListener('change', function () {
+        tested = false;
+        if (saveBtn) saveBtn.disabled = true;
+      });
+    }
+    if (cancelBtn) cancelBtn.addEventListener('click', close);
+    backdrop.addEventListener('click', function (e) {
+      if (e.target === backdrop) close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !backdrop.hidden) {
+        e.preventDefault();
+        close();
+      }
+    });
+
+    if (testBtn) {
+      testBtn.addEventListener('click', function () {
+        if (!cacheName || !opts.reattachUrl) return;
+        if (!bindingReady()) {
+          setStatus(
+            bindSel && bindSel.disabled
+              ? noBindingMessage()
+              : 'Select a Library binding first'
+          );
+          if (saveBtn) saveBtn.disabled = true;
+          return;
+        }
+        fetch(opts.reattachUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body(false)),
+        })
+          .then(function (r) {
+            return r.json().then(function (d) {
+              return { ok: r.ok, data: d };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              setStatus((res.data && res.data.error) || 'Test failed');
+              if (saveBtn) saveBtn.disabled = true;
+              tested = false;
+              return;
+            }
+            setStatus(
+              'Path resolves (' + (res.data.source_digest_kind || 'tip') + ')'
+            );
+            tested = true;
+            if (saveBtn) saveBtn.disabled = !bindingReady();
+          });
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        if (!cacheName || !opts.reattachUrl) return;
+        if (!bindingReady()) {
+          setStatus(
+            bindSel && bindSel.disabled
+              ? noBindingMessage()
+              : 'Select a Library binding first'
+          );
+          return;
+        }
+        if (!tested) {
+          setStatus('Test the path before re-attaching');
+          return;
+        }
+        fetch(opts.reattachUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body(true)),
+        })
+          .then(function (r) {
+            return r.json().then(function (d) {
+              return { ok: r.ok, data: d };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              setStatus((res.data && res.data.error) || 'Re-attach failed');
+              return;
+            }
+            window.location.reload();
+          });
+      });
+    }
+
+    refreshBindings();
+    return { open: open, close: close };
+  };
+
+  /**
    * In-pane Library catalog browser (filter / sort / batch pull).
    * opts: root, catalogUrl, pullUrl, status, tbody, empty, selectAll, pullBtn,
    *   refreshBtn, filterQ, filterConn, filterCached, sort,

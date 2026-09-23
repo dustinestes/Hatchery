@@ -1,0 +1,31 @@
+{# Shared Library re-attach modal (#364). Requires: binding_noun (Scripts|Clutch|Media) #}
+{% if library_enabled %}
+<div id="library-reattach-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-reattach-title">
+    <h2 class="modal-title" id="library-reattach-title">Re-attach Library source</h2>
+    <div class="modal-body">
+      <p>This Cached file’s Library connection is missing. Pick a connection and binding, then Test. The relative path must match the Cached filename (rename is not supported here).</p>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-conn">Connection</label>
+        <select id="library-reattach-conn" class="form-select"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-bind">Binding</label>
+        <select id="library-reattach-bind" class="form-select" aria-describedby="library-reattach-bind-hint"></select>
+        <p class="form-hint" id="library-reattach-bind-hint">Required so binding remove can cascade-delete this Cached file.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="library-reattach-path">Relative path</label>
+        <input type="text" id="library-reattach-path" class="form-input" autocomplete="off" disabled readonly>
+        <p class="form-hint">Fixed to the Cached filename. If the upstream name changed, re-import instead of re-attaching.</p>
+      </div>
+      <p class="form-hint" id="library-reattach-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-reattach-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-test">Test</button>
+      <button type="button" class="btn btn-primary" id="library-reattach-save" disabled>Re-attach</button>
+    </div>
+  </div>
+</div>
+{% endif %}

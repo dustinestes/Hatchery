@@ -242,35 +242,7 @@
   </div>
 </div>
 
-{% if library_enabled %}
-<div id="library-reattach-backdrop" class="modal-backdrop" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-reattach-title">
-    <h2 class="modal-title" id="library-reattach-title">Re-attach Library source</h2>
-    <div class="modal-body">
-      <p>This Cached file’s Library connection is missing. Pick a connection, binding, and path, then Test.</p>
-      <div class="form-group">
-        <label class="form-label" for="library-reattach-conn">Connection</label>
-        <select id="library-reattach-conn" class="form-select"></select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="library-reattach-bind">Binding</label>
-        <select id="library-reattach-bind" class="form-select" aria-describedby="library-reattach-bind-hint"></select>
-        <p class="form-hint" id="library-reattach-bind-hint">Required when this connection has Clutch bindings - cascade delete keys on binding id.</p>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="library-reattach-path">Relative path</label>
-        <input type="text" id="library-reattach-path" class="form-input" autocomplete="off">
-      </div>
-      <p class="form-hint" id="library-reattach-status" role="status" aria-live="polite"></p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" id="library-reattach-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="library-reattach-test">Test</button>
-      <button type="button" class="btn btn-primary" id="library-reattach-save" disabled>Re-attach</button>
-    </div>
-  </div>
-</div>
-{% endif %}
+{% include '_library_reattach_modal.html' %}
 {% endblock %}
 
 {% block scripts %}
@@ -829,183 +801,31 @@
     if (e.key === 'Escape' && deleteBackdrop && !deleteBackdrop.hidden) closeDeleteModal();
   });
 
-  var reattachBackdrop = document.getElementById('library-reattach-backdrop');
-  var reattachConn = document.getElementById('library-reattach-conn');
-  var reattachBind = document.getElementById('library-reattach-bind');
-  var reattachBindHint = document.getElementById('library-reattach-bind-hint');
-  var reattachPath = document.getElementById('library-reattach-path');
-  var reattachTest = document.getElementById('library-reattach-test');
-  var reattachSave = document.getElementById('library-reattach-save');
-  var reattachCancel = document.getElementById('library-reattach-cancel');
-  var reattachStatus = document.getElementById('library-reattach-status');
-  var reattachName = null;
-  var reattachTested = false;
-
-  function closeReattach() {
-    if (reattachBackdrop) reattachBackdrop.hidden = true;
-    reattachName = null;
-    reattachTested = false;
-  }
-
-  function refreshReattachBindings() {
-    if (!reattachBind || !reattachConn) return;
-    var cid = reattachConn.value;
-    var matches = (libraryBindings || []).filter(function (b) {
-      return b.connection_id === cid;
+  var libraryReattach = null;
+  if (cacheReattachUrl && typeof hatchery.bindLibraryReattach === 'function') {
+    libraryReattach = hatchery.bindLibraryReattach({
+      reattachUrl: cacheReattachUrl,
+      connections: libraryConnections || [],
+      bindings: libraryBindings || [],
+      domain: 'clutches',
+      bindingNoun: 'Clutch',
+      getActiveItem: function () {
+        var active = nav && nav.querySelector('.scripts-nav-item.active');
+        if (!active) return null;
+        var name = active.getAttribute('data-name');
+        if (!name) return null;
+        return {
+          name: name,
+          relativePath: active.getAttribute('data-lib-rel') || name,
+        };
+      },
     });
-    reattachBind.innerHTML = '';
-    if (!matches.length) {
-      var opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'No bindings on this connection';
-      reattachBind.appendChild(opt);
-      reattachBind.disabled = true;
-      if (reattachBindHint) {
-        reattachBindHint.textContent =
-          'Add a Clutch binding under Settings → Library for this connection first. Re-attach always requires a binding.';
-      }
-    } else {
-      reattachBind.disabled = false;
-      var placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = 'Select a binding';
-      reattachBind.appendChild(placeholder);
-      matches.forEach(function (b) {
-        var o = document.createElement('option');
-        o.value = b.id;
-        o.textContent = (b.filter || '*') + (b.enabled === false ? ' (off)' : '');
-        reattachBind.appendChild(o);
-      });
-      if (matches.length === 1) reattachBind.value = matches[0].id;
-      if (reattachBindHint) {
-        reattachBindHint.textContent =
-          'Required so binding remove can cascade-delete this Cached file.';
-      }
-    }
-    reattachTested = false;
-    if (reattachSave) reattachSave.disabled = true;
-  }
-
-  function openReattach() {
-    var active = nav && nav.querySelector('.scripts-nav-item.active');
-    if (!active || !reattachBackdrop || !reattachConn) return;
-    reattachName = active.getAttribute('data-name');
-    reattachPath.value = active.getAttribute('data-lib-rel') || reattachName;
-    if (reattachStatus) reattachStatus.textContent = '';
-    reattachSave.disabled = true;
-    reattachTested = false;
-    refreshReattachBindings();
-    reattachBackdrop.hidden = false;
-    reattachConn.focus();
-  }
-
-  if (reattachBackdrop && reattachConn) {
-    libraryConnections.forEach(function (c) {
-      var opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = (c.label || c.id) + ' (' + (c.type || '') + ')';
-      reattachConn.appendChild(opt);
-    });
-    reattachConn.addEventListener('change', refreshReattachBindings);
-    if (reattachBind) {
-      reattachBind.addEventListener('change', function () {
-        reattachTested = false;
-        if (reattachSave) reattachSave.disabled = true;
-      });
-    }
-    if (reattachCancel) reattachCancel.addEventListener('click', closeReattach);
-    reattachBackdrop.addEventListener('click', function (e) {
-      if (e.target === reattachBackdrop) closeReattach();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && reattachBackdrop && !reattachBackdrop.hidden) {
-        e.preventDefault();
-        closeReattach();
-      }
-    });
-    function reattachBody(commit) {
-      var body = {
-        domain: 'clutches',
-        name: reattachName,
-        connection_id: reattachConn.value,
-        relative_path: (reattachPath.value || '').trim(),
-        commit: !!commit,
-      };
-      var bid = reattachBind && !reattachBind.disabled ? (reattachBind.value || '').trim() : '';
-      if (bid) body.binding_id = bid;
-      return body;
-    }
-    function bindingReady() {
-      if (!reattachBind || reattachBind.disabled) return false;
-      return !!(reattachBind.value || '').trim();
-    }
-    if (reattachTest) {
-      reattachTest.addEventListener('click', function () {
-        if (!cacheReattachUrl || !reattachName) return;
-        if (!bindingReady()) {
-          if (reattachStatus) {
-            reattachStatus.textContent = reattachBind && reattachBind.disabled
-              ? 'Add a Clutch binding under Settings → Library for this connection first'
-              : 'Select a Library binding first';
-          }
-          reattachSave.disabled = true;
-          return;
-        }
-        fetch(cacheReattachUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reattachBody(false)),
-        })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-          .then(function (res) {
-            if (!res.ok) {
-              reattachStatus.textContent = (res.data && res.data.error) || 'Test failed';
-              reattachSave.disabled = true;
-              reattachTested = false;
-              return;
-            }
-            reattachStatus.textContent = 'Path resolves (' + (res.data.source_digest_kind || 'tip') + ')';
-            reattachTested = true;
-            reattachSave.disabled = !bindingReady();
-          });
-      });
-    }
-    if (reattachSave) {
-      reattachSave.addEventListener('click', function () {
-        if (!cacheReattachUrl || !reattachName) return;
-        if (!bindingReady()) {
-          if (reattachStatus) {
-            reattachStatus.textContent = reattachBind && reattachBind.disabled
-              ? 'Add a Clutch binding under Settings → Library for this connection first'
-              : 'Select a Library binding first';
-          }
-          return;
-        }
-        if (!reattachTested) {
-          if (reattachStatus) reattachStatus.textContent = 'Test the path before re-attaching';
-          return;
-        }
-        fetch(cacheReattachUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reattachBody(true)),
-        })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-          .then(function (res) {
-            if (!res.ok) {
-              reattachStatus.textContent = (res.data && res.data.error) || 'Re-attach failed';
-              return;
-            }
-            window.location.reload();
-          });
-      });
-    }
   }
 
   if (libraryStatusBtn) {
     libraryStatusBtn.addEventListener('click', function () {
       if (libraryMode === 'orphan') {
-        openReattach();
+        if (libraryReattach) libraryReattach.open();
         return;
       }
       if (libraryMode !== 'sync' || libraryStatusBtn.disabled || !selectedName || !cacheSyncUrl) {
