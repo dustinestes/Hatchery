@@ -116,6 +116,46 @@ class TestParse:
         )
         assert binds[0]["enabled"] is True
 
+    def test_parse_binding_label_defaults_to_filter(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "A",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts", "clutches", "media"],
+                }
+            ]
+        )
+        scripts = library.parse_script_bindings(
+            [{"id": "b1", "connection_id": "a", "filter": "*.ps1"}], conns
+        )
+        assert scripts[0]["label"] == "*.ps1"
+        named = library.parse_script_bindings(
+            [
+                {
+                    "id": "b2",
+                    "connection_id": "a",
+                    "label": "PowerShell helpers",
+                    "filter": "automation/**/*.ps1",
+                }
+            ],
+            conns,
+        )
+        assert named[0]["label"] == "PowerShell helpers"
+        assert named[0]["filter"] == "automation/**/*.ps1"
+        empty = library.parse_script_bindings(
+            [{"id": "b3", "connection_id": "a", "label": "  ", "filter": "*.sh"}], conns
+        )
+        assert empty[0]["label"] == "*.sh"
+        media = library.parse_media_bindings(
+            [{"id": "m1", "connection_id": "a", "filter": "*.iso", "target": "iso"}],
+            conns,
+        )
+        assert media[0]["label"] == "*.iso"
+
     def test_parse_enabled_false(self):
         conns = library.parse_connections(
             [

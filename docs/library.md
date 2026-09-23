@@ -58,14 +58,14 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 **Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
 
-**Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern). Multiple bindings per domain are allowed (several git repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
+**Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern), and an optional operator **label** for display ([#359](https://github.com/dustinestes/Hatchery/issues/359)). When label is empty, Hatchery stores and shows the filter string. Multiple bindings per domain are allowed (several git repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
 
 | Concept | Example |
 |---|---|
 | Connection | `Artifactory` - type API / provider Artifactory + token; kinds: media |
-| Binding | Media → that connection + filter `win-isos/**/*.iso` |
+| Binding | Media → that connection + label `Win ISOs` + filter `win-isos/**/*.iso` |
 | Connection | `Ops git` - forge URL + token; kinds: scripts, clutches |
-| Binding | Scripts → that connection + path `automation/scripts` |
+| Binding | Scripts → that connection + label `Automation scripts` + path `automation/scripts` |
 
 **Test connection** checks reachability/auth without a full catalog. **Test filter** applies a domain binding and returns a small sample (about five hits) so locators can be validated before rely-on-hatch.
 
@@ -93,7 +93,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 When Library is on, Settings gains a **Library** section with:
 
 - **Connections** - registry rows (path/share, HTTPS, git, **API**) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, and API providers support test / list / pull. Each row collapses to a summary and has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together (right-aligned); Save is dimmed until that row has unsaved field changes - Library no longer uses a page-wide Save that would write every section at once.
-- **Scripts / Clutches / Media** - binding rows reuse the same collapse chrome (connection label + filter + cache target where relevant), with per-binding **Enabled** toggles (immediate save when already stored) and the same right-aligned **Test** / **Save** pattern (Save dimmed until that binding’s fields change).
+- **Scripts / Clutches / Media** - binding rows reuse the same collapse chrome (connection label + binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same right-aligned **Test** / **Save** pattern (Save dimmed until that binding’s fields change).
 
 ### Enable / disable
 

@@ -196,7 +196,7 @@ def parse_script_bindings(raw: list | None, connections: list[dict]) -> list[dic
         connections,
         domain="scripts",
         kind="scripts",
-        label="script",
+        noun="script",
     )
 
 
@@ -207,7 +207,7 @@ def parse_clutch_bindings(raw: list | None, connections: list[dict]) -> list[dic
         connections,
         domain="clutches",
         kind="clutches",
-        label="clutch",
+        noun="clutch",
     )
 
 
@@ -246,6 +246,7 @@ def parse_media_bindings(raw: list | None, connections: list[dict]) -> list[dict
             {
                 "id": bid,
                 "connection_id": conn_id,
+                "label": _binding_label(item, filt),
                 "filter": filt,
                 "domain": "media",
                 "target": target,
@@ -255,18 +256,23 @@ def parse_media_bindings(raw: list | None, connections: list[dict]) -> list[dict
     return out
 
 
+def _binding_label(item: dict, filt: str) -> str:
+    """Operator display name; defaults to filter when unset (#359)."""
+    return str(item.get("label") or "").strip() or filt
+
+
 def _parse_domain_bindings(
     raw: list | None,
     connections: list[dict],
     *,
     domain: str,
     kind: str,
-    label: str,
+    noun: str,
 ) -> list[dict]:
     if not raw:
         return []
     if not isinstance(raw, list):
-        raise ValueError(f"{label} bindings must be a list")
+        raise ValueError(f"{noun} bindings must be a list")
     by_id = {c["id"]: c for c in connections}
     out: list[dict] = []
     seen: set[str] = set()
@@ -279,7 +285,7 @@ def _parse_domain_bindings(
         seen.add(bid)
         conn_id = str(item.get("connection_id") or "").strip()
         if not conn_id or conn_id not in by_id:
-            raise ValueError(f"{label} binding references an unknown connection")
+            raise ValueError(f"{noun} binding references an unknown connection")
         conn = by_id[conn_id]
         if kind not in conn["kinds"]:
             raise ValueError(
@@ -291,6 +297,7 @@ def _parse_domain_bindings(
             {
                 "id": bid,
                 "connection_id": conn_id,
+                "label": _binding_label(item, filt),
                 "filter": filt,
                 "domain": domain,
                 "enabled": parse_enabled(item.get("enabled"), default=True),

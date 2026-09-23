@@ -1063,7 +1063,11 @@ hatchery.bindUnsavedLeave = function (opts) {
         matches.forEach(function (b) {
           var opt = document.createElement('option');
           opt.value = b.id;
-          opt.textContent = (b.filter || '*') + (b.enabled === false ? ' (off)' : '');
+          var filt = b.filter || '*';
+          var blabel = (b.label || '').trim() || filt;
+          var text = blabel === filt ? blabel : blabel + ' (' + filt + ')';
+          if (b.enabled === false) text += ' (off)';
+          opt.textContent = text;
           bindSel.appendChild(opt);
         });
         if (matches.length === 1) {
