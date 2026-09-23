@@ -1382,9 +1382,7 @@ def _validate_reattach_binding(
         if b.get("connection_id") == cid
     ]
     if not binds:
-        return (
-            "Add a Library binding under Settings → Library for this connection first"
-        )
+        return "Add a Library binding under Settings → Library for this connection first"
     bid = (binding_id or "").strip()
     if not bid:
         return "Select a Library binding for this connection"
