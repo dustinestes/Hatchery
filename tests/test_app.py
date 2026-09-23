@@ -1118,6 +1118,106 @@ class TestLibrarySettingsGate:
         tool2 = next(i for i in catalog2.get_json()["items"] if i["name"] == "tool.sh")
         assert tool2.get("cached") is True
 
+    def test_library_cache_reattach_requires_binding(self, client, tmp_path, monkeypatch):
+        """API rejects connection-only reattach and missing binding_id (#363)."""
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "tool.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+        data = tmp_path / "data"
+        (data / "automation" / "scripts").mkdir(parents=True)
+        conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        no_binds = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "commit": False,
+            },
+        )
+        assert no_binds.status_code == 400
+        assert "Settings" in no_binds.get_json()["error"]
+
+        monkeypatch.setattr(
+            cfg,
+            "library_script_bindings",
+            lambda: [
+                {
+                    "id": "b1",
+                    "connection_id": "cpath1",
+                    "filter": "*",
+                    "domain": "scripts",
+                    "enabled": True,
+                }
+            ],
+        )
+        missing = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "commit": False,
+            },
+        )
+        assert missing.status_code == 400
+        assert "Select a Library binding" in missing.get_json()["error"]
+
+        tested = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b1",
+                "commit": False,
+            },
+        )
+        assert tested.status_code == 200
+        assert tested.get_json()["tested"] is True
+
+        pull = client.post(
+            "/api/library/scripts/pull",
+            json={
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b1",
+            },
+        )
+        assert pull.status_code == 200
+
+        committed = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b1",
+                "commit": True,
+            },
+        )
+        assert committed.status_code == 200
+        assert committed.get_json()["provenance"]["binding_id"] == "b1"
+
     def test_library_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         resp = client.get("/api/library/scripts")

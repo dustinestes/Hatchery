@@ -1374,7 +1374,7 @@ def _validate_reattach_binding(
     binding_id: str | None,
     media_target: str | None = None,
 ) -> str | None:
-    """Return an error message if binding_id is required/invalid for reattach (#357)."""
+    """Return an error if binding_id is missing or invalid for reattach (#357, #363)."""
     cid = (connection_id or "").strip()
     binds = [
         b
@@ -1382,9 +1382,7 @@ def _validate_reattach_binding(
         if b.get("connection_id") == cid
     ]
     if not binds:
-        if binding_id:
-            return "No Library bindings on that connection for this domain"
-        return None
+        return "Add a Library binding under Settings → Library for this connection first"
     bid = (binding_id or "").strip()
     if not bid:
         return "Select a Library binding for this connection"
@@ -1831,6 +1829,17 @@ def api_library_cache_reattach():
         return jsonify({"ok": False, "error": "name and relative_path are required"}), 400
     try:
         conn = _connection_from_request_body(data)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    bind_err = _validate_reattach_binding(
+        domain=domain,
+        connection_id=str(conn.get("id") or ""),
+        binding_id=binding_id,
+        media_target=media_target if domain == "media" else None,
+    )
+    if bind_err:
+        return jsonify({"ok": False, "error": bind_err}), 400
+    try:
         tip = library_lib.resolve_source_digest(conn, relative_path)
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -1848,14 +1857,6 @@ def api_library_cache_reattach():
                 "source_digest_kind": kind,
             }
         )
-    bind_err = _validate_reattach_binding(
-        domain=domain,
-        connection_id=str(conn.get("id") or ""),
-        binding_id=binding_id,
-        media_target=media_target if domain == "media" else None,
-    )
-    if bind_err:
-        return jsonify({"ok": False, "error": bind_err}), 400
     try:
         row = prov.reattach(
             domain=domain,

@@ -862,7 +862,7 @@
       reattachBind.disabled = true;
       if (reattachBindHint) {
         reattachBindHint.textContent =
-          'No Clutch bindings on this connection - provenance will be connection-only until you add a binding.';
+          'Add a Clutch binding under Settings → Library for this connection first. Re-attach always requires a binding.';
       }
     } else {
       reattachBind.disabled = false;
@@ -936,14 +936,18 @@
       return body;
     }
     function bindingReady() {
-      if (!reattachBind || reattachBind.disabled) return true;
+      if (!reattachBind || reattachBind.disabled) return false;
       return !!(reattachBind.value || '').trim();
     }
     if (reattachTest) {
       reattachTest.addEventListener('click', function () {
         if (!cacheReattachUrl || !reattachName) return;
         if (!bindingReady()) {
-          if (reattachStatus) reattachStatus.textContent = 'Select a Library binding first';
+          if (reattachStatus) {
+            reattachStatus.textContent = reattachBind && reattachBind.disabled
+              ? 'Add a Clutch binding under Settings → Library for this connection first'
+              : 'Select a Library binding first';
+          }
           reattachSave.disabled = true;
           return;
         }
@@ -970,7 +974,11 @@
       reattachSave.addEventListener('click', function () {
         if (!cacheReattachUrl || !reattachName) return;
         if (!bindingReady()) {
-          if (reattachStatus) reattachStatus.textContent = 'Select a Library binding first';
+          if (reattachStatus) {
+            reattachStatus.textContent = reattachBind && reattachBind.disabled
+              ? 'Add a Clutch binding under Settings → Library for this connection first'
+              : 'Select a Library binding first';
+          }
           return;
         }
         if (!reattachTested) {
