@@ -1285,6 +1285,127 @@ class TestLibrarySettingsGate:
         )
         assert nested_ok.status_code == 200
 
+    def test_library_cache_reattach_requires_binding_filter_match(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Re-attach rejects paths outside the selected binding glob (#360)."""
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "tool.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+        data = tmp_path / "data"
+        (data / "automation" / "scripts").mkdir(parents=True)
+        conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(
+            cfg,
+            "library_script_bindings",
+            lambda: [
+                {
+                    "id": "b_ps2",
+                    "connection_id": "cpath1",
+                    "filter": "*.ps2",
+                    "domain": "scripts",
+                    "enabled": True,
+                }
+            ],
+        )
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        mismatch = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b_ps2",
+                "commit": False,
+            },
+        )
+        assert mismatch.status_code == 400
+        err = mismatch.get_json()["error"]
+        assert "binding filter" in err
+        assert "*.ps2" in err
+
+    def test_library_cache_reattach_evaluates_drift_not_in_sync(
+        self, client, tmp_path, monkeypatch
+    ):
+        """Successful re-attach runs evaluate; does not force in_sync (#360)."""
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "tool.sh").write_text("#!/bin/sh\necho remote\n", encoding="utf-8")
+        data = tmp_path / "data"
+        scripts = data / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        conn = {
+            "id": "cpath1",
+            "label": "Share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(
+            cfg,
+            "library_script_bindings",
+            lambda: [
+                {
+                    "id": "b1",
+                    "connection_id": "cpath1",
+                    "filter": "*.sh",
+                    "domain": "scripts",
+                    "enabled": True,
+                }
+            ],
+        )
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "data_dir", lambda: data)
+
+        pull = client.post(
+            "/api/library/scripts/pull",
+            json={
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b1",
+            },
+        )
+        assert pull.status_code == 200
+
+        # Local edit after pull → cache drifted vs sync anchors.
+        (scripts / "tool.sh").write_text("#!/bin/sh\necho local-edit\n", encoding="utf-8")
+
+        committed = client.post(
+            "/api/library/cache/reattach",
+            json={
+                "domain": "scripts",
+                "name": "tool.sh",
+                "connection_id": "cpath1",
+                "relative_path": "tool.sh",
+                "binding_id": "b1",
+                "commit": True,
+            },
+        )
+        assert committed.status_code == 200
+        prov = committed.get_json()["provenance"]
+        assert prov["binding_id"] == "b1"
+        assert prov["drift_state"] != "in_sync"
+        assert prov["drift_state"] == "out_of_sync"
+
     def test_library_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         resp = client.get("/api/library/scripts")

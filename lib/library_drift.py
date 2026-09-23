@@ -24,13 +24,13 @@ def connection_and_binding_ids() -> tuple[set[str], set[str]]:
         connections = []
     cids = {c["id"] for c in connections}
     bids: set[str] = set()
-    for key, parse_fn in (
-        ("library_script_bindings", library_lib.parse_script_bindings),
-        ("library_clutch_bindings", library_lib.parse_clutch_bindings),
-        ("library_media_bindings", library_lib.parse_media_bindings),
+    for parse_fn, getter in (
+        (library_lib.parse_script_bindings, config.library_script_bindings),
+        (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
+        (library_lib.parse_media_bindings, config.library_media_bindings),
     ):
         try:
-            bindings = parse_fn(config.get().get(key) or [], connections)
+            bindings = parse_fn(getter() or [], connections)
         except ValueError:
             continue
         for b in bindings:

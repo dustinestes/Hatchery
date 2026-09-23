@@ -1387,14 +1387,14 @@ def _library_reattach_bindings(domain: str, *, media_target: str | None = None) 
     return out
 
 
-def _validate_reattach_binding(
+def _reattach_binding_or_error(
     *,
     domain: str,
     connection_id: str,
     binding_id: str | None,
     media_target: str | None = None,
-) -> str | None:
-    """Return an error if binding_id is missing or invalid for reattach (#357, #363)."""
+) -> tuple[dict | None, str | None]:
+    """Return (binding, None) or (None, error) for reattach (#357, #363, #360)."""
     cid = (connection_id or "").strip()
     binds = [
         b
@@ -1402,13 +1402,14 @@ def _validate_reattach_binding(
         if b.get("connection_id") == cid
     ]
     if not binds:
-        return "Add a Library binding under Settings → Library for this connection first"
+        return None, "Add a Library binding under Settings → Library for this connection first"
     bid = (binding_id or "").strip()
     if not bid:
-        return "Select a Library binding for this connection"
-    if not any(b.get("id") == bid for b in binds):
-        return "Binding does not belong to that connection"
-    return None
+        return None, "Select a Library binding for this connection"
+    for b in binds:
+        if b.get("id") == bid:
+            return b, None
+    return None, "Binding does not belong to that connection"
 
 
 def _connection_from_request_body(data: dict) -> dict:
@@ -1863,14 +1864,22 @@ def api_library_cache_reattach():
         conn = _connection_from_request_body(data)
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
-    bind_err = _validate_reattach_binding(
+    binding, bind_err = _reattach_binding_or_error(
         domain=domain,
         connection_id=str(conn.get("id") or ""),
         binding_id=binding_id,
         media_target=media_target if domain == "media" else None,
     )
-    if bind_err:
-        return jsonify({"ok": False, "error": bind_err}), 400
+    if bind_err or binding is None:
+        return jsonify({"ok": False, "error": bind_err or "Invalid binding"}), 400
+    filt = str(binding.get("filter") or "*")
+    if not library_lib.path_matches_filter(relative_path, filt):
+        return jsonify(
+            {
+                "ok": False,
+                "error": (f"Relative path does not match the selected binding filter ({filt})"),
+            }
+        ), 400
     try:
         tip = library_lib.resolve_source_digest(conn, relative_path)
     except ValueError as exc:
@@ -1903,7 +1912,17 @@ def api_library_cache_reattach():
         )
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
-    return jsonify({"ok": True, "provenance": row})
+    # Sync state comes from evaluate, not from re-attach (#360).
+    from lib import library_drift as drift_lib
+
+    drift_lib.evaluate_one(
+        domain,
+        name,
+        media_target=media_target,
+        single_file=True,
+    )
+    refreshed = prov.get_for_cache(domain, name, media_target=media_target) or row
+    return jsonify({"ok": True, "provenance": refreshed})
 
 
 def _nest_from_request(data: dict) -> NestConnectionConfig:

@@ -1090,6 +1090,11 @@ def _match_filter(relative_path: str, pattern: str) -> bool:
     return False
 
 
+def path_matches_filter(relative_path: str, pattern: str) -> bool:
+    """Public binding/catalog path glob match (fnmatch; basename-only patterns OK)."""
+    return _match_filter(relative_path, pattern)
+
+
 def _list_https_files(
     conn: dict,
     filt: str,
