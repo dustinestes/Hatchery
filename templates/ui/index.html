@@ -209,6 +209,18 @@
     });
   }
 
+  function tileSplit(count, unit, asideHtml) {
+    return (
+      '<div class="dashboard-tile-split">' +
+        '<div class="dashboard-tile-hero">' +
+          '<span class="dashboard-tile-count">' + count + '</span>' +
+          (unit ? '<span class="dashboard-tile-unit">' + esc(unit) + '</span>' : '') +
+        '</div>' +
+        '<div class="dashboard-tile-aside">' + asideHtml + '</div>' +
+      '</div>'
+    );
+  }
+
   function renderNests(ps) {
     if (!nestsBody || !ps) return;
     var total = ps.nest_total || 0;
@@ -221,16 +233,15 @@
     var unreachable = ps.nest_unreachable || 0;
     var unchecked = ps.nest_unchecked || 0;
     var alerts = ps.nest_alert_count || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> Nest' + (total === 1 ? '' : 's') + '</p>',
+    var aside = [
       '<ul class="dashboard-tile-breakdown" aria-label="Nest reachability">',
       '<li>' + reachable + ' reachable</li>',
       '<li>' + unreachable + ' unreachable</li>',
     ];
-    if (unchecked) parts.push('<li>' + unchecked + ' not checked yet</li>');
-    if (alerts) parts.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
-    parts.push('</ul>');
-    nestsBody.innerHTML = parts.join('');
+    if (unchecked) aside.push('<li>' + unchecked + ' not checked yet</li>');
+    if (alerts) aside.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
+    aside.push('</ul>');
+    nestsBody.innerHTML = tileSplit(total, total === 1 ? 'Nest' : 'Nests', aside.join(''));
   }
 
   function renderVms(vms, nestTotal) {
@@ -248,16 +259,13 @@
     var power = vms.by_power || {};
     var hatch = vms.by_hatch || {};
     var unavailable = vms.nests_unavailable || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> VM' + (total === 1 ? '' : 's') + '</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="VM power status">',
+    var aside = [
+      '<ul class="dashboard-tile-breakdown" aria-label="VM power and hatch status">',
       '<li>' + (power.running || 0) + ' running</li>',
       '<li>' + (power.shut_off || 0) + ' shut off</li>',
       '<li>' + (power.paused || 0) + ' paused</li>',
     ];
-    if (power.other) parts.push('<li>' + power.other + ' other</li>');
-    parts.push('</ul>');
-    parts.push('<ul class="dashboard-tile-breakdown" aria-label="VM hatch status">');
+    if (power.other) aside.push('<li>' + power.other + ' other</li>');
     var hatchBits = [];
     if (hatch.hatching) hatchBits.push(hatch.hatching + ' hatching');
     if (hatch.provisioning) hatchBits.push(hatch.provisioning + ' provisioning');
@@ -265,16 +273,19 @@
     if (hatch.failed) hatchBits.push(hatch.failed + ' failed');
     if (hatch.pending) hatchBits.push(hatch.pending + ' pending');
     if (!hatchBits.length) {
-      parts.push('<li>' + (hatch.none || total) + ' with no hatch record</li>');
+      aside.push('<li>' + (hatch.none || total) + ' with no hatch record</li>');
     } else {
-      hatchBits.forEach(function (b) { parts.push('<li>' + b + '</li>'); });
-      if (hatch.none) parts.push('<li>' + hatch.none + ' with no hatch record</li>');
+      hatchBits.forEach(function (b) { aside.push('<li>' + b + '</li>'); });
+      if (hatch.none) aside.push('<li>' + hatch.none + ' with no hatch record</li>');
     }
-    parts.push('</ul>');
+    aside.push('</ul>');
     if (unavailable) {
-      parts.push('<p class="dashboard-tile-meta">' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>');
+      aside.push(
+        '<p class="dashboard-tile-meta">' + unavailable + ' Nest' +
+        (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>'
+      );
     }
-    vmsBody.innerHTML = parts.join('');
+    vmsBody.innerHTML = tileSplit(total, total === 1 ? 'VM' : 'VMs', aside.join(''));
   }
 
   function renderClutches(clutches) {
@@ -298,29 +309,32 @@
       return;
     }
 
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + files + '</span> Clutch file' + (files === 1 ? '' : 's') + '</p>',
-    ];
+    var aside = [];
     if (sessions === 0) {
-      parts.push('<p class="dashboard-tile-meta">No active hatches.</p>');
+      aside.push('<p class="dashboard-tile-meta">No active hatches.</p>');
     } else {
-      parts.push(
-        '<p class="dashboard-tile-metric">' + sessions + ' active hatch' + (sessions === 1 ? '' : 'es') + '</p>'
+      aside.push(
+        '<p class="dashboard-tile-meta">' + sessions + ' active hatch' +
+        (sessions === 1 ? '' : 'es') + '</p>'
       );
-      parts.push('<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">');
+      aside.push('<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">');
       ['in_progress', 'completed', 'failed', 'degraded', 'unknown'].forEach(function (key) {
         var n = byStatus[key] || 0;
         if (!n) return;
         var label = key.split('_').join(' ');
-        parts.push('<li>' + n + ' ' + label + '</li>');
+        aside.push('<li>' + n + ' ' + label + '</li>');
       });
-      parts.push('</ul>');
+      aside.push('</ul>');
       if (nestsUsed.length) {
         var names = nestsUsed.map(function (n) { return esc(n.name || n.id); }).join(', ');
-        parts.push('<p class="dashboard-tile-meta">Hatched on: ' + names + '</p>');
+        aside.push('<p class="dashboard-tile-meta">Hatched on: ' + names + '</p>');
       }
     }
-    clutchesBody.innerHTML = parts.join('');
+    clutchesBody.innerHTML = tileSplit(
+      files,
+      files === 1 ? 'Clutch file' : 'Clutch files',
+      aside.join('')
+    );
   }
 
   function renderLibrary(ps) {
@@ -350,26 +364,29 @@
       return;
     }
 
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + enabledCount + '</span> enabled connection' + (enabledCount === 1 ? '' : 's') + '</p>',
+    var aside = [
       '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
     ];
-    if (disabled) parts.push('<li>' + disabled + ' disabled</li>');
+    if (disabled) aside.push('<li>' + disabled + ' disabled</li>');
     if (alerts) {
-      parts.push('<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>');
+      aside.push('<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>');
     } else {
-      parts.push('<li>No connection alerts</li>');
+      aside.push('<li>No connection alerts</li>');
     }
     if (drift) {
-      parts.push('<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>');
+      aside.push('<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>');
     }
-    parts.push('</ul>');
+    aside.push('</ul>');
     if (ps.libraries_ok) {
-      parts.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library OK') + '</p>');
+      aside.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library OK') + '</p>');
     } else {
-      parts.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library needs attention') + '</p>');
+      aside.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library needs attention') + '</p>');
     }
-    libraryBody.innerHTML = parts.join('');
+    libraryBody.innerHTML = tileSplit(
+      enabledCount,
+      enabledCount === 1 ? 'connection' : 'connections',
+      aside.join('')
+    );
   }
 
   function renderAlerts(alertsPayload) {
@@ -391,15 +408,18 @@
       if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'alert';
       byTier[tier] += 1;
     });
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + open.length + '</span> open alert' + (open.length === 1 ? '' : 's') + '</p>',
+    var aside = [
       '<ul class="dashboard-tile-breakdown" aria-label="Open alerts by tier">',
       '<li>' + byTier.alert + ' alert</li>',
       '<li>' + byTier.warning + ' warning</li>',
       '<li>' + byTier.info + ' info</li>',
       '</ul>',
     ];
-    alertsBody.innerHTML = parts.join('');
+    alertsBody.innerHTML = tileSplit(
+      open.length,
+      open.length === 1 ? 'open alert' : 'open alerts',
+      aside.join('')
+    );
   }
 
   function renderValidators(validators) {
@@ -428,24 +448,24 @@
     var neverRun = validators.never_run || 0;
     var degraded = validators.degraded || 0;
     var findingsTotal = validators.findings_total || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + enabled + '</span> of ' + total + ' enabled</p>',
+    var aside = [
+      '<p class="dashboard-tile-meta">of ' + total + ' registered</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="Latest run status for enabled validators">',
       '<li>' + (byStatus.ok || 0) + ' ok</li>',
       '<li>' + (byStatus.findings || 0) + ' with findings</li>',
       '<li>' + (byStatus.error || 0) + ' error</li>',
     ];
     if (neverRun) {
-      parts.push('<li>' + neverRun + ' never run</li>');
+      aside.push('<li>' + neverRun + ' never run</li>');
     }
-    parts.push('</ul>');
+    aside.push('</ul>');
     if (degraded && findingsTotal) {
-      parts.push(
+      aside.push(
         '<p class="dashboard-tile-meta">' + findingsTotal + ' finding' +
         (findingsTotal === 1 ? '' : 's') + ' in latest runs.</p>'
       );
     }
-    validatorsBody.innerHTML = parts.join('');
+    validatorsBody.innerHTML = tileSplit(enabled, 'enabled', aside.join(''));
   }
 
   function applyPlaneStatus(ps) {

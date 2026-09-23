@@ -549,6 +549,7 @@ class TestDashboardSummaryApi:
         assert "dash-alerts-body" in html
         assert "dash-validators-body" in html
         assert "fetchDashboardSummary" in html
+        assert "tileSplit" in html
         assert "applyValidatedMap" in html
         assert "not implemented" in html
         assert "fmtStampIso" in html
