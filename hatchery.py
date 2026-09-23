@@ -451,15 +451,35 @@ nests_lib.migrate_legacy_ssh_identities()
 
 register_builtins()
 migrate_bg_interval()
-for _vcfg in list_validator_configs():
-    if _vcfg.get("enabled") and not _vcfg.get("stub"):
-        try:
-            run_validator(_vcfg["id"], trigger="schedule")
-        except Exception:
-            pass
-_sync_hatch_status()
-_start_background_thread()
-start_scheduler()
+
+_runtime_services_started = False
+
+
+def start_runtime_services() -> None:
+    """Start hatch poller + validator scheduler (idempotent; worker-only under gunicorn).
+
+    Must not run in the gunicorn arbiter: its stale ``config.get()`` snapshots used to
+    rewrite all of ``app_settings`` and clobber Settings UI saves (#366).
+    """
+    global _runtime_services_started
+    if _runtime_services_started:
+        return
+    _runtime_services_started = True
+    for _vcfg in list_validator_configs():
+        if _vcfg.get("enabled") and not _vcfg.get("stub"):
+            try:
+                run_validator(_vcfg["id"], trigger="schedule")
+            except Exception:
+                pass
+    _sync_hatch_status()
+    _start_background_thread()
+    start_scheduler()
+
+
+@app.before_request
+def _ensure_runtime_services() -> None:
+    """Cover ``gunicorn hatchery:app`` and tests; ``hatchery serve`` also uses post_fork."""
+    start_runtime_services()
 
 
 @app.context_processor
@@ -1468,8 +1488,7 @@ def api_library_connection_upsert():
             break
     if not replaced:
         connections.append(parsed)
-    cfg["library_connections"] = connections
-    config.save(cfg)
+    config.update_settings({"library_connections": connections})
     from lib import library_health as library_health_lib
 
     library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
@@ -1504,15 +1523,16 @@ def api_library_connection_delete(conn_id: str):
     delete_attributed_cache = bool(data.get("delete_attributed_cache"))
 
     bindings_removed = 0
+    patch: dict = {}
     for cfg_key, _parse in _BINDING_DOMAIN_KEYS.values():
         rows = list(cfg.get(cfg_key) or [])
         kept = [b for b in rows if str(b.get("connection_id") or "") != cid]
         bindings_removed += len(rows) - len(kept)
-        cfg[cfg_key] = kept
+        patch[cfg_key] = kept
 
     connections = [c for c in existing if c.get("id") != cid]
-    cfg["library_connections"] = connections
-    config.save(cfg)
+    patch["library_connections"] = connections
+    config.update_settings(patch)
     from lib import library_health as library_health_lib
     from lib import library_provenance as prov
 
@@ -1579,8 +1599,7 @@ def api_library_binding_upsert(domain: str):
             break
     if not replaced:
         bindings.append(parsed)
-    cfg[cfg_key] = bindings
-    config.save(cfg)
+    config.update_settings({cfg_key: bindings})
     return jsonify({"ok": True, "binding": parsed, "created": not replaced})
 
 
@@ -1604,8 +1623,7 @@ def api_library_binding_delete(domain: str, binding_id: str):
         return jsonify({"ok": False, "error": "Unknown binding id"}), 404
     data = request.get_json(silent=True) or {}
     delete_attributed_cache = bool(data.get("delete_attributed_cache"))
-    cfg[cfg_key] = kept
-    config.save(cfg)
+    config.update_settings({cfg_key: kept})
     attributed_deleted: list[str] = []
     if delete_attributed_cache:
         from lib import library_provenance as prov

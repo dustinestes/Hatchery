@@ -202,8 +202,8 @@ def get_snapshot() -> dict[str, Any]:
 
 
 def _save_snapshot(snap: dict[str, Any]) -> None:
-    cfg = {**config.get(), _SETTINGS_KEY: snap}
-    config.save(cfg)
+    # Partial write only - full config.save would clobber Library / retention (#366).
+    config.update_settings({_SETTINGS_KEY: snap})
 
 
 def record_probe(

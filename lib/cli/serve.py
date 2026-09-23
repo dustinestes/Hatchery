@@ -61,7 +61,11 @@ def _run_with_gunicorn(application: Any, options: dict) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    """Apply session overrides, then run gunicorn against ``hatchery:app``."""
+    """Apply session overrides, then run gunicorn against ``hatchery:app``.
+
+    Background hatch/validator services start in the worker via ``post_fork`` so the
+    gunicorn arbiter never holds a competing Settings writer (#366).
+    """
     from lib import config as cfg
 
     if args.data_dir:
@@ -69,14 +73,18 @@ def run(args: argparse.Namespace) -> int:
     if args.nest_local:
         cfg.set_runtime_nest_local(True)
 
-    # Import after overrides so module-level config.load() / boot Nest registration see them.
-    import hatchery  # noqa: F401
+    # Import after overrides so module-level config.load() / Nest registration see them.
+    import hatchery
+
+    def post_fork(server, worker) -> None:  # noqa: ARG001
+        hatchery.start_runtime_services()
 
     options = {
         "bind": f"{args.host}:{args.port}",
         "workers": 1,
         # Sync worker matches contributor docs / single-process Controller expectations.
         "worker_class": "sync",
+        "post_fork": post_fork,
     }
     _run_with_gunicorn(hatchery.app, options)
     return 0
