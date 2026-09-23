@@ -182,6 +182,70 @@ class TestSave:
         assert monkeypatch_path.exists()
 
 
+class TestUpdateSettings:
+    def test_writes_only_named_keys(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        cfg.save(
+            {
+                **cfg.get(),
+                "bg_interval": 40,
+                "library_connections": [{"id": "c1", "label": "Keep"}],
+                "validators_run_retention": 50,
+            }
+        )
+        cfg.update_settings({"validators_run_retention": 66})
+        assert cfg.get()["validators_run_retention"] == 66
+        assert cfg.get()["bg_interval"] == 40
+        assert cfg.get()["library_connections"] == [{"id": "c1", "label": "Keep"}]
+        conn = db_module.get_connection()
+        try:
+            rows = {
+                r["key"]: json.loads(r["value"])
+                for r in conn.execute("SELECT key, value FROM app_settings").fetchall()
+            }
+        finally:
+            conn.close()
+        assert rows["validators_run_retention"] == 66
+        assert rows["bg_interval"] == 40
+        assert rows["library_connections"] == [{"id": "c1", "label": "Keep"}]
+
+    def test_stale_process_snapshot_cannot_clobber_via_update(self, isolated_config):
+        """Simulate master holding old library while worker saved new (#366)."""
+        cfg.load()
+        cfg.bind_db()
+        cfg.save(
+            {
+                **cfg.get(),
+                "library_connections": [{"id": "new", "label": "Hatchery_Test"}],
+                "nest_reachability_status": {},
+            }
+        )
+        # Stale caller only patches reachability (old full-save path would rewrite library).
+        cfg.update_settings(
+            {
+                "nest_reachability_status": {
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "nests": {},
+                    "local_ok": True,
+                    "remotes_ok": True,
+                    "remote_total": 0,
+                    "remote_down": 0,
+                }
+            }
+        )
+        assert cfg.library_connections()[0]["label"] == "Hatchery_Test"
+        conn = db_module.get_connection()
+        try:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?",
+                ("library_connections",),
+            ).fetchone()
+            assert json.loads(row["value"])[0]["label"] == "Hatchery_Test"
+        finally:
+            conn.close()
+
+
 class TestGet:
     def test_loads_from_disk_on_first_call(self, isolated_config):
         assert cfg._config == {}

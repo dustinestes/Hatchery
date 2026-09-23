@@ -39,8 +39,7 @@ def get_run_retention() -> int:
 
 
 def set_run_retention(n: int) -> None:
-    cfg = {**config.get(), _RETENTION_KEY: max(_MIN_RETENTION, min(_MAX_RETENTION, int(n)))}
-    config.save(cfg)
+    config.update_settings({_RETENTION_KEY: max(_MIN_RETENTION, min(_MAX_RETENTION, int(n)))})
 
 
 def get_validator_config(validator_id: str) -> dict:
@@ -123,7 +122,7 @@ def save_validator_configs(
     retention: int | None = None,
 ) -> None:
     """Persist per-validator enabled/interval; optional retention."""
-    config.save({**config.get(), **cleaned_validator_settings(configs, retention=retention)})
+    config.update_settings(cleaned_validator_settings(configs, retention=retention))
 
 
 def migrate_bg_interval() -> None:
@@ -139,4 +138,4 @@ def migrate_bg_interval() -> None:
     seeded = deepcopy(_defaults_map())
     for row in seeded.values():
         row["interval_seconds"] = legacy
-    config.save({**cfg, _SETTINGS_KEY: seeded})
+    config.update_settings({_SETTINGS_KEY: seeded})

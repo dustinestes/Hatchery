@@ -866,6 +866,7 @@ class TestLibrarySettingsGate:
             cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
         )
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+        monkeypatch.setattr(cfg, "update_settings", lambda u: state.update(u))
 
         conn = {
             "id": "cpath1",
@@ -934,6 +935,7 @@ class TestLibrarySettingsGate:
             cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
         )
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+        monkeypatch.setattr(cfg, "update_settings", lambda u: state.update(u))
 
         cache = tmp_path / "library" / "git" / "g1"
         cache.mkdir(parents=True)
@@ -1008,6 +1010,7 @@ class TestLibrarySettingsGate:
             cfg, "library_media_bindings", lambda: list(state["library_media_bindings"])
         )
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+        monkeypatch.setattr(cfg, "update_settings", lambda u: state.update(u))
 
         stray = tmp_path / "library" / "git" / "cpath1"
         stray.mkdir(parents=True)
@@ -1048,6 +1051,7 @@ class TestLibrarySettingsGate:
         monkeypatch.setattr(cfg, "get", lambda: state)
         monkeypatch.setattr(cfg, "library_connections", lambda: list(state["library_connections"]))
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+        monkeypatch.setattr(cfg, "update_settings", lambda u: state.update(u))
 
         put = client.put(
             "/api/library/bindings/scripts",
@@ -1506,6 +1510,7 @@ class TestLibrarySettingsGate:
         }
         monkeypatch.setattr(cfg, "get", lambda: state)
         monkeypatch.setattr(cfg, "save", lambda c: state.update(c))
+        monkeypatch.setattr(cfg, "update_settings", lambda u: state.update(u))
 
         yaml_body = "version: 1\nsettings:\n  bg_interval: 99\n  library_enabled: true\n"
         resp = client.post(

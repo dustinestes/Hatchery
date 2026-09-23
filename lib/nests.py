@@ -601,6 +601,6 @@ def migrate_legacy_ssh_identities() -> bool:
 
     cfg = config.get()
     if cfg.get("nest_ssh_identities"):
-        config.save({**cfg, "nest_ssh_identities": []})
+        config.update_settings({"nest_ssh_identities": []})
         return True
     return changed

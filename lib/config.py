@@ -207,6 +207,10 @@ def bind_db() -> dict:
 def save(cfg: dict) -> None:
     """Persist ``data_dir`` to the bootstrap file and other keys to SQLite.
 
+    Writes **all** known DB setting keys from ``cfg`` (missing keys fall back to
+    defaults). Prefer :func:`update_settings` when only a subset of keys changed
+    so background writers cannot clobber unrelated Settings (#366).
+
     When a session ``data_dir`` override is active, bootstrap ``data_dir`` is left
     unchanged; only SQLite Settings keys are written.
     """
@@ -224,6 +228,26 @@ def save(cfg: dict) -> None:
         _write_bootstrap({"data_dir": _bootstrap_data_dir})
     if _db_path_ready():
         _write_db_settings({k: merged[k] for k in _DB_SETTING_KEYS})
+        _db_bound = True
+
+
+def update_settings(updates: dict) -> None:
+    """UPSERT only the given DB setting keys; leave other SQLite keys untouched.
+
+    Updates in-memory config for those keys only. Ignores unknown keys and
+    ``data_dir`` (bootstrap stays via :func:`save` / load). Use this for
+    background snapshots and single-domain Library API writes (#366).
+    """
+    global _config, _db_bound
+    if not _config:
+        load()
+    filtered = {key: deepcopy(updates[key]) for key in updates if key in _DB_SETTING_KEYS}
+    if not filtered:
+        return
+    for key, value in filtered.items():
+        _config[key] = deepcopy(value)
+    if _db_path_ready():
+        _write_db_settings(filtered)
         _db_bound = True
 
 
