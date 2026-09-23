@@ -1845,6 +1845,20 @@ def api_library_cache_reattach():
         return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
     if not name or not relative_path:
         return jsonify({"ok": False, "error": "name and relative_path are required"}), 400
+    from pathlib import Path
+
+    cache_bn = Path(str(name).replace("\\", "/")).name
+    path_bn = Path(str(relative_path).replace("\\", "/")).name
+    if not cache_bn or path_bn != cache_bn:
+        return jsonify(
+            {
+                "ok": False,
+                "error": (
+                    "Relative path must match the Cached filename "
+                    "(rename is not supported; re-import if the source name changed)"
+                ),
+            }
+        ), 400
     try:
         conn = _connection_from_request_body(data)
     except ValueError as exc:
