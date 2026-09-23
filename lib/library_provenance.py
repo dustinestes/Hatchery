@@ -304,24 +304,60 @@ def reattach(
     binding_id: str | None = None,
     media_target: str | None = None,
 ) -> dict[str, Any]:
-    """Rewrite provenance ids/path after a successful re-attach Test."""
+    """Rewrite provenance linkage after a successful re-attach Test (#308, #360).
+
+    Updates connection/binding/path only. Does **not** promote sync anchors or
+    mark the file in sync; callers should run single-file evaluate afterward.
+    """
     existing = get_for_cache(domain, cache_name, media_target=media_target)
     if existing is None:
         raise ValueError("No provenance row for this cached file")
-    sha = existing.get("cache_sha256") or existing.get("cache_sha256_synced") or ""
-    return upsert_on_pull(
-        domain=domain,
-        cache_name=cache_name,
-        connection_id=connection_id,
-        relative_path=relative_path,
-        source_type=source_type,
-        cache_sha256=sha,
-        source_digest=source_digest,
-        source_digest_kind=source_digest_kind,
-        binding_id=binding_id,
-        media_target=media_target,
-        drift_state="unknown",
-    )
+    domain_n = (domain or "").strip().lower()
+    name = Path(cache_name).name
+    cid = (connection_id or "").strip()
+    if not cid:
+        raise ValueError("connection_id is required")
+    rel = (relative_path or "").replace("\\", "/").lstrip("/")
+    if not rel:
+        raise ValueError("relative_path is required")
+    kind = (source_digest_kind or "").strip().lower() or None
+    if kind and kind not in DIGEST_KINDS:
+        raise ValueError(f"invalid source_digest_kind: {kind}")
+    target = _norm_target(media_target) if domain_n == "media" else ""
+    now = _utc_now()
+    with db.get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE library_cache_provenance
+            SET connection_id = ?,
+                binding_id = ?,
+                relative_path = ?,
+                source_type = ?,
+                source_digest = COALESCE(?, source_digest),
+                source_digest_kind = COALESCE(?, source_digest_kind),
+                drift_state = 'unknown',
+                checked_at = ?,
+                updated_at = ?
+            WHERE domain = ? AND media_target = ? AND cache_name = ?
+            """,
+            (
+                cid,
+                (binding_id or "").strip() or None,
+                rel,
+                (source_type or "").strip() or "path",
+                source_digest,
+                kind,
+                now,
+                now,
+                domain_n,
+                target,
+                name,
+            ),
+        )
+        conn.commit()
+    row = get_for_cache(domain_n, name, media_target=target or None)
+    assert row is not None
+    return row
 
 
 def delete_row(
