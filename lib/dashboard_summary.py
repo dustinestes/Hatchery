@@ -21,6 +21,15 @@ from lib.validators import runs as validator_runs
 _PAUSED_POWER = frozenset({"paused", "suspended", "pmsuspended"})
 _SESSION_STATUSES = ("in_progress", "completed", "failed", "degraded", "unknown")
 
+# Dashboard tile → validator ids that back its validated stamp (#373).
+# Empty tuple with label "not implemented" = placeholder until a validator exists.
+# Alerts / Validators tiles omit stamps (no domain validator; max-of-all is noise).
+_TILE_VALIDATORS: dict[str, tuple[str, ...]] = {
+    "nests": ("nest_reachability", "nest_capability", "nest_key_expiry"),
+    "clutches": ("clutch_files",),
+    "library": ("library_connections", "library_cache_drift"),
+}
+
 
 def nest_tile_fields(
     registered: list[dict] | None = None,
@@ -243,12 +252,55 @@ def validators_summary() -> dict[str, Any]:
     }
 
 
+def tile_validation_stamps(
+    *,
+    nest_last_validated_at: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Per-tile validated stamp payload for the Dashboard (#373).
+
+    Each value is ``{"has_validator": bool, "at": iso|None}`` plus optional
+    ``label`` for placeholders (e.g. VMs: ``not implemented``).
+
+    Alerts and Validators tiles are omitted: Alerts has no validator; the
+    Validators tile's max-of-all run time is not a meaningful rollup.
+    """
+    latest = validator_runs.latest_by_validator()
+
+    def _stamp_for(ids: tuple[str, ...]) -> dict[str, Any]:
+        times: list[str] = []
+        for vid in ids:
+            run = latest.get(vid) or {}
+            at = run.get("finished_at") or run.get("started_at")
+            if isinstance(at, str) and at:
+                times.append(at)
+        return {"has_validator": True, "at": _latest_iso(times)}
+
+    stamps: dict[str, dict[str, Any]] = {
+        key: _stamp_for(ids) for key, ids in _TILE_VALIDATORS.items()
+    }
+
+    # Prefer Nest reachability snapshot when it is newer than validator runs.
+    nest_stamp = stamps["nests"]
+    if nest_last_validated_at and (
+        not nest_stamp.get("at") or nest_last_validated_at > nest_stamp["at"]
+    ):
+        stamps["nests"] = {"has_validator": True, "at": nest_last_validated_at}
+
+    stamps["vms"] = {
+        "has_validator": False,
+        "at": None,
+        "label": "not implemented",
+    }
+    return stamps
+
+
 def dashboard_summary() -> dict[str, Any]:
     """Payload for ``GET /api/dashboard-summary``."""
     from lib import alerts as alerts_lib
 
     nest_fields = nest_tile_fields()
     alert_count = alerts_lib.count_active_by_prefixes(alerts_lib.NEST_SCOPED_ALERT_PREFIXES)
+    validators = validators_summary()
     return {
         "nests": {
             "total": nest_fields["nest_total"],
@@ -260,7 +312,10 @@ def dashboard_summary() -> dict[str, Any]:
         },
         "vms": vm_summary(),
         "clutches": clutch_summary(),
-        "validators": validators_summary(),
+        "validators": validators,
+        "validated": tile_validation_stamps(
+            nest_last_validated_at=nest_fields["nest_last_validated_at"],
+        ),
     }
 
 

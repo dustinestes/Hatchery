@@ -203,3 +203,48 @@ class TestFooterStatusNestFields:
         assert "nest_reachable" in status
         assert "nest_unchecked" in status
         assert status["nest_last_validated_at"] == "2026-09-20T15:00:00Z"
+
+
+class TestTileValidationStamps:
+    def test_vms_placeholder_omits_alerts_and_validators(self):
+        stamps = dash.tile_validation_stamps()
+        assert stamps["vms"] == {
+            "has_validator": False,
+            "at": None,
+            "label": "not implemented",
+        }
+        assert "alerts" not in stamps
+        assert "validators" not in stamps
+
+    def test_nests_and_library_from_runs(self):
+        from lib.validators.runs import record_run
+
+        record_run(
+            validator_id="nest_reachability",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T12:00:00Z",
+        )
+        record_run(
+            validator_id="library_connections",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T13:00:00Z",
+        )
+        record_run(
+            validator_id="clutch_files",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T11:00:00Z",
+        )
+        stamps = dash.tile_validation_stamps()
+        assert stamps["nests"]["has_validator"] is True
+        assert stamps["nests"]["at"] == "2026-09-20T12:00:00Z"
+        assert stamps["library"]["has_validator"] is True
+        assert stamps["library"]["at"] == "2026-09-20T13:00:00Z"
+        assert stamps["clutches"]["at"] == "2026-09-20T11:00:00Z"
+
+    def test_dashboard_summary_includes_validated(self):
+        summary = dash.dashboard_summary()
+        assert "validated" in summary
+        assert set(summary["validated"]) == {"nests", "clutches", "vms", "library"}

@@ -206,9 +206,18 @@ class TestPageTitles:
         assert 'id="dash-tile-clutches"' in html
         assert 'id="dash-tile-vms"' in html
         assert 'id="dash-tile-library"' in html
-        assert 'id="dash-tile-health"' in html
+        assert 'id="dash-tile-health"' not in html
         assert 'id="dash-tile-alerts"' in html
         assert 'id="dash-tile-validators"' in html
+        assert "dashboard-tile-link" in html
+        assert "dashboard-tile-cta" not in html
+        assert "dashboard-tile-validated" in html
+        assert "dash-nests-validated" in html
+        assert "Open Nests" in html  # aria-label on icon link
+        assert "Open Settings" in html
+        assert "See the Validators pane" not in html
+        assert "Open the Alerts pane" not in html
+        assert "Guest health checks are not rolled up yet" not in html
         assert "hatchery.onStatusTick" in html
         assert "nest-panel" not in html
         assert 'id="dashboard-empty-nests"' in html
@@ -217,11 +226,11 @@ class TestPageTitles:
         clutches_at = html.find('id="dash-tile-clutches"')
         vms_at = html.find('id="dash-tile-vms"')
         assert nests_at < clutches_at < vms_at
-        # Observability: Health, Alerts, Validators
-        health_at = html.find('id="dash-tile-health"')
+        # Observability: Alerts, Validators (Health tile removed #373)
         alerts_at = html.find('id="dash-tile-alerts"')
         validators_at = html.find('id="dash-tile-validators"')
-        assert health_at < alerts_at < validators_at
+        assert alerts_at < validators_at
+        assert "Observability" in html
         assert 'id="dashboard-tiles"' not in html
 
     def test_nests_title(self, client):
@@ -489,6 +498,26 @@ class TestDashboardSummaryApi:
                     "nests_used": [{"id": "local", "name": "Local"}],
                     "unique_clutch_files": 1,
                 },
+                "validators": {
+                    "total": 1,
+                    "enabled": 1,
+                    "disabled": 0,
+                    "never_run": 0,
+                    "by_status": {"ok": 1, "findings": 0, "error": 0},
+                    "degraded": 0,
+                    "findings_total": 0,
+                    "last_run_at": "2026-09-20T12:00:00Z",
+                },
+                "validated": {
+                    "nests": {"has_validator": True, "at": "2026-09-20T12:00:00Z"},
+                    "clutches": {"has_validator": True, "at": None},
+                    "vms": {
+                        "has_validator": False,
+                        "at": None,
+                        "label": "not implemented",
+                    },
+                    "library": {"has_validator": True, "at": None},
+                },
             },
         )
         resp = client.get("/api/dashboard-summary")
@@ -499,6 +528,10 @@ class TestDashboardSummaryApi:
         assert data["vms"]["by_power"]["running"] == 1
         assert data["clutches"]["file_count"] == 1
         assert data["clutches"]["session_total"] == 1
+        assert data["validated"]["vms"]["label"] == "not implemented"
+        assert data["validated"]["nests"]["at"] == "2026-09-20T12:00:00Z"
+        assert "alerts" not in data["validated"]
+        assert "validators" not in data["validated"]
 
     def test_dashboard_scripts_fetch_summary(self, client):
         html = client.get("/").data.decode()
@@ -506,16 +539,22 @@ class TestDashboardSummaryApi:
         assert "renderNests" in html
         assert "renderVms" in html
         assert "renderClutches" in html
-        assert "renderHealth" in html
+        assert "renderHealth" not in html
         assert "renderAlerts" in html
         assert "renderValidators" in html
         assert "dash-nests-body" in html
         assert "dash-vms-body" in html
         assert "dash-clutches-body" in html
-        assert "dash-health-body" in html
+        assert "dash-health-body" not in html
         assert "dash-alerts-body" in html
         assert "dash-validators-body" in html
         assert "fetchDashboardSummary" in html
+        assert "applyValidatedMap" in html
+        assert "not implemented" in html
+        assert "fmtStampIso" in html
+        assert "dash-alerts-validated" not in html
+        assert "dash-validators-validated" not in html
+        assert "Last validated:" not in html
         assert "payload.alerts" in html
         assert "Controller and Nest health rollup" not in html
         assert "Open alert counts by tier" not in html

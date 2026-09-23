@@ -3,6 +3,26 @@
 {% block title %}Dashboard - Hatchery{% endblock %}
 
 {% block content %}
+{# Pane deep-link: gold arrow-up-right (#373) #}
+{% macro dash_pane_link(href, label) -%}
+<a class="dashboard-tile-link" href="{{ href }}" aria-label="{{ label }}" title="{{ label }}">
+  <svg class="dashboard-tile-link-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M7 17L17 7"/>
+    <path d="M7 7h10v10"/>
+  </svg>
+</a>
+{%- endmacro %}
+
+{# Settings deep-link: gold gear (#373) #}
+{% macro dash_settings_link(href, label, link_id=None) -%}
+<a {% if link_id %}id="{{ link_id }}" {% endif %}class="dashboard-tile-link dashboard-tile-link--settings" href="{{ href }}" aria-label="{{ label }}" title="{{ label }}">
+  <svg class="dashboard-tile-link-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+</a>
+{%- endmacro %}
+
 <div class="pane-header">
   <h1 class="pane-title">Dashboard</h1>
   <p class="pane-subtitle">At-a-glance status across Hatchery, connections, and observability.</p>
@@ -23,27 +43,36 @@
     <div class="dashboard-tile-grid" aria-label="Hatchery summary">
 
       <section class="dashboard-tile" id="dash-tile-nests" aria-labelledby="dash-tile-nests-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
+          <p class="dashboard-tile-validated" id="dash-nests-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('nests'), 'Open Nests') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="nests" id="dash-nests-body">
           <p class="dashboard-tile-placeholder">Loading Nest status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-clutches" aria-labelledby="dash-tile-clutches-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
+          <p class="dashboard-tile-validated" id="dash-clutches-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('clutches'), 'Open Clutches') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="clutches" id="dash-clutches-body">
           <p class="dashboard-tile-placeholder">Loading Clutch status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('clutches') }}">Open Clutches</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-vms" aria-labelledby="dash-tile-vms-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
+          <p class="dashboard-tile-validated" id="dash-vms-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('nests'), 'Open Nests') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="vms" id="dash-vms-body">
           <p class="dashboard-tile-placeholder">Loading VM status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
     </div>
@@ -56,7 +85,15 @@
     <div class="dashboard-tile-grid" aria-label="Connections summary">
 
       <section class="dashboard-tile" id="dash-tile-library" aria-labelledby="dash-tile-library-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
+          <p class="dashboard-tile-validated" id="dash-library-validated" aria-live="polite">…</p>
+          {{ dash_settings_link(
+               url_for('settings_section', section='library') if library_enabled else url_for('settings_section', section='general'),
+               'Open Settings',
+               link_id='dashboard-library-cta'
+             ) }}
+        </div>
         <div class="dashboard-tile-body" data-tile="library" id="dash-library-body">
           {% if library_enabled %}
           <p class="dashboard-tile-placeholder">Loading Library status…</p>
@@ -65,44 +102,35 @@
           <p class="dashboard-tile-meta">Enable Library in Settings when you need shared content.</p>
           {% endif %}
         </div>
-        <a id="dashboard-library-cta"
-           class="dashboard-tile-cta link"
-           href="{% if library_enabled %}{{ url_for('settings_section', section='library') }}{% else %}{{ url_for('settings_section', section='general') }}{% endif %}">
-          Open Settings
-        </a>
       </section>
 
     </div>
   </section>
 
-  {# ── Health & observability ── #}
+  {# ── Observability (Health tile removed: redundant with Nests / Library / Alerts) ── #}
   <section class="dashboard-band" aria-labelledby="dashboard-section-observability-title">
-    <h2 class="dashboard-section-title" id="dashboard-section-observability-title">Health &amp; observability</h2>
-    <p class="dashboard-section-subtitle">Controller health, alerts, and validators.</p>
-    <div class="dashboard-tile-grid" aria-label="Health and observability summary">
-
-      <section class="dashboard-tile" id="dash-tile-health" aria-labelledby="dash-tile-health-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-health-title">Health</h3>
-        <div class="dashboard-tile-body" data-tile="health" id="dash-health-body">
-          <p class="dashboard-tile-placeholder">Loading health…</p>
-        </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
-      </section>
+    <h2 class="dashboard-section-title" id="dashboard-section-observability-title">Observability</h2>
+    <p class="dashboard-section-subtitle">Alerts and validators on this Controller.</p>
+    <div class="dashboard-tile-grid" aria-label="Observability summary">
 
       <section class="dashboard-tile" id="dash-tile-alerts" aria-labelledby="dash-tile-alerts-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
+          {{ dash_pane_link(url_for('alerts_pane'), 'Open Alerts') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="alerts" id="dash-alerts-body">
           <p class="dashboard-tile-placeholder">Loading alerts…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('alerts_pane') }}">Open Alerts</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-validators" aria-labelledby="dash-tile-validators-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
+          {{ dash_pane_link(url_for('validators_pane'), 'Open Validators') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="validators" id="dash-validators-body">
           <p class="dashboard-tile-placeholder">Loading validators…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('validators_pane') }}">Open Validators</a>
       </section>
 
     </div>
@@ -124,9 +152,14 @@
   var nestsBody = document.getElementById('dash-nests-body');
   var vmsBody = document.getElementById('dash-vms-body');
   var clutchesBody = document.getElementById('dash-clutches-body');
-  var healthBody = document.getElementById('dash-health-body');
   var alertsBody = document.getElementById('dash-alerts-body');
   var validatorsBody = document.getElementById('dash-validators-body');
+  var validatedEls = {
+    nests: document.getElementById('dash-nests-validated'),
+    clutches: document.getElementById('dash-clutches-validated'),
+    vms: document.getElementById('dash-vms-validated'),
+    library: document.getElementById('dash-library-validated'),
+  };
   var summaryInFlight = false;
 
   function esc(str) {
@@ -135,16 +168,45 @@
     });
   }
 
-  function fmtValidated(iso) {
-    if (!iso) return 'Never validated';
+  function fmtStampIso(iso) {
     try {
-      return 'Last validated ' + new Date(iso).toLocaleString(undefined, {
-        month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
+      var d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      // ISO-8601 UTC, second precision (drop ms).
+      return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
     } catch (e) {
-      return 'Last validated ' + esc(iso);
+      return String(iso);
     }
+  }
+
+  function setValidated(tileKey, entry) {
+    var el = validatedEls[tileKey];
+    if (!el) return;
+    if (entry && entry.label) {
+      el.textContent = String(entry.label);
+      el.removeAttribute('title');
+      return;
+    }
+    if (!entry || !entry.has_validator) {
+      el.textContent = 'no validator exists';
+      el.removeAttribute('title');
+      return;
+    }
+    if (!entry.at) {
+      el.textContent = 'never';
+      el.removeAttribute('title');
+      return;
+    }
+    var iso = fmtStampIso(entry.at);
+    el.textContent = iso;
+    el.title = 'Last validated ' + iso;
+  }
+
+  function applyValidatedMap(map) {
+    if (!map) return;
+    Object.keys(validatedEls).forEach(function (key) {
+      setValidated(key, map[key]);
+    });
   }
 
   function renderNests(ps) {
@@ -168,7 +230,6 @@
     if (unchecked) parts.push('<li>' + unchecked + ' not checked yet</li>');
     if (alerts) parts.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
     parts.push('</ul>');
-    parts.push('<p class="dashboard-tile-meta">' + esc(fmtValidated(ps.nest_last_validated_at)) + '</p>');
     nestsBody.innerHTML = parts.join('');
   }
 
@@ -212,8 +273,6 @@
     parts.push('</ul>');
     if (unavailable) {
       parts.push('<p class="dashboard-tile-meta">' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>');
-    } else {
-      parts.push('<p class="dashboard-tile-meta">Guest health checks are not rolled up yet.</p>');
     }
     vmsBody.innerHTML = parts.join('');
   }
@@ -269,7 +328,6 @@
     var enabled = !!ps.library_enabled;
     if (libraryCta) {
       libraryCta.href = enabled ? '/settings/library' : '/settings/general';
-      libraryCta.textContent = 'Open Settings';
     }
     if (!enabled) {
       libraryBody.innerHTML =
@@ -314,47 +372,6 @@
     libraryBody.innerHTML = parts.join('');
   }
 
-  function renderHealth(ps) {
-    if (!healthBody || !ps) return;
-    var issues = [];
-    if (!ps.hatchery_ok) {
-      issues.push(ps.hatchery_title || 'Controller needs attention');
-    }
-    if (ps.nest_total && !ps.nests_ok) {
-      issues.push(ps.nests_title || 'Nest health degraded');
-    }
-    if (ps.library_enabled && !ps.libraries_ok) {
-      issues.push(ps.libraries_title || 'Library needs attention');
-    }
-
-    if (!issues.length) {
-      var meta = 'Controller OK';
-      if (ps.nest_total) {
-        meta += '; ' + (ps.nests_title || 'Nests OK');
-      } else {
-        meta += '; no Nests registered';
-      }
-      if (ps.library_enabled) {
-        meta += '; ' + (ps.libraries_title || 'Library OK');
-      }
-      healthBody.innerHTML =
-        '<p class="dashboard-tile-metric">All clear</p>' +
-        '<p class="dashboard-tile-meta">' + esc(meta) + '</p>';
-      return;
-    }
-
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + issues.length + '</span> area' + (issues.length === 1 ? '' : 's') + ' need attention</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="Health issues">',
-    ];
-    issues.forEach(function (msg) {
-      parts.push('<li>' + esc(msg) + '</li>');
-    });
-    parts.push('</ul>');
-    parts.push('<p class="dashboard-tile-meta">See Alerts and Nests for detail.</p>');
-    healthBody.innerHTML = parts.join('');
-  }
-
   function renderAlerts(alertsPayload) {
     if (!alertsBody) return;
     if (!alertsPayload) {
@@ -364,9 +381,7 @@
     var items = alertsPayload.items || [];
     var open = items.filter(function (n) { return !n.resolved; });
     if (!open.length) {
-      alertsBody.innerHTML =
-        '<p class="dashboard-tile-metric">No open alerts</p>' +
-        '<p class="dashboard-tile-meta">The bell and Alerts pane stay quiet when nothing is active.</p>';
+      alertsBody.innerHTML = '<p class="dashboard-tile-metric">No open alerts</p>';
       return;
     }
     var byTier = { alert: 0, warning: 0, info: 0 };
@@ -383,7 +398,6 @@
       '<li>' + byTier.warning + ' warning</li>',
       '<li>' + byTier.info + ' info</li>',
       '</ul>',
-      '<p class="dashboard-tile-meta">Open the Alerts pane for the full list.</p>',
     ];
     alertsBody.innerHTML = parts.join('');
   }
@@ -425,29 +439,11 @@
       parts.push('<li>' + neverRun + ' never run</li>');
     }
     parts.push('</ul>');
-    if (degraded) {
-      var findBit = '';
-      if (findingsTotal) {
-        findBit = String(findingsTotal) + ' finding' + (findingsTotal === 1 ? '' : 's') +
-          ' in latest runs. ';
-      }
+    if (degraded && findingsTotal) {
       parts.push(
-        '<p class="dashboard-tile-meta">' + findBit +
-        'See the Validators pane for detail.</p>'
+        '<p class="dashboard-tile-meta">' + findingsTotal + ' finding' +
+        (findingsTotal === 1 ? '' : 's') + ' in latest runs.</p>'
       );
-    } else if (validators.last_run_at) {
-      var lastRun = 'Last run unknown';
-      try {
-        lastRun = 'Last run ' + new Date(validators.last_run_at).toLocaleString(undefined, {
-          month: 'short', day: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        });
-      } catch (e) {
-        lastRun = 'Last run ' + esc(validators.last_run_at);
-      }
-      parts.push('<p class="dashboard-tile-meta">' + lastRun + '</p>');
-    } else {
-      parts.push('<p class="dashboard-tile-meta">No runs recorded yet.</p>');
     }
     validatorsBody.innerHTML = parts.join('');
   }
@@ -459,7 +455,12 @@
     }
     renderNests(ps);
     renderLibrary(ps);
-    renderHealth(ps);
+    // Nest stamp can update from plane-status before summary returns.
+    if (ps.nest_last_validated_at) {
+      setValidated('nests', { has_validator: true, at: ps.nest_last_validated_at });
+    } else if (validatedEls.nests && !validatedEls.nests.dataset.summaryStamp) {
+      setValidated('nests', { has_validator: true, at: null });
+    }
   }
 
   function fetchDashboardSummary(nestTotal) {
@@ -471,6 +472,10 @@
         renderVms(data && data.vms, nestTotal);
         renderClutches(data && data.clutches);
         renderValidators(data && data.validators);
+        applyValidatedMap(data && data.validated);
+        Object.keys(validatedEls).forEach(function (key) {
+          if (validatedEls[key]) validatedEls[key].dataset.summaryStamp = '1';
+        });
       })
       .catch(function () {
         if (vmsBody) {
@@ -485,6 +490,9 @@
       })
       .finally(function () { summaryInFlight = false; });
   }
+
+  // VMs: placeholder until a guest-health (or similar) validator exists.
+  setValidated('vms', { has_validator: false, at: null, label: 'not implemented' });
 
   hatchery.onStatusTick(function (payload) {
     var ps = payload && payload.planeStatus;

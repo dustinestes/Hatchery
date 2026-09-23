@@ -28,6 +28,7 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 
   --font-heading: 'Space Grotesk', sans-serif;
   --font-body:    'Inter', sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --topbar-height:           44px;
   --footer-height:           32px;
@@ -1590,12 +1591,61 @@ body {
   min-height: 140px;
 }
 
+.dashboard-tile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dashboard-tile-title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-heading);
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.dashboard-tile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: -6px -6px -6px 0;
+  border-radius: 6px;
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.dashboard-tile-link:hover {
+  color: var(--gold-light);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.dashboard-tile-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.dashboard-tile-link-icon {
+  display: block;
+}
+
+.dashboard-tile-validated {
+  margin: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  text-align: right;
 }
 
 .dashboard-tile-body {
@@ -1640,11 +1690,6 @@ body {
   font-size: 12px;
   color: var(--color-text-muted);
   line-height: 1.4;
-}
-
-.dashboard-tile-cta {
-  align-self: flex-start;
-  font-size: 13px;
 }
 
 /* Legacy two-column dashboard chrome (unused by current Dashboard) */
