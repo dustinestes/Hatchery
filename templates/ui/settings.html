@@ -228,6 +228,12 @@
               </select>
             </div>
             <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Script binding label">
+            </div>
+            <div class="form-group">
               <label class="form-label">Filter</label>
               <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
                      value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
@@ -311,6 +317,12 @@
                         {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
                 {% endfor %}
               </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_clutch_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Clutch binding label">
             </div>
             <div class="form-group">
               <label class="form-label">Filter</label>
@@ -403,6 +415,12 @@
                 <option value="iso" {% if bind.target != 'virtio' %}selected{% endif %}>ISO</option>
                 <option value="virtio" {% if bind.target == 'virtio' %}selected{% endif %}>VirtIO</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_media_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Media binding label">
             </div>
             <div class="form-group">
               <label class="form-label">Filter</label>
@@ -1001,6 +1019,12 @@
           </select>
         </div>
         <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Script binding label">
+        </div>
+        <div class="form-group">
           <label class="form-label">Filter</label>
           <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
                  value="*" placeholder="* or **/*.ps1 or path/file.sh">
@@ -1052,6 +1076,12 @@
           <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
             <option value="">Choose a connection</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_clutch_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Clutch binding label">
         </div>
         <div class="form-group">
           <label class="form-label">Filter</label>
@@ -1112,6 +1142,12 @@
             <option value="iso" selected>ISO</option>
             <option value="virtio">VirtIO</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_media_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Media binding label">
         </div>
         <div class="form-group">
           <label class="form-label">Filter</label>
@@ -1735,9 +1771,11 @@
     const toggle = row.querySelector('.library-bind-toggle');
     const sel = row.querySelector('select[name$="_connection_id"]');
     const filt = ((row.querySelector('.library-bind-filter-input') || {}).value || '').trim() || '*';
+    const blabel = ((row.querySelector('.library-bind-label-input') || {}).value || '').trim() || filt;
     const connId = sel ? sel.value : '';
-    const label = connId ? (connLabelById(connId) || 'connection') : 'No connection';
-    let text = label + ' · ' + filt;
+    const connLabel = connId ? (connLabelById(connId) || 'connection') : 'No connection';
+    let name = blabel === filt ? blabel : blabel + ' (' + filt + ')';
+    let text = connLabel + ' · ' + name;
     const target = row.querySelector('.library-bind-target-input');
     if (target && target.value) text += ' · ' + target.value;
     const bindOn = ((row.querySelector('.library-bind-enabled-value') || {}).value || '1') !== '0';
@@ -1885,13 +1923,16 @@
     syncBindEnabled(row);
     const idEl = row.querySelector('input[name$="_bind_id"]');
     const connEl = row.querySelector('select[name$="_connection_id"]');
+    const labelEl = row.querySelector('.library-bind-label-input');
     const filterEl = row.querySelector('.library-bind-filter-input');
     const targetEl = row.querySelector('.library-bind-target-input');
     const enabledEl = row.querySelector('.library-bind-enabled-value');
+    const filter = ((filterEl && filterEl.value) || '*').trim() || '*';
     const out = {
       id: (idEl && idEl.value) || '',
       connection_id: (connEl && connEl.value) || '',
-      filter: ((filterEl && filterEl.value) || '*').trim() || '*',
+      label: ((labelEl && labelEl.value) || '').trim(),
+      filter: filter,
       enabled: !enabledEl || (enabledEl.value !== '0' && enabledEl.value !== 'false'),
     };
     if (domain === 'media') {
@@ -2293,7 +2334,8 @@
     container.addEventListener('input', function (e) {
       const row = e.target.closest('.library-bind-row');
       if (!row) return;
-      if (e.target.classList.contains('library-bind-filter-input')) {
+      if (e.target.classList.contains('library-bind-filter-input')
+          || e.target.classList.contains('library-bind-label-input')) {
         updateBindSummary(row, domainLabel);
       }
       refreshBindDirty(row, domain);

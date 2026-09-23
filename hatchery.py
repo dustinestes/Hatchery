@@ -1123,10 +1123,16 @@ def settings_section_post(section: str):
 
         bind_ids = request.form.getlist("library_script_bind_id")
         bind_conn_ids = request.form.getlist("library_script_bind_connection_id")
+        bind_labels = request.form.getlist("library_script_bind_label")
         bind_filters = request.form.getlist("library_script_bind_filter")
         bind_enabled = request.form.getlist("library_script_bind_enabled")
         bn = len(bind_conn_ids)
-        if not (len(bind_ids) == bn and len(bind_filters) == bn and len(bind_enabled) == bn):
+        if not (
+            len(bind_ids) == bn
+            and len(bind_labels) == bn
+            and len(bind_filters) == bn
+            and len(bind_enabled) == bn
+        ):
             return _rerender(
                 "Script bindings are incomplete - each row needs a connection and filter."
             )
@@ -1136,6 +1142,7 @@ def settings_section_post(section: str):
                 {
                     "id": (bind_ids[i] or "").strip(),
                     "connection_id": (bind_conn_ids[i] or "").strip(),
+                    "label": (bind_labels[i] or "").strip(),
                     "filter": (bind_filters[i] or "*").strip() or "*",
                     "enabled": library_lib.parse_enabled(bind_enabled[i], default=True),
                 }
@@ -1159,10 +1166,16 @@ def settings_section_post(section: str):
 
         clutch_ids = request.form.getlist("library_clutch_bind_id")
         clutch_conn_ids = request.form.getlist("library_clutch_bind_connection_id")
+        clutch_labels = request.form.getlist("library_clutch_bind_label")
         clutch_filters = request.form.getlist("library_clutch_bind_filter")
         clutch_enabled = request.form.getlist("library_clutch_bind_enabled")
         cn = len(clutch_conn_ids)
-        if not (len(clutch_ids) == cn and len(clutch_filters) == cn and len(clutch_enabled) == cn):
+        if not (
+            len(clutch_ids) == cn
+            and len(clutch_labels) == cn
+            and len(clutch_filters) == cn
+            and len(clutch_enabled) == cn
+        ):
             return _rerender(
                 "Clutch bindings are incomplete - each row needs a connection and filter."
             )
@@ -1172,6 +1185,7 @@ def settings_section_post(section: str):
                 {
                     "id": (clutch_ids[i] or "").strip(),
                     "connection_id": (clutch_conn_ids[i] or "").strip(),
+                    "label": (clutch_labels[i] or "").strip(),
                     "filter": (clutch_filters[i] or "*").strip() or "*",
                     "enabled": library_lib.parse_enabled(clutch_enabled[i], default=True),
                 }
@@ -1193,12 +1207,14 @@ def settings_section_post(section: str):
 
         media_ids = request.form.getlist("library_media_bind_id")
         media_conn_ids = request.form.getlist("library_media_bind_connection_id")
+        media_labels = request.form.getlist("library_media_bind_label")
         media_filters = request.form.getlist("library_media_bind_filter")
         media_targets = request.form.getlist("library_media_bind_target")
         media_enabled = request.form.getlist("library_media_bind_enabled")
         mn = len(media_conn_ids)
         if not (
             len(media_ids) == mn
+            and len(media_labels) == mn
             and len(media_filters) == mn
             and len(media_targets) == mn
             and len(media_enabled) == mn
@@ -1212,6 +1228,7 @@ def settings_section_post(section: str):
                 {
                     "id": (media_ids[i] or "").strip(),
                     "connection_id": (media_conn_ids[i] or "").strip(),
+                    "label": (media_labels[i] or "").strip(),
                     "filter": (media_filters[i] or "*").strip() or "*",
                     "target": (media_targets[i] or "iso").strip() or "iso",
                     "enabled": library_lib.parse_enabled(media_enabled[i], default=True),
@@ -1378,6 +1395,7 @@ def _library_reattach_bindings(domain: str, *, media_target: str | None = None) 
         row = {
             "id": b["id"],
             "connection_id": b["connection_id"],
+            "label": b.get("label") or b.get("filter") or "*",
             "filter": b.get("filter") or "*",
             "enabled": bool(b.get("enabled", True)),
         }

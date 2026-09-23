@@ -819,14 +819,17 @@ class TestLibrarySettingsGate:
                 "library_conn_enabled": "1",
                 "library_script_bind_id": "bind001",
                 "library_script_bind_connection_id": "abc123def456",
+                "library_script_bind_label": "PS1 scripts",
                 "library_script_bind_filter": "*.ps1",
                 "library_script_bind_enabled": "1",
                 "library_clutch_bind_id": "cbind001",
                 "library_clutch_bind_connection_id": "abc123def456",
+                "library_clutch_bind_label": "",
                 "library_clutch_bind_filter": "*.yaml",
                 "library_clutch_bind_enabled": "1",
                 "library_media_bind_id": "mbind001",
                 "library_media_bind_connection_id": "abc123def456",
+                "library_media_bind_label": "ISOs",
                 "library_media_bind_filter": "*.iso",
                 "library_media_bind_target": "iso",
                 "library_media_bind_enabled": "1",
@@ -837,9 +840,12 @@ class TestLibrarySettingsGate:
         assert saved["library_connections"][0]["expires_at"] is None
         assert saved["library_connections"][0]["enabled"] is True
         assert saved["library_script_bindings"][0]["filter"] == "*.ps1"
+        assert saved["library_script_bindings"][0]["label"] == "PS1 scripts"
         assert saved["library_script_bindings"][0]["enabled"] is True
         assert saved["library_clutch_bindings"][0]["filter"] == "*.yaml"
+        assert saved["library_clutch_bindings"][0]["label"] == "*.yaml"
         assert saved["library_media_bindings"][0]["target"] == "iso"
+        assert saved["library_media_bindings"][0]["label"] == "ISOs"
 
     def test_library_api_upsert_and_delete_connection(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
