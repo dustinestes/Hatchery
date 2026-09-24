@@ -40,21 +40,24 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* ── Light theme ── */
 [data-theme="light"] {
   color-scheme: light;
-  --color-bg:             #FAFAF7;
-  --color-bg-sidebar:     #F2F2EE;
-  --color-surface:        #FFFFFF;
-  --color-surface-alt:    #F4F4F1;
+  /* Warm off-whites (no pure #FFF) so brand gold reads on surfaces.
+     Ladder matches dark: chrome (sidebar/topbar/footer) darkest, content
+     a step up, surfaces (tiles/cards) lightest. */
+  --color-bg:             #F2F2EE;
+  --color-bg-sidebar:     #EEEEEA;
+  --color-surface:        #F6F6F2;
+  --color-surface-alt:    #E8E8E4;
   --color-text:           #1A1916;
   --color-text-muted:     #6B6862;
-  --color-border:         #E3E3DF;
-  --color-topbar-bg:      #FAFAF7;
-  --color-topbar-border:  #E3E3DF;
-  --color-footer-bg:      #F2F2EE;
-  --color-footer-border:  #E3E3DF;
+  --color-border:         #DDDDD8;
+  --color-topbar-bg:      #EEEEEA;
+  --color-topbar-border:  #DDDDD8;
+  --color-footer-bg:      #EEEEEA;
+  --color-footer-border:  #DDDDD8;
   --color-sidebar-text:   #3A3835;
   --color-sidebar-muted:  #8A8880;
-  --color-nav-hover-bg:   #EAEAE6;
-  --color-nav-active-bg:  #E3E3DF;
+  --color-nav-hover-bg:   #E4E4DF;
+  --color-nav-active-bg:  #DDDDD8;
   --color-nav-active-text:#1A1916;
   --scrollbar-thumb:      #C8C6BE;
   --scrollbar-thumb-hover:#A8A69E;
@@ -1589,6 +1592,53 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   min-height: 140px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.dashboard-tile:hover,
+.dashboard-tile:focus-within {
+  border-color: color-mix(in srgb, var(--gold) 65%, var(--color-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent);
+}
+
+.dashboard-tile:hover .dashboard-tile-title,
+.dashboard-tile:focus-within .dashboard-tile-title {
+  color: var(--color-text);
+}
+
+.dashboard-tile:hover .dashboard-tile-count,
+.dashboard-tile:focus-within .dashboard-tile-count {
+  color: var(--gold-dark);
+}
+
+.dashboard-tile:hover .dashboard-tile-unit,
+.dashboard-tile:focus-within .dashboard-tile-unit,
+.dashboard-tile:hover .dashboard-tile-breakdown,
+.dashboard-tile:focus-within .dashboard-tile-breakdown,
+.dashboard-tile:hover .dashboard-tile-meta,
+.dashboard-tile:focus-within .dashboard-tile-meta,
+.dashboard-tile:hover .dashboard-tile-placeholder,
+.dashboard-tile:focus-within .dashboard-tile-placeholder {
+  color: color-mix(in srgb, var(--color-text) 55%, var(--color-text-muted));
+}
+
+.dashboard-tile:hover .dashboard-tile-col-title,
+.dashboard-tile:focus-within .dashboard-tile-col-title {
+  color: color-mix(in srgb, var(--gold-dark) 55%, var(--color-text-muted));
+}
+
+.dashboard-tile:hover .dashboard-tile-validated,
+.dashboard-tile:focus-within .dashboard-tile-validated {
+  color: color-mix(in srgb, var(--color-text) 40%, var(--color-text-muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-tile {
+    transition: none;
+  }
 }
 
 .dashboard-tile-header {
@@ -1680,7 +1730,7 @@ body {
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text);
+  color: var(--gold);
 }
 
 .dashboard-tile-unit {
@@ -1697,7 +1747,7 @@ body {
   flex-direction: column;
   justify-content: flex-start;
   gap: 6px;
-  border-left: 1px solid var(--color-border);
+  border-left: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
   padding-left: 16px;
 }
 
@@ -1707,7 +1757,7 @@ body {
     min-width: 0;
     border-left: none;
     padding-left: 0;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
     padding-top: 12px;
   }
 }
