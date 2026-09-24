@@ -196,7 +196,15 @@ class TestUpdateSettings:
             }
         )
         library_registry.replace_connections(
-            [{"id": "c1", "label": "Keep", "type": "path", "base_uri": "/tmp", "kinds": ["scripts"]}]
+            [
+                {
+                    "id": "c1",
+                    "label": "Keep",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "kinds": ["scripts"],
+                }
+            ]
         )
         cfg.update_settings({"validators_run_retention": 66})
         assert cfg.get()["validators_run_retention"] == 66
