@@ -312,6 +312,8 @@
     var files = clutches.file_count || 0;
     var sessions = clutches.session_total || 0;
     var byStatus = clutches.by_status || {};
+    var nestsUsed = (clutches.nests_used && clutches.nests_used.length) || 0;
+    var uniqueHatched = clutches.unique_clutch_files || 0;
 
     if (files === 0 && sessions === 0) {
       clutchesBody.innerHTML =
@@ -323,23 +325,37 @@
       return;
     }
 
-    var aside = [
+    var hatches = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Hatches</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">',
+      '<li>' + (byStatus.in_progress || 0) + ' in progress</li>',
+      '<li>' + (byStatus.completed || 0) + ' completed</li>',
+      '<li>' + (byStatus.failed || 0) + ' failed</li>',
+      '<li>' + (byStatus.degraded || 0) + ' degraded</li>',
     ];
-    if (sessions === 0) {
-      aside.push('<li>0 active hatches</li>');
-    } else {
-      ['in_progress', 'completed', 'failed', 'degraded', 'unknown'].forEach(function (key) {
-        var n = byStatus[key] || 0;
-        if (!n) return;
-        aside.push('<li>' + n + ' ' + key.split('_').join(' ') + '</li>');
-      });
+    if (byStatus.unknown) {
+      hatches.push('<li>' + byStatus.unknown + ' unknown</li>');
     }
-    aside.push('</ul>');
+    hatches.push('</ul>', '</div>');
+
+    var scope = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Scope</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Hatch placement">',
+      '<li>' + nestsUsed + ' Nest' + (nestsUsed === 1 ? '' : 's') +
+        ' with hatches</li>',
+      '<li>' + uniqueHatched + ' Clutch file' + (uniqueHatched === 1 ? '' : 's') +
+        ' hatched</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var aside =
+      '<div class="dashboard-tile-columns">' + hatches.join('') + scope.join('') + '</div>';
     clutchesBody.innerHTML = tileSplit(
       files,
       files === 1 ? 'Clutch file' : 'Clutch files',
-      aside.join('')
+      aside
     );
   }
 
