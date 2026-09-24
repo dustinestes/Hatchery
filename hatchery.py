@@ -878,6 +878,12 @@ def _settings_template(
         abort(404)
     title, subtitle = _SETTINGS_SECTIONS[section]
     cfg = {**config.get(), **(cfg_overlay or {})}
+    if section == "library":
+        # ADR-0017: registry lives in tables; overlay for Settings → Library templates.
+        cfg["library_connections"] = config.library_connections()
+        cfg["library_script_bindings"] = config.library_script_bindings()
+        cfg["library_clutch_bindings"] = config.library_clutch_bindings()
+        cfg["library_media_bindings"] = config.library_media_bindings()
     identities_json = nest_ssh_identities_json
     if identities_json is None:
         identities_json = json.dumps(cfg.get("nest_ssh_identities") or [], indent=2)
@@ -1247,10 +1253,16 @@ def settings_section_post(section: str):
                 },
             )
 
-        new_cfg["library_connections"] = connections
-        new_cfg["library_script_bindings"] = bindings
-        new_cfg["library_clutch_bindings"] = clutch_bindings
-        new_cfg["library_media_bindings"] = media_bindings
+        new_cfg.pop("library_connections", None)
+        new_cfg.pop("library_script_bindings", None)
+        new_cfg.pop("library_clutch_bindings", None)
+        new_cfg.pop("library_media_bindings", None)
+        from lib import library_registry as library_registry_lib
+
+        library_registry_lib.replace_connections(connections)
+        library_registry_lib.replace_bindings_for_domain("scripts", bindings)
+        library_registry_lib.replace_bindings_for_domain("clutches", clutch_bindings)
+        library_registry_lib.replace_bindings_for_domain("media", media_bindings)
         config.save(new_cfg)
         from lib import library_health as library_health_lib
 
@@ -1496,28 +1508,22 @@ def api_library_connection_upsert():
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
-    cfg = config.get()
-    connections = list(cfg.get("library_connections") or [])
-    cid = parsed["id"]
-    replaced = False
-    for i, existing in enumerate(connections):
-        if existing.get("id") == cid:
-            connections[i] = parsed
-            replaced = True
-            break
-    if not replaced:
-        connections.append(parsed)
-    config.update_settings({"library_connections": connections})
+    from lib import library_registry as library_registry_lib
+
+    existed = library_registry_lib.get_connection(parsed["id"]) is not None
+    library_registry_lib.upsert_connection(parsed)
     from lib import library_health as library_health_lib
 
-    library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
-    return jsonify({"ok": True, "connection": parsed, "created": not replaced})
+    library_health_lib.prune_alerts_for_removed_connections(
+        {c["id"] for c in library_registry_lib.list_connections()}
+    )
+    return jsonify({"ok": True, "connection": parsed, "created": not existed})
 
 
-_BINDING_DOMAIN_KEYS = {
-    "scripts": ("library_script_bindings", library_lib.parse_script_bindings),
-    "clutches": ("library_clutch_bindings", library_lib.parse_clutch_bindings),
-    "media": ("library_media_bindings", library_lib.parse_media_bindings),
+_BINDING_PARSE = {
+    "scripts": library_lib.parse_script_bindings,
+    "clutches": library_lib.parse_clutch_bindings,
+    "media": library_lib.parse_media_bindings,
 }
 
 
@@ -1531,9 +1537,9 @@ def api_library_connection_delete(conn_id: str):
     if not cid:
         return jsonify({"ok": False, "error": "connection id is required"}), 400
 
-    cfg = config.get()
-    existing = list(cfg.get("library_connections") or [])
-    removed = next((c for c in existing if c.get("id") == cid), None)
+    from lib import library_registry as library_registry_lib
+
+    removed = library_registry_lib.get_connection(cid)
     if removed is None:
         return jsonify({"ok": False, "error": "Unknown connection id"}), 404
 
@@ -1541,21 +1547,16 @@ def api_library_connection_delete(conn_id: str):
     delete_git_cache = bool(data.get("delete_git_cache"))
     delete_attributed_cache = bool(data.get("delete_attributed_cache"))
 
-    bindings_removed = 0
-    patch: dict = {}
-    for cfg_key, _parse in _BINDING_DOMAIN_KEYS.values():
-        rows = list(cfg.get(cfg_key) or [])
-        kept = [b for b in rows if str(b.get("connection_id") or "") != cid]
-        bindings_removed += len(rows) - len(kept)
-        patch[cfg_key] = kept
-
-    connections = [c for c in existing if c.get("id") != cid]
-    patch["library_connections"] = connections
-    config.update_settings(patch)
+    bindings_removed = sum(
+        1 for b in library_registry_lib.list_bindings() if b.get("connection_id") == cid
+    )
+    library_registry_lib.delete_connection(cid)
     from lib import library_health as library_health_lib
     from lib import library_provenance as prov
 
-    library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
+    library_health_lib.prune_alerts_for_removed_connections(
+        {c["id"] for c in library_registry_lib.list_connections()}
+    )
 
     attributed_deleted: list[str] = []
     if delete_attributed_cache:
@@ -1591,14 +1592,14 @@ def api_library_binding_upsert(domain: str):
     if denied:
         return denied
     key = str(domain or "").strip().lower()
-    if key not in _BINDING_DOMAIN_KEYS:
+    if key not in _BINDING_PARSE:
         return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
     data = request.get_json(silent=True) or {}
     raw = data.get("binding")
     if not isinstance(raw, dict):
         return jsonify({"ok": False, "error": "binding object is required"}), 400
 
-    cfg_key, parse_fn = _BINDING_DOMAIN_KEYS[key]
+    parse_fn = _BINDING_PARSE[key]
     try:
         connections = library_lib.parse_connections(
             config.library_connections(), enforce_expiry_future=False
@@ -1607,19 +1608,12 @@ def api_library_binding_upsert(domain: str):
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
-    cfg = config.get()
-    bindings = list(cfg.get(cfg_key) or [])
-    bid = parsed["id"]
-    replaced = False
-    for i, existing in enumerate(bindings):
-        if existing.get("id") == bid:
-            bindings[i] = parsed
-            replaced = True
-            break
-    if not replaced:
-        bindings.append(parsed)
-    config.update_settings({cfg_key: bindings})
-    return jsonify({"ok": True, "binding": parsed, "created": not replaced})
+    from lib import library_registry as library_registry_lib
+
+    before = library_registry_lib.list_bindings(domain=key)
+    existed = any(b.get("id") == parsed["id"] for b in before)
+    library_registry_lib.upsert_binding(parsed)
+    return jsonify({"ok": True, "binding": parsed, "created": not existed})
 
 
 @app.route("/api/library/bindings/<domain>/<binding_id>", methods=["DELETE"])
@@ -1629,20 +1623,19 @@ def api_library_binding_delete(domain: str, binding_id: str):
     if denied:
         return denied
     key = str(domain or "").strip().lower()
-    if key not in _BINDING_DOMAIN_KEYS:
+    if key not in _BINDING_PARSE:
         return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
     bid = str(binding_id or "").strip()
     if not bid:
         return jsonify({"ok": False, "error": "binding id is required"}), 400
-    cfg_key, _parse = _BINDING_DOMAIN_KEYS[key]
-    cfg = config.get()
-    bindings = list(cfg.get(cfg_key) or [])
-    kept = [b for b in bindings if b.get("id") != bid]
-    if len(kept) == len(bindings):
+    from lib import library_registry as library_registry_lib
+
+    existing = [b for b in library_registry_lib.list_bindings(domain=key) if b.get("id") == bid]
+    if not existing:
         return jsonify({"ok": False, "error": "Unknown binding id"}), 404
     data = request.get_json(silent=True) or {}
     delete_attributed_cache = bool(data.get("delete_attributed_cache"))
-    config.update_settings({cfg_key: kept})
+    library_registry_lib.delete_binding(bid)
     attributed_deleted: list[str] = []
     if delete_attributed_cache:
         from lib import library_provenance as prov

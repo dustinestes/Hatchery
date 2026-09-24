@@ -83,9 +83,11 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 ## Settings and Import
 
-**Settings owns the Library feature flag** (`library_enabled`). Connection/binding **configuration** moves to a first-class Library plane and SQLite tables ([ADR-0016](adr/0016-library-operator-plane.md), [ADR-0017](adr/0017-library-connections-bindings-tables.md), [#375](https://github.com/dustinestes/Hatchery/issues/375), [#367](https://github.com/dustinestes/Hatchery/issues/367)). Until that UI ships, Settings → Library remains the transitional editor over Settings JSON.
+**Settings owns the Library feature flag** (`library_enabled`). Connection/binding **configuration** is stored in SQLite tables `library_connections`, `library_connection_kinds`, and `library_bindings` ([ADR-0017](adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)) and will move to a first-class Library plane UI ([ADR-0016](adr/0016-library-operator-plane.md), [#375](https://github.com/dustinestes/Hatchery/issues/375)). Until that nav ships, Settings → Library remains the transitional editor over those tables.
 
 Asset panes keep an in-context **Import** control. When Library is on, **From library…** will deep-link into the Library plane (today: in-pane Library tab per [ADR-0002](adr/0002-library-in-pane-browser.md), superseded for primary catalog browse by ADR-0016).
+
+**Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db`, domain caches, and `{data_dir}/library/git/`). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
 | `library_enabled` | Import control |
 |---|---|

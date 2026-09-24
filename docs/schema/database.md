@@ -24,6 +24,9 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [clutch\_instances](#clutch_instances)
   - [validator\_runs](#validator_runs)
   - [library\_cache\_provenance](#library_cache_provenance)
+  - [library\_connections](#library_connections)
+  - [library\_connection\_kinds](#library_connection_kinds)
+  - [library\_bindings](#library_bindings)
 - [Maintenance](#maintenance)
   - [Hatch session archive purge](#hatch-session-archive-purge)
   - [Migrations](#migrations)
@@ -106,6 +109,66 @@ Attribution of operator-cache files pulled via Library ([#308](https://github.co
 #### Managed by
 
 `lib/library_provenance.py` - `upsert_on_pull()`, `apply_evaluate_result()`, `reattach()`, …
+
+<br>
+
+### library_connections
+
+Library connection registry ([ADR-0017](../adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)). Artifact kinds live in [`library_connection_kinds`](#library_connection_kinds). Soft-referenced by provenance (`connection_id` is not an FK).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `TEXT` | `PRIMARY KEY` | Stable 12-hex id |
+| `label` | `TEXT` | `NOT NULL` | Operator display name |
+| `type` | `TEXT` | `NOT NULL` | `path` \| `https` \| `git` \| `api` \| `forge` |
+| `provider` | `TEXT` | `NOT NULL DEFAULT ''` | Required for `api` / `forge` |
+| `base_uri` | `TEXT` | `NOT NULL` | Path or URL |
+| `token` | `TEXT` | `NOT NULL DEFAULT ''` | Plaintext secret v1; never log |
+| `expires_at` | `TEXT` | | ISO date `YYYY-MM-DD` or NULL |
+| `enabled` | `INTEGER` | `NOT NULL DEFAULT 1` | 0/1 |
+| `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+| `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+
+#### Managed by
+
+`lib/library_registry.py`
+
+<br>
+
+### library_connection_kinds
+
+Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packages`).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `connection_id` | `TEXT` | `NOT NULL`, FK → `library_connections(id)` **ON DELETE CASCADE** | |
+| `kind` | `TEXT` | `NOT NULL` | Closed set; PK with `connection_id` |
+
+#### Managed by
+
+`lib/library_registry.py`
+
+<br>
+
+### library_bindings
+
+Domain locators under a connection (Scripts / Clutches / Media filters).
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `TEXT` | `PRIMARY KEY` | Stable id |
+| `connection_id` | `TEXT` | `NOT NULL`, FK → `library_connections(id)` **ON DELETE CASCADE** | |
+| `domain` | `TEXT` | `NOT NULL` | `scripts` \| `clutches` \| `media` |
+| `media_target` | `TEXT` | `NOT NULL DEFAULT ''` | `iso` / `virtio` for media; empty otherwise |
+| `label` | `TEXT` | `NOT NULL` | Operator display (defaults to filter) |
+| `filter` | `TEXT` | `NOT NULL DEFAULT '*'` | Path glob / locator |
+| `enabled` | `INTEGER` | `NOT NULL DEFAULT 1` | 0/1 |
+| `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+| `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+
+#### Managed by
+
+`lib/library_registry.py`
 
 <br>
 

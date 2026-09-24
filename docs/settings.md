@@ -73,10 +73,8 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
 | `library_enabled` | General | Feature flag for Library Settings + Import from library |
-| `library_connections` | Library | Connection registry |
-| `library_script_bindings` | Library | Scripts domain bindings |
-| `library_clutch_bindings` | Library | Clutches domain bindings |
-| `library_media_bindings` | Library | Media domain bindings (include cache target) |
+
+Library **connections**, **kinds**, and **bindings** live in first-class tables (`library_connections`, `library_connection_kinds`, `library_bindings`) - see [ADR-0017](adr/0017-library-connections-bindings-tables.md) and [schema/database.md](schema/database.md). They are not Settings keys and are not included in Settings YAML export/import.
 
 Nest **connections** (including SSH identity file path, optional cert path, and optional identity expiry) live in the `nests` table - see [schema/database.md - nests](schema/database.md#nests). Security keeps Nest SSH **alert tiers** only.
 
