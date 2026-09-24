@@ -148,6 +148,12 @@ class TestLibrarySummary:
     def test_empty_linked(self):
         summary = dash.library_summary()
         assert summary["linked"] == {"scripts": 0, "clutches": 0, "media": 0}
+        assert summary["by_drift"] == {
+            "in_sync": 0,
+            "out_of_sync": 0,
+            "unknown": 0,
+            "orphan": 0,
+        }
 
     def test_counts_provenance_by_domain(self):
         from lib import library_provenance as prov
@@ -185,8 +191,15 @@ class TestLibrarySummary:
             cache_sha256="d" * 64,
             media_target="iso",
         )
+        prov.set_drift_state(
+            "scripts",
+            "b.ps1",
+            drift_state="out_of_sync",
+        )
         summary = dash.library_summary()
         assert summary["linked"] == {"scripts": 2, "clutches": 1, "media": 1}
+        assert summary["by_drift"]["in_sync"] == 3
+        assert summary["by_drift"]["out_of_sync"] == 1
 
 
 class TestValidatorsSummary:

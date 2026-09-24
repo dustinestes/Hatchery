@@ -394,6 +394,7 @@
     var alerts = ps.library_alert_count || 0;
     var drift = ps.library_drift_alert_count || 0;
     var linked = (librarySummary && librarySummary.linked) || {};
+    var byDrift = (librarySummary && librarySummary.by_drift) || {};
 
     if (registered === 0) {
       libraryBody.innerHTML =
@@ -409,6 +410,17 @@
       '<li>' + (linked.scripts || 0) + ' scripts linked</li>',
       '<li>' + (linked.clutches || 0) + ' clutches linked</li>',
       '<li>' + (linked.media || 0) + ' media linked</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var status = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Status</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Linked content drift status">',
+      '<li>' + (byDrift.in_sync || 0) + ' in sync</li>',
+      '<li>' + (byDrift.out_of_sync || 0) + ' out of sync</li>',
+      '<li>' + (byDrift.unknown || 0) + ' unknown</li>',
+      '<li>' + (byDrift.orphan || 0) + ' orphan</li>',
       '</ul>',
       '</div>',
     ];
@@ -451,7 +463,7 @@
 
     var aside =
       '<div class="dashboard-tile-columns">' +
-      content.join('') + connections.join('') + types.join('') +
+      content.join('') + status.join('') + connections.join('') + types.join('') +
       '</div>';
     libraryBody.innerHTML = tileSplit(
       registered,

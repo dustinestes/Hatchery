@@ -498,3 +498,5 @@ class TestCountsByDomain:
             "media": 2,
             "scripts": 2,
         }
+        assert prov.counts_by_drift_state()["in_sync"] == 4
+        assert prov.counts_by_drift_state()["out_of_sync"] == 0

@@ -209,16 +209,24 @@ def library_summary() -> dict[str, Any]:
     """Linked operator-cache counts by domain for the Library tile (#373).
 
     ``linked`` counts provenance rows (Library-attributed cache), not
-    bindings and not live catalog hits.
+    bindings and not live catalog hits. ``by_drift`` is stored drift
+    state on those rows (no live re-probe).
     """
     from lib import library_provenance as prov
 
     linked = prov.counts_by_domain()
+    by_drift = prov.counts_by_drift_state()
     return {
         "linked": {
             "scripts": int(linked.get("scripts") or 0),
             "clutches": int(linked.get("clutches") or 0),
             "media": int(linked.get("media") or 0),
+        },
+        "by_drift": {
+            "in_sync": int(by_drift.get("in_sync") or 0),
+            "out_of_sync": int(by_drift.get("out_of_sync") or 0),
+            "unknown": int(by_drift.get("unknown") or 0),
+            "orphan": int(by_drift.get("orphan") or 0),
         },
     }
 

@@ -501,6 +501,12 @@ class TestDashboardSummaryApi:
                 },
                 "library": {
                     "linked": {"scripts": 2, "clutches": 1, "media": 0},
+                    "by_drift": {
+                        "in_sync": 2,
+                        "out_of_sync": 1,
+                        "unknown": 0,
+                        "orphan": 0,
+                    },
                 },
                 "validators": {
                     "total": 1,
