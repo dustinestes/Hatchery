@@ -441,8 +441,36 @@ body {
   min-height: 0;
 }
 
-/* List shell: sticky chrome + scrollable data (#298) */
+/* List shell: sticky chrome + scrollable data (#298) - dense tables (Alerts / Events / Validators) */
 .content:has(> .list-shell) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Domain panes: interactive master–detail (Library, and later Scripts/Media if needed).
+   Same fill/scroll contract as list-shell, without the dense bordered data box. */
+.content:has(> .domain-pane) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.domain-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.domain-pane > .pane-header {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.domain-pane-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4146,4 +4174,67 @@ body {
   margin: 0;
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+/* ── Library → Connections (ADR-0016) ── */
+/* Single scroll via .domain-pane (not .list-shell): detail scrolls; no dense bordered box. */
+.library-connections-layout {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  align-items: stretch;
+}
+
+.library-conn-nav-pane {
+  width: 240px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.library-conn-nav-header {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.library-conn-nav-pane .scripts-nav {
+  flex: 1;
+  min-height: 0;
+}
+
+.library-conn-nav-pane .scripts-nav-item--disabled .scripts-nav-label,
+.library-conn-nav-pane .scripts-nav-item--disabled .scripts-nav-sub {
+  opacity: 0.65;
+}
+
+.library-connections-layout .library-conn-detail,
+.library-connections-layout .scripts-detail {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 4px 8px 16px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.library-conn-editor-section {
+  margin-bottom: 8px;
+}
+
+.library-domain-section {
+  scroll-margin-top: 1rem;
+}
+
+.library-domain-section--highlight {
+  outline: 2px solid var(--color-accent, var(--gold, #c9a227));
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-domain-section--highlight {
+    transition: none;
+  }
 }

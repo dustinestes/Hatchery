@@ -26,7 +26,7 @@
               aria-controls="media-import-menu">Import</button>
       <div class="dropdown-menu import-dropdown-menu" id="media-import-menu" hidden role="menu">
         <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-file">From file…</button>
-        <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-library">Browse library…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="media-import-from-library">From library…</button>
       </div>
     </div>
     {% else %}
@@ -275,8 +275,8 @@
       menu: document.getElementById('media-import-menu'),
       fromFile: document.getElementById('media-import-from-file'),
       fromLibrary: document.getElementById('media-import-from-library'),
-      onFromLibrary: libraryEnabled && mediaTabs
-        ? function () { mediaTabs.show('library'); }
+      onFromLibrary: libraryEnabled
+        ? function () { window.location = '/library/connections?domain=media'; }
         : null,
     });
   }

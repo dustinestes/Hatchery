@@ -1,0 +1,2150 @@
+{% extends "base.html" %}
+
+{% block title %}Connections - Library - Hatchery{% endblock %}
+
+{% block content %}
+<div class="domain-pane">
+<div class="pane-header">
+  <div class="pane-header-row">
+    <div class="pane-header-text">
+      <h1 class="pane-title">Connections</h1>
+      <p class="pane-subtitle">Library endpoints and domain bindings for Scripts, Clutches, and Media.</p>
+    </div>
+  </div>
+</div>
+
+<div class="domain-pane-body">
+<div class="scripts-layout library-connections-layout">
+  <aside class="library-conn-nav-pane">
+    <div class="section-header library-conn-nav-header">
+      <span class="form-label" id="library-conn-nav-label">Connections</span>
+      <button type="button" id="add-library-conn-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add connection">+ Add</button>
+    </div>
+    <nav class="scripts-nav" id="library-conn-nav" role="listbox"
+         aria-labelledby="library-conn-nav-label"
+         {% if not (cfg.get('library_connections') or []) %}hidden{% endif %}></nav>
+    <p class="empty-state" id="library-conn-rows-empty"
+       {% if cfg.get('library_connections') %}hidden{% endif %}>
+      No connections yet. Add one above.
+    </p>
+  </aside>
+
+  <div class="scripts-detail library-conn-detail" id="library-conn-detail">
+    <div class="empty-state" id="library-conn-detail-empty" role="status">
+      Select a connection on the left, or add one to configure bindings.
+    </div>
+    <div id="library-conn-editor" hidden>
+      <section class="form-section library-conn-editor-section" aria-label="Selected connection">
+        <h2 class="form-section-title">Connection</h2>
+        <p class="form-help-text">
+          Named endpoints (path/share, HTTPS, git, API, Forge) with base URI and token.
+          Choose artifact types so domain bindings only offer relevant connections.
+          Path, HTTPS, git, API (e.g. Artifactory), and Forge (e.g. GitHub) support test, list, and pull.
+        </p>
+        <div id="library-conn-rows" class="library-conn-rows" role="group" aria-label="Connection editor">
+
+      {% for conn in (cfg.get('library_connections') or []) %}
+      {% set conn_on = conn.get('enabled', True) %}
+      <div class="library-conn-row{% if not conn_on %} library-conn-row--disabled{% endif %}" data-conn-id="{{ conn.id }}" hidden>
+        <input type="hidden" name="library_conn_id" value="{{ conn.id }}">
+        <input type="hidden" name="library_conn_enabled" class="library-conn-enabled-value"
+               value="{{ '1' if conn_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle" aria-expanded="false"
+                  aria-label="Expand connection {{ conn.label }}">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary">{{ conn.label }} · {{ conn.type }} · {{ conn.base_uri }}{% if not conn_on %} · off{% endif %}</span>
+          </button>
+          <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
+                  aria-label="Remove connection {{ conn.label }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-conn-enabled-check"
+                   {% if conn_on %}checked{% endif %}
+                   aria-label="Enable connection {{ conn.label }}">
+          </label>
+        </div>
+        <div class="library-conn-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Label <span class="required">*</span></label>
+              <input type="text" name="library_conn_label" class="form-input library-conn-label-input" required
+                     value="{{ conn.label }}" placeholder="e.g. Ops share">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <select name="library_conn_type" class="form-select library-conn-type-input">
+                <option value="path" {% if conn.type == 'path' %}selected{% endif %}>Path / share</option>
+                <option value="https" {% if conn.type == 'https' %}selected{% endif %}>HTTPS</option>
+                <option value="git" {% if conn.type == 'git' %}selected{% endif %}>Git</option>
+                <option value="api" {% if conn.type == 'api' %}selected{% endif %}>API</option>
+                <option value="forge" {% if conn.type == 'forge' %}selected{% endif %}>Forge</option>
+              </select>
+            </div>
+            <div class="form-group library-conn-provider-group"{% if conn.type != 'api' %} hidden{% endif %}>
+              <label class="form-label">API provider</label>
+              <select name="library_conn_provider" class="form-select library-conn-provider-input">
+                {% for p in library_api_providers %}
+                <option value="{{ p.id }}" {% if (conn.provider or '') == p.id %}selected{% endif %}>{{ p.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group library-conn-forge-provider-group"{% if conn.type != 'forge' %} hidden{% endif %}>
+              <label class="form-label">Forge provider</label>
+              <select name="library_conn_forge_provider" class="form-select library-conn-forge-provider-input">
+                {% for p in library_forge_providers %}
+                <option value="{{ p.id }}" {% if (conn.provider or '') == p.id %}selected{% endif %}>{{ p.title }}</option>
+                {% endfor %}
+              </select>
+              <p class="form-hint">GitHub rate limits apply to drift checks (~1 Trees call per connection per validator pass). Prefer a PAT and a longer Library cache drift interval.</p>
+            </div>
+            <div class="form-group form-group-full">
+              <label class="form-label">Base URI / path <span class="required">*</span></label>
+              <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
+                     value="{{ conn.base_uri }}" placeholder="e.g. /mnt/nas/hatchery or https://example.com/artifactory">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Token / API key</label>
+              <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
+                     value="{{ conn.token or '' }}" placeholder="Optional - HTTPS / git / API / Forge">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Token expiry</label>
+              <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input"
+                     value="{{ conn.expires_at or '' }}">
+            </div>
+            <div class="form-group form-group-full">
+              <span class="form-label" id="library-conn-kinds-{{ loop.index0 }}">Artifact types</span>
+              <input type="hidden" name="library_conn_kinds" class="library-conn-kinds-value"
+                     value="{{ (conn.kinds or []) | join(',') }}">
+              <div class="form-radio-group library-kind-checks" role="group"
+                   aria-labelledby="library-conn-kinds-{{ loop.index0 }}">
+                {% for kind in ['scripts', 'clutches', 'media', 'packages'] %}
+                <label class="form-radio">
+                  <input type="checkbox" class="library-kind-check" value="{{ kind }}"
+                         {% if kind in (conn.kinds or []) %}checked{% endif %}>
+                  <span class="form-radio-label">{{ kind | capitalize }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          <div class="library-conn-row-actions">
+            <span class="library-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-test-conn-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-conn-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+        </div>
+      </section>
+
+  <section class="form-section library-domain-section" id="library-domain-scripts">
+    <h2 class="form-section-title">Scripts</h2>
+    <p class="form-help-text">
+      Bindings pick a scripts-capable connection and a path/filter (glob for path/git;
+      explicit relative file paths for HTTPS; ``repoKey[/path/glob]`` for Artifactory API).
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-script-bind-label">Script bindings</span>
+      <button type="button" id="add-library-script-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add script binding">+ Add binding</button>
+    </div>
+    <div id="library-script-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-script-bind-label">
+      {% for bind in (cfg.get('library_script_bindings') or []) %}
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
+        <input type="hidden" name="library_script_bind_id" value="{{ bind.id }}">
+        <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand script binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Script binding</span>
+          </button>
+          <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
+                  aria-label="Remove script binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable script binding"
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+          </label>
+        </div>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Script binding label">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-script-bind-rows-empty"
+       {% if cfg.get('library_script_bindings') %}hidden{% endif %}>
+      No Script bindings for this connection yet.
+    </p>
+  </section>
+
+  <section class="form-section library-domain-section" id="library-domain-clutches">
+    <h2 class="form-section-title">Clutches</h2>
+    <p class="form-help-text">
+      Bindings pick a clutches-capable connection and a path/filter (glob for path connections;
+      explicit relative file paths for HTTPS). Pull lands in <code>clutches/</code> under the data directory.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-clutch-bind-label">Clutch bindings</span>
+      <button type="button" id="add-library-clutch-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add clutch binding">+ Add binding</button>
+    </div>
+    <div id="library-clutch-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-clutch-bind-label">
+      {% for bind in (cfg.get('library_clutch_bindings') or []) %}
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
+        <input type="hidden" name="library_clutch_bind_id" value="{{ bind.id }}">
+        <input type="hidden" name="library_clutch_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand clutch binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Clutch binding</span>
+          </button>
+          <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
+                  aria-label="Remove clutch binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable clutch binding"
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+          </label>
+        </div>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'clutches' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_clutch_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Clutch binding label">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_clutch_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.yaml or path/file.yaml">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-clutch-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-clutch-bind-rows-empty"
+       {% if cfg.get('library_clutch_bindings') %}hidden{% endif %}>
+      No Clutch bindings for this connection yet.
+    </p>
+  </section>
+
+  <section class="form-section library-domain-section" id="library-domain-media">
+    <h2 class="form-section-title">Media</h2>
+    <p class="form-help-text">
+      Bindings pick a media-capable connection, a cache target (ISO or VirtIO), and a path/filter.
+      Pull lands in <code>media/iso/</code> or <code>media/virtio/</code> under the data directory.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-media-bind-label">Media bindings</span>
+      <button type="button" id="add-library-media-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add media binding">+ Add binding</button>
+    </div>
+    <div id="library-media-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-media-bind-label">
+      {% for bind in (cfg.get('library_media_bindings') or []) %}
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row library-bind-row--media{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
+        <input type="hidden" name="library_media_bind_id" value="{{ bind.id }}">
+        <input type="hidden" name="library_media_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand media binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Media binding</span>
+          </button>
+          <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
+                  aria-label="Remove media binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable media binding"
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+          </label>
+        </div>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'media' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cache target</label>
+              <select name="library_media_bind_target" class="form-select library-bind-target-input">
+                <option value="iso" {% if bind.target != 'virtio' %}selected{% endif %}>ISO</option>
+                <option value="virtio" {% if bind.target == 'virtio' %}selected{% endif %}>VirtIO</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_media_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Media binding label">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_media_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.iso or path/file.iso">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-media-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-media-bind-rows-empty"
+       {% if cfg.get('library_media_bindings') %}hidden{% endif %}>
+      No Media bindings for this connection yet.
+    </p>
+  </section>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<template id="library-conn-row-template">
+  <div class="library-conn-row" data-conn-id="">
+    <input type="hidden" name="library_conn_id" value="">
+    <input type="hidden" name="library_conn_enabled" class="library-conn-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle" aria-expanded="true"
+              aria-label="Collapse connection">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary">New connection</span>
+      </button>
+      <button type="button" class="btn-icon library-conn-remove" title="Remove connection"
+              aria-label="Remove connection">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-conn-enabled-check" checked
+               aria-label="Enable connection">
+      </label>
+    </div>
+    <div class="library-conn-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Label <span class="required">*</span></label>
+          <input type="text" name="library_conn_label" class="form-input library-conn-label-input" required
+                 value="" placeholder="e.g. Ops share">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="library_conn_type" class="form-select library-conn-type-input">
+            <option value="path" selected>Path / share</option>
+            <option value="https">HTTPS</option>
+            <option value="git">Git</option>
+            <option value="api">API</option>
+            <option value="forge">Forge</option>
+          </select>
+        </div>
+        <div class="form-group library-conn-provider-group" hidden>
+          <label class="form-label">API provider</label>
+          <select name="library_conn_provider" class="form-select library-conn-provider-input">
+            {% for p in library_api_providers %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group library-conn-forge-provider-group" hidden>
+          <label class="form-label">Forge provider</label>
+          <select name="library_conn_forge_provider" class="form-select library-conn-forge-provider-input">
+            {% for p in library_forge_providers %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+            {% endfor %}
+          </select>
+          <p class="form-hint">GitHub rate limits apply to drift checks (~1 Trees call per connection per validator pass). Prefer a PAT and a longer Library cache drift interval.</p>
+        </div>
+        <div class="form-group form-group-full">
+          <label class="form-label">Base URI / path <span class="required">*</span></label>
+          <input type="text" name="library_conn_base_uri" class="form-input library-conn-uri-input" required
+                 value="" placeholder="e.g. /mnt/nas/hatchery or https://example.com/artifactory">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Token / API key</label>
+          <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
+                 value="" placeholder="Optional - HTTPS / git / API / Forge">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Token expiry</label>
+          <input type="date" name="library_conn_expires_at" class="form-input library-conn-expires-input">
+        </div>
+        <div class="form-group form-group-full">
+          <span class="form-label">Artifact types</span>
+          <input type="hidden" name="library_conn_kinds" class="library-conn-kinds-value" value="">
+          <div class="form-radio-group library-kind-checks" role="group" aria-label="Artifact types">
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="scripts">
+              <span class="form-radio-label">Scripts</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="clutches">
+              <span class="form-radio-label">Clutches</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="media">
+              <span class="form-radio-label">Media</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="packages">
+              <span class="form-radio-label">Packages</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="library-conn-row-actions">
+        <span class="library-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-test-conn-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-conn-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="library-script-bind-row-template">
+  <div class="library-bind-row">
+    <input type="hidden" name="library_script_bind_id" value="">
+    <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse script binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New script binding</span>
+      </button>
+      <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
+              aria-label="Remove script binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable script binding">
+      </label>
+    </div>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Script binding label">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.ps1 or path/file.sh">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="library-clutch-bind-row-template">
+  <div class="library-bind-row">
+    <input type="hidden" name="library_clutch_bind_id" value="">
+    <input type="hidden" name="library_clutch_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse clutch binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New clutch binding</span>
+      </button>
+      <button type="button" class="btn-icon library-clutch-bind-remove" title="Remove binding"
+              aria-label="Remove clutch binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable clutch binding">
+      </label>
+    </div>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_clutch_bind_connection_id" class="form-select library-clutch-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_clutch_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Clutch binding label">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_clutch_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.yaml or path/file.yaml">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-clutch-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="library-media-bind-row-template">
+  <div class="library-bind-row library-bind-row--media">
+    <input type="hidden" name="library_media_bind_id" value="">
+    <input type="hidden" name="library_media_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse media binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New media binding</span>
+      </button>
+      <button type="button" class="btn-icon library-media-bind-remove" title="Remove binding"
+              aria-label="Remove media binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable media binding">
+      </label>
+    </div>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_media_bind_connection_id" class="form-select library-media-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cache target</label>
+          <select name="library_media_bind_target" class="form-select library-bind-target-input">
+            <option value="iso" selected>ISO</option>
+            <option value="virtio">VirtIO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_media_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Media binding label">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_media_bind_filter" class="form-input library-bind-filter-input"
+                 value="*" placeholder="* or **/*.iso or path/file.iso">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-media-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<div id="library-conn-remove-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-conn-remove-title">
+    <h2 class="modal-title" id="library-conn-remove-title">Remove Library connection</h2>
+    <div class="modal-body">
+      <p>Remove <strong id="library-conn-remove-label"></strong> from Library?</p>
+      <p class="modal-warning">This also removes all Scripts, Clutches, and Media bindings that use this connection.</p>
+      <div id="library-conn-remove-git-opts" class="library-conn-remove-git-opts" hidden>
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-conn-remove-git-cache">
+            <input type="checkbox" id="library-conn-remove-git-cache" checked>
+            <span class="form-toggle-label">Also delete the git clone cache</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache."
+                tabindex="0"
+                role="img"
+                aria-label="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache.">i</span>
+        </div>
+      </div>
+      <div class="library-conn-remove-cache-opts" style="margin-top:12px">
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-conn-remove-attr-cache">
+            <input type="checkbox" id="library-conn-remove-attr-cache">
+            <span class="form-toggle-label">Also delete Cached files pulled from this connection</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes Scripts, Clutches, and Media in the operator cache that Hatchery attributed to this connection. Off by default - files remain as local inventory (orphaned provenance)."
+                tabindex="0"
+                role="img"
+                aria-label="Also delete Cached inventory files pulled from this connection. Off by default.">i</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-conn-remove-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-conn-remove-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div id="library-bind-remove-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-bind-remove-title">
+    <h2 class="modal-title" id="library-bind-remove-title">Remove Library binding</h2>
+    <div class="modal-body">
+      <p>Remove <strong id="library-bind-remove-label"></strong> from Library?</p>
+      <div class="library-conn-remove-cache-opts" style="margin-top:12px">
+        <div class="library-conn-remove-git-row">
+          <label class="form-toggle" for="library-bind-remove-attr-cache">
+            <input type="checkbox" id="library-bind-remove-attr-cache">
+            <span class="form-toggle-label">Also delete Cached files pulled via this binding</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes operator-cache files Hatchery attributed to this binding. Off by default - files remain as local inventory (orphaned provenance)."
+                tabindex="0"
+                role="img"
+                aria-label="Also delete Cached inventory files pulled via this binding. Off by default.">i</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-bind-remove-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-bind-remove-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const connRows = document.getElementById('library-conn-rows');
+  const connEmpty = document.getElementById('library-conn-rows-empty');
+  const connTpl = document.getElementById('library-conn-row-template');
+  const addConnBtn = document.getElementById('add-library-conn-btn');
+  const bindRows = document.getElementById('library-script-bind-rows');
+  const bindEmpty = document.getElementById('library-script-bind-rows-empty');
+  const bindTpl = document.getElementById('library-script-bind-row-template');
+  const addBindBtn = document.getElementById('add-library-script-bind-btn');
+  const clutchRows = document.getElementById('library-clutch-bind-rows');
+  const clutchEmpty = document.getElementById('library-clutch-bind-rows-empty');
+  const clutchTpl = document.getElementById('library-clutch-bind-row-template');
+  const addClutchBtn = document.getElementById('add-library-clutch-bind-btn');
+  const mediaRows = document.getElementById('library-media-bind-rows');
+  const mediaEmpty = document.getElementById('library-media-bind-rows-empty');
+  const mediaTpl = document.getElementById('library-media-bind-row-template');
+  const addMediaBtn = document.getElementById('add-library-media-bind-btn');
+  if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
+  if (!clutchRows || !clutchTpl || !addClutchBtn) return;
+  if (!mediaRows || !mediaTpl || !addMediaBtn) return;
+
+
+  if (!window.CSS) window.CSS = {};
+  if (typeof CSS.escape !== 'function') {
+    CSS.escape = function (s) {
+      return String(s).replace(/[^a-zA-Z0-9_-]/g, function (c) {
+        return '\\' + c;
+      });
+    };
+  }
+
+  const connNav = document.getElementById('library-conn-nav');
+  const detailEmpty = document.getElementById('library-conn-detail-empty');
+  const detailEditor = document.getElementById('library-conn-editor');
+  let selectedConnId = '';
+
+  function selectedConnectionId() {
+    return selectedConnId;
+  }
+
+  function connIdOfRow(row) {
+    return ((row.querySelector('input[name="library_conn_id"]') || {}).value || row.dataset.connId || '');
+  }
+
+  function bindConnId(row) {
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    return sel ? sel.value : '';
+  }
+
+  function syncNavSelection() {
+    if (!connNav) return;
+    Array.prototype.forEach.call(connNav.querySelectorAll('.scripts-nav-item'), function (btn) {
+      const on = btn.dataset.connId === selectedConnId;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      btn.tabIndex = on ? 0 : -1;
+    });
+  }
+
+  function updateNavItemForRow(row) {
+    if (!connNav) return;
+    const cid = connIdOfRow(row);
+    if (!cid) return;
+    let btn = connNav.querySelector('.scripts-nav-item[data-conn-id="' + CSS.escape(cid) + '"]');
+    const label = ((row.querySelector('.library-conn-label-input') || {}).value || '').trim() || 'New connection';
+    const type = typeLabel((row.querySelector('.library-conn-type-input') || {}).value || 'path');
+    const on = isConnEnabled(row);
+    const sub = type + (on ? '' : ' · off');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'scripts-nav-item';
+      btn.dataset.connId = cid;
+      btn.setAttribute('role', 'option');
+      btn.innerHTML = '<span class="scripts-nav-main">'
+        + '<span class="scripts-nav-label"></span>'
+        + '<span class="scripts-nav-sub"></span>'
+        + '</span>';
+      connNav.appendChild(btn);
+    }
+    const labelEl = btn.querySelector('.scripts-nav-label');
+    const subEl = btn.querySelector('.scripts-nav-sub');
+    if (labelEl) labelEl.textContent = label;
+    if (subEl) subEl.textContent = sub;
+    btn.classList.toggle('scripts-nav-item--disabled', !on);
+    btn.setAttribute('aria-label', label + ' (' + sub + ')');
+  }
+
+  function rebuildNav() {
+    if (!connNav) return;
+    const keep = selectedConnId;
+    connNav.innerHTML = '';
+    Array.prototype.forEach.call(connRows.children, function (row) {
+      updateNavItemForRow(row);
+    });
+    selectedConnId = keep;
+    syncNavSelection();
+  }
+
+  function filterBindingsForSelected() {
+    const cid = selectedConnId;
+    function filterContainer(container, emptyEl) {
+      if (!container) return;
+      let visible = 0;
+      Array.prototype.forEach.call(container.children, function (row) {
+        if (!row.classList.contains('library-bind-row')) return;
+        const match = !!cid && bindConnId(row) === cid;
+        row.hidden = !match;
+        if (match) visible += 1;
+      });
+      if (emptyEl) emptyEl.hidden = !cid || visible > 0;
+    }
+    filterContainer(bindRows, bindEmpty);
+    filterContainer(clutchRows, clutchEmpty);
+    filterContainer(mediaRows, mediaEmpty);
+  }
+
+  var CONN_EXPANDED_KEY = 'hatchery.library.connExpanded.';
+
+  function connExpandedPref(cid) {
+    if (!cid) return true;
+    try {
+      var v = sessionStorage.getItem(CONN_EXPANDED_KEY + cid);
+      if (v === '1') return true;
+      if (v === '0') return false;
+    } catch (err) { /* private mode */ }
+    return false;
+  }
+
+  function setConnExpandedPref(cid, open) {
+    if (!cid) return;
+    try {
+      sessionStorage.setItem(CONN_EXPANDED_KEY + cid, open ? '1' : '0');
+    } catch (err) { /* private mode */ }
+  }
+
+  function setConnRowExpanded(row, open) {
+    var body = row.querySelector('.library-conn-row-body');
+    var toggle = row.querySelector('.library-conn-toggle');
+    if (body) body.hidden = !open;
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    updateSummary(row);
+  }
+
+  function showDetailForSelection(opts) {
+    opts = opts || {};
+    const hasSel = !!selectedConnId;
+    if (detailEmpty) detailEmpty.hidden = hasSel;
+    if (detailEditor) detailEditor.hidden = !hasSel;
+    Array.prototype.forEach.call(connRows.children, function (row) {
+      const on = connIdOfRow(row) === selectedConnId;
+      row.hidden = !on;
+      if (on) {
+        const cid = connIdOfRow(row);
+        let open = connExpandedPref(cid);
+        if (opts.forceExpand === true) {
+          open = true;
+          setConnExpandedPref(cid, true);
+        }
+        setConnRowExpanded(row, open);
+      }
+    });
+    filterBindingsForSelected();
+    syncNavSelection();
+  }
+
+  function selectConnection(cid, opts) {
+    opts = opts || {};
+    selectedConnId = cid || '';
+    showDetailForSelection(opts);
+    if (opts.focusNav && connNav && cid) {
+      const btn = connNav.querySelector('.scripts-nav-item[data-conn-id="' + CSS.escape(cid) + '"]');
+      if (btn) btn.focus();
+    }
+    if (opts.scrollDomain) {
+      const section = document.getElementById('library-domain-' + opts.scrollDomain);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        section.classList.add('library-domain-section--highlight');
+        window.setTimeout(function () {
+          section.classList.remove('library-domain-section--highlight');
+        }, 1600);
+      }
+    }
+  }
+
+  function firstConnMatchingDomain(domain) {
+    if (!domain) return '';
+    let found = '';
+    Array.prototype.forEach.call(connRows.children, function (row) {
+      if (found) return;
+      const kinds = ((row.querySelector('.library-conn-kinds-value') || {}).value || '')
+        .split(',').map(function (k) { return k.trim(); });
+      if (kinds.indexOf(domain) !== -1) found = connIdOfRow(row);
+    });
+    return found;
+  }
+
+
+  const removeBackdrop = document.getElementById('library-conn-remove-backdrop');
+  const removeLabelEl = document.getElementById('library-conn-remove-label');
+  const removeGitOpts = document.getElementById('library-conn-remove-git-opts');
+  const removeGitCache = document.getElementById('library-conn-remove-git-cache');
+  const removeAttrCache = document.getElementById('library-conn-remove-attr-cache');
+  const removeCancel = document.getElementById('library-conn-remove-cancel');
+  const removeConfirm = document.getElementById('library-conn-remove-confirm');
+  let removePending = null;
+
+  const bindRemoveBackdrop = document.getElementById('library-bind-remove-backdrop');
+  const bindRemoveLabelEl = document.getElementById('library-bind-remove-label');
+  const bindRemoveAttrCache = document.getElementById('library-bind-remove-attr-cache');
+  const bindRemoveCancel = document.getElementById('library-bind-remove-cancel');
+  const bindRemoveConfirm = document.getElementById('library-bind-remove-confirm');
+  let bindRemovePending = null;
+
+  function closeConnRemoveModal() {
+    if (!removeBackdrop) return;
+    removeBackdrop.hidden = true;
+    const focusEl = removePending && removePending.focusEl;
+    removePending = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+  }
+
+  function openConnRemoveModal(row, cid, focusEl) {
+    if (!removeBackdrop || !removeConfirm) return;
+    const labelInput = row.querySelector('input[name="library_conn_label"]');
+    const typeEl = row.querySelector('.library-conn-type-input');
+    const ctype = ((typeEl && typeEl.value) || 'path').toLowerCase();
+    const label = (labelInput && labelInput.value) || cid || 'connection';
+    if (removeLabelEl) removeLabelEl.textContent = label;
+    if (removeGitOpts) removeGitOpts.hidden = ctype !== 'git';
+    if (removeGitCache) {
+      removeGitCache.checked = true;
+      removeGitCache.disabled = ctype !== 'git';
+    }
+    if (removeAttrCache) removeAttrCache.checked = false;
+    removePending = { row: row, cid: cid, ctype: ctype, focusEl: focusEl };
+    removeBackdrop.hidden = false;
+    removeConfirm.focus();
+  }
+
+  function closeBindRemoveModal() {
+    if (!bindRemoveBackdrop) return;
+    bindRemoveBackdrop.hidden = true;
+    const focusEl = bindRemovePending && bindRemovePending.focusEl;
+    bindRemovePending = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+  }
+
+  function openBindRemoveModal(row, domain, bid, syncEmpty, focusEl, domainLabel) {
+    if (!bindRemoveBackdrop || !bindRemoveConfirm) return;
+    const summary = row.querySelector('.library-bind-summary');
+    const label = (summary && summary.textContent.trim())
+      || domainLabel
+      || 'binding';
+    if (bindRemoveLabelEl) bindRemoveLabelEl.textContent = label;
+    if (bindRemoveAttrCache) bindRemoveAttrCache.checked = false;
+    bindRemovePending = {
+      row: row,
+      domain: domain,
+      bid: bid,
+      syncEmpty: syncEmpty,
+      focusEl: focusEl,
+    };
+    bindRemoveBackdrop.hidden = false;
+    bindRemoveConfirm.focus();
+  }
+
+  if (removeCancel) {
+    removeCancel.addEventListener('click', closeConnRemoveModal);
+  }
+  if (removeBackdrop) {
+    removeBackdrop.addEventListener('click', function (e) {
+      if (e.target === removeBackdrop) closeConnRemoveModal();
+    });
+  }
+  if (bindRemoveCancel) {
+    bindRemoveCancel.addEventListener('click', closeBindRemoveModal);
+  }
+  if (bindRemoveBackdrop) {
+    bindRemoveBackdrop.addEventListener('click', function (e) {
+      if (e.target === bindRemoveBackdrop) closeBindRemoveModal();
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (bindRemoveBackdrop && !bindRemoveBackdrop.hidden) {
+      e.preventDefault();
+      closeBindRemoveModal();
+      return;
+    }
+    if (removeBackdrop && !removeBackdrop.hidden) {
+      e.preventDefault();
+      closeConnRemoveModal();
+    }
+  });
+  if (bindRemoveConfirm) {
+    bindRemoveConfirm.addEventListener('click', function () {
+      if (!bindRemovePending) return;
+      const row = bindRemovePending.row;
+      const domain = bindRemovePending.domain;
+      const bid = bindRemovePending.bid;
+      const syncEmpty = bindRemovePending.syncEmpty;
+      const deleteAttr = bindRemoveAttrCache && bindRemoveAttrCache.checked;
+      bindRemoveConfirm.disabled = true;
+      const delUrl = {{ url_for('api_library_binding_delete', domain='DOMAIN', binding_id='BIND_ID') | tojson }}
+        .replace('DOMAIN', encodeURIComponent(domain))
+        .replace('BIND_ID', encodeURIComponent(bid));
+      fetch(delUrl, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_attributed_cache: !!deleteAttr }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          bindRemoveConfirm.disabled = false;
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Could not remove binding', 'error', 5000);
+            }
+            return;
+          }
+          closeBindRemoveModal();
+          row.remove();
+          if (typeof syncEmpty === 'function') syncEmpty();
+        })
+        .catch(function () {
+          bindRemoveConfirm.disabled = false;
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Network or server error', 'error', 5000);
+          }
+        });
+    });
+  }
+  if (removeConfirm) {
+    removeConfirm.addEventListener('click', function () {
+      if (!removePending) return;
+      const row = removePending.row;
+      const cid = removePending.cid;
+      const ctype = removePending.ctype;
+      const deleteGit = ctype === 'git' && removeGitCache && removeGitCache.checked;
+      const deleteAttr = removeAttrCache && removeAttrCache.checked;
+      removeConfirm.disabled = true;
+      const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
+        .replace('CONN_ID', encodeURIComponent(cid));
+      fetch(delUrl, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delete_git_cache: !!deleteGit,
+          delete_attributed_cache: !!deleteAttr,
+        }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          removeConfirm.disabled = false;
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Could not remove connection', 'error', 5000);
+            }
+            return;
+          }
+          closeConnRemoveModal();
+          row.remove();
+          document.querySelectorAll(
+            '#library-script-bind-rows .library-bind-row, '
+            + '#library-clutch-bind-rows .library-bind-row, '
+            + '#library-media-bind-rows .library-bind-row'
+          ).forEach(function (bindRow) {
+            var sel = bindRow.querySelector('select[name$="_connection_id"]');
+            if (sel && sel.value === cid) bindRow.remove();
+          });
+          if (connNav) {
+            var navBtn = connNav.querySelector('.scripts-nav-item[data-conn-id="' + CSS.escape(cid) + '"]');
+            if (navBtn) navBtn.remove();
+          }
+          if (selectedConnId === cid) {
+            var next = connRows.children[0] ? connIdOfRow(connRows.children[0]) : '';
+            selectConnection(next);
+          } else {
+            filterBindingsForSelected();
+          }
+          syncConnEmpty();
+          syncBindEmpty();
+          syncClutchEmpty();
+          syncMediaEmpty();
+          refreshBindConnectionOptions();
+          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+            hatchery.refreshStatusSurfaces();
+          }
+          if (res.data && res.data.git_cache_warning && window.hatchery && hatchery.showToast) {
+            hatchery.showToast(
+              'Connection removed, but git clone cache was not deleted: ' + res.data.git_cache_warning,
+              'warning',
+              6000
+            );
+          }
+        })
+        .catch(function () {
+          removeConfirm.disabled = false;
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Network or server error', 'error', 5000);
+          }
+        });
+    });
+  }
+
+  function newId() {
+    if (window.crypto && crypto.randomUUID) {
+      return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    }
+    return String(Date.now()) + Math.random().toString(16).slice(2, 8);
+  }
+
+  function tomorrowIso() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function typeLabel(value) {
+    if (value === 'https') return 'https';
+    if (value === 'git') return 'git';
+    if (value === 'api') return 'api';
+    if (value === 'forge') return 'forge';
+    return 'path';
+  }
+
+  function syncProviderVisibility(row) {
+    const typeEl = row.querySelector('.library-conn-type-input');
+    const apiGroup = row.querySelector('.library-conn-provider-group');
+    const forgeGroup = row.querySelector('.library-conn-forge-provider-group');
+    const ctype = ((typeEl && typeEl.value) || 'path');
+    if (apiGroup) apiGroup.hidden = ctype !== 'api';
+    if (forgeGroup) forgeGroup.hidden = ctype !== 'forge';
+  }
+
+  function syncConnEmpty() {
+    if (connEmpty) connEmpty.hidden = connRows.children.length > 0;
+    if (connNav) connNav.hidden = connRows.children.length === 0;
+  }
+
+  function countVisibleBinds(container) {
+    let n = 0;
+    if (!container || !selectedConnId) return 0;
+    Array.prototype.forEach.call(container.children, function (row) {
+      if (!row.classList.contains('library-bind-row')) return;
+      if (bindConnId(row) === selectedConnId) n += 1;
+    });
+    return n;
+  }
+
+  function syncBindEmpty() {
+    if (bindEmpty) bindEmpty.hidden = !selectedConnId || countVisibleBinds(bindRows) > 0;
+  }
+
+  function syncClutchEmpty() {
+    if (clutchEmpty) clutchEmpty.hidden = !selectedConnId || countVisibleBinds(clutchRows) > 0;
+  }
+
+  function syncMediaEmpty() {
+    if (mediaEmpty) mediaEmpty.hidden = !selectedConnId || countVisibleBinds(mediaRows) > 0;
+  }
+
+  function syncKinds(row) {
+    const hidden = row.querySelector('.library-conn-kinds-value');
+    if (!hidden) return;
+    const kinds = [];
+    row.querySelectorAll('.library-kind-check:checked').forEach(function (cb) {
+      kinds.push(cb.value);
+    });
+    hidden.value = kinds.join(',');
+  }
+
+  function updateSummary(row) {
+    const summary = row.querySelector('.library-conn-summary');
+    const toggle = row.querySelector('.library-conn-toggle');
+    const label = ((row.querySelector('.library-conn-label-input') || {}).value || '').trim() || 'New connection';
+    const type = typeLabel((row.querySelector('.library-conn-type-input') || {}).value || 'path');
+    const uri = ((row.querySelector('.library-conn-uri-input') || {}).value || '').trim();
+    const on = isConnEnabled(row);
+    let text = label + ' · ' + type;
+    if (type === 'api') {
+      const prov = ((row.querySelector('.library-conn-provider-input') || {}).value || '').trim();
+      if (prov) text += ' · ' + prov;
+    }
+    if (type === 'forge') {
+      const prov = ((row.querySelector('.library-conn-forge-provider-input') || {}).value || '').trim();
+      if (prov) text += ' · ' + prov;
+    }
+    if (uri) text += ' · ' + uri;
+    if (!on) text += ' · off';
+    if (summary) {
+      summary.textContent = text;
+    }
+    if (toggle) {
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-label', (open ? 'Collapse' : 'Expand') + ' connection ' + label);
+    }
+    row.classList.toggle('library-conn-row--disabled', !on);
+    updateNavItemForRow(row);
+  }
+
+  function isConnEnabled(row) {
+    const hidden = row.querySelector('.library-conn-enabled-value');
+    if (!hidden) return true;
+    return hidden.value !== '0' && hidden.value !== 'false' && hidden.value !== '';
+  }
+
+  function syncConnEnabled(row) {
+    const check = row.querySelector('.library-conn-enabled-check');
+    const hidden = row.querySelector('.library-conn-enabled-value');
+    if (check && hidden) {
+      hidden.value = check.checked ? '1' : '0';
+    }
+    updateSummary(row);
+    row.classList.toggle('library-conn-row--disabled', !isConnEnabled(row));
+  }
+
+  function isBindEnabled(row) {
+    const hidden = row.querySelector('.library-bind-enabled-value');
+    if (!hidden) return true;
+    return hidden.value !== '0' && hidden.value !== 'false' && hidden.value !== '';
+  }
+
+  function bindIsEditable(row) {
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const connId = sel ? sel.value : '';
+    const parentOn = !connId || connEnabledById(connId);
+    return parentOn && isBindEnabled(row);
+  }
+
+  function lockConnBody(row) {
+    const on = isConnEnabled(row);
+    const body = row.querySelector('.library-conn-row-body');
+    if (!body) return;
+    body.querySelectorAll('input:not([type="hidden"]), select, button').forEach(function (el) {
+      if (el.classList.contains('library-save-conn-btn')) return;
+      el.disabled = !on;
+    });
+  }
+
+  function lockBindBody(row) {
+    const editable = bindIsEditable(row);
+    const body = row.querySelector('.library-bind-row-body');
+    if (!body) return;
+    body.querySelectorAll('input:not([type="hidden"]), select, button').forEach(function (el) {
+      if (el.classList.contains('library-save-bind-btn')) return;
+      el.disabled = !editable;
+    });
+  }
+
+  function syncBindEnabled(row) {
+    const check = row.querySelector('.library-bind-enabled-check');
+    const hidden = row.querySelector('.library-bind-enabled-value');
+    if (check && hidden && !check.disabled) {
+      hidden.value = check.checked ? '1' : '0';
+    }
+    const on = isBindEnabled(row);
+    row.classList.toggle('library-bind-row--disabled', !on);
+  }
+
+  function connLabelById(connId) {
+    let label = '';
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) {
+        label = ((r.querySelector('.library-conn-label-input') || {}).value || '').trim() || connId;
+      }
+    });
+    return label;
+  }
+
+  function connEnabledById(connId) {
+    let found = null;
+    Array.prototype.forEach.call(connRows.children, function (r) {
+      const idInput = r.querySelector('input[name="library_conn_id"]');
+      if (idInput && idInput.value === connId) found = r;
+    });
+    if (!found) return true;
+    return isConnEnabled(found);
+  }
+
+  function updateBindSummary(row, domainLabel) {
+    const summary = row.querySelector('.library-bind-summary');
+    const toggle = row.querySelector('.library-bind-toggle');
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const filt = ((row.querySelector('.library-bind-filter-input') || {}).value || '').trim() || '*';
+    const blabel = ((row.querySelector('.library-bind-label-input') || {}).value || '').trim() || filt;
+    const connId = sel ? sel.value : '';
+    const connLabel = connId ? (connLabelById(connId) || 'connection') : 'No connection';
+    let name = blabel === filt ? blabel : blabel + ' (' + filt + ')';
+    let text = connLabel + ' · ' + name;
+    const target = row.querySelector('.library-bind-target-input');
+    if (target && target.value) text += ' · ' + target.value;
+    const bindOn = ((row.querySelector('.library-bind-enabled-value') || {}).value || '1') !== '0';
+    if (!bindOn) text += ' · off';
+    if (summary) summary.textContent = text;
+    if (toggle) {
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      const kind = domainLabel || 'binding';
+      toggle.setAttribute('aria-label', (open ? 'Collapse' : 'Expand') + ' ' + kind);
+    }
+  }
+
+  function updateCascadeForBind(row, domainLabel) {
+    const sel = row.querySelector('select[name$="_connection_id"]');
+    const connId = sel ? sel.value : '';
+    const parentOn = !connId || connEnabledById(connId);
+    const clabel = connLabelById(connId) || 'Connection';
+    const note = row.querySelector('.library-bind-cascade-note');
+    const check = row.querySelector('.library-bind-enabled-check');
+    row.classList.toggle('library-bind-row--cascaded-off', !parentOn);
+    if (note) {
+      if (parentOn) {
+        note.hidden = true;
+        note.textContent = '';
+      } else {
+        note.hidden = false;
+        note.innerHTML = '<strong></strong> connection is disabled';
+        const strong = note.querySelector('strong');
+        if (strong) strong.textContent = clabel;
+      }
+    }
+    if (check) {
+      check.disabled = !parentOn;
+      if (parentOn) {
+        check.removeAttribute('aria-disabled');
+        check.removeAttribute('title');
+      } else {
+        check.setAttribute('aria-disabled', 'true');
+        check.title = clabel + ' connection is disabled';
+      }
+    }
+    updateBindSummary(row, domainLabel);
+    syncBindEnabled(row);
+    lockBindBody(row);
+  }
+
+  function refreshAllCascades() {
+    Array.prototype.forEach.call(bindRows.children, function (row) {
+      updateCascadeForBind(row, 'script binding');
+    });
+    Array.prototype.forEach.call(clutchRows.children, function (row) {
+      updateCascadeForBind(row, 'clutch binding');
+    });
+    Array.prototype.forEach.call(mediaRows.children, function (row) {
+      updateCascadeForBind(row, 'media binding');
+    });
+  }
+
+  function setExpiryMin(row) {
+    const input = row.querySelector('.library-conn-expires-input');
+    if (!input) return;
+    input.min = tomorrowIso();
+  }
+
+  function kindConnections(kind, keepId) {
+    const out = [];
+    Array.prototype.forEach.call(connRows.children, function (row) {
+      const id = row.querySelector('input[name="library_conn_id"]');
+      const label = row.querySelector('input[name="library_conn_label"]');
+      const kinds = row.querySelector('.library-conn-kinds-value');
+      if (!id || !label || !kinds) return;
+      const kindList = (kinds.value || '').split(',').map(function (k) { return k.trim(); });
+      if (kindList.indexOf(kind) === -1) return;
+      const on = isConnEnabled(row);
+      // Disabled connections are not offered for new bindings, but keep the
+      // currently selected parent so existing rows remain editable (#293).
+      if (!on && id.value !== keepId) return;
+      out.push({ id: id.value, label: label.value || id.value, enabled: on });
+    });
+    out.sort(function (a, b) {
+      return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+    });
+    return out;
+  }
+
+  function refreshBindSelects(selector, kind) {
+    Array.prototype.forEach.call(document.querySelectorAll(selector), function (sel) {
+      const current = sel.value;
+      const options = kindConnections(kind, current);
+      sel.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Choose a connection';
+      sel.appendChild(placeholder);
+      options.forEach(function (c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.enabled ? c.label : (c.label + ' (off)');
+        if (c.id === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (current && !options.some(function (c) { return c.id === current; })) {
+        sel.value = '';
+      }
+    });
+  }
+
+  function refreshBindConnectionOptions() {
+    refreshBindSelects('.library-bind-conn-select', 'scripts');
+    refreshBindSelects('.library-clutch-bind-conn-select', 'clutches');
+    refreshBindSelects('.library-media-bind-conn-select', 'media');
+    refreshAllCascades();
+  }
+
+  function setTestResult(el, ok, message) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('library-test-result--ok', !!ok);
+    el.classList.toggle('library-test-result--err', !ok && !!message);
+  }
+
+  function connPayload(row) {
+    syncKinds(row);
+    syncConnEnabled(row);
+    const type = (row.querySelector('select[name="library_conn_type"]') || {}).value || 'path';
+    return {
+      id: (row.querySelector('input[name="library_conn_id"]') || {}).value || '',
+      label: (row.querySelector('input[name="library_conn_label"]') || {}).value || 'connection',
+      type: type,
+      provider: (type === 'api')
+        ? ((row.querySelector('select[name="library_conn_provider"]') || {}).value || '')
+        : (type === 'forge')
+          ? ((row.querySelector('select[name="library_conn_forge_provider"]') || {}).value || '')
+          : '',
+      base_uri: (row.querySelector('input[name="library_conn_base_uri"]') || {}).value || '',
+      token: (row.querySelector('input[name="library_conn_token"]') || {}).value || '',
+      expires_at: (row.querySelector('input[name="library_conn_expires_at"]') || {}).value || '',
+      kinds: ((row.querySelector('.library-conn-kinds-value') || {}).value || '')
+        .split(',').map(function (k) { return k.trim(); }).filter(Boolean),
+      enabled: isConnEnabled(row),
+    };
+  }
+
+  function bindPayload(row, domain) {
+    syncBindEnabled(row);
+    const idEl = row.querySelector('input[name$="_bind_id"]');
+    const connEl = row.querySelector('select[name$="_connection_id"]');
+    const labelEl = row.querySelector('.library-bind-label-input');
+    const filterEl = row.querySelector('.library-bind-filter-input');
+    const targetEl = row.querySelector('.library-bind-target-input');
+    const enabledEl = row.querySelector('.library-bind-enabled-value');
+    const filter = ((filterEl && filterEl.value) || '*').trim() || '*';
+    const out = {
+      id: (idEl && idEl.value) || '',
+      connection_id: (connEl && connEl.value) || '',
+      label: ((labelEl && labelEl.value) || '').trim(),
+      filter: filter,
+      enabled: !enabledEl || (enabledEl.value !== '0' && enabledEl.value !== 'false'),
+    };
+    if (domain === 'media') {
+      out.target = (targetEl && targetEl.value) || 'iso';
+    }
+    return out;
+  }
+
+  function snapshotKey(obj) {
+    return JSON.stringify(obj);
+  }
+
+  function setSaveEnabled(btn, dirty) {
+    if (!btn) return;
+    btn.disabled = !dirty;
+    btn.setAttribute('aria-disabled', dirty ? 'false' : 'true');
+    btn.title = dirty ? 'Save changes' : 'No unsaved changes';
+  }
+
+  function refreshConnDirty(row) {
+    lockConnBody(row);
+    const on = isConnEnabled(row);
+    const snap = row.dataset.savedSnapshot || '';
+    const dirty = on && (!snap || snap !== snapshotKey(connPayload(row)));
+    setSaveEnabled(row.querySelector('.library-save-conn-btn'), dirty);
+  }
+
+  function markConnClean(row) {
+    row.dataset.savedSnapshot = snapshotKey(connPayload(row));
+    row.dataset.persisted = '1';
+    lockConnBody(row);
+    setSaveEnabled(row.querySelector('.library-save-conn-btn'), false);
+  }
+
+  function refreshBindDirty(row, domain) {
+    lockBindBody(row);
+    const editable = bindIsEditable(row);
+    const snap = row.dataset.savedSnapshot || '';
+    const dirty = editable && (!snap || snap !== snapshotKey(bindPayload(row, domain)));
+    setSaveEnabled(row.querySelector('.library-save-bind-btn'), dirty);
+  }
+
+  function markBindClean(row, domain) {
+    row.dataset.savedSnapshot = snapshotKey(bindPayload(row, domain));
+    row.dataset.persisted = '1';
+    lockBindBody(row);
+    setSaveEnabled(row.querySelector('.library-save-bind-btn'), false);
+  }
+
+  function persistConnToggle(row) {
+    syncConnEnabled(row);
+    refreshBindConnectionOptions();
+    lockConnBody(row);
+    if (row.dataset.persisted !== '1') {
+      refreshConnDirty(row);
+      return;
+    }
+    const check = row.querySelector('.library-conn-enabled-check');
+    const result = row.querySelector('.library-test-result');
+    const previous = !isConnEnabled(row);
+    if (check) check.disabled = true;
+    setTestResult(result, true, 'Saving…');
+    fetch({{ url_for('api_library_connection_upsert') | tojson }}, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(row) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (check) check.disabled = false;
+        const data = res.data || {};
+        if (!res.ok) {
+          if (check) check.checked = previous;
+          syncConnEnabled(row);
+          refreshBindConnectionOptions();
+          lockConnBody(row);
+          setTestResult(result, false, data.error || 'Save failed');
+          refreshConnDirty(row);
+          return;
+        }
+        markConnClean(row);
+        setTestResult(result, true, isConnEnabled(row) ? 'Enabled' : 'Disabled');
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
+      })
+      .catch(function () {
+        if (check) {
+          check.disabled = false;
+          check.checked = previous;
+        }
+        syncConnEnabled(row);
+        refreshBindConnectionOptions();
+        lockConnBody(row);
+        setTestResult(result, false, 'Network or server error');
+        refreshConnDirty(row);
+      });
+  }
+
+  function persistBindToggle(row, domain, domainLabel) {
+    syncBindEnabled(row);
+    updateBindSummary(row, domainLabel);
+    lockBindBody(row);
+    if (row.dataset.persisted !== '1') {
+      refreshBindDirty(row, domain);
+      return;
+    }
+    const check = row.querySelector('.library-bind-enabled-check');
+    const result = row.querySelector('.library-bind-test-result');
+    const previous = !isBindEnabled(row);
+    if (check) check.disabled = true;
+    setTestResult(result, true, 'Saving…');
+    const upsertUrl = {{ url_for('api_library_binding_upsert', domain='DOMAIN') | tojson }}
+      .replace('DOMAIN', encodeURIComponent(domain));
+    fetch(upsertUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ binding: bindPayload(row, domain) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (check) check.disabled = false;
+        const data = res.data || {};
+        if (!res.ok) {
+          if (check) check.checked = previous;
+          syncBindEnabled(row);
+          updateBindSummary(row, domainLabel);
+          lockBindBody(row);
+          setTestResult(result, false, data.error || 'Save failed');
+          refreshBindDirty(row, domain);
+          return;
+        }
+        markBindClean(row, domain);
+        setTestResult(result, true, isBindEnabled(row) ? 'Enabled' : 'Disabled');
+      })
+      .catch(function () {
+        if (check) {
+          check.disabled = false;
+          check.checked = previous;
+        }
+        syncBindEnabled(row);
+        updateBindSummary(row, domainLabel);
+        lockBindBody(row);
+        setTestResult(result, false, 'Network or server error');
+        refreshBindDirty(row, domain);
+      });
+  }
+
+  function wireConnRow(row) {
+    setExpiryMin(row);
+    syncKinds(row);
+    syncProviderVisibility(row);
+    syncConnEnabled(row);
+    updateSummary(row);
+    lockConnBody(row);
+  }
+
+  addConnBtn.addEventListener('click', function () {
+    const node = connTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-conn-row');
+    const id = newId();
+    row.dataset.connId = id;
+    row.dataset.persisted = '0';
+    row.querySelector('input[name="library_conn_id"]').value = id;
+    wireConnRow(row);
+    connRows.appendChild(node);
+    updateNavItemForRow(row);
+    refreshConnDirty(row);
+    syncConnEmpty();
+    refreshBindConnectionOptions();
+    selectConnection(id, { forceExpand: true });
+    row.querySelector('input[name="library_conn_label"]').focus();
+  });
+
+  connRows.addEventListener('click', function (e) {
+    const toggle = e.target.closest('.library-conn-toggle');
+    if (toggle) {
+      const row = toggle.closest('.library-conn-row');
+      const body = row && row.querySelector('.library-conn-row-body');
+      if (!body) return;
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      const nextOpen = !open;
+      body.hidden = !nextOpen;
+      toggle.setAttribute('aria-expanded', String(nextOpen));
+      setConnExpandedPref(connIdOfRow(row), nextOpen);
+      updateSummary(row);
+      return;
+    }
+    const remove = e.target.closest('.library-conn-remove');
+    if (remove) {
+      const row = remove.closest('.library-conn-row');
+      if (!row) return;
+      const cid = (row.querySelector('input[name="library_conn_id"]') || {}).value || '';
+      const persisted = row.dataset.persisted === '1';
+      if (!persisted) {
+        const wasSelected = selectedConnId === cid;
+        row.remove();
+        if (connNav) {
+          var navBtn = connNav.querySelector('.scripts-nav-item[data-conn-id="' + CSS.escape(cid) + '"]');
+          if (navBtn) navBtn.remove();
+        }
+        syncConnEmpty();
+        refreshBindConnectionOptions();
+        if (wasSelected) {
+          var next = connRows.children[0] ? connIdOfRow(connRows.children[0]) : '';
+          selectConnection(next);
+        }
+        return;
+      }
+      openConnRemoveModal(row, cid, remove);
+      return;
+    }
+    const saveBtn = e.target.closest('.library-save-conn-btn');
+    if (saveBtn) {
+      if (saveBtn.disabled) return;
+      const row = saveBtn.closest('.library-conn-row');
+      const result = row.querySelector('.library-test-result');
+      setTestResult(result, true, 'Saving…');
+      fetch({{ url_for('api_library_connection_upsert') | tojson }}, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection: connPayload(row) }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          const data = res.data || {};
+          if (!res.ok) {
+            setTestResult(result, false, data.error || 'Save failed');
+            return;
+          }
+          markConnClean(row);
+          setTestResult(result, true, 'Saved');
+          refreshBindConnectionOptions();
+          if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+            hatchery.refreshStatusSurfaces();
+          }
+        })
+        .catch(function () {
+          setTestResult(result, false, 'Network or server error');
+        });
+      return;
+    }
+    const testBtn = e.target.closest('.library-test-conn-btn');
+    if (!testBtn) return;
+    const row = testBtn.closest('.library-conn-row');
+    const result = row.querySelector('.library-test-result');
+    setTestResult(result, true, 'Testing…');
+    fetch({{ url_for('api_library_test_connection') | tojson }}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection: connPayload(row) }),
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        const data = res.data || {};
+        setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
+      })
+      .catch(function () {
+        setTestResult(result, false, 'Network or server error');
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
+      });
+  });
+
+  connRows.addEventListener('input', function (e) {
+    const row = e.target.closest('.library-conn-row');
+    if (!row) return;
+    if (
+      e.target.classList.contains('library-conn-label-input') ||
+      e.target.classList.contains('library-conn-uri-input')
+    ) {
+      updateSummary(row);
+      refreshAllCascades();
+    }
+    refreshConnDirty(row);
+  });
+
+  connRows.addEventListener('change', function (e) {
+    const row = e.target.closest('.library-conn-row');
+    if (!row) return;
+    if (e.target.classList.contains('library-conn-enabled-check')) {
+      persistConnToggle(row);
+      return;
+    }
+    if (e.target.classList.contains('library-kind-check')) {
+      syncKinds(row);
+      refreshBindConnectionOptions();
+    }
+    if (e.target.classList.contains('library-conn-type-input')) {
+      syncProviderVisibility(row);
+    }
+    if (
+      e.target.classList.contains('library-conn-label-input') ||
+      e.target.classList.contains('library-conn-type-input') ||
+      e.target.classList.contains('library-conn-provider-input') ||
+      e.target.classList.contains('library-conn-uri-input') ||
+      e.target.classList.contains('library-conn-expires-input') ||
+      e.target.name === 'library_conn_token'
+    ) {
+      updateSummary(row);
+      refreshBindConnectionOptions();
+    }
+    refreshConnDirty(row);
+  });
+
+  function wireBindRowClick(container, removeSel, testSel, domain, domainLabel, syncEmpty) {
+    container.addEventListener('click', function (e) {
+      const toggle = e.target.closest('.library-bind-toggle');
+      if (toggle) {
+        const row = toggle.closest('.library-bind-row');
+        const body = row && row.querySelector('.library-bind-row-body');
+        if (!body) return;
+        const open = toggle.getAttribute('aria-expanded') === 'true';
+        body.hidden = open;
+        toggle.setAttribute('aria-expanded', String(!open));
+        updateBindSummary(row, domainLabel);
+        return;
+      }
+      const remove = e.target.closest(removeSel);
+      if (remove) {
+        const row = remove.closest('.library-bind-row');
+        if (!row) return;
+        const bid = ((row.querySelector('input[name$="_bind_id"]') || {}).value || '');
+        const persisted = row.dataset.persisted === '1';
+        if (!persisted) {
+          row.remove();
+          syncEmpty();
+          return;
+        }
+        openBindRemoveModal(row, domain, bid, syncEmpty, remove, domainLabel);
+        return;
+      }
+      const saveBtn = e.target.closest('.library-save-bind-btn');
+      if (saveBtn) {
+        if (saveBtn.disabled) return;
+        const row = saveBtn.closest('.library-bind-row');
+        const result = row.querySelector('.library-bind-test-result');
+        setTestResult(result, true, 'Saving…');
+        const upsertUrl = {{ url_for('api_library_binding_upsert', domain='DOMAIN') | tojson }}
+          .replace('DOMAIN', encodeURIComponent(domain));
+        fetch(upsertUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ binding: bindPayload(row, domain) }),
+        })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            const data = res.data || {};
+            if (!res.ok) {
+              setTestResult(result, false, data.error || 'Save failed');
+              return;
+            }
+            markBindClean(row, domain);
+            setTestResult(result, true, 'Saved');
+          })
+          .catch(function () {
+            setTestResult(result, false, 'Network or server error');
+          });
+        return;
+      }
+      const testBtn = e.target.closest(testSel);
+      if (!testBtn) return;
+      const row = testBtn.closest('.library-bind-row');
+      const result = row.querySelector('.library-bind-test-result');
+      const connId = (row.querySelector('select[name$="_connection_id"]') || {}).value;
+      const filt = (row.querySelector('.library-bind-filter-input') || {}).value || '*';
+      let connRow = null;
+      Array.prototype.forEach.call(connRows.children, function (r) {
+        const idInput = r.querySelector('input[name="library_conn_id"]');
+        if (idInput && idInput.value === connId) connRow = r;
+      });
+      if (!connId || !connRow) {
+        setTestResult(result, false, 'Choose a connection first');
+        return;
+      }
+      setTestResult(result, true, 'Testing…');
+      fetch({{ url_for('api_library_test_filter') | tojson }}, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection: connPayload(connRow), filter: filt, domain: domain }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+        .then(function (res) {
+          const data = res.data || {};
+          setTestResult(result, !!data.ok, data.message || (res.ok ? 'OK' : 'Test failed'));
+        })
+        .catch(function () {
+          setTestResult(result, false, 'Network or server error');
+        });
+    });
+
+    container.addEventListener('change', function (e) {
+      const row = e.target.closest('.library-bind-row');
+      if (!row) return;
+      if (e.target.classList.contains('library-bind-enabled-check')) {
+        persistBindToggle(row, domain, domainLabel);
+        return;
+      }
+      if (
+        e.target.matches('select[name$="_connection_id"]') ||
+        e.target.classList.contains('library-bind-target-input')
+      ) {
+        updateCascadeForBind(row, domainLabel);
+        filterBindingsForSelected();
+        syncBindEmpty();
+        syncClutchEmpty();
+        syncMediaEmpty();
+      }
+      refreshBindDirty(row, domain);
+    });
+
+    container.addEventListener('input', function (e) {
+      const row = e.target.closest('.library-bind-row');
+      if (!row) return;
+      if (e.target.classList.contains('library-bind-filter-input')
+          || e.target.classList.contains('library-bind-label-input')) {
+        updateBindSummary(row, domainLabel);
+      }
+      refreshBindDirty(row, domain);
+    });
+  }
+
+
+  function preselectBindConnection(row, selectClass) {
+    const sel = row.querySelector(selectClass);
+    if (!sel || !selectedConnId) return sel;
+    refreshBindConnectionOptions();
+    sel.value = selectedConnId;
+    return sel;
+  }
+
+  addBindBtn.addEventListener('click', function () {
+    if (!selectedConnId) return;
+    const node = bindTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
+    row.querySelector('input[name="library_script_bind_id"]').value = newId();
+    bindRows.appendChild(node);
+    const sel = preselectBindConnection(row, '.library-bind-conn-select');
+    syncBindEmpty();
+    updateCascadeForBind(row, 'script binding');
+    refreshBindDirty(row, 'scripts');
+    filterBindingsForSelected();
+    syncBindEmpty();
+    const focusEl = row.querySelector('.library-bind-label-input') || sel;
+    if (focusEl) focusEl.focus();
+  });
+
+  wireBindRowClick(
+    bindRows,
+    '.library-bind-remove',
+    '.library-test-filter-btn',
+    'scripts',
+    'script binding',
+    syncBindEmpty
+  );
+
+  addClutchBtn.addEventListener('click', function () {
+    if (!selectedConnId) return;
+    const node = clutchTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
+    row.querySelector('input[name="library_clutch_bind_id"]').value = newId();
+    clutchRows.appendChild(node);
+    const sel = preselectBindConnection(row, '.library-clutch-bind-conn-select');
+    syncClutchEmpty();
+    updateCascadeForBind(row, 'clutch binding');
+    refreshBindDirty(row, 'clutches');
+    filterBindingsForSelected();
+    syncClutchEmpty();
+    const focusEl = row.querySelector('.library-bind-label-input') || sel;
+    if (focusEl) focusEl.focus();
+  });
+
+  wireBindRowClick(
+    clutchRows,
+    '.library-clutch-bind-remove',
+    '.library-clutch-test-filter-btn',
+    'clutches',
+    'clutch binding',
+    syncClutchEmpty
+  );
+
+  addMediaBtn.addEventListener('click', function () {
+    if (!selectedConnId) return;
+    const node = mediaTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
+    row.querySelector('input[name="library_media_bind_id"]').value = newId();
+    mediaRows.appendChild(node);
+    const sel = preselectBindConnection(row, '.library-media-bind-conn-select');
+    syncMediaEmpty();
+    updateCascadeForBind(row, 'media binding');
+    refreshBindDirty(row, 'media');
+    filterBindingsForSelected();
+    syncMediaEmpty();
+    const focusEl = row.querySelector('.library-bind-label-input') || sel;
+    if (focusEl) focusEl.focus();
+  });
+
+  wireBindRowClick(
+    mediaRows,
+    '.library-media-bind-remove',
+    '.library-media-test-filter-btn',
+    'media',
+    'media binding',
+    syncMediaEmpty
+  );
+
+  if (connNav) {
+    connNav.addEventListener('click', function (e) {
+      const btn = e.target.closest('.scripts-nav-item');
+      if (!btn || !connNav.contains(btn)) return;
+      selectConnection(btn.dataset.connId || '');
+    });
+    connNav.addEventListener('keydown', function (e) {
+      const items = Array.prototype.slice.call(connNav.querySelectorAll('.scripts-nav-item'));
+      if (!items.length) return;
+      const current = document.activeElement && document.activeElement.closest
+        ? document.activeElement.closest('.scripts-nav-item')
+        : null;
+      const idx = current ? items.indexOf(current) : items.findIndex(function (el) {
+        return el.classList.contains('active');
+      });
+      let next = -1;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        next = idx < 0 ? 0 : Math.min(items.length - 1, idx + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        next = idx < 0 ? 0 : Math.max(0, idx - 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        next = 0;
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        next = items.length - 1;
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        if (current) {
+          e.preventDefault();
+          selectConnection(current.dataset.connId || '');
+        }
+        return;
+      } else {
+        return;
+      }
+      if (next >= 0) {
+        selectConnection(items[next].dataset.connId || '', { focusNav: true });
+      }
+    });
+  }
+
+  Array.prototype.forEach.call(connRows.children, function (row) {
+    wireConnRow(row);
+    markConnClean(row);
+  });
+  Array.prototype.forEach.call(bindRows.children, function (row) {
+    markBindClean(row, 'scripts');
+  });
+  Array.prototype.forEach.call(clutchRows.children, function (row) {
+    markBindClean(row, 'clutches');
+  });
+  Array.prototype.forEach.call(mediaRows.children, function (row) {
+    markBindClean(row, 'media');
+  });
+  refreshBindConnectionOptions();
+  rebuildNav();
+  syncConnEmpty();
+
+  const params = new URLSearchParams(window.location.search);
+  const domainParam = (params.get('domain') || '').trim().toLowerCase();
+  const connParam = (params.get('connection') || '').trim();
+  let initial = '';
+  if (connParam && connRows.querySelector('input[name="library_conn_id"][value="' + connParam.replace(/"/g, '') + '"]')) {
+    initial = connParam;
+  } else if (domainParam && ['scripts', 'clutches', 'media'].indexOf(domainParam) !== -1) {
+    initial = firstConnMatchingDomain(domainParam);
+  }
+  if (!initial && connRows.children.length) {
+    initial = connIdOfRow(connRows.children[0]);
+  }
+  selectConnection(initial, {
+    scrollDomain: (domainParam === 'scripts' || domainParam === 'clutches' || domainParam === 'media')
+      ? domainParam
+      : '',
+  });
+})();
+
+</script>
+{% endblock %}

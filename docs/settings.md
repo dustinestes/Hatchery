@@ -72,7 +72,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `show_passwords` | Security | VM inventory password visibility |
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
-| `library_enabled` | General | Feature flag for Library Settings + Import from library |
+| `library_enabled` | General | Feature flag for Library sidebar + Import from library |
 
 Library **connections**, **kinds**, and **bindings** live in first-class tables (`library_connections`, `library_connection_kinds`, `library_bindings`) - see [ADR-0017](adr/0017-library-connections-bindings-tables.md) and [schema/database.md](schema/database.md). They are not Settings keys and are not included in Settings YAML export/import.
 
@@ -99,7 +99,8 @@ Existing installs keep their Settings without manual edits.
 - **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
 - **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility and Nest SSH **alert tiers** (identity paths/expiry are on Nest rows).
 - **Nests** - Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
-- **Library** - connections and domain bindings (when Library is enabled).
+
+Library connections and bindings are **not** a Settings section. When Library is enabled, configure them under **Library → Connections** (see [library.md](library.md)). `/settings/library` redirects there.
 
 The disabled “Bootstrap file” field on General shows the path to the external YAML pointer.
 

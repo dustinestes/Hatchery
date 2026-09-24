@@ -26,7 +26,7 @@
               aria-controls="clutch-import-menu">Import</button>
       <div class="dropdown-menu import-dropdown-menu" id="clutch-import-menu" hidden role="menu">
         <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-file">From file…</button>
-        <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-library">Browse library…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="clutch-import-from-library">From library…</button>
       </div>
     </div>
     {% else %}
@@ -288,8 +288,8 @@
       menu: document.getElementById('clutch-import-menu'),
       fromFile: document.getElementById('clutch-import-from-file'),
       fromLibrary: document.getElementById('clutch-import-from-library'),
-      onFromLibrary: libraryEnabled && clutchTabs
-        ? function () { clutchTabs.show('library'); }
+      onFromLibrary: libraryEnabled
+        ? function () { window.location = '/library/connections?domain=clutches'; }
         : null,
     });
   }

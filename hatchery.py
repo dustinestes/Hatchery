@@ -855,10 +855,6 @@ _SETTINGS_SECTIONS = {
         "Nests",
         "Local and remote Nest endpoints where VMs live.",
     ),
-    "library": (
-        "Library",
-        "Connections and domain bindings for shared Clutches, scripts, and media.",
-    ),
 }
 
 
@@ -878,12 +874,6 @@ def _settings_template(
         abort(404)
     title, subtitle = _SETTINGS_SECTIONS[section]
     cfg = {**config.get(), **(cfg_overlay or {})}
-    if section == "library":
-        # ADR-0017: registry lives in tables; overlay for Settings → Library templates.
-        cfg["library_connections"] = config.library_connections()
-        cfg["library_script_bindings"] = config.library_script_bindings()
-        cfg["library_clutch_bindings"] = config.library_clutch_bindings()
-        cfg["library_media_bindings"] = config.library_media_bindings()
     identities_json = nest_ssh_identities_json
     if identities_json is None:
         identities_json = json.dumps(cfg.get("nest_ssh_identities") or [], indent=2)
@@ -897,17 +887,6 @@ def _settings_template(
     validator_configs = list_validator_configs() if section == "general" else []
     validator_latest = latest_by_validator() if section == "general" else {}
     validators_run_retention = get_run_retention() if section == "general" else 50
-
-    library_api_providers: list = []
-    library_forge_providers: list = []
-    if section == "library":
-        from lib import library_api as library_api_lib
-        from lib import library_forge as library_forge_lib
-
-        library_api_lib.register_builtins()
-        library_forge_lib.register_builtins()
-        library_api_providers = library_api_lib.all_providers()
-        library_forge_providers = library_forge_lib.all_providers()
 
     return render_template(
         "settings.html",
@@ -926,8 +905,39 @@ def _settings_template(
         validator_configs=validator_configs,
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
-        library_api_providers=library_api_providers,
-        library_forge_providers=library_forge_providers,
+    )
+
+
+@app.route("/library")
+def library_root():
+    """Redirect Library group parent to Connections."""
+    return redirect(url_for("library_connections_pane"))
+
+
+@app.route("/library/connections")
+def library_connections_pane():
+    """Library → Connections admin (ADR-0016)."""
+    if not config.library_enabled():
+        return redirect(url_for("settings_section", section="general", library_required="1"))
+
+    from lib import library_api as library_api_lib
+    from lib import library_forge as library_forge_lib
+
+    library_api_lib.register_builtins()
+    library_forge_lib.register_builtins()
+    cfg = {
+        **config.get(),
+        "library_connections": config.library_connections(),
+        "library_script_bindings": config.library_script_bindings(),
+        "library_clutch_bindings": config.library_clutch_bindings(),
+        "library_media_bindings": config.library_media_bindings(),
+    }
+    return render_template(
+        "library_connections.html",
+        active_pane="library_connections",
+        cfg=cfg,
+        library_api_providers=library_api_lib.all_providers(),
+        library_forge_providers=library_forge_lib.all_providers(),
     )
 
 
@@ -939,10 +949,13 @@ def settings():
 
 @app.route("/settings/<section>")
 def settings_section(section: str):
+    if section == "library":
+        # ADR-0016: Settings → Library moved to Library → Connections.
+        if not config.library_enabled():
+            return redirect(url_for("settings_section", section="general", library_required="1"))
+        return redirect(url_for("library_connections_pane"))
     if section not in _SETTINGS_SECTIONS:
         abort(404)
-    if section == "library" and not config.library_enabled():
-        return redirect(url_for("settings_section", section="general", library_required="1"))
     return _settings_template(
         section,
         form_saved=request.args.get("saved") == "1",
@@ -954,10 +967,12 @@ def settings_section(section: str):
 def settings_section_post(section: str):
     from pathlib import Path
 
+    if section == "library":
+        if not config.library_enabled():
+            return redirect(url_for("settings_section", section="general", library_required="1"))
+        return redirect(url_for("library_connections_pane"))
     if section not in _SETTINGS_SECTIONS:
         abort(404)
-    if section == "library" and not config.library_enabled():
-        return redirect(url_for("settings_section", section="general", library_required="1"))
 
     def _rerender(error, cfg_overlay=None, identities_json=None, nests_overlay=None):
         return _settings_template(
@@ -1076,198 +1091,6 @@ def settings_section_post(section: str):
         config.save(new_cfg)
         _sync_nest_key_expiry()
         return redirect(url_for("settings_section", section="security", saved="1"))
-
-    if section == "library":
-        conn_ids = request.form.getlist("library_conn_id")
-        conn_labels = request.form.getlist("library_conn_label")
-        conn_types = request.form.getlist("library_conn_type")
-        conn_providers = request.form.getlist("library_conn_provider")
-        conn_uris = request.form.getlist("library_conn_base_uri")
-        conn_tokens = request.form.getlist("library_conn_token")
-        conn_expires = request.form.getlist("library_conn_expires_at")
-        conn_kinds = request.form.getlist("library_conn_kinds")
-        conn_enabled = request.form.getlist("library_conn_enabled")
-        n = len(conn_labels)
-        if not (
-            len(conn_ids) == n
-            and len(conn_types) == n
-            and len(conn_providers) == n
-            and len(conn_uris) == n
-            and len(conn_tokens) == n
-            and len(conn_expires) == n
-            and len(conn_kinds) == n
-            and len(conn_enabled) == n
-        ):
-            return _rerender("Library connections are incomplete - each row needs all fields.")
-        raw_conns = []
-        for i in range(n):
-            raw_conns.append(
-                {
-                    "id": (conn_ids[i] or "").strip(),
-                    "label": (conn_labels[i] or "").strip(),
-                    "type": (conn_types[i] or "path").strip(),
-                    "provider": (conn_providers[i] or "").strip(),
-                    "base_uri": (conn_uris[i] or "").strip(),
-                    "token": conn_tokens[i] or "",
-                    "expires_at": (conn_expires[i] or "").strip(),
-                    "kinds": [k.strip() for k in (conn_kinds[i] or "").split(",") if k.strip()],
-                    "enabled": library_lib.parse_enabled(conn_enabled[i], default=True),
-                }
-            )
-        try:
-            connections = library_lib.parse_connections(raw_conns)
-        except ValueError as exc:
-            return _rerender(
-                f"Library connections are invalid: {exc}",
-                {
-                    "library_connections": raw_conns,
-                    "library_script_bindings": [],
-                    "library_clutch_bindings": [],
-                    "library_media_bindings": [],
-                },
-            )
-
-        bind_ids = request.form.getlist("library_script_bind_id")
-        bind_conn_ids = request.form.getlist("library_script_bind_connection_id")
-        bind_labels = request.form.getlist("library_script_bind_label")
-        bind_filters = request.form.getlist("library_script_bind_filter")
-        bind_enabled = request.form.getlist("library_script_bind_enabled")
-        bn = len(bind_conn_ids)
-        if not (
-            len(bind_ids) == bn
-            and len(bind_labels) == bn
-            and len(bind_filters) == bn
-            and len(bind_enabled) == bn
-        ):
-            return _rerender(
-                "Script bindings are incomplete - each row needs a connection and filter."
-            )
-        raw_binds = []
-        for i in range(bn):
-            raw_binds.append(
-                {
-                    "id": (bind_ids[i] or "").strip(),
-                    "connection_id": (bind_conn_ids[i] or "").strip(),
-                    "label": (bind_labels[i] or "").strip(),
-                    "filter": (bind_filters[i] or "*").strip() or "*",
-                    "enabled": library_lib.parse_enabled(bind_enabled[i], default=True),
-                }
-            )
-        try:
-            bindings = library_lib.parse_script_bindings(raw_binds, connections)
-        except ValueError as exc:
-            return _rerender(
-                f"Script bindings are invalid: {exc}",
-                {
-                    "library_connections": connections,
-                    "library_script_bindings": raw_binds,
-                    "library_clutch_bindings": list(
-                        config.get().get("library_clutch_bindings") or []
-                    ),
-                    "library_media_bindings": list(
-                        config.get().get("library_media_bindings") or []
-                    ),
-                },
-            )
-
-        clutch_ids = request.form.getlist("library_clutch_bind_id")
-        clutch_conn_ids = request.form.getlist("library_clutch_bind_connection_id")
-        clutch_labels = request.form.getlist("library_clutch_bind_label")
-        clutch_filters = request.form.getlist("library_clutch_bind_filter")
-        clutch_enabled = request.form.getlist("library_clutch_bind_enabled")
-        cn = len(clutch_conn_ids)
-        if not (
-            len(clutch_ids) == cn
-            and len(clutch_labels) == cn
-            and len(clutch_filters) == cn
-            and len(clutch_enabled) == cn
-        ):
-            return _rerender(
-                "Clutch bindings are incomplete - each row needs a connection and filter."
-            )
-        raw_clutches = []
-        for i in range(cn):
-            raw_clutches.append(
-                {
-                    "id": (clutch_ids[i] or "").strip(),
-                    "connection_id": (clutch_conn_ids[i] or "").strip(),
-                    "label": (clutch_labels[i] or "").strip(),
-                    "filter": (clutch_filters[i] or "*").strip() or "*",
-                    "enabled": library_lib.parse_enabled(clutch_enabled[i], default=True),
-                }
-            )
-        try:
-            clutch_bindings = library_lib.parse_clutch_bindings(raw_clutches, connections)
-        except ValueError as exc:
-            return _rerender(
-                f"Clutch bindings are invalid: {exc}",
-                {
-                    "library_connections": connections,
-                    "library_script_bindings": bindings,
-                    "library_clutch_bindings": raw_clutches,
-                    "library_media_bindings": list(
-                        config.get().get("library_media_bindings") or []
-                    ),
-                },
-            )
-
-        media_ids = request.form.getlist("library_media_bind_id")
-        media_conn_ids = request.form.getlist("library_media_bind_connection_id")
-        media_labels = request.form.getlist("library_media_bind_label")
-        media_filters = request.form.getlist("library_media_bind_filter")
-        media_targets = request.form.getlist("library_media_bind_target")
-        media_enabled = request.form.getlist("library_media_bind_enabled")
-        mn = len(media_conn_ids)
-        if not (
-            len(media_ids) == mn
-            and len(media_labels) == mn
-            and len(media_filters) == mn
-            and len(media_targets) == mn
-            and len(media_enabled) == mn
-        ):
-            return _rerender(
-                "Media bindings are incomplete - each row needs a connection, target, and filter."
-            )
-        raw_media = []
-        for i in range(mn):
-            raw_media.append(
-                {
-                    "id": (media_ids[i] or "").strip(),
-                    "connection_id": (media_conn_ids[i] or "").strip(),
-                    "label": (media_labels[i] or "").strip(),
-                    "filter": (media_filters[i] or "*").strip() or "*",
-                    "target": (media_targets[i] or "iso").strip() or "iso",
-                    "enabled": library_lib.parse_enabled(media_enabled[i], default=True),
-                }
-            )
-        try:
-            media_bindings = library_lib.parse_media_bindings(raw_media, connections)
-        except ValueError as exc:
-            return _rerender(
-                f"Media bindings are invalid: {exc}",
-                {
-                    "library_connections": connections,
-                    "library_script_bindings": bindings,
-                    "library_clutch_bindings": clutch_bindings,
-                    "library_media_bindings": raw_media,
-                },
-            )
-
-        new_cfg.pop("library_connections", None)
-        new_cfg.pop("library_script_bindings", None)
-        new_cfg.pop("library_clutch_bindings", None)
-        new_cfg.pop("library_media_bindings", None)
-        from lib import library_registry as library_registry_lib
-
-        library_registry_lib.replace_connections(connections)
-        library_registry_lib.replace_bindings_for_domain("scripts", bindings)
-        library_registry_lib.replace_bindings_for_domain("clutches", clutch_bindings)
-        library_registry_lib.replace_bindings_for_domain("media", media_bindings)
-        config.save(new_cfg)
-        from lib import library_health as library_health_lib
-
-        library_health_lib.prune_alerts_for_removed_connections({c["id"] for c in connections})
-        return redirect(url_for("settings_section", section="library", saved="1"))
 
     if section == "nests":
         nest_ids = request.form.getlist("nest_id")
