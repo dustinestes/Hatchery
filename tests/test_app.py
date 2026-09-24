@@ -120,13 +120,15 @@ class TestActivePane:
         assert 'href="/settings/general"' in html
         assert 'href="/settings/security"' in html
         assert 'href="/settings/display"' in html
-        assert 'href="/settings/library"' not in html
+        assert 'href="/library/connections"' not in html
 
-    def test_settings_library_nav_when_enabled(self, client, monkeypatch):
+    def test_library_nav_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/settings/general").data.decode()
-        assert 'href="/settings/library"' in html
+        assert 'href="/library/connections"' in html
+        assert 'href="/settings/library"' not in html
         assert ">Library</span>" in html or 'sidebar-label">Library' in html
+        assert ">Connections</span>" in html or 'sidebar-label">Connections' in html
 
     def test_settings_nests_nav_always_present(self, client):
         html = client.get("/settings/general").data.decode()
@@ -280,7 +282,7 @@ class TestPageTitles:
         assert 'id="scripts-tab-library"' in html
         assert "inventory-tab--disabled" not in html
         assert 'id="scripts-library-browser"' in html
-        assert "Browse library…" in html
+        assert "From library…" in html
         assert "bindLibraryBrowser" in html
 
     def test_automation_scripts_cached_tab_when_library_disabled(self, client, monkeypatch):
@@ -289,7 +291,7 @@ class TestPageTitles:
         assert 'id="scripts-tab-cache"' in html
         assert 'id="scripts-tab-library"' in html
         assert "inventory-tab--disabled" in html
-        assert "Browse library…" not in html
+        assert "From library…" not in html
         assert 'id="scripts-library-browser"' not in html
 
     def test_media_iso_library_tabs_when_enabled(self, client, monkeypatch):
@@ -299,7 +301,7 @@ class TestPageTitles:
         assert 'id="media-tab-library"' in html
         assert "inventory-tab--disabled" not in html
         assert 'id="media-library-browser"' in html
-        assert "Browse library…" in html
+        assert "From library…" in html
         assert "library-import-backdrop" not in html
 
     def test_media_iso_cached_tab_when_library_disabled(self, client, monkeypatch):
@@ -317,7 +319,7 @@ class TestPageTitles:
         assert 'id="clutches-tab-library"' in html
         assert "inventory-tab--disabled" not in html
         assert 'id="clutches-library-browser"' in html
-        assert "Browse library…" in html
+        assert "From library…" in html
         assert "library-import-backdrop" not in html
 
     def test_clutches_cached_tab_when_library_disabled(self, client, monkeypatch):
@@ -454,7 +456,7 @@ class TestDashboardShell:
         with patch("lib.plane_status.footer_status", return_value=status):
             html = client.get("/").data.decode()
         assert "Loading Library status" in html
-        assert 'href="/settings/library"' in html
+        assert 'href="/library/connections"' in html
         assert "Open Settings" in html
         assert "Open Library Settings" not in html
 
@@ -794,21 +796,38 @@ class TestNestSettings:
         assert "remote1" in resp.get_json()["error"]
 
 
-class TestLibrarySettingsGate:
-    def test_library_redirects_when_disabled(self, client, monkeypatch):
+class TestLibraryConnectionsPane:
+    def test_library_connections_redirects_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
-        resp = client.get("/settings/library")
+        resp = client.get("/library/connections")
         assert resp.status_code == 302
         assert "/settings/general" in resp.headers["Location"]
         assert "library_required=1" in resp.headers["Location"]
+
+    def test_settings_library_redirects_to_connections(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        resp = client.get("/settings/library")
+        assert resp.status_code == 302
+        assert "/library/connections" in resp.headers["Location"]
+
+    def test_library_root_redirects_to_connections(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        resp = client.get("/library")
+        assert resp.status_code == 302
+        assert "/library/connections" in resp.headers["Location"]
 
     def test_library_required_shows_hint_on_general(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/settings/general?library_required=1").data.decode()
         assert "Enable" in html
         assert "Library" in html
+        assert (
+            "Library → Connections" in html
+            or "Library &rarr; Connections" in html
+            or "Connections" in html
+        )
 
-    def test_library_returns_200_when_enabled(self, client, monkeypatch):
+    def test_library_connections_returns_200_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         monkeypatch.setattr(
             cfg,
@@ -823,86 +842,23 @@ class TestLibrarySettingsGate:
                 "library_media_bindings": [],
             },
         )
-        resp = client.get("/settings/library")
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        resp = client.get("/library/connections")
         assert resp.status_code == 200
         html = resp.data.decode()
         assert "No connections yet" in html
-        assert "Add connection" in html
+        assert "Add connection" in html or 'aria-label="Add connection"' in html
         assert "Script bindings" in html
         assert "Clutch bindings" in html
         assert "Media bindings" in html
         assert "library-save-conn-btn" in html
         assert "library-save-bind-btn" in html
-        assert html.count('class="action-bar"') == 0
+        assert "library-connections-layout" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
-
-    def test_library_post_saves_connection_and_binding(self, client, tmp_path, monkeypatch):
-        share = tmp_path / "share"
-        share.mkdir()
-        (share / "a.ps1").write_text("# hi\n", encoding="utf-8")
-        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
-        monkeypatch.setattr(
-            cfg,
-            "get",
-            lambda: {
-                "data_dir": str(tmp_path),
-                "bg_interval": 60,
-                "library_enabled": True,
-                "library_connections": [],
-                "library_script_bindings": [],
-                "library_clutch_bindings": [],
-                "library_media_bindings": [],
-            },
-        )
-        monkeypatch.setattr(cfg, "save", lambda c: None)
-        resp = client.post(
-            "/settings/library",
-            data={
-                "library_conn_id": "abc123def456",
-                "library_conn_label": "Ops share",
-                "library_conn_type": "path",
-                "library_conn_provider": "",
-                "library_conn_base_uri": str(share),
-                "library_conn_token": "",
-                "library_conn_expires_at": "",
-                "library_conn_kinds": "scripts,clutches,media",
-                "library_conn_enabled": "1",
-                "library_script_bind_id": "bind001",
-                "library_script_bind_connection_id": "abc123def456",
-                "library_script_bind_label": "PS1 scripts",
-                "library_script_bind_filter": "*.ps1",
-                "library_script_bind_enabled": "1",
-                "library_clutch_bind_id": "cbind001",
-                "library_clutch_bind_connection_id": "abc123def456",
-                "library_clutch_bind_label": "",
-                "library_clutch_bind_filter": "*.yaml",
-                "library_clutch_bind_enabled": "1",
-                "library_media_bind_id": "mbind001",
-                "library_media_bind_connection_id": "abc123def456",
-                "library_media_bind_label": "ISOs",
-                "library_media_bind_filter": "*.iso",
-                "library_media_bind_target": "iso",
-                "library_media_bind_enabled": "1",
-            },
-        )
-        assert resp.status_code == 302
-        from lib import library_registry as library_registry_lib
-
-        conns = library_registry_lib.list_connections()
-        assert conns[0]["label"] == "Ops share"
-        assert conns[0]["expires_at"] is None
-        assert conns[0]["enabled"] is True
-        scripts = library_registry_lib.list_bindings(domain="scripts")
-        assert scripts[0]["filter"] == "*.ps1"
-        assert scripts[0]["label"] == "PS1 scripts"
-        assert scripts[0]["enabled"] is True
-        clutches = library_registry_lib.list_bindings(domain="clutches")
-        assert clutches[0]["filter"] == "*.yaml"
-        assert clutches[0]["label"] == "*.yaml"
-        media = library_registry_lib.list_bindings(domain="media")
-        assert media[0]["target"] == "iso"
-        assert media[0]["label"] == "ISOs"
 
     def test_library_api_upsert_and_delete_connection(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"

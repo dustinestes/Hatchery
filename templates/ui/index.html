@@ -89,7 +89,7 @@
           <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
           <p class="dashboard-tile-validated" id="dash-library-validated" aria-live="polite">…</p>
           {{ dash_settings_link(
-               url_for('settings_section', section='library') if library_enabled else url_for('settings_section', section='general'),
+               url_for('library_connections_pane') if library_enabled else url_for('settings_section', section='general'),
                'Open Settings',
                link_id='dashboard-library-cta'
              ) }}
@@ -378,7 +378,7 @@
     if (!libraryBody || !ps) return;
     var enabled = !!ps.library_enabled;
     if (libraryCta) {
-      libraryCta.href = enabled ? '/settings/library' : '/settings/general';
+      libraryCta.href = enabled ? '/library/connections' : '/settings/general';
     }
     if (!enabled) {
       libraryBody.innerHTML =

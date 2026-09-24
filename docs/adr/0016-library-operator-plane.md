@@ -5,7 +5,7 @@
 - **Issues:** [#375](https://github.com/dustinestes/Hatchery/issues/375); storage [#367](https://github.com/dustinestes/Hatchery/issues/367); linked/synced UX [#370](https://github.com/dustinestes/Hatchery/issues/370)
 - **Supersedes:** [ADR-0002](0002-library-in-pane-browser.md) (in-pane Library catalog as the primary browse surface)
 - **Related:** [ADR-0007](0007-library-nest-content-planes.md), [ADR-0012](0012-library-cache-provenance-drift.md), [ADR-0015](0015-settings-partial-writes-worker-services.md), [ADR-0017](0017-library-connections-bindings-tables.md)
-- **How-to:** [library.md](../library.md) (update with plane when UI ships)
+- **How-to:** [library.md](../library.md)
 
 ## Context
 

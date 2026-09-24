@@ -26,7 +26,7 @@
               aria-controls="scripts-import-menu">Import</button>
       <div class="dropdown-menu import-dropdown-menu" id="scripts-import-menu" hidden role="menu">
         <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-file">From file…</button>
-        <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-library">Browse library…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="scripts-import-from-library">From library…</button>
       </div>
     </div>
     {% else %}
@@ -357,7 +357,9 @@
       menu: document.getElementById('scripts-import-menu'),
       fromFile: document.getElementById('scripts-import-from-file'),
       fromLibrary: document.getElementById('scripts-import-from-library'),
-      onFromLibrary: libraryEnabled ? function () { showScriptsTab('library'); } : null,
+      onFromLibrary: libraryEnabled
+        ? function () { window.location = '/library/connections?domain=scripts'; }
+        : null,
     });
   }
 

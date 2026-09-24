@@ -56,7 +56,7 @@ No `deleted_at` tombstones on registry tables. Soft-delete would only complicate
 
 8. **Concurrency:** Same Controller assumptions as Settings (single writer / worker services). No arbiter process mutates Library tables from a stale snapshot.
 
-9. **UI:** Library → Connections reads/writes these tables ([ADR-0016](0016-library-operator-plane.md)). Settings → Library is transitional until that pane ships.
+9. **UI:** Library → Connections reads/writes these tables ([ADR-0016](0016-library-operator-plane.md)). Settings keeps only the `library_enabled` toggle.
 
 10. **Kinds are relational.** Use junction `library_connection_kinds`, not a `kinds_json` blob, so validators and Connections UI can `JOIN` / filter by kind in SQL.
 
