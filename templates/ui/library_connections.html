@@ -8,7 +8,7 @@
   <div class="pane-header-row">
     <div class="pane-header-text">
       <h1 class="pane-title">Connections</h1>
-      <p class="pane-subtitle">Library endpoints and domain bindings for Scripts, Clutches, and Media.</p>
+      <p class="pane-subtitle">Library endpoints and domain bindings for Clutches, Media, and Scripts.</p>
     </div>
   </div>
 </div>
@@ -130,7 +130,7 @@
                      value="{{ (conn.kinds or []) | join(',') }}">
               <div class="form-radio-group library-kind-checks" role="group"
                    aria-labelledby="library-conn-kinds-{{ loop.index0 }}">
-                {% for kind in ['scripts', 'clutches', 'media', 'packages'] %}
+                {% for kind in ['clutches', 'media', 'scripts', 'packages'] %}
                 <label class="form-radio">
                   <input type="checkbox" class="library-kind-check" value="{{ kind }}"
                          {% if kind in (conn.kinds or []) %}checked{% endif %}>
@@ -152,98 +152,7 @@
         </div>
       </section>
 
-  <section class="form-section library-domain-section" id="library-domain-scripts">
-    <h2 class="form-section-title">Scripts</h2>
-    <p class="form-help-text">
-      Bindings pick a scripts-capable connection and a path/filter (glob for path/git;
-      explicit relative file paths for HTTPS; ``repoKey[/path/glob]`` for Artifactory API).
-    </p>
-    <div class="section-header">
-      <span class="form-label" id="library-script-bind-label">Script bindings</span>
-      <button type="button" id="add-library-script-bind-btn" class="btn btn-secondary btn-sm"
-              aria-label="Add script binding">+ Add binding</button>
-    </div>
-    <div id="library-script-bind-rows" class="library-bind-rows" role="group"
-         aria-labelledby="library-script-bind-label">
-      {% for bind in (cfg.get('library_script_bindings') or []) %}
-      {% set bind_on = bind.get('enabled', True) %}
-      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
-      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
-      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
-        <input type="hidden" name="library_script_bind_id" value="{{ bind.id }}">
-        <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value"
-               value="{{ '1' if bind_on else '0' }}">
-        <div class="library-conn-row-header">
-          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
-                  aria-label="Expand script binding">
-            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            <span class="library-conn-summary library-bind-summary">Script binding</span>
-          </button>
-          <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
-                  aria-label="Remove script binding">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-              <path d="M10 11v6"/>
-              <path d="M14 11v6"/>
-              <path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
-          <label class="form-toggle library-row-enabled-toggle">
-            <input type="checkbox" class="library-bind-enabled-check"
-                   {% if bind_on %}checked{% endif %}
-                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
-                   aria-label="Enable script binding"
-                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
-          </label>
-        </div>
-        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
-          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
-        </p>
-        <div class="library-conn-row-body library-bind-row-body" hidden>
-          <div class="library-conn-row-fields">
-            <div class="form-group">
-              <label class="form-label">Connection</label>
-              <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
-                <option value="">Choose a connection</option>
-                {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
-                <option value="{{ conn.id }}"
-                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Label</label>
-              <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
-                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
-                     aria-label="Script binding label">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Filter</label>
-              <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
-                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
-            </div>
-          </div>
-          <div class="library-bind-row-actions">
-            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
-            <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
-            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
-                    aria-disabled="true" title="No unsaved changes">Save</button>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    <p class="empty-state" id="library-script-bind-rows-empty"
-       {% if cfg.get('library_script_bindings') %}hidden{% endif %}>
-      No Script bindings for this connection yet.
-    </p>
-  </section>
-
-  <section class="form-section library-domain-section" id="library-domain-clutches">
+<section class="form-section library-domain-section" id="library-domain-clutches">
     <h2 class="form-section-title">Clutches</h2>
     <p class="form-help-text">
       Bindings pick a clutches-capable connection and a path/filter (glob for path connections;
@@ -334,7 +243,7 @@
     </p>
   </section>
 
-  <section class="form-section library-domain-section" id="library-domain-media">
+<section class="form-section library-domain-section" id="library-domain-media">
     <h2 class="form-section-title">Media</h2>
     <p class="form-help-text">
       Bindings pick a media-capable connection, a cache target (ISO or VirtIO), and a path/filter.
@@ -431,6 +340,98 @@
       No Media bindings for this connection yet.
     </p>
   </section>
+
+<section class="form-section library-domain-section" id="library-domain-scripts">
+    <h2 class="form-section-title">Scripts</h2>
+    <p class="form-help-text">
+      Bindings pick a scripts-capable connection and a path/filter (glob for path/git;
+      explicit relative file paths for HTTPS; ``repoKey[/path/glob]`` for Artifactory API).
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-script-bind-label">Script bindings</span>
+      <button type="button" id="add-library-script-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add script binding">+ Add binding</button>
+    </div>
+    <div id="library-script-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-script-bind-label">
+      {% for bind in (cfg.get('library_script_bindings') or []) %}
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
+        <input type="hidden" name="library_script_bind_id" value="{{ bind.id }}">
+        <input type="hidden" name="library_script_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand script binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Script binding</span>
+          </button>
+          <button type="button" class="btn-icon library-bind-remove" title="Remove binding"
+                  aria-label="Remove script binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   {% if not parent_on %}disabled aria-disabled="true"{% endif %}
+                   aria-label="Enable script binding"
+                   {% if not parent_on %}title="{% if bind_conn %}{{ bind_conn[0].label }} connection is disabled{% else %}Connection is disabled{% endif %}"{% endif %}>
+          </label>
+        </div>
+        <p class="library-bind-cascade-note" {% if parent_on %}hidden{% endif %} role="status">
+          {% if bind_conn %}<strong>{{ bind_conn[0].label }}</strong> connection is disabled{% else %}Connection is disabled{% endif %}
+        </p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_script_bind_connection_id" class="form-select library-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'scripts' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}"
+                        {% if bind.connection_id == conn.id %}selected{% endif %}>{{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_script_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Script binding label">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_script_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="* or **/*.ps1 or path/file.sh">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-script-bind-rows-empty"
+       {% if cfg.get('library_script_bindings') %}hidden{% endif %}>
+      No Script bindings for this connection yet.
+    </p>
+  </section>
+
     </div>
   </div>
 </div>
@@ -518,16 +519,16 @@
           <input type="hidden" name="library_conn_kinds" class="library-conn-kinds-value" value="">
           <div class="form-radio-group library-kind-checks" role="group" aria-label="Artifact types">
             <label class="form-radio">
-              <input type="checkbox" class="library-kind-check" value="scripts">
-              <span class="form-radio-label">Scripts</span>
-            </label>
-            <label class="form-radio">
               <input type="checkbox" class="library-kind-check" value="clutches">
               <span class="form-radio-label">Clutches</span>
             </label>
             <label class="form-radio">
               <input type="checkbox" class="library-kind-check" value="media">
               <span class="form-radio-label">Media</span>
+            </label>
+            <label class="form-radio">
+              <input type="checkbox" class="library-kind-check" value="scripts">
+              <span class="form-radio-label">Scripts</span>
             </label>
             <label class="form-radio">
               <input type="checkbox" class="library-kind-check" value="packages">
@@ -735,7 +736,7 @@
     <h2 class="modal-title" id="library-conn-remove-title">Remove Library connection</h2>
     <div class="modal-body">
       <p>Remove <strong id="library-conn-remove-label"></strong> from Library?</p>
-      <p class="modal-warning">This also removes all Scripts, Clutches, and Media bindings that use this connection.</p>
+      <p class="modal-warning">This also removes all Clutches, Media, and Scripts bindings that use this connection.</p>
       <div id="library-conn-remove-git-opts" class="library-conn-remove-git-opts" hidden>
         <div class="library-conn-remove-git-row">
           <label class="form-toggle" for="library-conn-remove-git-cache">
