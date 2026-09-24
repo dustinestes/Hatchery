@@ -258,7 +258,7 @@
     reach.push('</ul>', '</div>');
     var aside =
       '<div class="dashboard-tile-columns">' + types.join('') + reach.join('') + '</div>';
-    nestsBody.innerHTML = tileSplit(total, total === 1 ? 'Nest' : 'Nests', aside);
+    nestsBody.innerHTML = tileSplit(total, 'registered', aside);
   }
 
   function renderVms(vms, nestTotal) {
@@ -319,7 +319,7 @@
 
     var aside =
       '<div class="dashboard-tile-columns">' + powerCol.join('') + hatchCol.join('') + '</div>';
-    vmsBody.innerHTML = tileSplit(total, total === 1 ? 'VM' : 'VMs', aside);
+    vmsBody.innerHTML = tileSplit(total, 'total', aside);
   }
 
   function renderClutches(clutches) {
@@ -371,11 +371,7 @@
     ];
     var aside =
       '<div class="dashboard-tile-columns">' + hatches.join('') + scope.join('') + '</div>';
-    clutchesBody.innerHTML = tileSplit(
-      files,
-      files === 1 ? 'Clutch file' : 'Clutch files',
-      aside
-    );
+    clutchesBody.innerHTML = tileSplit(files, 'files', aside);
   }
 
   function renderLibrary(ps, librarySummary) {
@@ -533,11 +529,7 @@
 
     var aside =
       '<div class="dashboard-tile-columns">' + tierCol.join('') + scopeCol.join('') + '</div>';
-    alertsBody.innerHTML = tileSplit(
-      open.length,
-      open.length === 1 ? 'open alert' : 'open alerts',
-      aside
-    );
+    alertsBody.innerHTML = tileSplit(open.length, 'open', aside);
   }
 
   function renderValidators(validators) {
