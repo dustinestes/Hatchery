@@ -1058,8 +1058,9 @@ body {
 }
 
 .import-dropdown-menu {
-  left: 0;
-  right: auto;
+  /* Import lives in right-side toolbars; grow left so the tray stays in viewport. */
+  left: auto;
+  right: 0;
   min-width: 160px;
 }
 
