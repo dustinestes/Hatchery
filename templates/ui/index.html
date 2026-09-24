@@ -233,15 +233,30 @@
     var unreachable = ps.nest_unreachable || 0;
     var unchecked = ps.nest_unchecked || 0;
     var alerts = ps.nest_alert_count || 0;
-    var aside = [
+    var byProvider = ps.nest_by_provider || {};
+    var types = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Providers</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Nest providers">',
+      '<li>' + (byProvider.libvirt || 0) + ' KVM</li>',
+      '<li>' + (byProvider.utm || 0) + ' UTM</li>',
+      '<li>' + (byProvider.hyperv || 0) + ' Hyper-V</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var reach = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Reachability</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="Nest reachability">',
       '<li>' + reachable + ' reachable</li>',
       '<li>' + unreachable + ' unreachable</li>',
     ];
-    if (unchecked) aside.push('<li>' + unchecked + ' not checked yet</li>');
-    if (alerts) aside.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
-    aside.push('</ul>');
-    nestsBody.innerHTML = tileSplit(total, total === 1 ? 'Nest' : 'Nests', aside.join(''));
+    if (unchecked) reach.push('<li>' + unchecked + ' not checked yet</li>');
+    if (alerts) reach.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
+    reach.push('</ul>', '</div>');
+    var aside =
+      '<div class="dashboard-tile-columns">' + types.join('') + reach.join('') + '</div>';
+    nestsBody.innerHTML = tileSplit(total, total === 1 ? 'Nest' : 'Nests', aside);
   }
 
   function renderVms(vms, nestTotal) {
@@ -278,13 +293,13 @@
       hatchBits.forEach(function (b) { aside.push('<li>' + b + '</li>'); });
       if (hatch.none) aside.push('<li>' + hatch.none + ' with no hatch record</li>');
     }
-    aside.push('</ul>');
     if (unavailable) {
       aside.push(
-        '<p class="dashboard-tile-meta">' + unavailable + ' Nest' +
-        (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>'
+        '<li>' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') +
+        ' unavailable</li>'
       );
     }
+    aside.push('</ul>');
     vmsBody.innerHTML = tileSplit(total, total === 1 ? 'VM' : 'VMs', aside.join(''));
   }
 
@@ -297,7 +312,6 @@
     var files = clutches.file_count || 0;
     var sessions = clutches.session_total || 0;
     var byStatus = clutches.by_status || {};
-    var nestsUsed = clutches.nests_used || [];
 
     if (files === 0 && sessions === 0) {
       clutchesBody.innerHTML =
@@ -309,27 +323,19 @@
       return;
     }
 
-    var aside = [];
+    var aside = [
+      '<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">',
+    ];
     if (sessions === 0) {
-      aside.push('<p class="dashboard-tile-meta">No active hatches.</p>');
+      aside.push('<li>0 active hatches</li>');
     } else {
-      aside.push(
-        '<p class="dashboard-tile-meta">' + sessions + ' active hatch' +
-        (sessions === 1 ? '' : 'es') + '</p>'
-      );
-      aside.push('<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">');
       ['in_progress', 'completed', 'failed', 'degraded', 'unknown'].forEach(function (key) {
         var n = byStatus[key] || 0;
         if (!n) return;
-        var label = key.split('_').join(' ');
-        aside.push('<li>' + n + ' ' + label + '</li>');
+        aside.push('<li>' + n + ' ' + key.split('_').join(' ') + '</li>');
       });
-      aside.push('</ul>');
-      if (nestsUsed.length) {
-        var names = nestsUsed.map(function (n) { return esc(n.name || n.id); }).join(', ');
-        aside.push('<p class="dashboard-tile-meta">Hatched on: ' + names + '</p>');
-      }
     }
+    aside.push('</ul>');
     clutchesBody.innerHTML = tileSplit(
       files,
       files === 1 ? 'Clutch file' : 'Clutch files',
@@ -366,22 +372,13 @@
 
     var aside = [
       '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
+      '<li>' + disabled + ' disabled</li>',
+      '<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>',
     ];
-    if (disabled) aside.push('<li>' + disabled + ' disabled</li>');
-    if (alerts) {
-      aside.push('<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>');
-    } else {
-      aside.push('<li>No connection alerts</li>');
-    }
     if (drift) {
       aside.push('<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>');
     }
     aside.push('</ul>');
-    if (ps.libraries_ok) {
-      aside.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library OK') + '</p>');
-    } else {
-      aside.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library needs attention') + '</p>');
-    }
     libraryBody.innerHTML = tileSplit(
       enabledCount,
       enabledCount === 1 ? 'connection' : 'connections',
@@ -446,25 +443,22 @@
 
     var byStatus = validators.by_status || {};
     var neverRun = validators.never_run || 0;
-    var degraded = validators.degraded || 0;
     var findingsTotal = validators.findings_total || 0;
     var aside = [
-      '<p class="dashboard-tile-meta">of ' + total + ' registered</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="Latest run status for enabled validators">',
+      '<ul class="dashboard-tile-breakdown" aria-label="Validator status">',
+      '<li>' + total + ' registered</li>',
+      '<li>' + disabled + ' disabled</li>',
       '<li>' + (byStatus.ok || 0) + ' ok</li>',
       '<li>' + (byStatus.findings || 0) + ' with findings</li>',
       '<li>' + (byStatus.error || 0) + ' error</li>',
+      '<li>' + neverRun + ' never run</li>',
     ];
-    if (neverRun) {
-      aside.push('<li>' + neverRun + ' never run</li>');
-    }
-    aside.push('</ul>');
-    if (degraded && findingsTotal) {
+    if (findingsTotal) {
       aside.push(
-        '<p class="dashboard-tile-meta">' + findingsTotal + ' finding' +
-        (findingsTotal === 1 ? '' : 's') + ' in latest runs.</p>'
+        '<li>' + findingsTotal + ' finding' + (findingsTotal === 1 ? '' : 's') + '</li>'
       );
     }
+    aside.push('</ul>');
     validatorsBody.innerHTML = tileSplit(enabled, 'enabled', aside.join(''));
   }
 

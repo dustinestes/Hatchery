@@ -51,9 +51,13 @@ def nest_tile_fields(
     unreachable = 0
     unchecked = 0
     checked_ats: list[str] = []
+    by_provider = {key: 0 for key in ("libvirt", "utm", "hyperv")}
 
     for nest in nests:
         nid = nest.get("id")
+        provider = str(nest.get("provider_type") or "libvirt").strip().lower()
+        if provider in by_provider:
+            by_provider[provider] += 1
         entry = snap.get(nid) if nid else None
         if not isinstance(entry, dict):
             unchecked += 1
@@ -83,6 +87,7 @@ def nest_tile_fields(
         "nest_unreachable": unreachable,
         "nest_unchecked": unchecked,
         "nest_last_validated_at": last_validated,
+        "nest_by_provider": by_provider,
     }
 
 
@@ -309,6 +314,7 @@ def dashboard_summary() -> dict[str, Any]:
             "unchecked": nest_fields["nest_unchecked"],
             "alert_count": alert_count,
             "last_validated_at": nest_fields["nest_last_validated_at"],
+            "by_provider": nest_fields["nest_by_provider"],
         },
         "vms": vm_summary(),
         "clutches": clutch_summary(),

@@ -124,6 +124,7 @@ def footer_status() -> dict[str, Any]:
         "nest_unchecked": nest_fields["nest_unchecked"],
         "nest_last_validated_at": nest_fields["nest_last_validated_at"],
         "nest_alert_count": nest_alert_count,
+        "nest_by_provider": nest_fields["nest_by_provider"],
         "library_enabled": library_enabled,
         "libraries_visible": libraries_visible,
         "libraries_ok": libraries_ok,

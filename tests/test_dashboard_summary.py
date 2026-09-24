@@ -35,9 +35,9 @@ class TestNestTileFields:
 
     def test_counts_reachable_unreachable_unchecked(self):
         nests = [
-            {"id": "a", "name": "A"},
-            {"id": "b", "name": "B"},
-            {"id": "c", "name": "C"},
+            {"id": "a", "name": "A", "provider_type": "libvirt"},
+            {"id": "b", "name": "B", "provider_type": "utm"},
+            {"id": "c", "name": "C", "provider_type": "hyperv"},
         ]
         snap = {
             "a": {"ok": True, "checked_at": "2026-09-20T12:00:00Z"},
@@ -49,6 +49,16 @@ class TestNestTileFields:
         assert fields["nest_unreachable"] == 1
         assert fields["nest_unchecked"] == 1
         assert fields["nest_last_validated_at"] == "2026-09-20T12:00:00Z"
+        assert fields["nest_by_provider"] == {"libvirt": 1, "utm": 1, "hyperv": 1}
+
+    def test_by_provider_defaults_libvirt(self):
+        fields = dash.nest_tile_fields(
+            [{"id": "x", "name": "X"}],
+            snap_nests={},
+        )
+        assert fields["nest_by_provider"]["libvirt"] == 1
+        assert fields["nest_by_provider"]["utm"] == 0
+        assert fields["nest_by_provider"]["hyperv"] == 0
 
 
 class TestVmSummary:

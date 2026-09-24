@@ -404,6 +404,7 @@ class TestDashboardShell:
         "nest_unchecked": 0,
         "nest_last_validated_at": None,
         "nest_alert_count": 0,
+        "nest_by_provider": {"libvirt": 0, "utm": 0, "hyperv": 0},
         "library_enabled": False,
         "libraries_visible": False,
         "libraries_ok": True,

@@ -1721,6 +1721,27 @@ body {
   line-height: 1.5;
 }
 
+.dashboard-tile-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dashboard-tile-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-tile-col-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
 .dashboard-tile-meta {
   margin: 0;
   font-size: 12px;
