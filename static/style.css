@@ -1652,10 +1652,13 @@ body {
   flex: 1;
   font-size: 13px;
   color: var(--color-text);
+  container-type: inline-size;
+  container-name: dashboard-tile;
 }
 
 .dashboard-tile-split {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 16px;
   min-height: 72px;
@@ -1688,14 +1691,25 @@ body {
 }
 
 .dashboard-tile-aside {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 11rem;
+  min-width: min(100%, 11rem);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 6px;
   border-left: 1px solid var(--color-border);
   padding-left: 16px;
+}
+
+@container dashboard-tile (max-width: 22rem) {
+  .dashboard-tile-aside {
+    flex-basis: 100%;
+    min-width: 0;
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: 12px;
+  }
 }
 
 .dashboard-tile-placeholder {
@@ -1723,14 +1737,15 @@ body {
 
 .dashboard-tile-columns {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px 16px;
   min-width: 0;
 }
 
 .dashboard-tile-col {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 6.5rem;
+  min-width: 5.5rem;
 }
 
 .dashboard-tile-col-title {
