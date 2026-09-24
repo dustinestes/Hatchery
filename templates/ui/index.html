@@ -274,33 +274,50 @@
     var power = vms.by_power || {};
     var hatch = vms.by_hatch || {};
     var unavailable = vms.nests_unavailable || 0;
-    var aside = [
-      '<ul class="dashboard-tile-breakdown" aria-label="VM power and hatch status">',
+
+    var powerCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Power</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="VM power status">',
       '<li>' + (power.running || 0) + ' running</li>',
       '<li>' + (power.shut_off || 0) + ' shut off</li>',
       '<li>' + (power.paused || 0) + ' paused</li>',
     ];
-    if (power.other) aside.push('<li>' + power.other + ' other</li>');
-    var hatchBits = [];
-    if (hatch.hatching) hatchBits.push(hatch.hatching + ' hatching');
-    if (hatch.provisioning) hatchBits.push(hatch.provisioning + ' provisioning');
-    if (hatch.fledged) hatchBits.push(hatch.fledged + ' fledged');
-    if (hatch.failed) hatchBits.push(hatch.failed + ' failed');
-    if (hatch.pending) hatchBits.push(hatch.pending + ' pending');
-    if (!hatchBits.length) {
-      aside.push('<li>' + (hatch.none || total) + ' with no hatch record</li>');
-    } else {
-      hatchBits.forEach(function (b) { aside.push('<li>' + b + '</li>'); });
-      if (hatch.none) aside.push('<li>' + hatch.none + ' with no hatch record</li>');
+    if (power.other) {
+      powerCol.push('<li>' + power.other + ' other</li>');
     }
     if (unavailable) {
-      aside.push(
+      powerCol.push(
         '<li>' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') +
         ' unavailable</li>'
       );
     }
-    aside.push('</ul>');
-    vmsBody.innerHTML = tileSplit(total, total === 1 ? 'VM' : 'VMs', aside.join(''));
+    powerCol.push('</ul>', '</div>');
+
+    var hatchCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Hatch</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="VM hatch status">',
+      '<li>' + (hatch.hatching || 0) + ' hatching</li>',
+      '<li>' + (hatch.provisioning || 0) + ' provisioning</li>',
+      '<li>' + (hatch.fledged || 0) + ' fledged</li>',
+      '<li>' + (hatch.failed || 0) + ' failed</li>',
+    ];
+    if (hatch.pending) {
+      hatchCol.push('<li>' + hatch.pending + ' pending</li>');
+    }
+    if (hatch.culled) {
+      hatchCol.push('<li>' + hatch.culled + ' culled</li>');
+    }
+    hatchCol.push(
+      '<li>' + (hatch.none || 0) + ' no hatch record</li>',
+      '</ul>',
+      '</div>'
+    );
+
+    var aside =
+      '<div class="dashboard-tile-columns">' + powerCol.join('') + hatchCol.join('') + '</div>';
+    vmsBody.innerHTML = tileSplit(total, total === 1 ? 'VM' : 'VMs', aside);
   }
 
   function renderClutches(clutches) {
