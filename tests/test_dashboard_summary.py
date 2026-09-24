@@ -224,6 +224,8 @@ class TestValidatorsSummary:
         assert summary["disabled"] >= 1
         assert summary["by_status"]["ok"] >= 1
         assert summary["by_status"]["findings"] >= 1
+        assert summary["by_scope"]["controller"] >= 1
+        assert summary["by_scope"]["nest"] >= 1
         assert summary["degraded"] >= 1
         assert summary["findings_total"] >= 2
         assert summary["last_run_at"] == "2026-09-20T16:30:00Z"

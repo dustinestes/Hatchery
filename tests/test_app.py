@@ -508,6 +508,7 @@ class TestDashboardSummaryApi:
                     "disabled": 0,
                     "never_run": 0,
                     "by_status": {"ok": 1, "findings": 0, "error": 0},
+                    "by_scope": {"controller": 1, "nest": 0, "content": 0, "other": 0},
                     "degraded": 0,
                     "findings_total": 0,
                     "last_run_at": "2026-09-20T12:00:00Z",

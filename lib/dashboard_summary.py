@@ -238,6 +238,7 @@ def validators_summary() -> dict[str, Any]:
     disabled = total - enabled
 
     by_status = {"ok": 0, "findings": 0, "error": 0}
+    by_scope = {"controller": 0, "nest": 0, "content": 0, "other": 0}
     never_run = 0
     degraded = 0
     findings_total = 0
@@ -249,6 +250,11 @@ def validators_summary() -> dict[str, Any]:
             finished_ats.append(at)
 
     for row in enabled_rows:
+        scope = str(row.get("scope") or "").strip().lower()
+        if scope in by_scope:
+            by_scope[scope] += 1
+        else:
+            by_scope["other"] += 1
         vid = row.get("id")
         run = latest.get(vid) if vid else None
         if not run:
@@ -269,6 +275,7 @@ def validators_summary() -> dict[str, Any]:
         "disabled": disabled,
         "never_run": never_run,
         "by_status": by_status,
+        "by_scope": by_scope,
         "degraded": degraded,
         "findings_total": findings_total,
         "last_run_at": _latest_iso(finished_ats),

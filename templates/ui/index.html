@@ -563,24 +563,38 @@
     }
 
     var byStatus = validators.by_status || {};
+    var byScope = validators.by_scope || {};
     var neverRun = validators.never_run || 0;
-    var findingsTotal = validators.findings_total || 0;
-    var aside = [
-      '<ul class="dashboard-tile-breakdown" aria-label="Validator status">',
-      '<li>' + total + ' registered</li>',
-      '<li>' + disabled + ' disabled</li>',
+
+    var statusCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Status</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Validator latest-run status">',
       '<li>' + (byStatus.ok || 0) + ' ok</li>',
-      '<li>' + (byStatus.findings || 0) + ' with findings</li>',
+      '<li>' + (byStatus.findings || 0) + ' findings</li>',
       '<li>' + (byStatus.error || 0) + ' error</li>',
       '<li>' + neverRun + ' never run</li>',
+      '</ul>',
+      '</div>',
     ];
-    if (findingsTotal) {
-      aside.push(
-        '<li>' + findingsTotal + ' finding' + (findingsTotal === 1 ? '' : 's') + '</li>'
-      );
+
+    var scopeCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Scope</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Enabled validators by scope">',
+      '<li>' + (byScope.controller || 0) + ' Controller</li>',
+      '<li>' + (byScope.nest || 0) + ' Nest</li>',
+      '<li>' + (byScope.content || 0) + ' Content</li>',
+      '<li>' + disabled + ' disabled</li>',
+    ];
+    if (byScope.other) {
+      scopeCol.push('<li>' + byScope.other + ' other</li>');
     }
-    aside.push('</ul>');
-    validatorsBody.innerHTML = tileSplit(enabled, 'enabled', aside.join(''));
+    scopeCol.push('</ul>', '</div>');
+
+    var aside =
+      '<div class="dashboard-tile-columns">' + statusCol.join('') + scopeCol.join('') + '</div>';
+    validatorsBody.innerHTML = tileSplit(enabled, 'enabled', aside);
   }
 
   function applyPlaneStatus(ps) {
