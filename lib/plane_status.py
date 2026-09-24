@@ -72,6 +72,14 @@ def footer_status() -> dict[str, Any]:
     library_connection_registered = len(raw_connections) if library_enabled else 0
     library_connection_total = len(library_connections) if library_enabled else 0
     library_connection_disabled = max(0, library_connection_registered - library_connection_total)
+    library_by_type = {t: 0 for t in sorted(library_lib.CONNECTION_TYPES)}
+    if library_enabled:
+        for row in raw_connections:
+            if not isinstance(row, dict):
+                continue
+            ctype = str(row.get("type") or "").strip().lower()
+            if ctype in library_by_type:
+                library_by_type[ctype] += 1
     library_alert_count = (
         alerts_lib.count_active_by_prefixes(
             alerts_lib.LIBRARY_SCOPED_ALERT_PREFIXES,
@@ -133,6 +141,7 @@ def footer_status() -> dict[str, Any]:
         "library_connection_total": library_connection_total,
         "library_connection_registered": library_connection_registered,
         "library_connection_disabled": library_connection_disabled,
+        "library_by_type": library_by_type,
         "library_alert_count": library_alert_count,
         "library_drift_alert_count": library_drift_alert_count,
     }

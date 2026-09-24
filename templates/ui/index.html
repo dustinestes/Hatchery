@@ -161,6 +161,8 @@
     library: document.getElementById('dash-library-validated'),
   };
   var summaryInFlight = false;
+  var lastPlaneStatus = null;
+  var lastLibrarySummary = null;
 
   function esc(str) {
     return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
@@ -376,7 +378,7 @@
     );
   }
 
-  function renderLibrary(ps) {
+  function renderLibrary(ps, librarySummary) {
     if (!libraryBody || !ps) return;
     var enabled = !!ps.library_enabled;
     if (libraryCta) {
@@ -395,6 +397,7 @@
     var disabled = ps.library_connection_disabled || 0;
     var alerts = ps.library_alert_count || 0;
     var drift = ps.library_drift_alert_count || 0;
+    var linked = (librarySummary && librarySummary.linked) || {};
 
     if (registered === 0) {
       libraryBody.innerHTML =
@@ -403,19 +406,61 @@
       return;
     }
 
-    var aside = [
-      '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
-      '<li>' + disabled + ' disabled</li>',
-      '<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>',
+    var content = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Content</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Linked Library content">',
+      '<li>' + (linked.scripts || 0) + ' scripts linked</li>',
+      '<li>' + (linked.clutches || 0) + ' clutches linked</li>',
+      '<li>' + (linked.media || 0) + ' media linked</li>',
+      '</ul>',
+      '</div>',
     ];
-    if (drift) {
-      aside.push('<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>');
+    var connections = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Connections</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
+      '<li>' + enabledCount + ' enabled</li>',
+      '<li>' + disabled + ' disabled</li>',
+    ];
+    if (alerts) {
+      connections.push(
+        '<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>'
+      );
     }
-    aside.push('</ul>');
+    if (drift) {
+      connections.push(
+        '<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>'
+      );
+    }
+    connections.push('</ul>', '</div>');
+
+    var byType = ps.library_by_type || {};
+    var typeLabels = [
+      ['path', 'Path'],
+      ['https', 'HTTPS'],
+      ['git', 'Git'],
+      ['api', 'API'],
+      ['forge', 'Forge'],
+    ];
+    var types = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Types</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Library connection types">',
+    ];
+    typeLabels.forEach(function (pair) {
+      types.push('<li>' + (byType[pair[0]] || 0) + ' ' + pair[1] + '</li>');
+    });
+    types.push('</ul>', '</div>');
+
+    var aside =
+      '<div class="dashboard-tile-columns">' +
+      content.join('') + connections.join('') + types.join('') +
+      '</div>';
     libraryBody.innerHTML = tileSplit(
-      enabledCount,
-      enabledCount === 1 ? 'connection' : 'connections',
-      aside.join('')
+      registered,
+      registered === 1 ? 'connection' : 'connections',
+      aside
     );
   }
 
@@ -497,11 +542,12 @@
 
   function applyPlaneStatus(ps) {
     if (!ps) return;
+    lastPlaneStatus = ps;
     if (emptyNests) {
       emptyNests.hidden = (ps.nest_total || 0) > 0;
     }
     renderNests(ps);
-    renderLibrary(ps);
+    renderLibrary(ps, lastLibrarySummary);
     // Nest stamp can update from plane-status before summary returns.
     if (ps.nest_last_validated_at) {
       setValidated('nests', { has_validator: true, at: ps.nest_last_validated_at });
@@ -516,9 +562,13 @@
     fetch('/api/dashboard-summary')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
+        lastLibrarySummary = data && data.library;
         renderVms(data && data.vms, nestTotal);
         renderClutches(data && data.clutches);
         renderValidators(data && data.validators);
+        if (lastPlaneStatus) {
+          renderLibrary(lastPlaneStatus, lastLibrarySummary);
+        }
         applyValidatedMap(data && data.validated);
         Object.keys(validatedEls).forEach(function (key) {
           if (validatedEls[key]) validatedEls[key].dataset.summaryStamp = '1';

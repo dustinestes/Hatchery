@@ -141,6 +141,54 @@ class TestFooterStatus:
         assert status["library_connection_total"] == 1
         assert status["library_connection_registered"] == 2
         assert status["library_connection_disabled"] == 1
+        assert status["library_by_type"]["path"] == 2
+        assert status["library_by_type"]["git"] == 0
+
+    def test_libraries_by_type_counts_registered(self, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        c = cfg.get()
+        c["library_enabled"] = True
+        c["library_connections"] = [
+            {
+                "id": "c1",
+                "label": "Share",
+                "type": "path",
+                "base_uri": str(share),
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+            },
+            {
+                "id": "c2",
+                "label": "Repo",
+                "type": "git",
+                "base_uri": "https://example.com/r.git",
+                "token": "",
+                "expires_at": None,
+                "kinds": ["scripts"],
+                "enabled": False,
+            },
+            {
+                "id": "c3",
+                "label": "Forge",
+                "type": "forge",
+                "base_uri": "https://github.com/org/repo",
+                "token": "",
+                "expires_at": None,
+                "kinds": ["clutches"],
+                "provider": "github",
+            },
+        ]
+        cfg.save(c)
+        status = ps.footer_status()
+        assert status["library_by_type"] == {
+            "api": 0,
+            "forge": 1,
+            "git": 1,
+            "https": 0,
+            "path": 1,
+        }
         assert status["library_drift_alert_count"] == 0
         assert status["libraries_dot"] == "green"
 

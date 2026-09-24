@@ -499,6 +499,9 @@ class TestDashboardSummaryApi:
                     "nests_used": [{"id": "local", "name": "Local"}],
                     "unique_clutch_files": 1,
                 },
+                "library": {
+                    "linked": {"scripts": 2, "clutches": 1, "media": 0},
+                },
                 "validators": {
                     "total": 1,
                     "enabled": 1,
@@ -529,6 +532,7 @@ class TestDashboardSummaryApi:
         assert data["vms"]["by_power"]["running"] == 1
         assert data["clutches"]["file_count"] == 1
         assert data["clutches"]["session_total"] == 1
+        assert data["library"]["linked"]["scripts"] == 2
         assert data["validated"]["vms"]["label"] == "not implemented"
         assert data["validated"]["nests"]["at"] == "2026-09-20T12:00:00Z"
         assert "alerts" not in data["validated"]

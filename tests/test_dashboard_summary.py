@@ -144,6 +144,51 @@ class TestClutchSummary:
         assert summary["nests_used"] == [{"id": "local", "name": "Local"}]
 
 
+class TestLibrarySummary:
+    def test_empty_linked(self):
+        summary = dash.library_summary()
+        assert summary["linked"] == {"scripts": 0, "clutches": 0, "media": 0}
+
+    def test_counts_provenance_by_domain(self):
+        from lib import library_provenance as prov
+
+        prov.upsert_on_pull(
+            domain="scripts",
+            cache_name="a.ps1",
+            connection_id="c1",
+            relative_path="a.ps1",
+            source_type="path",
+            cache_sha256="a" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="scripts",
+            cache_name="b.ps1",
+            connection_id="c1",
+            relative_path="b.ps1",
+            source_type="path",
+            cache_sha256="b" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="clutches",
+            cache_name="lab.yaml",
+            connection_id="c1",
+            relative_path="lab.yaml",
+            source_type="path",
+            cache_sha256="c" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="media",
+            cache_name="win.iso",
+            connection_id="c1",
+            relative_path="win.iso",
+            source_type="path",
+            cache_sha256="d" * 64,
+            media_target="iso",
+        )
+        summary = dash.library_summary()
+        assert summary["linked"] == {"scripts": 2, "clutches": 1, "media": 1}
+
+
 class TestValidatorsSummary:
     def test_enabled_and_latest_runs(self):
         from lib.validators import builtins as builtins_mod

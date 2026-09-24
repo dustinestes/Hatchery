@@ -1,9 +1,9 @@
-"""Dashboard Nest, VM, Clutch, and Validators rollups (#329 / #331 / #334).
+"""Dashboard Nest, VM, Clutch, Library, and Validators rollups (#329 / #331 / #334 / #373).
 
 Nests use stored reachability / validator run data (no probe on paint).
-VMs, Clutches, and Validators aggregate for the Dashboard only via
-``/api/dashboard-summary``; do not put them on ``/api/plane-status``
-(that bus polls every pane).
+VMs, Clutches, Library linked counts, and Validators aggregate for the
+Dashboard only via ``/api/dashboard-summary``; do not put them on
+``/api/plane-status`` (that bus polls every pane).
 """
 
 from __future__ import annotations
@@ -205,6 +205,24 @@ def clutch_summary() -> dict[str, Any]:
     }
 
 
+def library_summary() -> dict[str, Any]:
+    """Linked operator-cache counts by domain for the Library tile (#373).
+
+    ``linked`` counts provenance rows (Library-attributed cache), not
+    bindings and not live catalog hits.
+    """
+    from lib import library_provenance as prov
+
+    linked = prov.counts_by_domain()
+    return {
+        "linked": {
+            "scripts": int(linked.get("scripts") or 0),
+            "clutches": int(linked.get("clutches") or 0),
+            "media": int(linked.get("media") or 0),
+        },
+    }
+
+
 def validators_summary() -> dict[str, Any]:
     """Enabled/off + latest-run rollup from Settings and ``validator_runs`` (#334).
 
@@ -318,6 +336,7 @@ def dashboard_summary() -> dict[str, Any]:
         },
         "vms": vm_summary(),
         "clutches": clutch_summary(),
+        "library": library_summary(),
         "validators": validators,
         "validated": tile_validation_stamps(
             nest_last_validated_at=nest_fields["nest_last_validated_at"],
