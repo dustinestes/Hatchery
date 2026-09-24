@@ -96,9 +96,9 @@ Asset panes keep an in-context **Import** control. When Library is on, **From li
 
 When Library is on, the sidebar gains a **Library** group (above Notifications) with **Connections**:
 
-- **Left:** connection list (+ Add). **Right:** selected connection editor and Scripts / Clutches / Media bindings for that connection only.
+- **Left:** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts bindings for that connection only.
 - **Connections** - registry rows (path/share, HTTPS, git, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
-- **Scripts / Clutches / Media** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
+- **Clutches / Media / Scripts** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
 
 ### Enable / disable
 
