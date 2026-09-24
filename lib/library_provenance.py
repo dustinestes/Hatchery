@@ -167,6 +167,49 @@ def list_all() -> list[dict[str, Any]]:
     return [_row_to_dict(r) for r in rows]
 
 
+def counts_by_domain() -> dict[str, int]:
+    """Linked operator-cache counts per domain (scripts / clutches / media).
+
+    ``media`` combines ISO and VirtIO rows. Missing domains return 0.
+    """
+    out = {d: 0 for d in sorted(DOMAINS)}
+    with db.get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT domain, COUNT(*) AS n
+            FROM library_cache_provenance
+            GROUP BY domain
+            """
+        ).fetchall()
+    for row in rows:
+        domain = (row["domain"] or "").strip().lower()
+        if domain in out:
+            out[domain] = int(row["n"] or 0)
+    return out
+
+
+def counts_by_drift_state() -> dict[str, int]:
+    """Linked operator-cache counts per stored ``drift_state``.
+
+    Missing states return 0. Unknown DB values roll into ``unknown``.
+    """
+    out = {s: 0 for s in sorted(DRIFT_STATES)}
+    with db.get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT drift_state, COUNT(*) AS n
+            FROM library_cache_provenance
+            GROUP BY drift_state
+            """
+        ).fetchall()
+    for row in rows:
+        state = (row["drift_state"] or "").strip().lower()
+        if state not in out:
+            state = "unknown"
+        out[state] += int(row["n"] or 0)
+    return out
+
+
 def apply_evaluate_result(
     domain: str,
     cache_name: str,

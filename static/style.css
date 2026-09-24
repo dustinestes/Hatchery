@@ -28,6 +28,7 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 
   --font-heading: 'Space Grotesk', sans-serif;
   --font-body:    'Inter', sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --topbar-height:           44px;
   --footer-height:           32px;
@@ -39,21 +40,24 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* ── Light theme ── */
 [data-theme="light"] {
   color-scheme: light;
-  --color-bg:             #FAFAF7;
-  --color-bg-sidebar:     #F2F2EE;
-  --color-surface:        #FFFFFF;
-  --color-surface-alt:    #F4F4F1;
+  /* Warm off-whites (no pure #FFF) so brand gold reads on surfaces.
+     Ladder matches dark: chrome (sidebar/topbar/footer) darkest, content
+     a step up, surfaces (tiles/cards) lightest. */
+  --color-bg:             #F2F2EE;
+  --color-bg-sidebar:     #EEEEEA;
+  --color-surface:        #F6F6F2;
+  --color-surface-alt:    #E8E8E4;
   --color-text:           #1A1916;
   --color-text-muted:     #6B6862;
-  --color-border:         #E3E3DF;
-  --color-topbar-bg:      #FAFAF7;
-  --color-topbar-border:  #E3E3DF;
-  --color-footer-bg:      #F2F2EE;
-  --color-footer-border:  #E3E3DF;
+  --color-border:         #DDDDD8;
+  --color-topbar-bg:      #EEEEEA;
+  --color-topbar-border:  #DDDDD8;
+  --color-footer-bg:      #EEEEEA;
+  --color-footer-border:  #DDDDD8;
   --color-sidebar-text:   #3A3835;
   --color-sidebar-muted:  #8A8880;
-  --color-nav-hover-bg:   #EAEAE6;
-  --color-nav-active-bg:  #E3E3DF;
+  --color-nav-hover-bg:   #E4E4DF;
+  --color-nav-active-bg:  #DDDDD8;
   --color-nav-active-text:#1A1916;
   --scrollbar-thumb:      #C8C6BE;
   --scrollbar-thumb-hover:#A8A69E;
@@ -1588,20 +1592,174 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   min-height: 140px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.dashboard-tile:hover,
+.dashboard-tile:focus-within {
+  border-color: color-mix(in srgb, var(--gold) 65%, var(--color-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent);
+}
+
+.dashboard-tile:hover .dashboard-tile-title,
+.dashboard-tile:focus-within .dashboard-tile-title {
+  color: var(--color-text);
+}
+
+.dashboard-tile:hover .dashboard-tile-count,
+.dashboard-tile:focus-within .dashboard-tile-count {
+  color: var(--gold-dark);
+}
+
+.dashboard-tile:hover .dashboard-tile-unit,
+.dashboard-tile:focus-within .dashboard-tile-unit,
+.dashboard-tile:hover .dashboard-tile-breakdown,
+.dashboard-tile:focus-within .dashboard-tile-breakdown,
+.dashboard-tile:hover .dashboard-tile-meta,
+.dashboard-tile:focus-within .dashboard-tile-meta,
+.dashboard-tile:hover .dashboard-tile-placeholder,
+.dashboard-tile:focus-within .dashboard-tile-placeholder {
+  color: color-mix(in srgb, var(--color-text) 55%, var(--color-text-muted));
+}
+
+.dashboard-tile:hover .dashboard-tile-col-title,
+.dashboard-tile:focus-within .dashboard-tile-col-title {
+  color: color-mix(in srgb, var(--gold-dark) 55%, var(--color-text-muted));
+}
+
+.dashboard-tile:hover .dashboard-tile-validated,
+.dashboard-tile:focus-within .dashboard-tile-validated {
+  color: color-mix(in srgb, var(--color-text) 40%, var(--color-text-muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-tile {
+    transition: none;
+  }
+}
+
+.dashboard-tile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .dashboard-tile-title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-heading);
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text);
 }
 
+.dashboard-tile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: -6px -6px -6px 0;
+  border-radius: 6px;
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.dashboard-tile-link:hover {
+  color: var(--gold-light);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.dashboard-tile-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.dashboard-tile-link-icon {
+  display: block;
+}
+
+.dashboard-tile-validated {
+  margin: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
 .dashboard-tile-body {
   flex: 1;
   font-size: 13px;
   color: var(--color-text);
+  container-type: inline-size;
+  container-name: dashboard-tile;
+}
+
+.dashboard-tile-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 72px;
+}
+
+.dashboard-tile-hero {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  min-width: 4.25rem;
+}
+
+.dashboard-tile-count {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.dashboard-tile-unit {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
+.dashboard-tile-aside {
+  flex: 1 1 11rem;
+  min-width: min(100%, 11rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  border-left: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
+  padding-left: 16px;
+}
+
+@container dashboard-tile (max-width: 22rem) {
+  .dashboard-tile-aside {
+    flex-basis: 100%;
+    min-width: 0;
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
+    padding-top: 12px;
+  }
 }
 
 .dashboard-tile-placeholder {
@@ -1618,16 +1776,8 @@ body {
   line-height: 1.4;
 }
 
-.dashboard-tile-count {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  font-weight: 600;
-  margin-right: 4px;
-  color: var(--color-text);
-}
-
 .dashboard-tile-breakdown {
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
   list-style: none;
   font-size: 12px;
@@ -1635,16 +1785,33 @@ body {
   line-height: 1.5;
 }
 
+.dashboard-tile-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+  min-width: 0;
+}
+
+.dashboard-tile-col {
+  flex: 1 1 6.5rem;
+  min-width: 5.5rem;
+}
+
+.dashboard-tile-col-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
 .dashboard-tile-meta {
   margin: 0;
   font-size: 12px;
   color: var(--color-text-muted);
   line-height: 1.4;
-}
-
-.dashboard-tile-cta {
-  align-self: flex-start;
-  font-size: 13px;
 }
 
 /* Legacy two-column dashboard chrome (unused by current Dashboard) */

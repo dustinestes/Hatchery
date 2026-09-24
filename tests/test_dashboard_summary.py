@@ -35,9 +35,9 @@ class TestNestTileFields:
 
     def test_counts_reachable_unreachable_unchecked(self):
         nests = [
-            {"id": "a", "name": "A"},
-            {"id": "b", "name": "B"},
-            {"id": "c", "name": "C"},
+            {"id": "a", "name": "A", "provider_type": "libvirt"},
+            {"id": "b", "name": "B", "provider_type": "utm"},
+            {"id": "c", "name": "C", "provider_type": "hyperv"},
         ]
         snap = {
             "a": {"ok": True, "checked_at": "2026-09-20T12:00:00Z"},
@@ -49,6 +49,16 @@ class TestNestTileFields:
         assert fields["nest_unreachable"] == 1
         assert fields["nest_unchecked"] == 1
         assert fields["nest_last_validated_at"] == "2026-09-20T12:00:00Z"
+        assert fields["nest_by_provider"] == {"libvirt": 1, "utm": 1, "hyperv": 1}
+
+    def test_by_provider_defaults_libvirt(self):
+        fields = dash.nest_tile_fields(
+            [{"id": "x", "name": "X"}],
+            snap_nests={},
+        )
+        assert fields["nest_by_provider"]["libvirt"] == 1
+        assert fields["nest_by_provider"]["utm"] == 0
+        assert fields["nest_by_provider"]["hyperv"] == 0
 
 
 class TestVmSummary:
@@ -134,6 +144,64 @@ class TestClutchSummary:
         assert summary["nests_used"] == [{"id": "local", "name": "Local"}]
 
 
+class TestLibrarySummary:
+    def test_empty_linked(self):
+        summary = dash.library_summary()
+        assert summary["linked"] == {"scripts": 0, "clutches": 0, "media": 0}
+        assert summary["by_drift"] == {
+            "in_sync": 0,
+            "out_of_sync": 0,
+            "unknown": 0,
+            "orphan": 0,
+        }
+
+    def test_counts_provenance_by_domain(self):
+        from lib import library_provenance as prov
+
+        prov.upsert_on_pull(
+            domain="scripts",
+            cache_name="a.ps1",
+            connection_id="c1",
+            relative_path="a.ps1",
+            source_type="path",
+            cache_sha256="a" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="scripts",
+            cache_name="b.ps1",
+            connection_id="c1",
+            relative_path="b.ps1",
+            source_type="path",
+            cache_sha256="b" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="clutches",
+            cache_name="lab.yaml",
+            connection_id="c1",
+            relative_path="lab.yaml",
+            source_type="path",
+            cache_sha256="c" * 64,
+        )
+        prov.upsert_on_pull(
+            domain="media",
+            cache_name="win.iso",
+            connection_id="c1",
+            relative_path="win.iso",
+            source_type="path",
+            cache_sha256="d" * 64,
+            media_target="iso",
+        )
+        prov.set_drift_state(
+            "scripts",
+            "b.ps1",
+            drift_state="out_of_sync",
+        )
+        summary = dash.library_summary()
+        assert summary["linked"] == {"scripts": 2, "clutches": 1, "media": 1}
+        assert summary["by_drift"]["in_sync"] == 3
+        assert summary["by_drift"]["out_of_sync"] == 1
+
+
 class TestValidatorsSummary:
     def test_enabled_and_latest_runs(self):
         from lib.validators import builtins as builtins_mod
@@ -169,6 +237,8 @@ class TestValidatorsSummary:
         assert summary["disabled"] >= 1
         assert summary["by_status"]["ok"] >= 1
         assert summary["by_status"]["findings"] >= 1
+        assert summary["by_scope"]["controller"] >= 1
+        assert summary["by_scope"]["nest"] >= 1
         assert summary["degraded"] >= 1
         assert summary["findings_total"] >= 2
         assert summary["last_run_at"] == "2026-09-20T16:30:00Z"
@@ -203,3 +273,48 @@ class TestFooterStatusNestFields:
         assert "nest_reachable" in status
         assert "nest_unchecked" in status
         assert status["nest_last_validated_at"] == "2026-09-20T15:00:00Z"
+
+
+class TestTileValidationStamps:
+    def test_vms_placeholder_omits_alerts_and_validators(self):
+        stamps = dash.tile_validation_stamps()
+        assert stamps["vms"] == {
+            "has_validator": False,
+            "at": None,
+            "label": "not implemented",
+        }
+        assert "alerts" not in stamps
+        assert "validators" not in stamps
+
+    def test_nests_and_library_from_runs(self):
+        from lib.validators.runs import record_run
+
+        record_run(
+            validator_id="nest_reachability",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T12:00:00Z",
+        )
+        record_run(
+            validator_id="library_connections",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T13:00:00Z",
+        )
+        record_run(
+            validator_id="clutch_files",
+            status="ok",
+            message="ok",
+            finished_at="2026-09-20T11:00:00Z",
+        )
+        stamps = dash.tile_validation_stamps()
+        assert stamps["nests"]["has_validator"] is True
+        assert stamps["nests"]["at"] == "2026-09-20T12:00:00Z"
+        assert stamps["library"]["has_validator"] is True
+        assert stamps["library"]["at"] == "2026-09-20T13:00:00Z"
+        assert stamps["clutches"]["at"] == "2026-09-20T11:00:00Z"
+
+    def test_dashboard_summary_includes_validated(self):
+        summary = dash.dashboard_summary()
+        assert "validated" in summary
+        assert set(summary["validated"]) == {"nests", "clutches", "vms", "library"}

@@ -455,3 +455,48 @@ class TestBidirectionalDrift:
         ctx = ValidatorContext(trigger="manual")
         msg = LibraryCacheDriftValidator().run(ctx)
         assert "1 out of sync" in msg
+
+
+class TestCountsByDomain:
+    def test_empty(self, data_env):
+        assert prov.counts_by_domain() == {
+            "clutches": 0,
+            "media": 0,
+            "scripts": 0,
+        }
+
+    def test_groups_domains(self, data_env):
+        for name in ("a.ps1", "b.ps1"):
+            prov.upsert_on_pull(
+                domain="scripts",
+                cache_name=name,
+                connection_id="c1",
+                relative_path=name,
+                source_type="path",
+                cache_sha256="a" * 64,
+            )
+        prov.upsert_on_pull(
+            domain="media",
+            cache_name="win.iso",
+            connection_id="c1",
+            relative_path="win.iso",
+            source_type="path",
+            cache_sha256="b" * 64,
+            media_target="iso",
+        )
+        prov.upsert_on_pull(
+            domain="media",
+            cache_name="virtio.iso",
+            connection_id="c1",
+            relative_path="virtio.iso",
+            source_type="path",
+            cache_sha256="c" * 64,
+            media_target="virtio",
+        )
+        assert prov.counts_by_domain() == {
+            "clutches": 0,
+            "media": 2,
+            "scripts": 2,
+        }
+        assert prov.counts_by_drift_state()["in_sync"] == 4
+        assert prov.counts_by_drift_state()["out_of_sync"] == 0

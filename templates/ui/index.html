@@ -3,6 +3,26 @@
 {% block title %}Dashboard - Hatchery{% endblock %}
 
 {% block content %}
+{# Pane deep-link: gold arrow-up-right (#373) #}
+{% macro dash_pane_link(href, label) -%}
+<a class="dashboard-tile-link" href="{{ href }}" aria-label="{{ label }}" title="{{ label }}">
+  <svg class="dashboard-tile-link-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M7 17L17 7"/>
+    <path d="M7 7h10v10"/>
+  </svg>
+</a>
+{%- endmacro %}
+
+{# Settings deep-link: gold gear (#373) #}
+{% macro dash_settings_link(href, label, link_id=None) -%}
+<a {% if link_id %}id="{{ link_id }}" {% endif %}class="dashboard-tile-link dashboard-tile-link--settings" href="{{ href }}" aria-label="{{ label }}" title="{{ label }}">
+  <svg class="dashboard-tile-link-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+</a>
+{%- endmacro %}
+
 <div class="pane-header">
   <h1 class="pane-title">Dashboard</h1>
   <p class="pane-subtitle">At-a-glance status across Hatchery, connections, and observability.</p>
@@ -23,27 +43,36 @@
     <div class="dashboard-tile-grid" aria-label="Hatchery summary">
 
       <section class="dashboard-tile" id="dash-tile-nests" aria-labelledby="dash-tile-nests-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-nests-title">Nests</h3>
+          <p class="dashboard-tile-validated" id="dash-nests-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('nests'), 'Open Nests') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="nests" id="dash-nests-body">
           <p class="dashboard-tile-placeholder">Loading Nest status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-clutches" aria-labelledby="dash-tile-clutches-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-clutches-title">Clutches</h3>
+          <p class="dashboard-tile-validated" id="dash-clutches-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('clutches'), 'Open Clutches') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="clutches" id="dash-clutches-body">
           <p class="dashboard-tile-placeholder">Loading Clutch status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('clutches') }}">Open Clutches</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-vms" aria-labelledby="dash-tile-vms-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-vms-title">VMs</h3>
+          <p class="dashboard-tile-validated" id="dash-vms-validated" aria-live="polite">…</p>
+          {{ dash_pane_link(url_for('nests'), 'Open Nests') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="vms" id="dash-vms-body">
           <p class="dashboard-tile-placeholder">Loading VM status…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
       </section>
 
     </div>
@@ -56,7 +85,15 @@
     <div class="dashboard-tile-grid" aria-label="Connections summary">
 
       <section class="dashboard-tile" id="dash-tile-library" aria-labelledby="dash-tile-library-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-library-title">Library</h3>
+          <p class="dashboard-tile-validated" id="dash-library-validated" aria-live="polite">…</p>
+          {{ dash_settings_link(
+               url_for('settings_section', section='library') if library_enabled else url_for('settings_section', section='general'),
+               'Open Settings',
+               link_id='dashboard-library-cta'
+             ) }}
+        </div>
         <div class="dashboard-tile-body" data-tile="library" id="dash-library-body">
           {% if library_enabled %}
           <p class="dashboard-tile-placeholder">Loading Library status…</p>
@@ -65,44 +102,35 @@
           <p class="dashboard-tile-meta">Enable Library in Settings when you need shared content.</p>
           {% endif %}
         </div>
-        <a id="dashboard-library-cta"
-           class="dashboard-tile-cta link"
-           href="{% if library_enabled %}{{ url_for('settings_section', section='library') }}{% else %}{{ url_for('settings_section', section='general') }}{% endif %}">
-          Open Settings
-        </a>
       </section>
 
     </div>
   </section>
 
-  {# ── Health & observability ── #}
+  {# ── Observability (Health tile removed: redundant with Nests / Library / Alerts) ── #}
   <section class="dashboard-band" aria-labelledby="dashboard-section-observability-title">
-    <h2 class="dashboard-section-title" id="dashboard-section-observability-title">Health &amp; observability</h2>
-    <p class="dashboard-section-subtitle">Controller health, alerts, and validators.</p>
-    <div class="dashboard-tile-grid" aria-label="Health and observability summary">
-
-      <section class="dashboard-tile" id="dash-tile-health" aria-labelledby="dash-tile-health-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-health-title">Health</h3>
-        <div class="dashboard-tile-body" data-tile="health" id="dash-health-body">
-          <p class="dashboard-tile-placeholder">Loading health…</p>
-        </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('nests') }}">Open Nests</a>
-      </section>
+    <h2 class="dashboard-section-title" id="dashboard-section-observability-title">Observability</h2>
+    <p class="dashboard-section-subtitle">Alerts and validators on this Controller.</p>
+    <div class="dashboard-tile-grid" aria-label="Observability summary">
 
       <section class="dashboard-tile" id="dash-tile-alerts" aria-labelledby="dash-tile-alerts-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-alerts-title">Alerts</h3>
+          {{ dash_pane_link(url_for('alerts_pane'), 'Open Alerts') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="alerts" id="dash-alerts-body">
           <p class="dashboard-tile-placeholder">Loading alerts…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('alerts_pane') }}">Open Alerts</a>
       </section>
 
       <section class="dashboard-tile" id="dash-tile-validators" aria-labelledby="dash-tile-validators-title">
-        <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
+        <div class="dashboard-tile-header">
+          <h3 class="dashboard-tile-title" id="dash-tile-validators-title">Validators</h3>
+          {{ dash_pane_link(url_for('validators_pane'), 'Open Validators') }}
+        </div>
         <div class="dashboard-tile-body" data-tile="validators" id="dash-validators-body">
           <p class="dashboard-tile-placeholder">Loading validators…</p>
         </div>
-        <a class="dashboard-tile-cta link" href="{{ url_for('validators_pane') }}">Open Validators</a>
       </section>
 
     </div>
@@ -124,10 +152,17 @@
   var nestsBody = document.getElementById('dash-nests-body');
   var vmsBody = document.getElementById('dash-vms-body');
   var clutchesBody = document.getElementById('dash-clutches-body');
-  var healthBody = document.getElementById('dash-health-body');
   var alertsBody = document.getElementById('dash-alerts-body');
   var validatorsBody = document.getElementById('dash-validators-body');
+  var validatedEls = {
+    nests: document.getElementById('dash-nests-validated'),
+    clutches: document.getElementById('dash-clutches-validated'),
+    vms: document.getElementById('dash-vms-validated'),
+    library: document.getElementById('dash-library-validated'),
+  };
   var summaryInFlight = false;
+  var lastPlaneStatus = null;
+  var lastLibrarySummary = null;
 
   function esc(str) {
     return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
@@ -135,16 +170,57 @@
     });
   }
 
-  function fmtValidated(iso) {
-    if (!iso) return 'Never validated';
+  function fmtStampIso(iso) {
     try {
-      return 'Last validated ' + new Date(iso).toLocaleString(undefined, {
-        month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
+      var d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      // ISO-8601 UTC, second precision (drop ms).
+      return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
     } catch (e) {
-      return 'Last validated ' + esc(iso);
+      return String(iso);
     }
+  }
+
+  function setValidated(tileKey, entry) {
+    var el = validatedEls[tileKey];
+    if (!el) return;
+    if (entry && entry.label) {
+      el.textContent = String(entry.label);
+      el.removeAttribute('title');
+      return;
+    }
+    if (!entry || !entry.has_validator) {
+      el.textContent = 'no validator exists';
+      el.removeAttribute('title');
+      return;
+    }
+    if (!entry.at) {
+      el.textContent = 'never';
+      el.removeAttribute('title');
+      return;
+    }
+    var iso = fmtStampIso(entry.at);
+    el.textContent = iso;
+    el.title = 'Last validated ' + iso;
+  }
+
+  function applyValidatedMap(map) {
+    if (!map) return;
+    Object.keys(validatedEls).forEach(function (key) {
+      setValidated(key, map[key]);
+    });
+  }
+
+  function tileSplit(count, unit, asideHtml) {
+    return (
+      '<div class="dashboard-tile-split">' +
+        '<div class="dashboard-tile-hero">' +
+          '<span class="dashboard-tile-count">' + count + '</span>' +
+          (unit ? '<span class="dashboard-tile-unit">' + esc(unit) + '</span>' : '') +
+        '</div>' +
+        '<div class="dashboard-tile-aside">' + asideHtml + '</div>' +
+      '</div>'
+    );
   }
 
   function renderNests(ps) {
@@ -159,17 +235,30 @@
     var unreachable = ps.nest_unreachable || 0;
     var unchecked = ps.nest_unchecked || 0;
     var alerts = ps.nest_alert_count || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> Nest' + (total === 1 ? '' : 's') + '</p>',
+    var byProvider = ps.nest_by_provider || {};
+    var types = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Providers</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Nest providers">',
+      '<li>' + (byProvider.libvirt || 0) + ' KVM</li>',
+      '<li>' + (byProvider.utm || 0) + ' UTM</li>',
+      '<li>' + (byProvider.hyperv || 0) + ' Hyper-V</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var reach = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Reachability</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="Nest reachability">',
       '<li>' + reachable + ' reachable</li>',
       '<li>' + unreachable + ' unreachable</li>',
     ];
-    if (unchecked) parts.push('<li>' + unchecked + ' not checked yet</li>');
-    if (alerts) parts.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
-    parts.push('</ul>');
-    parts.push('<p class="dashboard-tile-meta">' + esc(fmtValidated(ps.nest_last_validated_at)) + '</p>');
-    nestsBody.innerHTML = parts.join('');
+    if (unchecked) reach.push('<li>' + unchecked + ' not checked yet</li>');
+    if (alerts) reach.push('<li>' + alerts + ' Nest alert' + (alerts === 1 ? '' : 's') + '</li>');
+    reach.push('</ul>', '</div>');
+    var aside =
+      '<div class="dashboard-tile-columns">' + types.join('') + reach.join('') + '</div>';
+    nestsBody.innerHTML = tileSplit(total, 'registered', aside);
   }
 
   function renderVms(vms, nestTotal) {
@@ -187,35 +276,50 @@
     var power = vms.by_power || {};
     var hatch = vms.by_hatch || {};
     var unavailable = vms.nests_unavailable || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + total + '</span> VM' + (total === 1 ? '' : 's') + '</p>',
+
+    var powerCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Power</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="VM power status">',
       '<li>' + (power.running || 0) + ' running</li>',
       '<li>' + (power.shut_off || 0) + ' shut off</li>',
       '<li>' + (power.paused || 0) + ' paused</li>',
     ];
-    if (power.other) parts.push('<li>' + power.other + ' other</li>');
-    parts.push('</ul>');
-    parts.push('<ul class="dashboard-tile-breakdown" aria-label="VM hatch status">');
-    var hatchBits = [];
-    if (hatch.hatching) hatchBits.push(hatch.hatching + ' hatching');
-    if (hatch.provisioning) hatchBits.push(hatch.provisioning + ' provisioning');
-    if (hatch.fledged) hatchBits.push(hatch.fledged + ' fledged');
-    if (hatch.failed) hatchBits.push(hatch.failed + ' failed');
-    if (hatch.pending) hatchBits.push(hatch.pending + ' pending');
-    if (!hatchBits.length) {
-      parts.push('<li>' + (hatch.none || total) + ' with no hatch record</li>');
-    } else {
-      hatchBits.forEach(function (b) { parts.push('<li>' + b + '</li>'); });
-      if (hatch.none) parts.push('<li>' + hatch.none + ' with no hatch record</li>');
+    if (power.other) {
+      powerCol.push('<li>' + power.other + ' other</li>');
     }
-    parts.push('</ul>');
     if (unavailable) {
-      parts.push('<p class="dashboard-tile-meta">' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') + ' unavailable for inventory</p>');
-    } else {
-      parts.push('<p class="dashboard-tile-meta">Guest health checks are not rolled up yet.</p>');
+      powerCol.push(
+        '<li>' + unavailable + ' Nest' + (unavailable === 1 ? '' : 's') +
+        ' unavailable</li>'
+      );
     }
-    vmsBody.innerHTML = parts.join('');
+    powerCol.push('</ul>', '</div>');
+
+    var hatchCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Hatch</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="VM hatch status">',
+      '<li>' + (hatch.hatching || 0) + ' hatching</li>',
+      '<li>' + (hatch.provisioning || 0) + ' provisioning</li>',
+      '<li>' + (hatch.fledged || 0) + ' fledged</li>',
+      '<li>' + (hatch.failed || 0) + ' failed</li>',
+    ];
+    if (hatch.pending) {
+      hatchCol.push('<li>' + hatch.pending + ' pending</li>');
+    }
+    if (hatch.culled) {
+      hatchCol.push('<li>' + hatch.culled + ' culled</li>');
+    }
+    hatchCol.push(
+      '<li>' + (hatch.none || 0) + ' no hatch record</li>',
+      '</ul>',
+      '</div>'
+    );
+
+    var aside =
+      '<div class="dashboard-tile-columns">' + powerCol.join('') + hatchCol.join('') + '</div>';
+    vmsBody.innerHTML = tileSplit(total, 'total', aside);
   }
 
   function renderClutches(clutches) {
@@ -227,7 +331,8 @@
     var files = clutches.file_count || 0;
     var sessions = clutches.session_total || 0;
     var byStatus = clutches.by_status || {};
-    var nestsUsed = clutches.nests_used || [];
+    var nestsUsed = (clutches.nests_used && clutches.nests_used.length) || 0;
+    var uniqueHatched = clutches.unique_clutch_files || 0;
 
     if (files === 0 && sessions === 0) {
       clutchesBody.innerHTML =
@@ -239,37 +344,41 @@
       return;
     }
 
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + files + '</span> Clutch file' + (files === 1 ? '' : 's') + '</p>',
+    var hatches = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Hatches</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">',
+      '<li>' + (byStatus.in_progress || 0) + ' in progress</li>',
+      '<li>' + (byStatus.completed || 0) + ' completed</li>',
+      '<li>' + (byStatus.failed || 0) + ' failed</li>',
+      '<li>' + (byStatus.degraded || 0) + ' degraded</li>',
     ];
-    if (sessions === 0) {
-      parts.push('<p class="dashboard-tile-meta">No active hatches.</p>');
-    } else {
-      parts.push(
-        '<p class="dashboard-tile-metric">' + sessions + ' active hatch' + (sessions === 1 ? '' : 'es') + '</p>'
-      );
-      parts.push('<ul class="dashboard-tile-breakdown" aria-label="Hatch session status">');
-      ['in_progress', 'completed', 'failed', 'degraded', 'unknown'].forEach(function (key) {
-        var n = byStatus[key] || 0;
-        if (!n) return;
-        var label = key.split('_').join(' ');
-        parts.push('<li>' + n + ' ' + label + '</li>');
-      });
-      parts.push('</ul>');
-      if (nestsUsed.length) {
-        var names = nestsUsed.map(function (n) { return esc(n.name || n.id); }).join(', ');
-        parts.push('<p class="dashboard-tile-meta">Hatched on: ' + names + '</p>');
-      }
+    if (byStatus.unknown) {
+      hatches.push('<li>' + byStatus.unknown + ' unknown</li>');
     }
-    clutchesBody.innerHTML = parts.join('');
+    hatches.push('</ul>', '</div>');
+
+    var scope = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Scope</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Hatch placement">',
+      '<li>' + nestsUsed + ' Nest' + (nestsUsed === 1 ? '' : 's') +
+        ' with hatches</li>',
+      '<li>' + uniqueHatched + ' Clutch file' + (uniqueHatched === 1 ? '' : 's') +
+        ' hatched</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var aside =
+      '<div class="dashboard-tile-columns">' + hatches.join('') + scope.join('') + '</div>';
+    clutchesBody.innerHTML = tileSplit(files, 'files', aside);
   }
 
-  function renderLibrary(ps) {
+  function renderLibrary(ps, librarySummary) {
     if (!libraryBody || !ps) return;
     var enabled = !!ps.library_enabled;
     if (libraryCta) {
       libraryCta.href = enabled ? '/settings/library' : '/settings/general';
-      libraryCta.textContent = 'Open Settings';
     }
     if (!enabled) {
       libraryBody.innerHTML =
@@ -284,6 +393,8 @@
     var disabled = ps.library_connection_disabled || 0;
     var alerts = ps.library_alert_count || 0;
     var drift = ps.library_drift_alert_count || 0;
+    var linked = (librarySummary && librarySummary.linked) || {};
+    var byDrift = (librarySummary && librarySummary.by_drift) || {};
 
     if (registered === 0) {
       libraryBody.innerHTML =
@@ -292,67 +403,73 @@
       return;
     }
 
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + enabledCount + '</span> enabled connection' + (enabledCount === 1 ? '' : 's') + '</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
+    var content = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Content</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Linked Library content">',
+      '<li>' + (linked.scripts || 0) + ' scripts linked</li>',
+      '<li>' + (linked.clutches || 0) + ' clutches linked</li>',
+      '<li>' + (linked.media || 0) + ' media linked</li>',
+      '</ul>',
+      '</div>',
     ];
-    if (disabled) parts.push('<li>' + disabled + ' disabled</li>');
+    var status = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Status</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Linked content drift status">',
+      '<li>' + (byDrift.in_sync || 0) + ' in sync</li>',
+      '<li>' + (byDrift.out_of_sync || 0) + ' out of sync</li>',
+      '<li>' + (byDrift.unknown || 0) + ' unknown</li>',
+      '<li>' + (byDrift.orphan || 0) + ' orphan</li>',
+      '</ul>',
+      '</div>',
+    ];
+    var connections = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Connections</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Library connection status">',
+      '<li>' + enabledCount + ' enabled</li>',
+      '<li>' + disabled + ' disabled</li>',
+    ];
     if (alerts) {
-      parts.push('<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>');
-    } else {
-      parts.push('<li>No connection alerts</li>');
+      connections.push(
+        '<li>' + alerts + ' connection alert' + (alerts === 1 ? '' : 's') + '</li>'
+      );
     }
     if (drift) {
-      parts.push('<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>');
+      connections.push(
+        '<li>' + drift + ' cache drift alert' + (drift === 1 ? '' : 's') + '</li>'
+      );
     }
-    parts.push('</ul>');
-    if (ps.libraries_ok) {
-      parts.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library OK') + '</p>');
-    } else {
-      parts.push('<p class="dashboard-tile-meta">' + esc(ps.libraries_title || 'Library needs attention') + '</p>');
-    }
-    libraryBody.innerHTML = parts.join('');
-  }
+    connections.push('</ul>', '</div>');
 
-  function renderHealth(ps) {
-    if (!healthBody || !ps) return;
-    var issues = [];
-    if (!ps.hatchery_ok) {
-      issues.push(ps.hatchery_title || 'Controller needs attention');
-    }
-    if (ps.nest_total && !ps.nests_ok) {
-      issues.push(ps.nests_title || 'Nest health degraded');
-    }
-    if (ps.library_enabled && !ps.libraries_ok) {
-      issues.push(ps.libraries_title || 'Library needs attention');
-    }
-
-    if (!issues.length) {
-      var meta = 'Controller OK';
-      if (ps.nest_total) {
-        meta += '; ' + (ps.nests_title || 'Nests OK');
-      } else {
-        meta += '; no Nests registered';
-      }
-      if (ps.library_enabled) {
-        meta += '; ' + (ps.libraries_title || 'Library OK');
-      }
-      healthBody.innerHTML =
-        '<p class="dashboard-tile-metric">All clear</p>' +
-        '<p class="dashboard-tile-meta">' + esc(meta) + '</p>';
-      return;
-    }
-
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + issues.length + '</span> area' + (issues.length === 1 ? '' : 's') + ' need attention</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="Health issues">',
+    var byType = ps.library_by_type || {};
+    var typeLabels = [
+      ['path', 'Path'],
+      ['https', 'HTTPS'],
+      ['git', 'Git'],
+      ['api', 'API'],
+      ['forge', 'Forge'],
     ];
-    issues.forEach(function (msg) {
-      parts.push('<li>' + esc(msg) + '</li>');
+    var types = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Types</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Library connection types">',
+    ];
+    typeLabels.forEach(function (pair) {
+      types.push('<li>' + (byType[pair[0]] || 0) + ' ' + pair[1] + '</li>');
     });
-    parts.push('</ul>');
-    parts.push('<p class="dashboard-tile-meta">See Alerts and Nests for detail.</p>');
-    healthBody.innerHTML = parts.join('');
+    types.push('</ul>', '</div>');
+
+    var aside =
+      '<div class="dashboard-tile-columns">' +
+      content.join('') + status.join('') + connections.join('') + types.join('') +
+      '</div>';
+    libraryBody.innerHTML = tileSplit(
+      registered,
+      registered === 1 ? 'connection' : 'connections',
+      aside
+    );
   }
 
   function renderAlerts(alertsPayload) {
@@ -364,28 +481,67 @@
     var items = alertsPayload.items || [];
     var open = items.filter(function (n) { return !n.resolved; });
     if (!open.length) {
-      alertsBody.innerHTML =
-        '<p class="dashboard-tile-metric">No open alerts</p>' +
-        '<p class="dashboard-tile-meta">The bell and Alerts pane stay quiet when nothing is active.</p>';
+      alertsBody.innerHTML = '<p class="dashboard-tile-metric">No open alerts</p>';
       return;
     }
     var byTier = { alert: 0, warning: 0, info: 0 };
+    var byScope = { controller: 0, nest: 0, library: 0, other: 0 };
     open.forEach(function (n) {
       var tier = String(n.tier || 'alert').toLowerCase();
       if (tier === 'error') tier = 'alert';
       if (tier !== 'info' && tier !== 'warning' && tier !== 'alert') tier = 'alert';
       byTier[tier] += 1;
+
+      var msg = String(n.message || '');
+      if (
+        msg.indexOf('Nest reachability:') === 0 ||
+        msg.indexOf('Nest capability:') === 0 ||
+        msg.indexOf('Nest SSH identity expiry:') === 0
+      ) {
+        byScope.nest += 1;
+      } else if (
+        msg.indexOf('Library connection:') === 0 ||
+        msg.indexOf('Library connection token expiry:') === 0 ||
+        msg.indexOf('Library cache drift:') === 0
+      ) {
+        byScope.library += 1;
+      } else if (
+        msg.indexOf('Controller requirement:') === 0 ||
+        msg.indexOf('Invalid Clutch file:') === 0 ||
+        msg.indexOf('Missing requirement:') === 0
+      ) {
+        byScope.controller += 1;
+      } else {
+        byScope.other += 1;
+      }
     });
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + open.length + '</span> open alert' + (open.length === 1 ? '' : 's') + '</p>',
+
+    var tierCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Tier</p>',
       '<ul class="dashboard-tile-breakdown" aria-label="Open alerts by tier">',
       '<li>' + byTier.alert + ' alert</li>',
       '<li>' + byTier.warning + ' warning</li>',
       '<li>' + byTier.info + ' info</li>',
       '</ul>',
-      '<p class="dashboard-tile-meta">Open the Alerts pane for the full list.</p>',
+      '</div>',
     ];
-    alertsBody.innerHTML = parts.join('');
+    var scopeCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Scope</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Open alerts by scope">',
+      '<li>' + byScope.controller + ' Controller</li>',
+      '<li>' + byScope.nest + ' Nest</li>',
+      '<li>' + byScope.library + ' Library</li>',
+    ];
+    if (byScope.other) {
+      scopeCol.push('<li>' + byScope.other + ' other</li>');
+    }
+    scopeCol.push('</ul>', '</div>');
+
+    var aside =
+      '<div class="dashboard-tile-columns">' + tierCol.join('') + scopeCol.join('') + '</div>';
+    alertsBody.innerHTML = tileSplit(open.length, 'open', aside);
   }
 
   function renderValidators(validators) {
@@ -411,55 +567,54 @@
     }
 
     var byStatus = validators.by_status || {};
+    var byScope = validators.by_scope || {};
     var neverRun = validators.never_run || 0;
-    var degraded = validators.degraded || 0;
-    var findingsTotal = validators.findings_total || 0;
-    var parts = [
-      '<p class="dashboard-tile-metric"><span class="dashboard-tile-count">' + enabled + '</span> of ' + total + ' enabled</p>',
-      '<ul class="dashboard-tile-breakdown" aria-label="Latest run status for enabled validators">',
+
+    var statusCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Status</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Validator latest-run status">',
       '<li>' + (byStatus.ok || 0) + ' ok</li>',
-      '<li>' + (byStatus.findings || 0) + ' with findings</li>',
+      '<li>' + (byStatus.findings || 0) + ' findings</li>',
       '<li>' + (byStatus.error || 0) + ' error</li>',
+      '<li>' + neverRun + ' never run</li>',
+      '</ul>',
+      '</div>',
     ];
-    if (neverRun) {
-      parts.push('<li>' + neverRun + ' never run</li>');
+
+    var scopeCol = [
+      '<div class="dashboard-tile-col">',
+      '<p class="dashboard-tile-col-title">Scope</p>',
+      '<ul class="dashboard-tile-breakdown" aria-label="Enabled validators by scope">',
+      '<li>' + (byScope.controller || 0) + ' Controller</li>',
+      '<li>' + (byScope.nest || 0) + ' Nest</li>',
+      '<li>' + (byScope.content || 0) + ' Content</li>',
+      '<li>' + disabled + ' disabled</li>',
+    ];
+    if (byScope.other) {
+      scopeCol.push('<li>' + byScope.other + ' other</li>');
     }
-    parts.push('</ul>');
-    if (degraded) {
-      var findBit = '';
-      if (findingsTotal) {
-        findBit = String(findingsTotal) + ' finding' + (findingsTotal === 1 ? '' : 's') +
-          ' in latest runs. ';
-      }
-      parts.push(
-        '<p class="dashboard-tile-meta">' + findBit +
-        'See the Validators pane for detail.</p>'
-      );
-    } else if (validators.last_run_at) {
-      var lastRun = 'Last run unknown';
-      try {
-        lastRun = 'Last run ' + new Date(validators.last_run_at).toLocaleString(undefined, {
-          month: 'short', day: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        });
-      } catch (e) {
-        lastRun = 'Last run ' + esc(validators.last_run_at);
-      }
-      parts.push('<p class="dashboard-tile-meta">' + lastRun + '</p>');
-    } else {
-      parts.push('<p class="dashboard-tile-meta">No runs recorded yet.</p>');
-    }
-    validatorsBody.innerHTML = parts.join('');
+    scopeCol.push('</ul>', '</div>');
+
+    var aside =
+      '<div class="dashboard-tile-columns">' + statusCol.join('') + scopeCol.join('') + '</div>';
+    validatorsBody.innerHTML = tileSplit(enabled, 'enabled', aside);
   }
 
   function applyPlaneStatus(ps) {
     if (!ps) return;
+    lastPlaneStatus = ps;
     if (emptyNests) {
       emptyNests.hidden = (ps.nest_total || 0) > 0;
     }
     renderNests(ps);
-    renderLibrary(ps);
-    renderHealth(ps);
+    renderLibrary(ps, lastLibrarySummary);
+    // Nest stamp can update from plane-status before summary returns.
+    if (ps.nest_last_validated_at) {
+      setValidated('nests', { has_validator: true, at: ps.nest_last_validated_at });
+    } else if (validatedEls.nests && !validatedEls.nests.dataset.summaryStamp) {
+      setValidated('nests', { has_validator: true, at: null });
+    }
   }
 
   function fetchDashboardSummary(nestTotal) {
@@ -468,9 +623,17 @@
     fetch('/api/dashboard-summary')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
+        lastLibrarySummary = data && data.library;
         renderVms(data && data.vms, nestTotal);
         renderClutches(data && data.clutches);
         renderValidators(data && data.validators);
+        if (lastPlaneStatus) {
+          renderLibrary(lastPlaneStatus, lastLibrarySummary);
+        }
+        applyValidatedMap(data && data.validated);
+        Object.keys(validatedEls).forEach(function (key) {
+          if (validatedEls[key]) validatedEls[key].dataset.summaryStamp = '1';
+        });
       })
       .catch(function () {
         if (vmsBody) {
@@ -485,6 +648,9 @@
       })
       .finally(function () { summaryInFlight = false; });
   }
+
+  // VMs: placeholder until a guest-health (or similar) validator exists.
+  setValidated('vms', { has_validator: false, at: null, label: 'not implemented' });
 
   hatchery.onStatusTick(function (payload) {
     var ps = payload && payload.planeStatus;
