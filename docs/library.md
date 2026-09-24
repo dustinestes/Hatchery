@@ -83,7 +83,9 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 ## Settings and Import
 
-**Settings owns Library configuration** (feature flag, connections, domain bindings). Asset panes keep an in-context control so operators shop next to Clutches, Automations, or Media.
+**Settings owns the Library feature flag** (`library_enabled`). Connection/binding **configuration** moves to a first-class Library plane and SQLite tables ([ADR-0016](adr/0016-library-operator-plane.md), [ADR-0017](adr/0017-library-connections-bindings-tables.md), [#375](https://github.com/dustinestes/Hatchery/issues/375), [#367](https://github.com/dustinestes/Hatchery/issues/367)). Until that UI ships, Settings → Library remains the transitional editor over Settings JSON.
+
+Asset panes keep an in-context **Import** control. When Library is on, **From library…** will deep-link into the Library plane (today: in-pane Library tab per [ADR-0002](adr/0002-library-in-pane-browser.md), superseded for primary catalog browse by ADR-0016).
 
 | `library_enabled` | Import control |
 |---|---|

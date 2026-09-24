@@ -46,7 +46,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-library-api-adapters.md) | Library API connection type + pluggable providers | Accepted |
-| [0002](0002-library-in-pane-browser.md) | In-pane Library browser (Cached \| Library tabs) | Accepted |
+| [0002](0002-library-in-pane-browser.md) | In-pane Library browser (Cached \| Library tabs) | Superseded by [0016](0016-library-operator-plane.md) |
 | [0003](0003-nest-registry-provider-factory.md) | Nest registry + provider factory (no hard-wired libvirt) | Accepted |
 | [0004](0004-status-surfaces-gather-store-poll.md) | Status surfaces - gather → store → poll | Accepted |
 | [0005](0005-controller-only-package-distribution.md) | Controller-only install via OS package managers | Accepted |
@@ -60,6 +60,8 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0013](0013-hatchery-cli-launch-and-operator.md) | Hatchery CLI - launch and operator surfaces | Accepted |
 | [0014](0014-optional-local-nest.md) | Optional Local Nest and empty Nest registry | Accepted |
 | [0015](0015-settings-partial-writes-worker-services.md) | Partial Settings writes + worker-only runtime services | Accepted |
+| [0016](0016-library-operator-plane.md) | First-class Library operator plane (Connections admin) | Accepted |
+| [0017](0017-library-connections-bindings-tables.md) | Library connections and bindings as first-class tables | Accepted |
 
 <br>
 
