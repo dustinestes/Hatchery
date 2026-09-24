@@ -1,6 +1,6 @@
 # ADR-0002: In-pane Library browser (Cached | Library tabs)
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0016](0016-library-operator-plane.md)
 - **Date:** 2026-09-19
 - **Issues:** [#244](https://github.com/dustinestes/Hatchery/issues/244), [#297](https://github.com/dustinestes/Hatchery/issues/297)
 - **How-to:** [library.md - Inventory browse](../library.md#inventory-browse-cached--library)

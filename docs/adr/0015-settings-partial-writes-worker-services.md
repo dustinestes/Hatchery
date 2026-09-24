@@ -15,7 +15,7 @@ Background writers (especially nest reachability) called `config.save({**config.
 
 1. **Partial writes:** Callers that change one (or a few) Settings keys must use `config.update_settings({...})`, which UPSERTs only those keys and updates only those keys in memory. Full `config.save()` remains for intentional whole-form Settings POSTs.
 2. **Worker-only runtime services:** Do not start the hatch poller or validator scheduler at import time. Start them via `hatchery.start_runtime_services()` from gunicorn `post_fork` (`hatchery serve`) and lazily from `@app.before_request` (raw `gunicorn hatchery:app` / tests).
-3. **Library config in `app_settings` JSON** remains for now; moving connections/bindings to first-class tables is [#367](https://github.com/dustinestes/Hatchery/issues/367) (keep `library_enabled` as an app setting).
+3. **Library config in `app_settings` JSON** was transitional; connections/bindings move to first-class tables ([ADR-0017](0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)). Keep `library_enabled` as an app setting. Operator UI: [ADR-0016](0016-library-operator-plane.md).
 
 ## Consequences
 
