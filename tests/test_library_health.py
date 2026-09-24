@@ -10,6 +10,7 @@ from lib import alerts as alerts_lib
 from lib import config as cfg
 from lib import db
 from lib import library_health as lh
+from lib import library_registry as library_registry_lib
 from lib.validators import builtins as builtins_mod
 from lib.validators.registry import clear_registry, get_validator
 from lib.validators.scheduler import run_validator
@@ -30,8 +31,8 @@ def _iso(tmp_path, monkeypatch):
 def _enable_library(connections: list[dict]) -> None:
     c = cfg.get()
     c["library_enabled"] = True
-    c["library_connections"] = connections
     cfg.save(c)
+    library_registry_lib.replace_connections(connections)
 
 
 class TestTokenExpiry:
@@ -190,20 +191,20 @@ class TestValidator:
         run_validator("library_connections", trigger="manual")
         assert alerts_lib.count_active_by_prefixes(lh.LIBRARY_SCOPED_ALERT_PREFIXES) >= 1
 
-        c = cfg.get()
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "X",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-                "enabled": False,
-            }
-        ]
-        cfg.save(c)
+        library_registry_lib.replace_connections(
+            [
+                {
+                    "id": "c1",
+                    "label": "X",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": False,
+                }
+            ]
+        )
         run_validator("library_connections", trigger="manual")
         assert alerts_lib.count_active_by_prefixes(lh.LIBRARY_SCOPED_ALERT_PREFIXES) == 0
 

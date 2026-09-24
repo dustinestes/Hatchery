@@ -42,10 +42,6 @@ _DB_SETTING_KEYS = frozenset(
         "nest_key_alert_tiers",
         "nest_ssh_identities",
         "library_enabled",
-        "library_connections",
-        "library_script_bindings",
-        "library_clutch_bindings",
-        "library_media_bindings",
     }
 )
 
@@ -72,10 +68,6 @@ _DEFAULTS: dict = {
     "show_passwords": False,
     "display_timezone": "UTC",
     "library_enabled": False,
-    "library_connections": [],
-    "library_script_bindings": [],
-    "library_clutch_bindings": [],
-    "library_media_bindings": [],
     # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
     "nest_key_alert_tiers": [
         {"days_before": 30, "alerts_per_day": 1},
@@ -201,6 +193,17 @@ def bind_db() -> dict:
     _db_bound = True
     if runtime_data_dir() is None and not os.environ.get("HATCHERY_DATA_DIR", "").strip():
         _write_bootstrap({"data_dir": _bootstrap_data_dir or _config["data_dir"]})
+    # ADR-0017: copy any leftover Settings JSON into tables (idempotent).
+    if _db_path_ready():
+        from lib import db as db_module
+        from lib import library_registry as library_registry_lib
+
+        conn = db_module.get_connection()
+        try:
+            library_registry_lib.migrate_from_app_settings(conn)
+            conn.commit()
+        finally:
+            conn.close()
     return _config
 
 
@@ -296,22 +299,30 @@ def library_enabled() -> bool:
 
 def library_connections() -> list:
     """Return Library connection registry (list of dicts)."""
-    return list(get().get("library_connections") or [])
+    from lib import library_registry as library_registry_lib
+
+    return library_registry_lib.list_connections()
 
 
 def library_script_bindings() -> list:
     """Return Scripts domain bindings (list of dicts)."""
-    return list(get().get("library_script_bindings") or [])
+    from lib import library_registry as library_registry_lib
+
+    return library_registry_lib.list_bindings(domain="scripts")
 
 
 def library_clutch_bindings() -> list:
     """Return Clutches domain bindings (list of dicts)."""
-    return list(get().get("library_clutch_bindings") or [])
+    from lib import library_registry as library_registry_lib
+
+    return library_registry_lib.list_bindings(domain="clutches")
 
 
 def library_media_bindings() -> list:
     """Return Media domain bindings (list of dicts)."""
-    return list(get().get("library_media_bindings") or [])
+    from lib import library_registry as library_registry_lib
+
+    return library_registry_lib.list_bindings(domain="media")
 
 
 def exportable_setting_keys() -> frozenset[str]:

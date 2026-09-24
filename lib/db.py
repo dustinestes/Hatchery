@@ -128,6 +128,59 @@ CREATE TABLE IF NOT EXISTS library_cache_provenance (
     updated_at              TEXT    NOT NULL,
     UNIQUE(domain, media_target, cache_name)
 );
+
+CREATE TABLE IF NOT EXISTS library_connections (
+    id          TEXT PRIMARY KEY,
+    label       TEXT    NOT NULL,
+    type        TEXT    NOT NULL,
+    provider    TEXT    NOT NULL DEFAULT '',
+    base_uri    TEXT    NOT NULL,
+    token       TEXT    NOT NULL DEFAULT '',
+    expires_at  TEXT,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL,
+    CHECK (type IN ('path', 'https', 'git', 'api', 'forge')),
+    CHECK (enabled IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS library_connection_kinds (
+    connection_id   TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,
+    PRIMARY KEY (connection_id, kind),
+    FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
+    CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+);
+
+CREATE TABLE IF NOT EXISTS library_bindings (
+    id              TEXT PRIMARY KEY,
+    connection_id   TEXT    NOT NULL,
+    domain          TEXT    NOT NULL,
+    media_target    TEXT    NOT NULL DEFAULT '',
+    label           TEXT    NOT NULL,
+    filter          TEXT    NOT NULL DEFAULT '*',
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT    NOT NULL,
+    updated_at      TEXT    NOT NULL,
+    FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
+    CHECK (domain IN ('scripts', 'clutches', 'media')),
+    CHECK (
+        (domain != 'media' AND media_target = '')
+        OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
+    ),
+    CHECK (enabled IN (0, 1))
+);
+
+CREATE INDEX IF NOT EXISTS idx_library_connections_enabled
+    ON library_connections(enabled);
+CREATE INDEX IF NOT EXISTS idx_library_connections_type
+    ON library_connections(type);
+CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind
+    ON library_connection_kinds(kind);
+CREATE INDEX IF NOT EXISTS idx_library_bindings_connection
+    ON library_bindings(connection_id);
+CREATE INDEX IF NOT EXISTS idx_library_bindings_domain
+    ON library_bindings(domain, media_target);
 """
 
 _db_path: Path | None = None
@@ -153,7 +206,173 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
     _migrate_nests_columns(conn)
     _migrate_library_cache_provenance(conn)
+    _migrate_library_registry(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
+    # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
+    from lib import library_registry as library_registry_lib
+
+    library_registry_lib.migrate_from_app_settings(conn)
+
+
+def _migrate_library_registry(conn: sqlite3.Connection) -> None:
+    """Promote sketch ``kinds_json`` to ``library_connection_kinds``; tighten columns.
+
+    Fresh DBs get the ADR-0017 shape from ``_SCHEMA``. Existing sketch DBs that
+    still have ``kinds_json`` are rebuilt once. Junction table is always ensured.
+    """
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_connections'"
+    ).fetchone()
+    if not table:
+        return
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS library_connection_kinds (
+            connection_id   TEXT    NOT NULL,
+            kind            TEXT    NOT NULL,
+            PRIMARY KEY (connection_id, kind),
+            FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
+            CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind
+            ON library_connection_kinds(kind)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_library_connections_enabled
+            ON library_connections(enabled)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_library_connections_type
+            ON library_connections(type)
+        """
+    )
+
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(library_connections)").fetchall()}
+    if "kinds_json" not in cols:
+        # Normalize nullables if an older sketch left them NULL without kinds_json.
+        for col, default in (("provider", "''"), ("token", "''"), ("base_uri", "''")):
+            if col in cols:
+                conn.execute(
+                    f"UPDATE library_connections SET {col} = {default} WHERE {col} IS NULL"
+                )
+        return
+
+    import json
+
+    # Rebuild may DROP while bindings / kinds still reference the old table.
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        rows = conn.execute("SELECT * FROM library_connections").fetchall()
+        col_names = [
+            r[1] for r in conn.execute("PRAGMA table_info(library_connections)").fetchall()
+        ]
+        by_name = {name: i for i, name in enumerate(col_names)}
+
+        for row in rows:
+            cid = row[by_name["id"]]
+            raw = row[by_name["kinds_json"]] if "kinds_json" in by_name else "[]"
+            try:
+                kinds = json.loads(raw) if raw else []
+            except (TypeError, json.JSONDecodeError):
+                kinds = []
+            if not isinstance(kinds, list):
+                kinds = []
+            for kind in kinds:
+                k = str(kind).strip().lower()
+                if k not in ("scripts", "clutches", "media", "packages"):
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO library_connection_kinds (connection_id, kind)
+                    VALUES (?, ?)
+                    """,
+                    (cid, k),
+                )
+
+        conn.execute(
+            """
+            CREATE TABLE library_connections__new (
+                id          TEXT PRIMARY KEY,
+                label       TEXT    NOT NULL,
+                type        TEXT    NOT NULL,
+                provider    TEXT    NOT NULL DEFAULT '',
+                base_uri    TEXT    NOT NULL,
+                token       TEXT    NOT NULL DEFAULT '',
+                expires_at  TEXT,
+                enabled     INTEGER NOT NULL DEFAULT 1,
+                created_at  TEXT    NOT NULL,
+                updated_at  TEXT    NOT NULL,
+                CHECK (type IN ('path', 'https', 'git', 'api', 'forge')),
+                CHECK (enabled IN (0, 1))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO library_connections__new (
+                id, label, type, provider, base_uri, token, expires_at,
+                enabled, created_at, updated_at
+            )
+            SELECT
+                id, label, type,
+                COALESCE(provider, ''),
+                COALESCE(base_uri, ''),
+                COALESCE(token, ''),
+                expires_at, enabled, created_at, updated_at
+            FROM library_connections
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE library_connection_kinds__new (
+                connection_id   TEXT    NOT NULL,
+                kind            TEXT    NOT NULL,
+                PRIMARY KEY (connection_id, kind),
+                FOREIGN KEY (connection_id) REFERENCES library_connections__new(id)
+                    ON DELETE CASCADE,
+                CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO library_connection_kinds__new (connection_id, kind)
+            SELECT connection_id, kind FROM library_connection_kinds
+            """
+        )
+        conn.execute("DROP TABLE library_connection_kinds")
+        conn.execute("DROP TABLE library_connections")
+        conn.execute("ALTER TABLE library_connections__new RENAME TO library_connections")
+        conn.execute("ALTER TABLE library_connection_kinds__new RENAME TO library_connection_kinds")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind
+                ON library_connection_kinds(kind)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connections_enabled
+                ON library_connections(enabled)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connections_type
+                ON library_connections(type)
+            """
+        )
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _migrate_library_cache_provenance(conn: sqlite3.Connection) -> None:
@@ -266,4 +485,5 @@ def get_connection() -> sqlite3.Connection:
         raise RuntimeError("db not initialized - call init_db() first")
     conn = sqlite3.connect(str(_db_path))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn

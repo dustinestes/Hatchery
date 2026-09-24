@@ -1,8 +1,12 @@
-"""Settings export/import — portable YAML for ``app_settings``.
+"""Settings export/import - portable YAML for ``app_settings``.
 
 Operational Settings (SQLite keys) can be downloaded and re-applied across
 machines as a full document replace. Bootstrap ``data_dir`` is never applied
 from an import; operators set that out of band.
+
+Library connections/bindings live in first-class tables (ADR-0017) and are not
+part of Settings export/import. Legacy keys in an old document are ignored with
+a warning (registry is not wiped).
 """
 
 from __future__ import annotations
@@ -14,10 +18,18 @@ from typing import Any
 import yaml
 
 from lib import config as config_lib
-from lib import library as library_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 
 DOCUMENT_VERSION = 1
+
+_LEGACY_LIBRARY_KEYS = frozenset(
+    {
+        "library_connections",
+        "library_script_bindings",
+        "library_clutch_bindings",
+        "library_media_bindings",
+    }
+)
 
 
 def export_document(*, include_meta: bool = True) -> dict[str, Any]:
@@ -51,8 +63,7 @@ def validate_document(raw: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize a Settings document.
 
     Returns ``{version, settings, warnings}``. ``settings`` contains only known
-    exportable keys. Library bindings are checked against connections when both
-    appear in the document; final cross-checks run in :func:`apply_document`.
+    exportable keys.
     """
     warnings: list[str] = []
     version = raw.get("version")
@@ -79,7 +90,17 @@ def validate_document(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(settings_raw, dict):
         raise ValueError("Settings document settings must be a mapping")
 
-    unknown = sorted(set(settings_raw) - config_lib.exportable_setting_keys() - {"data_dir"})
+    for key in sorted(set(settings_raw) & _LEGACY_LIBRARY_KEYS):
+        warnings.append(
+            f"Legacy Settings key ignored (Library registry is SQLite, ADR-0017): {key}"
+        )
+
+    unknown = sorted(
+        set(settings_raw)
+        - config_lib.exportable_setting_keys()
+        - {"data_dir"}
+        - _LEGACY_LIBRARY_KEYS
+    )
     for key in unknown:
         warnings.append(f"Unknown settings key ignored: {key}")
 
@@ -89,9 +110,6 @@ def validate_document(raw: dict[str, Any]) -> dict[str, Any]:
             continue
         normalized[key] = _normalize_setting(key, settings_raw[key])
 
-    if "library_connections" in normalized:
-        _validate_library_slice(normalized)
-
     return {"version": DOCUMENT_VERSION, "settings": normalized, "warnings": warnings}
 
 
@@ -99,8 +117,8 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
     """Validate and replace live Settings with the document.
 
     Starts from exportable-key defaults, applies keys present in the file, keeps
-    local ``data_dir``. Omitted keys reset to Hatchery defaults — what you import
-    is what you get.
+    local ``data_dir``. Omitted keys reset to Hatchery defaults - what you import
+    is what you get. Library connection/binding tables are not modified.
 
     Returns ``{ok, warnings, applied}``.
     """
@@ -114,7 +132,6 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
     new_cfg = {**config_lib.defaults_for_exportable_settings(), "data_dir": data_dir}
     new_cfg.update(incoming)
 
-    _validate_library_full(new_cfg)
     nest_key_expiry_lib.parse_tiers(new_cfg.get("nest_key_alert_tiers"))
     nest_key_expiry_lib.parse_identities(new_cfg.get("nest_ssh_identities") or [])
 
@@ -143,12 +160,13 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
 
     config_lib.save(new_cfg)
     from lib import library_health as library_health_lib
+    from lib import library_registry as library_registry_lib
 
     if not new_cfg.get("library_enabled"):
         library_health_lib.resolve_all_library_alerts()
     else:
         library_health_lib.prune_alerts_for_removed_connections(
-            {c["id"] for c in (new_cfg.get("library_connections") or []) if c.get("id")}
+            {c["id"] for c in library_registry_lib.list_connections()}
         )
     return {
         "ok": True,
@@ -197,50 +215,4 @@ def _normalize_setting(key: str, value: Any) -> Any:
             raise ValueError("nest_ssh_identities must be a list")
         nest_key_expiry_lib.parse_identities(value)
         return deepcopy(value)
-    if key == "library_connections":
-        if not isinstance(value, list):
-            raise ValueError("library_connections must be a list")
-        return library_lib.parse_connections(value, enforce_expiry_future=False)
-    if key in (
-        "library_script_bindings",
-        "library_clutch_bindings",
-        "library_media_bindings",
-    ):
-        if not isinstance(value, list):
-            raise ValueError(f"{key} must be a list")
-        return deepcopy(value)
     raise ValueError(f"Unsupported settings key: {key}")
-
-
-def _validate_library_slice(settings: dict[str, Any]) -> None:
-    """Validate bindings in the document against connections also in the document."""
-    conns = settings["library_connections"]
-    if "library_script_bindings" in settings:
-        settings["library_script_bindings"] = library_lib.parse_script_bindings(
-            settings["library_script_bindings"], conns
-        )
-    if "library_clutch_bindings" in settings:
-        settings["library_clutch_bindings"] = library_lib.parse_clutch_bindings(
-            settings["library_clutch_bindings"], conns
-        )
-    if "library_media_bindings" in settings:
-        settings["library_media_bindings"] = library_lib.parse_media_bindings(
-            settings["library_media_bindings"], conns
-        )
-
-
-def _validate_library_full(cfg: dict[str, Any]) -> None:
-    conns = library_lib.parse_connections(
-        cfg.get("library_connections") or [],
-        enforce_expiry_future=False,
-    )
-    cfg["library_connections"] = conns
-    cfg["library_script_bindings"] = library_lib.parse_script_bindings(
-        cfg.get("library_script_bindings") or [], conns
-    )
-    cfg["library_clutch_bindings"] = library_lib.parse_clutch_bindings(
-        cfg.get("library_clutch_bindings") or [], conns
-    )
-    cfg["library_media_bindings"] = library_lib.parse_media_bindings(
-        cfg.get("library_media_bindings") or [], conns
-    )

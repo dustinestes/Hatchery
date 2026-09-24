@@ -184,20 +184,32 @@ class TestSave:
 
 class TestUpdateSettings:
     def test_writes_only_named_keys(self, isolated_config):
+        import lib.library_registry as library_registry
+
         cfg.load()
         cfg.bind_db()
         cfg.save(
             {
                 **cfg.get(),
                 "bg_interval": 40,
-                "library_connections": [{"id": "c1", "label": "Keep"}],
                 "validators_run_retention": 50,
             }
+        )
+        library_registry.replace_connections(
+            [
+                {
+                    "id": "c1",
+                    "label": "Keep",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "kinds": ["scripts"],
+                }
+            ]
         )
         cfg.update_settings({"validators_run_retention": 66})
         assert cfg.get()["validators_run_retention"] == 66
         assert cfg.get()["bg_interval"] == 40
-        assert cfg.get()["library_connections"] == [{"id": "c1", "label": "Keep"}]
+        assert library_registry.list_connections()[0]["label"] == "Keep"
         conn = db_module.get_connection()
         try:
             rows = {
@@ -208,18 +220,25 @@ class TestUpdateSettings:
             conn.close()
         assert rows["validators_run_retention"] == 66
         assert rows["bg_interval"] == 40
-        assert rows["library_connections"] == [{"id": "c1", "label": "Keep"}]
+        assert "library_connections" not in rows
 
     def test_stale_process_snapshot_cannot_clobber_via_update(self, isolated_config):
-        """Simulate master holding old library while worker saved new (#366)."""
+        """Simulate master holding old library while worker saved new (#366 / #367)."""
+        import lib.library_registry as library_registry
+
         cfg.load()
         cfg.bind_db()
-        cfg.save(
-            {
-                **cfg.get(),
-                "library_connections": [{"id": "new", "label": "Hatchery_Test"}],
-                "nest_reachability_status": {},
-            }
+        cfg.save({**cfg.get(), "nest_reachability_status": {}})
+        library_registry.replace_connections(
+            [
+                {
+                    "id": "new",
+                    "label": "Hatchery_Test",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "kinds": ["scripts"],
+                }
+            ]
         )
         # Stale caller only patches reachability (old full-save path would rewrite library).
         cfg.update_settings(
@@ -235,15 +254,7 @@ class TestUpdateSettings:
             }
         )
         assert cfg.library_connections()[0]["label"] == "Hatchery_Test"
-        conn = db_module.get_connection()
-        try:
-            row = conn.execute(
-                "SELECT value FROM app_settings WHERE key = ?",
-                ("library_connections",),
-            ).fetchone()
-            assert json.loads(row["value"])[0]["label"] == "Hatchery_Test"
-        finally:
-            conn.close()
+        assert library_registry.list_connections()[0]["label"] == "Hatchery_Test"
 
 
 class TestGet:

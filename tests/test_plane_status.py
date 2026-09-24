@@ -7,6 +7,7 @@ import pytest
 from lib import alerts as alerts_lib
 from lib import config as cfg
 from lib import db
+from lib import library_registry as library_registry_lib
 from lib import nests as nests_lib
 from lib import plane_status as ps
 from lib.nest_transport import NestHealthCheckResult
@@ -20,6 +21,13 @@ def _iso(tmp_path, monkeypatch):
     cfg.load()
     cfg.bind_db()
     yield
+
+
+def _set_library(*, enabled: bool, connections: list[dict]) -> None:
+    c = cfg.get()
+    c["library_enabled"] = enabled
+    cfg.save(c)
+    library_registry_lib.replace_connections(connections)
 
 
 class TestFooterStatus:
@@ -79,10 +87,7 @@ class TestFooterStatus:
         assert status["libraries_visible"] is False
 
     def test_libraries_muted_when_enabled_empty(self):
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = []
-        cfg.save(c)
+        _set_library(enabled=True, connections=[])
         status = ps.footer_status()
         assert status["libraries_visible"] is True
         assert status["libraries_dot"] == "muted"
@@ -91,20 +96,20 @@ class TestFooterStatus:
     def test_libraries_green_when_ok(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "Share",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-            }
-        ]
-        cfg.save(c)
+        _set_library(
+            enabled=True,
+            connections=[
+                {
+                    "id": "c1",
+                    "label": "Share",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                }
+            ],
+        )
         status = ps.footer_status()
         assert status["libraries_dot"] == "green"
         assert status["library_connection_total"] == 1
@@ -112,31 +117,31 @@ class TestFooterStatus:
     def test_libraries_footer_counts_only_enabled(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "On",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-                "enabled": True,
-            },
-            {
-                "id": "c2",
-                "label": "Off",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-                "enabled": False,
-            },
-        ]
-        cfg.save(c)
+        _set_library(
+            enabled=True,
+            connections=[
+                {
+                    "id": "c1",
+                    "label": "On",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": True,
+                },
+                {
+                    "id": "c2",
+                    "label": "Off",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": False,
+                },
+            ],
+        )
         status = ps.footer_status()
         assert status["library_connection_total"] == 1
         assert status["library_connection_registered"] == 2
@@ -147,40 +152,40 @@ class TestFooterStatus:
     def test_libraries_by_type_counts_registered(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "Share",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-            },
-            {
-                "id": "c2",
-                "label": "Repo",
-                "type": "git",
-                "base_uri": "https://example.com/r.git",
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-                "enabled": False,
-            },
-            {
-                "id": "c3",
-                "label": "Forge",
-                "type": "forge",
-                "base_uri": "https://github.com/org/repo",
-                "token": "",
-                "expires_at": None,
-                "kinds": ["clutches"],
-                "provider": "github",
-            },
-        ]
-        cfg.save(c)
+        _set_library(
+            enabled=True,
+            connections=[
+                {
+                    "id": "c1",
+                    "label": "Share",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                },
+                {
+                    "id": "c2",
+                    "label": "Repo",
+                    "type": "git",
+                    "base_uri": "https://example.com/r.git",
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": False,
+                },
+                {
+                    "id": "c3",
+                    "label": "Forge",
+                    "type": "forge",
+                    "base_uri": "https://github.com/org/repo",
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["clutches"],
+                    "provider": "github",
+                },
+            ],
+        )
         status = ps.footer_status()
         assert status["library_by_type"] == {
             "api": 0,
@@ -195,21 +200,21 @@ class TestFooterStatus:
     def test_libraries_muted_when_all_connections_disabled(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "Off",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-                "enabled": False,
-            }
-        ]
-        cfg.save(c)
+        _set_library(
+            enabled=True,
+            connections=[
+                {
+                    "id": "c1",
+                    "label": "Off",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                    "enabled": False,
+                }
+            ],
+        )
         status = ps.footer_status()
         assert status["library_connection_total"] == 0
         assert status["libraries_dot"] == "muted"
@@ -218,20 +223,20 @@ class TestFooterStatus:
     def test_libraries_red_on_library_alert(self, tmp_path):
         share = tmp_path / "share"
         share.mkdir()
-        c = cfg.get()
-        c["library_enabled"] = True
-        c["library_connections"] = [
-            {
-                "id": "c1",
-                "label": "Share",
-                "type": "path",
-                "base_uri": str(share),
-                "token": "",
-                "expires_at": None,
-                "kinds": ["scripts"],
-            }
-        ]
-        cfg.save(c)
+        _set_library(
+            enabled=True,
+            connections=[
+                {
+                    "id": "c1",
+                    "label": "Share",
+                    "type": "path",
+                    "base_uri": str(share),
+                    "token": "",
+                    "expires_at": None,
+                    "kinds": ["scripts"],
+                }
+            ],
+        )
         alerts_lib.record_alert(
             "Library connection: 'Share' (c1) - Path does not exist: /x",
             tier="alert",
