@@ -67,6 +67,23 @@ class TestPs1Syntax:
             errors
         )
 
+    def test_enable_rdp_is_valid_powershell(self):
+        path = _EXAMPLES_DIR / "enable-rdp.ps1"
+        errors = _ps1_syntax_errors(str(path))
+        assert errors == [], "PowerShell syntax errors in enable-rdp.ps1:\n" + "\n".join(errors)
+
+    def test_remove_appx_is_valid_powershell(self):
+        path = _EXAMPLES_DIR / "remove-appx.ps1"
+        errors = _ps1_syntax_errors(str(path))
+        assert errors == [], "PowerShell syntax errors in remove-appx.ps1:\n" + "\n".join(errors)
+
+    def test_install_virtio_drivers_is_valid_powershell(self):
+        path = _EXAMPLES_DIR / "install-virtio-drivers.ps1"
+        errors = _ps1_syntax_errors(str(path))
+        assert errors == [], (
+            "PowerShell syntax errors in install-virtio-drivers.ps1:\n" + "\n".join(errors)
+        )
+
     def test_invalid_powershell_is_caught(self, tmp_path):
         ps1 = tmp_path / "bad.ps1"
         ps1.write_text("function Broken { if ($true) {", encoding="utf-8")
