@@ -1,11 +1,11 @@
 # ADR-0012: Library cache provenance + drift sync
 
-- **Status:** Accepted
+- **Status:** Accepted (tip-missing / path-gone refined by [ADR-0018](0018-library-drift-scenario-matrix.md))
 - **Date:** 2026-09-19
-- **Issues:** [#308](https://github.com/dustinestes/Hatchery/issues/308)
+- **Issues:** [#308](https://github.com/dustinestes/Hatchery/issues/308); scenario matrix [#370](https://github.com/dustinestes/Hatchery/issues/370)
 - **Code:** [`lib/library_provenance.py`](../../lib/library_provenance.py), [`lib/library_drift.py`](../../lib/library_drift.py), validator `library_cache_drift`
-- **How-to:** [library.md - Cache provenance and drift](../library.md#cache-provenance-and-drift-308)
-- **Related:** [ADR-0009](0009-library-git-checkout-cache.md), [ADR-0010](0010-library-forge-providers.md), [ADR-0011](0011-library-consume-only-no-clutch-roundtrip.md), [ADR-0006](0006-pluggable-validators.md)
+- **How-to:** [library.md - Cache provenance and drift](../library.md#cache-provenance-and-drift-308); [Drift scenario matrix](../library.md#drift-scenario-matrix-370)
+- **Related:** [ADR-0009](0009-library-git-checkout-cache.md), [ADR-0010](0010-library-forge-providers.md), [ADR-0011](0011-library-consume-only-no-clutch-roundtrip.md), [ADR-0006](0006-pluggable-validators.md), [ADR-0018](0018-library-drift-scenario-matrix.md)
 
 ## Context
 
@@ -48,7 +48,7 @@ Drift detection needs durable attribution of cached files → Library source. Re
 
 6. **Sync = pull bytes then evaluate** for that row. Sync does not force `in_sync` or resolve Alerts; evaluate updates digests, `drift_state`, and domain Alert reconcile.
 
-7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `unknown`, no retry storm.
+7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `unknown`, no retry storm. Tip path absent after a successful resolve → `source_missing` ([ADR-0018](0018-library-drift-scenario-matrix.md)), not `unknown`.
 
 8. **Delete connection/binding:** default leave Cached files; provenance becomes **orphan** when ids are missing. Optional confirm toggle (**default off**) also deletes attributed cache files + rows.
 

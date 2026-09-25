@@ -188,7 +188,7 @@ Strategy: connection **`type: api`** + **`provider`** plugin (not a vendor-named
 
 ### Cache provenance and drift (#308)
 
-Architecture: [ADR-0012](adr/0012-library-cache-provenance-drift.md). First Library **pull** writes a SQLite provenance row linking the Cached basename to `connection_id` / optional `binding_id` / `relative_path`. Files never pulled via Library stay **local** (no sync, no orphan).
+Architecture: [ADR-0012](adr/0012-library-cache-provenance-drift.md); scenario matrix + `source_missing`: [ADR-0018](adr/0018-library-drift-scenario-matrix.md). First Library **pull** writes a SQLite provenance row linking the Cached basename to `connection_id` / optional `binding_id` / `relative_path`. Files never pulled via Library stay **local** (no sync, no orphan).
 
 Drift is **bidirectional**: the validator refreshes observed digests for both sides and compares them to sync anchors (and, when possible, live cache vs live tip).
 
@@ -198,13 +198,42 @@ Drift is **bidirectional**: the validator refreshes observed digests for both si
 | `source_digest` / `source_digest_synced` | Observed vs last-sync Library tip |
 | `source_digest_kind` | Tip alphabet (`sha256`, `git_blob`, `size_mtime`) |
 
+| `drift_state` | Meaning |
+|---|---|
+| `in_sync` | Cache and tip agree with anchors (UI: synced / linked healthy) |
+| `out_of_sync` | Cache and/or tip drifted (or live identity mismatch) |
+| `source_missing` | Connection/binding still valid; tip path cannot be resolved after a successful tip check (remote rename/delete). Actionable |
+| `unknown` | Tip unavailable: rate limit, disabled connection, or tip kind cannot be confirmed cheaply |
+| `orphan` | Connection or binding id missing from the registry |
+
 | | |
 |---|---|
 | **Out of sync when** | Cache bytes changed since sync, **or** Library tip moved since sync, **or** (content-addressable tips) live cache identity ≠ live tip |
-| **Sync** | Overwrites the Cached file from the source, then **evaluates that row** (evaluate owns digests, `drift_state`, and Alerts). Sync does not force `in_sync` by itself |
+| **Sync** | Overwrites the Cached file from the source, then **evaluates that row** (evaluate owns digests, `drift_state`, and Alerts). Sync does not force `in_sync` by itself. On `source_missing`, Sync may still be attempted (tip restored at the same path) or fail with copy pointing at Re-attach / Remove |
+| **Source missing** | Tip path gone while refs remain → warning; correction set: **Re-attach**, **Sync**, or **Remove** (drop provenance; optional cull Cached file). Not counted in domain “N out of sync” Alerts ([ADR-0018](adr/0018-library-drift-scenario-matrix.md)) |
 | **Orphan** | Connection/binding id missing → warning on Cached views; shared re-attach modal ([#364](https://github.com/dustinestes/Hatchery/issues/364)): connection + **binding** + fixed Cached filename, Test, then rewrite ids. Path basename must match the Cached name (rename → re-import). Relative path must match the selected binding filter ([#360](https://github.com/dustinestes/Hatchery/issues/360)). Re-attach only rewrites provenance ids/path, then runs single-file drift evaluate (it does not mark the file in sync). A binding is always required ([#363](https://github.com/dustinestes/Hatchery/issues/363)); if the connection has none for this domain, add one under Library → Connections first. Binding remove can then cascade-delete attributed cache ([#357](https://github.com/dustinestes/Hatchery/issues/357)) |
 | **Delete connection/binding** | Default: leave Cached files (orphans). Optional confirm toggle deletes attributed files (binding cascade matches `binding_id`; connection cascade matches `connection_id`) |
-| **Validator** | `library_cache_drift` - Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
+| **Validator** | `library_cache_drift` - Settings interval + optional **auto-sync**. Manual mode: one Alert per domain with a count of **`out_of_sync` only**. Auto-sync on: overwrite out-of-sync files then evaluate; no drift Alerts |
+
+#### Drift scenario matrix (#370)
+
+Locked desired states ([ADR-0018](adr/0018-library-drift-scenario-matrix.md)). Implementation of `source_missing` and UX ships in follow-on issues under [#370](https://github.com/dustinestes/Hatchery/issues/370).
+
+| Scenario | Local | Remote | Desired state | Primary action |
+|---|---|---|---|---|
+| Unchanged | Exists, same anchors | Tip resolves, same tip | `in_sync` | None |
+| Content changed (local) | Bytes ≠ sync anchor | Tip unchanged | `out_of_sync` | Sync (overwrites local) |
+| Content changed (remote) | Unchanged | Tip digest moved (same path) | `out_of_sync` | Sync (pulls tip) |
+| Both changed | Bytes drifted | Tip moved | `out_of_sync` | Sync (source wins) |
+| Renamed (remote) | Old basename cached | Old path missing; new name elsewhere | `source_missing` | Re-attach (same basename) or re-import; or Remove |
+| Renamed (local) | Cache file renamed/moved | Provenance mismatch | Ghost / Cleaner ([#361](https://github.com/dustinestes/Hatchery/issues/361)) | Cleaner or restore + re-attach |
+| Missing (remote) | Cache present | Tip path deleted | `source_missing` | Re-attach or Remove |
+| Missing (local) | Cache file gone | Tip may exist | `out_of_sync` (or Cleaner ghost) | Sync or Cleaner |
+| Connection/binding removed | Cache present | Ids gone | `orphan` | Re-attach |
+| Tip unavailable | Cache present | Rate limit, disabled, or no digest kind | `unknown` | Fix connection / wait |
+| Basename mismatch on re-attach | - | - | API reject ([#364](https://github.com/dustinestes/Hatchery/issues/364)) | Re-import |
+
+**Vocabulary:** UI may say **linked** (has provenance) and **synced** (`in_sync`). Problems use warn chrome. Prefer landing lifecycle chrome on **Library → Content** ([ADR-0016](adr/0016-library-operator-plane.md)) rather than growing permanent Sync/re-attach stacks on every domain pane.
 
 #### How tip identity works (one story per connection type)
 
