@@ -40,9 +40,9 @@ Operators need clear correction paths (Re-attach, Sync, Remove) when the source 
 |---|---|
 | `in_sync` | `source_status == ok` and digests/anchors agree (ADR-0012 compare rules) |
 | `out_of_sync` | `source_status == ok` and cache and/or tip drifted (or live identity mismatch) |
-| unset / null | **`source_status != ok`** - sync was **not** evaluated (we cannot reach a comparable tip). Clear any prior sync value so the UI never shows stale “in sync” during a rate limit |
+| `unevaluated` | **`source_status != ok`** - sync was **not** compared (no comparable tip). Always a concrete string in DB/API payloads - never null/omitted for “we skipped compare.” Write `unevaluated` (replacing any prior `in_sync` / `out_of_sync`) so clients never see a stale sync claim during rate limit or path-gone |
 
-**`sync_state` is not reachability.** Reachability lives only in `source_status`. If status is anything other than `ok`, leave sync unset.
+**`sync_state` is not reachability.** Reachability lives only in `source_status`. If status is anything other than `ok`, set `sync_state` to **`unevaluated`** (do not encode *why* here - why is `source_status` + message).
 
 3. **`source_status_message`** - companion text column on the provenance row (set whenever `source_status` is written).
 
@@ -84,15 +84,15 @@ Operators need clear correction paths (Re-attach, Sync, Remove) when the source 
 | Content changed (local) | Bytes ≠ cache anchor | Tip unchanged | `ok` | `out_of_sync` | Sync |
 | Content changed (remote) | Unchanged | Tip moved (same path) | `ok` | `out_of_sync` | Sync |
 | Both changed | Bytes drifted | Tip moved | `ok` | `out_of_sync` | Sync (source wins) |
-| Renamed (remote) | Old basename cached | Old path absent | `missing` | unset | Re-attach / re-import / Remove |
+| Renamed (remote) | Old basename cached | Old path absent | `missing` | `unevaluated` | Re-attach / re-import / Remove |
 | Renamed (local) | File moved | Provenance mismatch | (Cleaner / [#361](https://github.com/dustinestes/Hatchery/issues/361)) | - | Cleaner |
-| Missing (remote) | Cache present | Path deleted | `missing` | unset | Re-attach or Remove |
+| Missing (remote) | Cache present | Path deleted | `missing` | `unevaluated` | Re-attach or Remove |
 | Missing (local) | Cache gone | Tip may exist | `ok` (if tip resolves) | `out_of_sync` | Sync or Cleaner |
-| Connection/binding removed | Cache present | Ids gone | `orphan` | unset | Re-attach |
-| Rate limited | Cache present | 403/429 | `rate_limited` | unset | Wait / token / interval |
-| Network / tip-index failure | Cache present | Transport error | `unreachable` | unset | Fix connectivity |
-| Connection disabled | Cache present | Skipped | `disabled` | unset | Enable connection |
-| No cheap digest | Cache present | HTTPS/API without tip | `unconfirmable` | unset | Add checksum / accept limit |
+| Connection/binding removed | Cache present | Ids gone | `orphan` | `unevaluated` | Re-attach |
+| Rate limited | Cache present | 403/429 | `rate_limited` | `unevaluated` | Wait / token / interval |
+| Network / tip-index failure | Cache present | Transport error | `unreachable` | `unevaluated` | Fix connectivity |
+| Connection disabled | Cache present | Skipped | `disabled` | `unevaluated` | Enable connection |
+| No cheap digest | Cache present | HTTPS/API without tip | `unconfirmable` | `unevaluated` | Add checksum / accept limit |
 | Basename mismatch on re-attach | - | - | (API reject) | - | Re-import |
 
 8. **UI rollups** (filters/badges; not extra DB enums): e.g. **Communication** = `rate_limited` ∪ `unreachable`; **Needs attention** = `missing` ∪ `orphan` ∪ (`sync_state == out_of_sync`). Detail shows `source_status` + `source_status_message`.

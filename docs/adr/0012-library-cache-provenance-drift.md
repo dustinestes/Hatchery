@@ -48,7 +48,7 @@ Drift detection needs durable attribution of cached files → Library source. Re
 
 6. **Sync = pull bytes then evaluate** for that row. Sync does not force `in_sync` or resolve Alerts; evaluate updates digests, `drift_state`, and domain Alert reconcile.
 
-7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `source_status=rate_limited` with sync unset ([ADR-0018](0018-library-drift-scenario-matrix.md)). Tip path absent after a successful resolve → `source_status=missing`, not a sync compare.
+7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `source_status=rate_limited` with `sync_state=unevaluated` ([ADR-0018](0018-library-drift-scenario-matrix.md)). Tip path absent after a successful resolve → `source_status=missing`, not a sync compare.
 
 8. **Delete connection/binding:** default leave Cached files; provenance becomes **orphan** when ids are missing. Optional confirm toggle (**default off**) also deletes attributed cache files + rows.
 

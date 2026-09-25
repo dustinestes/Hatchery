@@ -202,7 +202,7 @@ Evaluate answers **two** questions in **one** pass (same tip fetch; no second ne
 | `source_digest_kind` | Tip alphabet (`sha256`, `git_blob`, `size_mtime`) |
 | `source_status` | Reachability / attribution (see below) |
 | `source_status_message` | Catalog or detail text for the current `source_status` |
-| `sync_state` | `in_sync` / `out_of_sync` when `source_status == ok`; otherwise unset |
+| `sync_state` | `in_sync` / `out_of_sync` when `source_status == ok`; otherwise **`unevaluated`** (never null in API payloads) |
 
 | `source_status` | Meaning |
 |---|---|
@@ -218,7 +218,7 @@ Evaluate answers **two** questions in **one** pass (same tip fetch; no second ne
 |---|---|
 | `in_sync` | `source_status == ok` and digests/anchors agree (UI: synced) |
 | `out_of_sync` | `source_status == ok` and cache and/or tip drifted |
-| (unset) | `source_status != ok` - sync was **not** evaluated |
+| `unevaluated` | `source_status != ok` - sync was **not** compared (reason is `source_status` + message) |
 
 | | |
 |---|---|
@@ -239,15 +239,15 @@ Locked desired states ([ADR-0018](adr/0018-library-drift-scenario-matrix.md)). S
 | Content changed (local) | Bytes ≠ sync anchor | Tip unchanged | `ok` | `out_of_sync` | Sync |
 | Content changed (remote) | Unchanged | Tip digest moved (same path) | `ok` | `out_of_sync` | Sync |
 | Both changed | Bytes drifted | Tip moved | `ok` | `out_of_sync` | Sync (source wins) |
-| Renamed (remote) | Old basename cached | Old path missing; new name elsewhere | `missing` | unset | Re-attach / re-import / Remove |
+| Renamed (remote) | Old basename cached | Old path missing; new name elsewhere | `missing` | `unevaluated` | Re-attach / re-import / Remove |
 | Renamed (local) | Cache file renamed/moved | Provenance mismatch | Ghost / Cleaner ([#361](https://github.com/dustinestes/Hatchery/issues/361)) | - | Cleaner |
-| Missing (remote) | Cache present | Tip path deleted | `missing` | unset | Re-attach or Remove |
+| Missing (remote) | Cache present | Tip path deleted | `missing` | `unevaluated` | Re-attach or Remove |
 | Missing (local) | Cache file gone | Tip may exist | `ok` (if tip resolves) | `out_of_sync` | Sync or Cleaner |
-| Connection/binding removed | Cache present | Ids gone | `orphan` | unset | Re-attach |
-| Rate limited | Cache present | 403/429 | `rate_limited` | unset | Wait / fix token |
-| Network / tip-index failure | Cache present | Transport error | `unreachable` | unset | Fix connectivity |
-| Connection disabled | Cache present | Skipped | `disabled` | unset | Enable connection |
-| No cheap digest | Cache present | HTTPS/API without tip | `unconfirmable` | unset | Add checksum / accept limit |
+| Connection/binding removed | Cache present | Ids gone | `orphan` | `unevaluated` | Re-attach |
+| Rate limited | Cache present | 403/429 | `rate_limited` | `unevaluated` | Wait / fix token |
+| Network / tip-index failure | Cache present | Transport error | `unreachable` | `unevaluated` | Fix connectivity |
+| Connection disabled | Cache present | Skipped | `disabled` | `unevaluated` | Enable connection |
+| No cheap digest | Cache present | HTTPS/API without tip | `unconfirmable` | `unevaluated` | Add checksum / accept limit |
 | Basename mismatch on re-attach | - | - | API reject ([#364](https://github.com/dustinestes/Hatchery/issues/364)) | - | Re-import |
 
 **Vocabulary:** UI may say **linked** (has provenance) and **synced** (`sync_state == in_sync` with `source_status == ok`). Problems use warn chrome plus `source_status_message`. Prefer landing lifecycle chrome on **Library → Content** ([ADR-0016](adr/0016-library-operator-plane.md)) rather than growing permanent Sync/re-attach stacks on every domain pane.
@@ -274,7 +274,7 @@ Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
 
 Each full validator pass uses about **one Trees request per forge connection** (plus a repo metadata call), not one Trees request per attributed file. Single-file Sync uses Contents metadata for that path when possible.
 
-GitHub still rate-limits aggressive intervals (especially without a PAT: ~60 requests/hour unauthenticated). Prefer a longer `library_cache_drift` interval in production, and attach a token on forge connections. On 403/429, affected rows become `source_status=rate_limited` with `sync_state` unset (no retry storm).
+GitHub still rate-limits aggressive intervals (especially without a PAT: ~60 requests/hour unauthenticated). Prefer a longer `library_cache_drift` interval in production, and attach a token on forge connections. On 403/429, affected rows become `source_status=rate_limited` with `sync_state=unevaluated` (no retry storm).
 
 ### Connection health (#254)
 
