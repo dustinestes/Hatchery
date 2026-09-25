@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
@@ -478,6 +479,15 @@ class LibraryRateLimitError(Exception):
     """Remote tip API refused the request (e.g. GitHub 403/429)."""
 
 
+@dataclass(frozen=True)
+class TipResolveResult:
+    """Outcome of a cheap tip resolve (ADR-0018 source_status inputs)."""
+
+    status: str  # ok | missing | unconfirmable | unreachable
+    tip: tuple[str, str] | None = None
+    detail: str = ""
+
+
 def tip_index_for_connection(conn: dict) -> dict[str, tuple[str, str]]:
     """Return ``{relative_path: (kind, digest)}`` for a connection (batched when possible).
 
@@ -503,52 +513,101 @@ def resolve_source_digest(
     *,
     tip_index: dict[str, tuple[str, str]] | None = None,
     single_file: bool = False,
+    tip_index_complete: bool = False,
 ) -> tuple[str, str] | None:
     """Return ``(kind, digest)`` for drift compare — never downloads a file body.
 
-    Returns None when tip identity cannot be obtained cheaply (→ drift ``unknown``).
-    When ``tip_index`` is provided, prefer that map (pass-scoped forge Trees batch).
-    ``single_file`` asks adapters for a cheap one-path tip (e.g. GitHub Contents).
+    Prefer :func:`resolve_source_tip` when callers need ADR-0018 status codes.
+    ``tip_index_complete`` means a successful batch index is authoritative (path
+    absent → missing, not a further resolve).
     """
+    result = resolve_source_tip(
+        conn,
+        relative_path,
+        tip_index=tip_index,
+        single_file=single_file,
+        tip_index_complete=tip_index_complete,
+    )
+    return result.tip if result.status == "ok" else None
+
+
+def resolve_source_tip(
+    conn: dict,
+    relative_path: str,
+    *,
+    tip_index: dict[str, tuple[str, str]] | None = None,
+    single_file: bool = False,
+    tip_index_complete: bool = False,
+) -> TipResolveResult:
+    """Resolve tip identity with an explicit reachability outcome (ADR-0018)."""
     rel = relative_path.replace("\\", "/").lstrip("/")
     if not rel or ".." in Path(rel).parts:
         raise ValueError("Invalid relative path")
     if tip_index is not None and rel in tip_index:
-        return tip_index[rel]
+        return TipResolveResult(status="ok", tip=tip_index[rel])
+    if tip_index_complete and tip_index is not None:
+        return TipResolveResult(
+            status="missing",
+            detail="Path not present in source tip index",
+        )
     ctype = conn.get("type")
     if ctype == "path":
         src = _expand_base(conn["base_uri"]) / rel
         if not src.is_file():
-            return None
-        return ("size_mtime", size_mtime_digest(src))
+            return TipResolveResult(status="missing")
+        return TipResolveResult(status="ok", tip=("size_mtime", size_mtime_digest(src)))
     if ctype == "https":
-        return _https_source_digest(conn, rel)
+        return _https_source_tip(conn, rel)
     if ctype == "git":
-        return _git_blob_digest(conn, rel)
+        return _git_blob_tip(conn, rel)
     if ctype == "api":
-        adapter = _api_adapter(conn)
-        if single_file:
-            one = getattr(adapter, "source_digest_one", None)
-            if callable(one):
-                return one(conn, rel)
-        getter = getattr(adapter, "source_digest", None)
-        if callable(getter):
-            return getter(conn, rel)
-        return None
+        return _adapter_source_tip(conn, rel, single_file=single_file, forge=False)
     if ctype == "forge":
-        adapter = _forge_adapter(conn)
+        return _adapter_source_tip(conn, rel, single_file=single_file, forge=True)
+    return TipResolveResult(
+        status="unconfirmable",
+        detail=f"Unsupported connection type: {ctype}",
+    )
+
+
+def _adapter_source_tip(
+    conn: dict,
+    rel: str,
+    *,
+    single_file: bool,
+    forge: bool,
+) -> TipResolveResult:
+    adapter = _forge_adapter(conn) if forge else _api_adapter(conn)
+    try:
         if single_file:
             one = getattr(adapter, "source_digest_one", None)
             if callable(one):
-                return one(conn, rel)
+                tip = one(conn, rel)
+                if tip:
+                    return TipResolveResult(status="ok", tip=tip)
+                return TipResolveResult(status="missing")
         getter = getattr(adapter, "source_digest", None)
         if callable(getter):
-            return getter(conn, rel)
-        return None
-    return None
+            tip = getter(conn, rel)
+            if tip:
+                return TipResolveResult(status="ok", tip=tip)
+            return TipResolveResult(status="missing")
+    except LibraryRateLimitError:
+        raise
+    except Exception as exc:
+        return TipResolveResult(status="unreachable", detail=str(exc)[:240])
+    return TipResolveResult(
+        status="unconfirmable",
+        detail="Provider cannot confirm tip without a body download",
+    )
 
 
 def _https_source_digest(conn: dict, rel: str) -> tuple[str, str] | None:
+    result = _https_source_tip(conn, rel)
+    return result.tip if result.status == "ok" else None
+
+
+def _https_source_tip(conn: dict, rel: str) -> TipResolveResult:
     url = conn["base_uri"].rstrip("/") + "/" + rel
     req = Request(url, method="HEAD")
     token = (conn.get("token") or "").strip()
@@ -567,33 +626,48 @@ def _https_source_digest(conn: dict, rel: str) -> tuple[str, str] | None:
             if sha.startswith("sha-256="):
                 sha = sha.split("=", 1)[1].strip()
             if re.fullmatch(r"[0-9a-f]{64}", sha):
-                return ("sha256", sha)
-    except (HTTPError, URLError, OSError):
-        return None
-    return None
+                return TipResolveResult(status="ok", tip=("sha256", sha))
+            return TipResolveResult(status="unconfirmable")
+    except HTTPError as exc:
+        if int(getattr(exc, "code", 0) or 0) == 404:
+            return TipResolveResult(status="missing", detail="HTTP 404")
+        return TipResolveResult(
+            status="unreachable",
+            detail=f"HTTP {getattr(exc, 'code', '?')}",
+        )
+    except (URLError, OSError) as exc:
+        return TipResolveResult(status="unreachable", detail=str(exc)[:240])
 
 
 def _git_blob_digest(conn: dict, rel: str) -> tuple[str, str] | None:
+    result = _git_blob_tip(conn, rel)
+    return result.tip if result.status == "ok" else None
+
+
+def _git_blob_tip(conn: dict, rel: str) -> TipResolveResult:
     if not git_available():
-        return None
+        return TipResolveResult(status="unreachable", detail="git is not available")
     try:
         root = ensure_git_checkout(conn)
-    except (ValueError, OSError, subprocess.TimeoutExpired):
-        return None
+    except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
+        return TipResolveResult(status="unreachable", detail=str(exc)[:240])
     result = _run_git(["ls-tree", "HEAD", "--", rel], cwd=root, timeout=60)
     if result.returncode != 0:
-        return None
+        return TipResolveResult(
+            status="unreachable",
+            detail=(result.stderr or result.stdout or "git ls-tree failed")[:240],
+        )
     line = (result.stdout or "").strip().splitlines()
     if not line:
-        return None
+        return TipResolveResult(status="missing")
     # mode type sha\tpath
     parts = line[0].split()
     if len(parts) < 3:
-        return None
+        return TipResolveResult(status="missing")
     sha = parts[2]
     if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
-        return None
-    return ("git_blob", sha)
+        return TipResolveResult(status="unconfirmable", detail="Unexpected git blob id")
+    return TipResolveResult(status="ok", tip=("git_blob", sha))
 
 
 def _expand_base(base_uri: str) -> Path:

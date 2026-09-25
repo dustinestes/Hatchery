@@ -306,7 +306,11 @@ class LibraryCacheDriftValidator(BaseValidator):
             parts.append(f"{orphans} orphan(s)")
         rate = int(summary.get("rate_limited") or 0)
         if rate:
-            parts.append(f"{rate} rate-limited (unknown)")
+            parts.append(f"{rate} rate-limited")
+        by_status = summary.get("by_source_status") or {}
+        missing = int(by_status.get("missing") or 0)
+        if missing:
+            parts.append(f"{missing} source missing")
         return "; ".join(parts)
 
 
