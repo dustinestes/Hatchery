@@ -663,6 +663,8 @@ def enrich_inventory(
     media_target: str | None = None,
 ) -> list[dict[str, Any]]:
     """Attach provenance fields onto filesystem inventory dicts (keyed by name)."""
+    from lib import library_status_cues as cues
+
     by_name = {r["cache_name"]: r for r in list_for_domain(domain, media_target=media_target)}
     annotated = annotate_orphan_states(
         list(by_name.values()),
@@ -691,5 +693,6 @@ def enrich_inventory(
             enriched["source_status_message"] = row.get("source_status_message") or ""
             enriched["orphan"] = bool(row.get("orphan"))
             enriched["orphan_reason"] = row.get("orphan_reason") or ""
+        cues.attach_to_inventory_item(enriched)
         out.append(enriched)
     return out

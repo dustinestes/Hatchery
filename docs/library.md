@@ -252,6 +252,23 @@ Locked desired states ([ADR-0018](adr/0018-library-drift-scenario-matrix.md)). S
 
 **Vocabulary:** UI may say **linked** (has provenance) and **synced** (`sync_state == in_sync` with `source_status == ok`). Problems use warn chrome plus `source_status_message`. Prefer landing lifecycle chrome on **Library → Content** ([ADR-0016](adr/0016-library-operator-plane.md)) rather than growing permanent Sync/re-attach stacks on every domain pane.
 
+#### Library status cues (#387)
+
+Shared cue map (Python [`lib/library_status_cues.py`](../lib/library_status_cues.py) + JS [`static/library_status_cues.js`](../static/library_status_cues.js)) so Cached panes and Library → Content stay 1:1.
+
+| Cue id | When | Short label (rail) | Severity | Primary action |
+|---|---|---|---|---|
+| `local` | No provenance | (none) | muted | - |
+| `synced` | `ok` + `in_sync` | synced | ok | - |
+| `out_of_sync` | `ok` + `out_of_sync` | out of sync | action | Sync |
+| `orphan` | `source_status=orphan` | orphaned | warn | Re-attach |
+| `missing` | `source_status=missing` | source missing | warn | Re-attach / Remove |
+| `communication` | `rate_limited` or `unreachable` | rate limited / unreachable | warn | Fix connection / wait |
+| `disabled` | `disabled` | connection disabled | muted | Enable connection |
+| `unconfirmable` | `unconfirmable` (and similar) | tip unconfirmable | muted | Add checksum / accept |
+
+Filter rollups use cue ids (e.g. **Communication** = `rate_limited` ∪ `unreachable`). Detail shows full `source_status_message` when non-empty (not hover-only).
+
 #### How tip identity works (one story per connection type)
 
 Hatchery never downloads a file body **only** to compare digests. Tip identity is:
