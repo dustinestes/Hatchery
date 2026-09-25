@@ -477,13 +477,17 @@ def start_runtime_services() -> None:
 
 
 def stop_runtime_services() -> None:
-    """Stop hatch poller + validator scheduler (tests / teardown)."""
-    global _runtime_services_started, _bg_stop_event
+    """Stop hatch poller + validator scheduler (tests / teardown).
+
+    Leaves ``_runtime_services_started`` set so the next request does not re-run
+    the one-shot validator bootstrap (which would create fresh Alerts and break
+    alert-count assertions). The poller stays down until process restart.
+    """
+    global _bg_stop_event
     if _bg_stop_event is not None:
         _bg_stop_event.set()
         _bg_stop_event = None
     stop_scheduler()
-    _runtime_services_started = False
 
 
 @app.before_request
