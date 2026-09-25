@@ -33,7 +33,7 @@ from lib.providers.factory import (
     get_provider,
 )
 from lib.validators.builtins import register_builtins
-from lib.validators.scheduler import run_validator, start_scheduler
+from lib.validators.scheduler import run_validator, start_scheduler, stop_scheduler
 from lib.validators.settings import list_validator_configs, migrate_bg_interval
 
 # Tracks (session_id, vm_name) pairs currently being provisioned so the sync
@@ -474,6 +474,16 @@ def start_runtime_services() -> None:
     _sync_hatch_status()
     _start_background_thread()
     start_scheduler()
+
+
+def stop_runtime_services() -> None:
+    """Stop hatch poller + validator scheduler (tests / teardown)."""
+    global _runtime_services_started, _bg_stop_event
+    if _bg_stop_event is not None:
+        _bg_stop_event.set()
+        _bg_stop_event = None
+    stop_scheduler()
+    _runtime_services_started = False
 
 
 @app.before_request
