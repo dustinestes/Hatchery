@@ -1,17 +1,23 @@
 """Shared pytest fixtures.
 
-The app starts a hatch status poller and a validator scheduler at import.
-Stop both as soon as the test suite loads so long CI runs do not race host
-checks into the isolated test DB. Unit tests that need them call them directly.
+The app starts a hatch status poller and a validator scheduler on the first
+request (and at import under some entrypoints). Stop both when the suite loads
+and between tests so long CI runs (especially Windows) do not race host checks
+or bootstrap writes into isolated config fixtures.
 """
 
 from __future__ import annotations
 
+import pytest
+
 import hatchery as app_module
 
-if app_module._bg_stop_event is not None:
-    app_module._bg_stop_event.set()
+app_module.stop_runtime_services()
 
-from lib.validators.scheduler import stop_scheduler
 
-stop_scheduler()
+@pytest.fixture(autouse=True)
+def _isolate_runtime_services():
+    """Keep the hatch poller / validator scheduler from racing later modules."""
+    app_module.stop_runtime_services()
+    yield
+    app_module.stop_runtime_services()

@@ -2086,6 +2086,32 @@ class TestHatchClutchRoute:
         assert "4 GB RAM" in html
         assert "60 GB disk" in html
 
+    def test_get_credentials_include_password_toggle(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"x")
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            admin_username="alice",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        html = client.get("/hatch-clutch?clutch=my-lab.yaml").data.decode()
+        assert 'name="credentials[dc01]"' in html
+        assert 'type="password"' in html
+        assert 'class="password-input-toggle"' in html
+        assert 'aria-label="Show password"' in html
+        assert "password-input-wrap" in html
+        assert 'type="button"' in html
+
     def test_get_invalid_clutch_shows_error(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
