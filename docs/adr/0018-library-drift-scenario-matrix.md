@@ -132,3 +132,4 @@ Operators need clear correction paths (Re-attach, Sync, Remove) when the source 
 | Fold `missing` into `orphan` | Mis-labels valid connection/binding ids |
 | Separate network round-trip for sync after reachability | Rejected - one evaluate pass already has tip data |
 | `sync_state` writable from UI | Rejected - validator/evaluate owns truth after Sync/pull |
+| `sync_state` null / omitted when not compared | Rejected - ambiguous for API clients; use explicit `unevaluated` |
