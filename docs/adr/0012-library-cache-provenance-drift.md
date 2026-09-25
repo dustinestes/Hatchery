@@ -1,6 +1,6 @@
 # ADR-0012: Library cache provenance + drift sync
 
-- **Status:** Accepted (tip-missing / path-gone refined by [ADR-0018](0018-library-drift-scenario-matrix.md))
+- **Status:** Accepted (reachability vs sync refined by [ADR-0018](0018-library-drift-scenario-matrix.md))
 - **Date:** 2026-09-19
 - **Issues:** [#308](https://github.com/dustinestes/Hatchery/issues/308); scenario matrix [#370](https://github.com/dustinestes/Hatchery/issues/370)
 - **Code:** [`lib/library_provenance.py`](../../lib/library_provenance.py), [`lib/library_drift.py`](../../lib/library_drift.py), validator `library_cache_drift`
@@ -48,7 +48,7 @@ Drift detection needs durable attribution of cached files → Library source. Re
 
 6. **Sync = pull bytes then evaluate** for that row. Sync does not force `in_sync` or resolve Alerts; evaluate updates digests, `drift_state`, and domain Alert reconcile.
 
-7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `unknown`, no retry storm. Tip path absent after a successful resolve → `source_missing` ([ADR-0018](0018-library-drift-scenario-matrix.md)), not `unknown`.
+7. **Forge tip resolution is batched** per connection per drift pass (one Trees fetch maps all paths). Single-row evaluate may use a cheap per-path Contents tip. Rate limits (403/429) → `source_status=rate_limited` with sync unset ([ADR-0018](0018-library-drift-scenario-matrix.md)). Tip path absent after a successful resolve → `source_status=missing`, not a sync compare.
 
 8. **Delete connection/binding:** default leave Cached files; provenance becomes **orphan** when ids are missing. Optional confirm toggle (**default off**) also deletes attributed cache files + rows.
 

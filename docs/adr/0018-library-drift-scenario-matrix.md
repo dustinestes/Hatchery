@@ -1,88 +1,134 @@
-# ADR-0018: Library drift scenario matrix + `source_missing`
+# ADR-0018: Library source reachability + sync state (scenario matrix)
 
 - **Status:** Accepted
 - **Date:** 2026-09-25
 - **Issues:** Planning parent [#370](https://github.com/dustinestes/Hatchery/issues/370); evaluate [#382](https://github.com/dustinestes/Hatchery/issues/382); Cached UX [#383](https://github.com/dustinestes/Hatchery/issues/383); Content pane [#384](https://github.com/dustinestes/Hatchery/issues/384)
-- **Extends:** [ADR-0012](0012-library-cache-provenance-drift.md) (provenance + bidirectional evaluate remain; tip-missing vocabulary is refined here)
+- **Extends:** [ADR-0012](0012-library-cache-provenance-drift.md) (provenance + digests + Sync = pull-then-evaluate remain; single `drift_state` vocabulary is refined into two axes here)
 - **Related:** [ADR-0016](0016-library-operator-plane.md) (Library → Content north star), [#364](https://github.com/dustinestes/Hatchery/issues/364) (re-attach basename lock), [#361](https://github.com/dustinestes/Hatchery/issues/361) (Cleaners / ghost provenance), [#379](https://github.com/dustinestes/Hatchery/issues/379) (Library soft disable)
 - **How-to:** [library.md - Drift scenario matrix](../library.md#drift-scenario-matrix-370)
 
 ## Context
 
-ADR-0012 locked four `drift_state` values: `in_sync`, `out_of_sync`, `unknown`, `orphan`. Tip resolution that returns no digest while the Cached file still exists (remote rename, remote delete, wrong `relative_path`) lands in **`unknown`** today - the same bucket as rate limits, disabled connections, and tip kinds that cannot be confirmed cheaply (HTTPS without checksum, API without metadata SHA).
+ADR-0012 locked one column, `drift_state` (`in_sync` | `out_of_sync` | `unknown` | `orphan`). That mixed two different questions:
 
-Operators reasonably treat “source path gone” as an actionable problem (re-attach, Sync, or remove attribution), not “Tip unknown.” Planning issue [#370](https://github.com/dustinestes/Hatchery/issues/370) needs an explicit matrix and a fifth state so implementation and UX do not invent buckets ad hoc.
+1. Can we resolve the attributed **source** object?
+2. If so, does the Cached file **agree** with that source?
+
+Rate limits, network failures, disabled connections, and “no cheap digest” are **known** outcomes. Calling them `unknown` was wrong. Path-gone (remote rename/delete) is also known and actionable, not the same as a throttle.
+
+Operators need clear correction paths (Re-attach, Sync, Remove) when the source is missing, without inflating Sync Alerts for communication failures.
 
 ## Decision
 
-1. **Keep ADR-0012 mechanics** (SQLite provenance, bidirectional digests, Sync = pull then evaluate, never download solely to compare, orphan on missing connection/binding ids, validator Alert rules for `out_of_sync`).
+### Two axes (not more values in one enum)
 
-2. **Add `drift_state` value `source_missing`.** Meaning: connection and binding ids are still valid, tip resolution ran without a transient failure, and the recorded tip path / identity cannot be resolved (path deleted, renamed away, or otherwise absent from a successful tip index / single-path resolve), while the Cached file may still exist.
+1. **`source_status`** - can we reach / resolve the attributed tip? Always set for provenance rows by evaluate / validator.
 
-3. **Keep `unknown` for tip unavailable** - transient or non-actionable tip confirmation failure only:
-   - Connection disabled
-   - Tip index / resolve rate-limited or transport failed in a way that does not prove path absence (403/429, network error)
-   - Tip kind cannot be confirmed cheaply (HTTPS without checksum header; API without metadata SHA) even though the object may still exist
+| Value | Meaning |
+|---|---|
+| `ok` | Tip resolved (digest + kind available for compare) |
+| `missing` | Tip check succeeded; path/object absent (remote rename/delete) |
+| `orphan` | Connection or binding id missing from the registry |
+| `disabled` | Connection `enabled: false` |
+| `rate_limited` | Tip index / resolve hit 403/429 (known throttle) |
+| `unreachable` | Other transport / tip-index failure (network, DNS, 5xx, etc.) |
+| `unconfirmable` | Object may still exist; we will not download a body solely to compare (HTTPS without checksum; API without metadata SHA) |
 
-4. **Do not collapse `source_missing` into `orphan`.** Orphan = registry soft-ref missing (connection/binding id gone). Source missing = refs valid, tip path gone. Recovery UX differs (orphan always re-attach ids; source missing often re-attach `relative_path` or remove).
+2. **`sync_state`** - cache vs tip comparison. **Validator / evaluate only** (never a direct operator edit). Written in the **same** evaluate pass that already fetched tip data - do not make a second network round-trip to “sync-check.”
 
-5. **Do not treat `source_missing` as `out_of_sync`.** Sync is still a correction action (see below), but path-gone must not inflate domain drift Alert counts or auto-sync loops that cannot succeed until the path is fixed.
+| Value | When |
+|---|---|
+| `in_sync` | `source_status == ok` and digests/anchors agree (ADR-0012 compare rules) |
+| `out_of_sync` | `source_status == ok` and cache and/or tip drifted (or live identity mismatch) |
+| unset / null | **`source_status != ok`** - sync was **not** evaluated (we cannot reach a comparable tip). Clear any prior sync value so the UI never shows stale “in sync” during a rate limit |
 
-6. **Operator correction set for `source_missing`** (implementation follow-on; product lock here):
+**`sync_state` is not reachability.** Reachability lives only in `source_status`. If status is anything other than `ok`, leave sync unset.
+
+3. **`source_status_message`** - companion text column on the provenance row (set whenever `source_status` is written).
+
+   - Prefer **known catalog messages** for common codes (stable, translatable, filter-friendly)
+   - When the failure carries detail the operator should read (API body snippet, HTTP reason, exception summary), store that detail (trimmed/sanitized) so the UI can surface it without inventing a new status code per vendor string
+   - `ok` may use an empty message or a short catalog line (“Source reachable”)
+
+### Catalog (initial; implementation may extend without new ADR if codes stay the same)
+
+| `source_status` | Known message (default) |
+|---|---|
+| `ok` | (empty or “Source reachable”) |
+| `missing` | “Source path not found at the recorded location” |
+| `orphan` | “Library connection missing” / “Library binding missing” (as today) |
+| `disabled` | “Library connection is disabled” |
+| `rate_limited` | “Source tip check rate-limited; try again later” |
+| `unreachable` | “Could not reach Library source” + optional detail |
+| `unconfirmable` | “Source tip cannot be confirmed without downloading the file” |
+
+### Mechanics kept from ADR-0012
+
+4. Provenance key, digest columns, Sync = pull then evaluate, never download solely to compare, forge tip batching, orphan on missing ids, optional cascade-delete on connection/binding remove - unchanged.
+
+5. **Alerts / auto-sync:** count and walk **`sync_state == out_of_sync` only**. Non-`ok` `source_status` values are inventory/filter chrome (and may get separate badges later); they do not open the “N out of sync” Alert.
+
+6. **Operator correction when `source_status == missing`:**
 
 | Action | Role |
 |---|---|
-| **Re-attach** | Primary when the source moved (new `relative_path` and/or connection/binding). Same-basename lock ([#364](https://github.com/dustinestes/Hatchery/issues/364)) still applies; rename of basename → re-import |
-| **Sync** | Attempt pull from the current provenance path after evaluate. Succeeds if the tip was restored at the same path; otherwise fails with clear copy pointing at Re-attach or Remove - do not silently no-op |
-| **Remove** | Drop Library attribution for that Cached basename (delete provenance row). Optional confirm to also cull the Cached file. Distinct from Library soft-disable ([#379](https://github.com/dustinestes/Hatchery/issues/379)) |
+| **Re-attach** | Primary when the source moved. Same-basename lock ([#364](https://github.com/dustinestes/Hatchery/issues/364)); basename rename → re-import |
+| **Sync** | Attempt pull from current provenance path (same tip fetch path as evaluate). Succeeds if tip restored; else fail with clear copy → Re-attach / Remove |
+| **Remove** | Drop provenance (optional cull Cached file). Distinct from Library soft-disable ([#379](https://github.com/dustinestes/Hatchery/issues/379)) |
 
-7. **Scenario matrix (locked desired states)** - local Cached file × remote tip. UI copy may say “synced” / “out of sync”; storage remains `in_sync` / `out_of_sync`.
+7. **Scenario matrix**
 
-| Scenario | Local cache | Remote tip | Desired `drift_state` | Primary operator action |
-|---|---|---|---|---|
-| Unchanged | Exists, matches anchors | Tip resolves, matches anchors | `in_sync` | None (healthy link) |
-| Content changed (local) | Bytes ≠ `cache_sha256_synced` | Tip unchanged | `out_of_sync` | Sync (overwrites local) |
-| Content changed (remote) | Unchanged vs cache anchor | Tip digest moved (same path) | `out_of_sync` | Sync (pulls tip) |
-| Both changed | Bytes drifted | Tip moved | `out_of_sync` | Sync (source wins; confirm in UX if destructive) |
-| Renamed (remote) | Old basename still cached | Old `relative_path` missing; new name elsewhere | `source_missing` | Re-attach (same basename) or re-import; or Remove |
-| Renamed (local) | Operator renamed/moved cache file | Provenance path / row mismatch | Ghost / Cleaner ([#361](https://github.com/dustinestes/Hatchery/issues/361)); not `source_missing` | Cleaner or re-attach after restore |
-| Missing (remote) | Cache present | Tip path deleted (not renamed) | `source_missing` | Re-attach if replaced; else Remove |
-| Missing (local) | Cache file gone | Tip may still exist | `out_of_sync` (cache drifted / missing) or Cleaner ghost row | Sync (restore from tip) or Cleaner |
-| Connection/binding removed | Cache present | Ids gone | `orphan` | Re-attach |
-| Tip unavailable | Cache present | Cannot confirm tip (rate limit, disabled, no digest kind) | `unknown` | Wait / fix connection; not Sync-as-fix |
-| Basename mismatch on re-attach | - | - | API reject ([#364](https://github.com/dustinestes/Hatchery/issues/364)) | Re-import under new name |
+| Scenario | Local cache | Remote tip | `source_status` | `sync_state` | Primary action |
+|---|---|---|---|---|---|
+| Unchanged | Exists, matches anchors | Tip resolves, matches | `ok` | `in_sync` | None |
+| Content changed (local) | Bytes ≠ cache anchor | Tip unchanged | `ok` | `out_of_sync` | Sync |
+| Content changed (remote) | Unchanged | Tip moved (same path) | `ok` | `out_of_sync` | Sync |
+| Both changed | Bytes drifted | Tip moved | `ok` | `out_of_sync` | Sync (source wins) |
+| Renamed (remote) | Old basename cached | Old path absent | `missing` | unset | Re-attach / re-import / Remove |
+| Renamed (local) | File moved | Provenance mismatch | (Cleaner / [#361](https://github.com/dustinestes/Hatchery/issues/361)) | - | Cleaner |
+| Missing (remote) | Cache present | Path deleted | `missing` | unset | Re-attach or Remove |
+| Missing (local) | Cache gone | Tip may exist | `ok` (if tip resolves) | `out_of_sync` | Sync or Cleaner |
+| Connection/binding removed | Cache present | Ids gone | `orphan` | unset | Re-attach |
+| Rate limited | Cache present | 403/429 | `rate_limited` | unset | Wait / token / interval |
+| Network / tip-index failure | Cache present | Transport error | `unreachable` | unset | Fix connectivity |
+| Connection disabled | Cache present | Skipped | `disabled` | unset | Enable connection |
+| No cheap digest | Cache present | HTTPS/API without tip | `unconfirmable` | unset | Add checksum / accept limit |
+| Basename mismatch on re-attach | - | - | (API reject) | - | Re-import |
 
-8. **Alerts / auto-sync:** domain drift Alerts and auto-sync continue to count / walk **`out_of_sync` only**. `source_missing` and `unknown` are visible in inventory chrome and filters; they do not open the “N out of sync” Alert. Follow-on UX may add a separate Alert or badge for `source_missing` counts - not required by this ADR.
+8. **UI rollups** (filters/badges; not extra DB enums): e.g. **Communication** = `rate_limited` ∪ `unreachable`; **Needs attention** = `missing` ∪ `orphan` ∪ (`sync_state == out_of_sync`). Detail shows `source_status` + `source_status_message`.
 
-9. **Planning vs implementation.** [#370](https://github.com/dustinestes/Hatchery/issues/370) is the **planning parent** (this ADR + operator how-to matrix). Evaluate ([#382](https://github.com/dustinestes/Hatchery/issues/382)), Cached UX ([#383](https://github.com/dustinestes/Hatchery/issues/383)), and Library → Content ([#384](https://github.com/dustinestes/Hatchery/issues/384)) ship as child issues; do not implement `source_missing` in the planning PR beyond docs/ADR.
+9. **Migration:** replace sole reliance on `drift_state` with `source_status` + `sync_state` + `source_status_message`. Implementation ([#382](https://github.com/dustinestes/Hatchery/issues/382)) may keep a derived `drift_state` for one release for API/UI compatibility, mapped from the two axes - do not invent new meanings inside the old enum.
 
-10. **Library → Content** ([#384](https://github.com/dustinestes/Hatchery/issues/384)) remains the north star home for linked/synced lifecycle chrome ([ADR-0016](0016-library-operator-plane.md)); domain Cached panes may get interim cues ([#383](https://github.com/dustinestes/Hatchery/issues/383)), but permanent lifecycle UX prefers Content.
+10. **Planning vs implementation.** [#370](https://github.com/dustinestes/Hatchery/issues/370) is the planning parent. Evaluate schema/state machine: [#382](https://github.com/dustinestes/Hatchery/issues/382). Cached UX: [#383](https://github.com/dustinestes/Hatchery/issues/383). Library → Content: [#384](https://github.com/dustinestes/Hatchery/issues/384).
+
+11. **Library → Content** remains the north star for lifecycle chrome ([ADR-0016](0016-library-operator-plane.md)).
 
 ## Consequences
 
 **Good**
 
-- Path-gone is actionable and distinct from rate-limit noise
-- Orphan vs source missing stay separable for UX and tests
-- ADR-0012 Sync/Alert semantics for true content drift stay intact
+- Reachability and sync comparison are separable; no junk-drawer `unknown`
+- One validator/evaluate pass still fetches tip once, then sets both columns
+- Operators get stable codes plus optional detail messages
 
 **Neutral / follow-on**
 
-- Evaluate must distinguish “tip index succeeded, path absent” from “tip index failed” (implementation child)
-- Remote rename vs delete remain indistinguishable at tip-resolve time; both are `source_missing`
-- Local rename / ghost rows stay on [#361](https://github.com/dustinestes/Hatchery/issues/361)
-- Content pane and Cached link/warn chrome are separate child issues: [#384](https://github.com/dustinestes/Hatchery/issues/384), [#383](https://github.com/dustinestes/Hatchery/issues/383) under [#370](https://github.com/dustinestes/Hatchery/issues/370)
+- Schema migration and API shape land in [#382](https://github.com/dustinestes/Hatchery/issues/382)
+- Remote rename vs delete remain indistinguishable (`missing`)
+- Local rename / ghosts stay on [#361](https://github.com/dustinestes/Hatchery/issues/361)
 
 **Bad / accepted cost**
 
-- Fifth DB/UI state expands filters, badges, and tests
-- Sync on `source_missing` will often fail until Re-attach; copy must explain why
+- Two columns (+ message) instead of one; filters and tests grow
+- Derived `drift_state` (if kept briefly) must not reintroduce the mixed model
 
 ## Alternatives considered
 
 | Option | Why not |
 |---|---|
-| Keep path-gone as `unknown` with distinct copy only | Operators still lack a first-class correction state; filters/Alerts stay muddy |
-| Fold path-gone into `out_of_sync` | Inflates Alerts and auto-sync for paths that cannot pull |
-| Fold path-gone into `orphan` | Mis-labels valid connection/binding ids; wrong recovery story |
-| New state without Sync | Rejected - operators asked for Re-attach, Sync, and Remove as the correction set |
+| More values in a single `drift_state` | Still conflates reachability with compare |
+| Keep path-gone / rate limit as `unknown` | Misnames known outcomes |
+| Fold `missing` into `out_of_sync` | Inflates Alerts/auto-sync for paths that cannot pull |
+| Fold `missing` into `orphan` | Mis-labels valid connection/binding ids |
+| Separate network round-trip for sync after reachability | Rejected - one evaluate pass already has tip data |
+| `sync_state` writable from UI | Rejected - validator/evaluate owns truth after Sync/pull |

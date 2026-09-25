@@ -56,13 +56,13 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0009](0009-library-git-checkout-cache.md) | Library git checkout cache on the Controller | Accepted |
 | [0010](0010-library-forge-providers.md) | Library forge connection type + pluggable providers | Accepted |
 | [0011](0011-library-consume-only-no-clutch-roundtrip.md) | Library is consume-only - no Clutch↔forge round-trip | Accepted |
-| [0012](0012-library-cache-provenance-drift.md) | Library cache provenance + drift sync | Accepted (tip-missing refined by [0018](0018-library-drift-scenario-matrix.md)) |
+| [0012](0012-library-cache-provenance-drift.md) | Library cache provenance + drift sync | Accepted (reachability/sync axes refined by [0018](0018-library-drift-scenario-matrix.md)) |
 | [0013](0013-hatchery-cli-launch-and-operator.md) | Hatchery CLI - launch and operator surfaces | Accepted |
 | [0014](0014-optional-local-nest.md) | Optional Local Nest and empty Nest registry | Accepted |
 | [0015](0015-settings-partial-writes-worker-services.md) | Partial Settings writes + worker-only runtime services | Accepted |
 | [0016](0016-library-operator-plane.md) | First-class Library operator plane (Connections admin) | Accepted |
 | [0017](0017-library-connections-bindings-tables.md) | Library connections and bindings as first-class tables | Accepted |
-| [0018](0018-library-drift-scenario-matrix.md) | Library drift scenario matrix + `source_missing` | Accepted |
+| [0018](0018-library-drift-scenario-matrix.md) | Library source reachability + sync state (scenario matrix) | Accepted |
 
 <br>
 
