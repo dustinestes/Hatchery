@@ -274,11 +274,39 @@ Example files ship with Hatchery under `.hatchery/examples/scripts/`:
 
 | File | Purpose |
 |---|---|
-| [`hatchery-script-template.ps1`](../examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
-| [`configure-vm-basics.ps1`](../examples/scripts/configure-vm-basics.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
-| [`hatchery-cleanup.ps1`](../examples/scripts/hatchery-cleanup.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
+| [`hatchery-script-template.ps1`](../.hatchery/examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
+| [`configure-vm-basics.ps1`](../.hatchery/examples/scripts/configure-vm-basics.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
+| [`enable-rdp.ps1`](../.hatchery/examples/scripts/enable-rdp.ps1) | Enables Remote Desktop and the firewall group; optional `RdpUsers` (comma-separated) adds non-admin accounts to Remote Desktop Users (Administrators already have RDP access) |
+| [`remove-appx.ps1`](../.hatchery/examples/scripts/remove-appx.ps1) | Removes AppX packages by comma-separated `PackageNames`, or all non-framework packages when `RemoveAll` is true |
+| [`install-virtio-drivers.ps1`](../.hatchery/examples/scripts/install-virtio-drivers.ps1) | Installs VirtIO guest tools / drivers from the attached VirtIO ISO (`DriveLetter` or `IsoLabel`); see [VirtIO driver automation](#virtio-driver-automation) |
+| [`hatchery-cleanup.ps1`](../.hatchery/examples/scripts/hatchery-cleanup.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
 
 Copy any file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts.
+
+Clutch parameters are always strings. For multi-value inputs (`RdpUsers`, `PackageNames`), pass a comma-separated list. For booleans (`RemoveAll`), use `"true"` or `"false"`.
+
+<br>
+
+### VirtIO driver automation
+
+VirtIO drivers improve disk and network performance for Windows guests but are **optional**. Guests on IDE/e1000 do not need them.
+
+Full flow when you do want VirtIO:
+
+1. Import a [virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) ISO under **Media → VirtIO** (or place it in the media directory).
+2. In the Clutch / Hatch form, set the **VirtIO Drivers** field to that ISO. Hatchery attaches it as a secondary CD-ROM at hatch time and configures VirtIO disk/network adapters.
+3. Copy [`install-virtio-drivers.ps1`](../.hatchery/examples/scripts/install-virtio-drivers.ps1) into `automation/scripts/` and add it to the VM's `automations` list with either `DriveLetter` (e.g. `E`) or `IsoLabel` (default `virtio-win`):
+
+```yaml
+automations:
+  - name: install-virtio-drivers.ps1
+    parameters:
+      IsoLabel: virtio-win
+```
+
+4. After OS install, Hatchery runs the script over WinRM. Prefer the guest-tools MSI when present on the ISO; otherwise it falls back to `pnputil` plus the QEMU guest agent MSI under `guest-agent\`.
+
+Also covered in [Getting started - VirtIO Drivers](getting-started.md#virtio-drivers).
 
 <br>
 

@@ -207,7 +207,9 @@ For better disk and network performance, pass a VirtIO driver ISO alongside the 
 
 In the creation form, select it from the **VirtIO Drivers** dropdown. Hatchery will configure the VM to use VirtIO disk and network adapters and make the driver ISO available during install.
 
-Leave this field empty to use standard IDE/e1000 adapters - slower, but zero extra setup.
+Leave this field empty to use standard IDE/e1000 adapters - slower, but zero extra setup. Driver installation after hatch is also optional.
+
+To install drivers and the QEMU guest agent from the attached ISO over WinRM, copy [`.hatchery/examples/scripts/install-virtio-drivers.ps1`](../.hatchery/examples/scripts/install-virtio-drivers.ps1) into `automation/scripts/` and add it to the VM's automations. Full steps: [Automations - VirtIO driver automation](automations.md#virtio-driver-automation).
 
 ---
 
