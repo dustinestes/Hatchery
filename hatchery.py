@@ -1648,6 +1648,30 @@ def api_library_cache_sync():
     row = prov.get_for_cache(domain, name, media_target=media_target)
     if row is None:
         return jsonify({"ok": False, "error": "No Library provenance for this cached file"}), 404
+    status = (row.get("source_status") or "").strip().lower()
+    sync = (row.get("sync_state") or "").strip().lower()
+    if status and status != "ok":
+        return jsonify(
+            {
+                "ok": False,
+                "error": (
+                    "Sync requires a reachable Library source "
+                    f"(source_status={status}). Re-attach or fix the connection first."
+                ),
+                "source_status": status,
+                "sync_state": sync or "unevaluated",
+                "source_status_message": row.get("source_status_message") or "",
+            }
+        ), 400
+    if sync and sync != "out_of_sync" and row.get("drift_state") != "out_of_sync":
+        return jsonify(
+            {
+                "ok": False,
+                "error": f"Sync is only available when out of sync (sync_state={sync or 'unset'}).",
+                "source_status": status or "ok",
+                "sync_state": sync or "unevaluated",
+            }
+        ), 400
     connections = drift.connection_by_id()
     try:
         summary = drift.sync_row(row, connections)
@@ -1668,6 +1692,9 @@ def api_library_cache_sync():
             "imported": [name],
             "sha256": summary.get("cache_sha256"),
             "drift_state": summary.get("drift_state"),
+            "source_status": summary.get("source_status"),
+            "sync_state": summary.get("sync_state"),
+            "source_status_message": summary.get("source_status_message"),
             "cache_drifted": summary.get("cache_drifted"),
             "source_drifted": summary.get("source_drifted"),
             "live_mismatch": summary.get("live_mismatch"),

@@ -100,7 +100,10 @@ Attribution of operator-cache files pulled via Library ([#308](https://github.co
 | `source_digest` | `TEXT` | | Observed remote tip (each evaluate) |
 | `source_digest_synced` | `TEXT` | | Remote tip at last successful sync/pull |
 | `source_digest_kind` | `TEXT` | | `sha256`, `git_blob`, or `size_mtime` |
-| `drift_state` | `TEXT` | `NOT NULL DEFAULT 'unknown'` | `in_sync`, `out_of_sync`, `unknown`, `orphan` |
+| `drift_state` | `TEXT` | `NOT NULL DEFAULT 'unknown'` | Derived compat: `in_sync`, `out_of_sync`, `unknown`, `orphan` ([ADR-0018](../adr/0018-library-drift-scenario-matrix.md)) |
+| `source_status` | `TEXT` | `NOT NULL DEFAULT 'unconfirmable'` | `ok`, `missing`, `orphan`, `disabled`, `rate_limited`, `unreachable`, `unconfirmable` |
+| `source_status_message` | `TEXT` | `NOT NULL DEFAULT ''` | Catalog or detail text for `source_status` |
+| `sync_state` | `TEXT` | `NOT NULL DEFAULT 'unevaluated'` | `in_sync`, `out_of_sync`, or `unevaluated` (never null) |
 | `checked_at` | `TEXT` | | Last evaluate |
 | `pulled_at` | `TEXT` | `NOT NULL` | Last successful sync/pull |
 | `updated_at` | `TEXT` | `NOT NULL` | Row update time |
@@ -109,6 +112,7 @@ Attribution of operator-cache files pulled via Library ([#308](https://github.co
 #### Managed by
 
 `lib/library_provenance.py` - `upsert_on_pull()`, `apply_evaluate_result()`, `reattach()`, …
+Architecture: [ADR-0012](../adr/0012-library-cache-provenance-drift.md), [ADR-0018](../adr/0018-library-drift-scenario-matrix.md).
 
 <br>
 

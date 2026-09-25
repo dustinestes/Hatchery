@@ -76,9 +76,14 @@ class TestProvenancePull:
 
         monkeypatch.setattr(drift, "connection_by_id", lambda: {"c1": conn})
         monkeypatch.setattr(drift, "connection_and_binding_ids", lambda: ({"c1"}, set()))
-        summary = drift.sync_row(row, {"c1": conn})
+        evaluated = drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
+        assert evaluated["sync_state"] == "out_of_sync"
+        fresh = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.sync_row(fresh, {"c1": conn})
         assert summary is not None
         assert summary["drift_state"] == "in_sync"
+        assert summary["source_status"] == "ok"
+        assert summary["sync_state"] == "in_sync"
         assert (data_env / "automation" / "scripts" / "hello.ps1").read_text(
             encoding="utf-8"
         ) == "v2-longer\n"
@@ -151,6 +156,9 @@ class TestCascadeAndOrphan:
         assert row["connection_id"] == "new"
         assert row["binding_id"] == "bind-new"
         assert row["drift_state"] == "unknown"
+        assert row["source_status"] == "unconfirmable"
+        assert row["sync_state"] == "unevaluated"
+        assert "Re-attached" in (row.get("source_status_message") or "")
 
     def test_reattach_binding_cascade_delete(self, data_env, tmp_path):
         """Orphan → reattach with binding_id → binding cascade deletes the file (#357)."""
@@ -224,6 +232,8 @@ class TestBidirectionalDrift:
         row = prov.get_for_cache("scripts", "hello.ps1")
         summary = drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
         assert summary["drift_state"] == "out_of_sync"
+        assert summary["source_status"] == "ok"
+        assert summary["sync_state"] == "out_of_sync"
         assert summary["source_drifted"] is True
         assert summary["cache_drifted"] is False
 
@@ -266,12 +276,14 @@ class TestBidirectionalDrift:
         )
         monkeypatch.setattr(
             library_lib,
-            "resolve_source_digest",
-            lambda *_a, **_k: ("sha256", fake_tip),
+            "resolve_source_tip",
+            lambda *_a, **_k: library_lib.TipResolveResult(status="ok", tip=("sha256", fake_tip)),
         )
         row = prov.get_for_cache("scripts", "hello.ps1")
         summary = drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
         assert summary["drift_state"] == "out_of_sync"
+        assert summary["source_status"] == "ok"
+        assert summary["sync_state"] == "out_of_sync"
         assert summary["live_mismatch"] is True
 
     def test_out_of_sync_alert_once_per_domain(self, data_env, tmp_path, monkeypatch):
@@ -500,3 +512,147 @@ class TestCountsByDomain:
         }
         assert prov.counts_by_drift_state()["in_sync"] == 4
         assert prov.counts_by_drift_state()["out_of_sync"] == 0
+
+
+class TestSourceStatusAxes:
+    """ADR-0018 source_status + sync_state matrix cells (#382)."""
+
+    def test_pull_sets_ok_in_sync(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        library_lib.pull_script(_path_conn(share), "hello.ps1")
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        assert row["source_status"] == "ok"
+        assert row["sync_state"] == "in_sync"
+        assert row["source_status_message"] == ""
+        assert row["drift_state"] == "in_sync"
+
+    def test_path_missing_sets_source_missing(self, data_env, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        src = share / "hello.ps1"
+        src.write_text("v1\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        src.unlink()
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
+        assert summary["source_status"] == "missing"
+        assert summary["sync_state"] == "unevaluated"
+        assert summary["drift_state"] == "unknown"
+        assert (
+            "not found" in (summary["source_status_message"] or "").lower()
+            or summary["source_status_message"]
+        )
+
+    def test_disabled_connection(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        conn_disabled = {**conn, "enabled": False}
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.evaluate_row(row, connections={"c1": conn_disabled}, binding_ids=set())
+        assert summary["source_status"] == "disabled"
+        assert summary["sync_state"] == "unevaluated"
+        assert summary["drift_state"] == "unknown"
+
+    def test_rate_limited_batch(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.evaluate_row(
+            row,
+            connections={"c1": conn},
+            binding_ids=set(),
+            tip_failure="rate_limited",
+        )
+        assert summary["source_status"] == "rate_limited"
+        assert summary["sync_state"] == "unevaluated"
+        assert "rate-limited" in (summary["source_status_message"] or "").lower()
+
+    def test_unreachable_batch(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.evaluate_row(
+            row,
+            connections={"c1": conn},
+            binding_ids=set(),
+            tip_failure="unreachable",
+            tip_failure_detail="DNS failed",
+        )
+        assert summary["source_status"] == "unreachable"
+        assert summary["sync_state"] == "unevaluated"
+        assert "DNS failed" in (summary["source_status_message"] or "")
+
+    def test_https_unconfirmable(self, data_env, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        monkeypatch.setattr(
+            library_lib,
+            "resolve_source_tip",
+            lambda *_a, **_k: library_lib.TipResolveResult(status="unconfirmable"),
+        )
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        summary = drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
+        assert summary["source_status"] == "unconfirmable"
+        assert summary["sync_state"] == "unevaluated"
+
+    def test_forge_tip_index_complete_missing(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = {**_path_conn(share), "type": "forge"}
+        library_lib.pull_script(_path_conn(share), "hello.ps1")
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        # Authoritative empty tip index → path gone.
+        summary = drift.evaluate_row(
+            row,
+            connections={"c1": conn},
+            binding_ids=set(),
+            tip_index={},
+            tip_index_complete=True,
+        )
+        assert summary["source_status"] == "missing"
+        assert summary["sync_state"] == "unevaluated"
+
+    def test_enrich_inventory_exposes_axes(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        library_lib.pull_script(_path_conn(share), "hello.ps1")
+        items = prov.enrich_inventory(
+            [{"name": "hello.ps1"}],
+            domain="scripts",
+            connection_ids={"c1"},
+            binding_ids=set(),
+        )
+        assert items[0]["source_status"] == "ok"
+        assert items[0]["sync_state"] == "in_sync"
+        assert items[0]["source_status_message"] == ""
+
+    def test_sync_row_skips_missing(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        conn = _path_conn(share)
+        library_lib.pull_script(conn, "hello.ps1")
+        src = share / "hello.ps1"
+        src.unlink()
+        row = prov.get_for_cache("scripts", "hello.ps1")
+        drift.evaluate_row(row, connections={"c1": conn}, binding_ids=set())
+        fresh = prov.get_for_cache("scripts", "hello.ps1")
+        assert fresh["source_status"] == "missing"
+        assert drift.sync_row(fresh, {"c1": conn}) is None

@@ -123,6 +123,9 @@ CREATE TABLE IF NOT EXISTS library_cache_provenance (
     source_digest_synced    TEXT,
     source_digest_kind      TEXT,
     drift_state             TEXT    NOT NULL DEFAULT 'unknown',
+    source_status           TEXT    NOT NULL DEFAULT 'unconfirmable',
+    source_status_message   TEXT    NOT NULL DEFAULT '',
+    sync_state              TEXT    NOT NULL DEFAULT 'unevaluated',
     checked_at              TEXT,
     pulled_at               TEXT    NOT NULL,
     updated_at              TEXT    NOT NULL,
@@ -206,6 +209,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE alerts ADD COLUMN tier TEXT NOT NULL DEFAULT 'alert'")
     _migrate_nests_columns(conn)
     _migrate_library_cache_provenance(conn)
+    _migrate_library_cache_provenance_axes(conn)
     _migrate_library_registry(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
@@ -441,6 +445,73 @@ def _migrate_library_cache_provenance(conn: sqlite3.Connection) -> None:
     )
     conn.execute("DROP TABLE library_cache_provenance")
     conn.execute("ALTER TABLE library_cache_provenance__new RENAME TO library_cache_provenance")
+
+
+def _migrate_library_cache_provenance_axes(conn: sqlite3.Connection) -> None:
+    """Add ADR-0018 source_status / sync_state / message; backfill from drift_state."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_cache_provenance'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(library_cache_provenance)").fetchall()}
+    if "source_status" not in cols:
+        conn.execute(
+            "ALTER TABLE library_cache_provenance "
+            "ADD COLUMN source_status TEXT NOT NULL DEFAULT 'unconfirmable'"
+        )
+    if "source_status_message" not in cols:
+        conn.execute(
+            "ALTER TABLE library_cache_provenance "
+            "ADD COLUMN source_status_message TEXT NOT NULL DEFAULT ''"
+        )
+    if "sync_state" not in cols:
+        conn.execute(
+            "ALTER TABLE library_cache_provenance "
+            "ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'unevaluated'"
+        )
+    # One-shot backfill from legacy drift_state (re-evaluate on next validator pass).
+    conn.execute(
+        """
+        UPDATE library_cache_provenance
+        SET source_status = 'ok',
+            sync_state = 'in_sync',
+            source_status_message = ''
+        WHERE drift_state = 'in_sync'
+          AND (source_status = 'unconfirmable' OR source_status = '' OR source_status IS NULL)
+        """
+    )
+    conn.execute(
+        """
+        UPDATE library_cache_provenance
+        SET source_status = 'ok',
+            sync_state = 'out_of_sync',
+            source_status_message = ''
+        WHERE drift_state = 'out_of_sync'
+          AND sync_state = 'unevaluated'
+        """
+    )
+    conn.execute(
+        """
+        UPDATE library_cache_provenance
+        SET source_status = 'orphan',
+            sync_state = 'unevaluated',
+            source_status_message = 'Library connection or binding missing'
+        WHERE drift_state = 'orphan'
+          AND sync_state = 'unevaluated'
+        """
+    )
+    conn.execute(
+        """
+        UPDATE library_cache_provenance
+        SET source_status = 'unconfirmable',
+            sync_state = 'unevaluated',
+            source_status_message = 'Pending re-evaluate'
+        WHERE drift_state = 'unknown'
+          AND sync_state = 'unevaluated'
+          AND (source_status_message = '' OR source_status_message IS NULL)
+        """
+    )
 
 
 def _migrate_nests_columns(conn: sqlite3.Connection) -> None:
