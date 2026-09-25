@@ -86,8 +86,13 @@
           {% if vm.admin_username %}
             <div class="form-grid form-grid-1" style="margin-bottom: 12px;">
               <div class="form-group">
-                <label class="form-label">{{ vm.name }} - password for <strong>{{ vm.admin_username }}</strong></label>
-                <input type="password" name="credentials[{{ vm.name }}]" class="form-input" autocomplete="new-password">
+                <label class="form-label" for="cred-{{ loop.index0 }}">{{ vm.name }} - password for <strong>{{ vm.admin_username }}</strong></label>
+                <span class="password-input-wrap">
+                  <input type="password" id="cred-{{ loop.index0 }}" name="credentials[{{ vm.name }}]" class="form-input" autocomplete="new-password">
+                  <button type="button" class="password-input-toggle" aria-label="Show password" title="Show password">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </span>
               </div>
             </div>
           {% endif %}
@@ -111,6 +116,28 @@
   var section = document.getElementById('clutch-summary-section');
   var summary = document.getElementById('clutch-summary');
   if (!select || !section || !summary) return;
+
+  var ICON_EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var ICON_EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+  function togglePasswordVisibility(btn) {
+    var wrap = btn.closest('.password-input-wrap');
+    var field = wrap && wrap.querySelector('input');
+    if (!field) return;
+    var showing = field.type === 'password';
+    field.type = showing ? 'text' : 'password';
+    var label = showing ? 'Hide password' : 'Show password';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.innerHTML = showing ? ICON_EYE_OFF : ICON_EYE;
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.password-input-toggle');
+    if (!btn || !btn.closest('#hatch-clutch-form')) return;
+    e.preventDefault();
+    togglePasswordVisibility(btn);
+  });
 
   function renderSummary(data) {
     var count = data.vms.length;
@@ -139,22 +166,35 @@
     var needCreds = vms.filter(function (vm) { return vm.admin_username; });
     if (!needCreds.length) { credSection.hidden = true; return; }
     credContainer.innerHTML = '';
-    needCreds.forEach(function (vm) {
+    needCreds.forEach(function (vm, idx) {
       var wrap = document.createElement('div');
       wrap.className = 'form-grid form-grid-1';
       wrap.style.marginBottom = '12px';
       var group = document.createElement('div');
       group.className = 'form-group';
+      var inputId = 'cred-dyn-' + idx;
       var label = document.createElement('label');
       label.className = 'form-label';
+      label.setAttribute('for', inputId);
       label.innerHTML = vm.name + ' - password for <strong>' + vm.admin_username + '</strong>';
+      var fieldWrap = document.createElement('span');
+      fieldWrap.className = 'password-input-wrap';
       var input = document.createElement('input');
       input.type = 'password';
+      input.id = inputId;
       input.name = 'credentials[' + vm.name + ']';
       input.className = 'form-input';
       input.autocomplete = 'new-password';
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'password-input-toggle';
+      toggle.setAttribute('aria-label', 'Show password');
+      toggle.setAttribute('title', 'Show password');
+      toggle.innerHTML = ICON_EYE;
+      fieldWrap.appendChild(input);
+      fieldWrap.appendChild(toggle);
       group.appendChild(label);
-      group.appendChild(input);
+      group.appendChild(fieldWrap);
       wrap.appendChild(group);
       credContainer.appendChild(wrap);
     });
