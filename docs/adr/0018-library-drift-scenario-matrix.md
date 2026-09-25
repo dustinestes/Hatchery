@@ -16,7 +16,7 @@ ADR-0012 locked one column, `drift_state` (`in_sync` | `out_of_sync` | `unknown`
 
 Rate limits, network failures, disabled connections, and “no cheap digest” are **known** outcomes. Calling them `unknown` was wrong. Path-gone (remote rename/delete) is also known and actionable, not the same as a throttle.
 
-Operators need clear correction paths (Re-attach, Sync, Remove) when the source is missing, without inflating Sync Alerts for communication failures.
+Operators need clear correction paths when the source is missing (**Re-attach** or **Remove**), without offering Sync until the tip is reachable again, and without inflating Sync Alerts for communication failures.
 
 ## Decision
 
@@ -66,15 +66,16 @@ Operators need clear correction paths (Re-attach, Sync, Remove) when the source 
 
 4. Provenance key, digest columns, Sync = pull then evaluate, never download solely to compare, forge tip batching, orphan on missing ids, optional cascade-delete on connection/binding remove - unchanged.
 
-5. **Alerts / auto-sync:** count and walk **`sync_state == out_of_sync` only**. Non-`ok` `source_status` values are inventory/filter chrome (and may get separate badges later); they do not open the “N out of sync” Alert.
+5. **Alerts / auto-sync / Sync affordance:** count, walk, and enable Sync only when **`source_status == ok`** and **`sync_state == out_of_sync`**. Non-`ok` statuses are inventory/filter chrome (and may get separate badges later); they do not open the “N out of sync” Alert and do **not** attempt Sync.
 
 6. **Operator correction when `source_status == missing`:**
 
 | Action | Role |
 |---|---|
-| **Re-attach** | Primary when the source moved. Same-basename lock ([#364](https://github.com/dustinestes/Hatchery/issues/364)); basename rename → re-import |
-| **Sync** | Attempt pull from current provenance path (same tip fetch path as evaluate). Succeeds if tip restored; else fail with clear copy → Re-attach / Remove |
+| **Re-attach** | Primary when the source moved. Same-basename lock ([#364](https://github.com/dustinestes/Hatchery/issues/364)); basename rename → re-import. After a successful re-attach, evaluate may reach `ok` and then Sync applies only if `out_of_sync` |
 | **Remove** | Drop provenance (optional cull Cached file). Distinct from Library soft-disable ([#379](https://github.com/dustinestes/Hatchery/issues/379)) |
+
+**Sync is not a `missing` action.** With `source_status != ok`, `sync_state` is `unevaluated` - there is no comparable tip to pull from.
 
 7. **Scenario matrix**
 
@@ -133,3 +134,4 @@ Operators need clear correction paths (Re-attach, Sync, Remove) when the source 
 | Separate network round-trip for sync after reachability | Rejected - one evaluate pass already has tip data |
 | `sync_state` writable from UI | Rejected - validator/evaluate owns truth after Sync/pull |
 | `sync_state` null / omitted when not compared | Rejected - ambiguous for API clients; use explicit `unevaluated` |
+| Offer Sync while `source_status == missing` | Rejected - no comparable tip; Re-attach or Remove first; Sync only when `ok` + `out_of_sync` |
