@@ -2109,7 +2109,7 @@ class TestHatchClutchRoute:
         assert 'type="password"' in html
         assert 'class="password-input-toggle"' in html
         assert 'aria-label="Show password"' in html
-        assert 'password-input-wrap' in html
+        assert "password-input-wrap" in html
         assert 'type="button"' in html
 
     def test_get_invalid_clutch_shows_error(self, client, tmp_path, monkeypatch):
