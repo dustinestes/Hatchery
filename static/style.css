@@ -3765,10 +3765,32 @@ body {
   pointer-events: none;
 }
 
+.library-status-cue-icon--ok {
+  color: var(--color-success, #15803d);
+}
+
 .scripts-nav-drift-icon[hidden],
 .inventory-nav-drift-icon[hidden],
 .media-nav-drift-icon[hidden] {
   display: none;
+}
+
+.scripts-library-status-btn {
+  gap: 6px;
+  max-width: 12rem;
+}
+
+.scripts-library-status-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scripts-library-status-btn.scripts-library-status-btn--ok {
+  color: var(--color-success, #15803d);
 }
 
 .scripts-content {

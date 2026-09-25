@@ -62,10 +62,13 @@
       <select id="clutches-filter-state" class="form-select" aria-controls="clutches-nav">
         <option value="">All</option>
         <option value="local">Local</option>
-        <option value="in_sync">In sync</option>
+        <option value="in_sync">Synced</option>
         <option value="out_of_sync">Out of sync</option>
         <option value="orphan">Orphaned</option>
-        <option value="unknown">Tip unknown</option>
+        <option value="missing">Source missing</option>
+        <option value="communication">Communication</option>
+        <option value="disabled">Connection disabled</option>
+        <option value="unconfirmable">Tip unconfirmable</option>
       </select>
     </div>
   </div>
@@ -83,6 +86,10 @@
               data-language="{{ item.language or 'YAML' }}"
               data-modified-at="{{ item.modified_at }}"
               data-drift-state="{{ item.drift_state or 'local' }}"
+              data-source-status="{{ item.source_status or '' }}"
+              data-sync-state="{{ item.sync_state or '' }}"
+              data-source-status-message="{{ item.source_status_message or '' }}"
+              data-library-cue="{{ item.library_cue or 'local' }}"
               data-orphan="{{ '1' if item.orphan else '0' }}"
               data-orphan-reason="{{ item.orphan_reason or '' }}"
               data-lib-rel="{{ (item.library_provenance.relative_path if item.library_provenance else '') }}"
@@ -90,16 +97,28 @@
               aria-pressed="false">
         <span class="scripts-nav-main">
           <span class="scripts-nav-label">{{ item.name }}</span>
-          <span class="scripts-nav-sub">{{ item.language or 'YAML' }}{% if item.drift_state == 'out_of_sync' %} · out of sync{% elif item.orphan %} · orphaned{% endif %}</span>
+          <span class="scripts-nav-sub">{{ item.language or 'YAML' }}{% if item.library_cue_short %} · {{ item.library_cue_short }}{% endif %}</span>
         </span>
-        <span class="inventory-nav-drift-icon scripts-nav-drift-icon"
-              {% if item.drift_state != 'out_of_sync' and not item.orphan %}hidden{% endif %}
-              title="{% if item.orphan %}{{ item.orphan_reason or 'Library source missing' }}{% else %}Out of sync{% endif %}"
+        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--warn"
+              data-library-cue-icon="warn"
+              {% if not item.library_show_rail_icon or item.library_cue == 'synced' %}hidden{% endif %}
+              title="{{ item.source_status_message or item.library_cue_short or 'Library status' }}"
               aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--ok"
+              data-library-cue-icon="ok"
+              {% if item.library_cue != 'synced' %}hidden{% endif %}
+              title="Synced with Library"
+              aria-label="Synced with Library"
+              role="img">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
           </svg>
         </span>
       </button>
@@ -142,6 +161,11 @@
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
+          <svg class="scripts-library-icon scripts-library-icon--ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <span class="scripts-library-status-label" id="clutches-library-status-label" hidden></span>
         </button>
         <a href="#"
            class="btn-icon"
@@ -327,6 +351,11 @@
   var libraryWarnIcon = libraryStatusBtn
     ? libraryStatusBtn.querySelector('.scripts-library-icon--warn')
     : null;
+  var libraryOkIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--ok')
+    : null;
+  var libraryStatusLabel = document.getElementById('clutches-library-status-label');
+  var libStatus = window.HatcheryLibraryStatus;
   var deleteBackdrop = document.getElementById('delete-modal-backdrop');
   var deleteFilenameEl = document.getElementById('delete-modal-filename');
   var deleteCancel = document.getElementById('delete-modal-cancel');
@@ -346,12 +375,12 @@
   var selectedContent = null;
   var libraryMode = 'hidden'; /* hidden | sync | orphan */
 
-  function inventoryLibraryState(btn) {
-    if (!btn) return 'local';
-    if (btn.getAttribute('data-orphan') === '1') return 'orphan';
-    var drift = (btn.getAttribute('data-drift-state') || 'local').trim();
-    if (drift === 'unknown' || drift === 'out_of_sync' || drift === 'in_sync') return drift;
-    return 'local';
+  function clutchLibraryState(btn) {
+    if (!btn || !libStatus) return 'local';
+    var cue = libStatus.resolveFromButton(btn);
+    if (cue.cue === 'local') return 'local';
+    if (cue.filter_keys && cue.filter_keys.length) return cue.filter_keys[0];
+    return cue.cue;
   }
 
   function currentClutchFilters() {
@@ -370,7 +399,7 @@
       var lang = btn.getAttribute('data-language') || '';
       if (lang !== filters.language) return false;
     }
-    if (filters.state && inventoryLibraryState(btn) !== filters.state) return false;
+    if (filters.state && clutchLibraryState(btn) !== filters.state) return false;
     return true;
   }
 
@@ -461,11 +490,8 @@
     }
   }
 
-  function clutchSubLabel(language, drift, orphan) {
-    var base = language || 'YAML';
-    if (drift === 'out_of_sync') return base + ' · out of sync';
-    if (orphan) return base + ' · orphaned';
-    return base;
+  function languageLabel(lang) {
+    return lang || 'YAML';
   }
 
   function notifyCopy(ok, kind) {
@@ -502,18 +528,17 @@
   }
 
   function setLibraryStatus(btn) {
-    if (!libraryStatusBtn) return;
-    var drift = btn.getAttribute('data-drift-state') || 'local';
-    var orphan = btn.getAttribute('data-orphan') === '1';
-    var reason = (btn.getAttribute('data-orphan-reason') || '').trim();
+    if (!libraryStatusBtn || !libStatus) return;
+    const cue = libStatus.resolveFromButton(btn);
 
     libraryStatusBtn.classList.remove(
       'scripts-library-status-btn--warn',
-      'scripts-library-status-btn--action'
+      'scripts-library-status-btn--action',
+      'scripts-library-status-btn--ok'
     );
     libraryMode = 'hidden';
 
-    if (drift === 'local') {
+    if (cue.cue === 'local') {
       libraryStatusBtn.hidden = true;
       libraryStatusBtn.disabled = true;
       libraryStatusBtn.setAttribute('aria-disabled', 'true');
@@ -521,53 +546,75 @@
       libraryStatusBtn.setAttribute('aria-label', '');
       if (librarySyncIcon) librarySyncIcon.hidden = false;
       if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+      if (libraryStatusLabel) {
+        libraryStatusLabel.hidden = true;
+        libraryStatusLabel.textContent = '';
+      }
       return;
     }
 
     libraryStatusBtn.hidden = false;
+    if (libraryStatusLabel) {
+      libraryStatusLabel.hidden = false;
+      libraryStatusLabel.textContent = cue.header_label || cue.short || '';
+    }
 
-    if (orphan) {
+    if (cue.can_reattach) {
       libraryMode = 'orphan';
-      var tip = reason || 'Library source missing';
       libraryStatusBtn.disabled = false;
       libraryStatusBtn.setAttribute('aria-disabled', 'false');
       libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
-      libraryStatusBtn.title = tip;
-      libraryStatusBtn.setAttribute('aria-label', tip);
+      libraryStatusBtn.title = cue.message || cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
       if (librarySyncIcon) librarySyncIcon.hidden = true;
       if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+      return;
+    }
+
+    if (cue.can_sync) {
+      libraryMode = 'sync';
+      libraryStatusBtn.disabled = false;
+      libraryStatusBtn.setAttribute('aria-disabled', 'false');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--action');
+      libraryStatusBtn.title = cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+      if (librarySyncIcon) librarySyncIcon.hidden = false;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
       return;
     }
 
     libraryMode = 'sync';
-    var canSync = drift === 'out_of_sync';
-    libraryStatusBtn.disabled = !canSync;
-    libraryStatusBtn.setAttribute('aria-disabled', canSync ? 'false' : 'true');
-    if (librarySyncIcon) librarySyncIcon.hidden = false;
-    if (libraryWarnIcon) libraryWarnIcon.hidden = true;
-    if (canSync) {
-      libraryStatusBtn.classList.add('scripts-library-status-btn--action');
-      libraryStatusBtn.title = 'Out of sync';
-      libraryStatusBtn.setAttribute('aria-label', 'Sync ' + (btn.getAttribute('data-name') || '') + ' from Library');
-    } else if (drift === 'in_sync') {
-      libraryStatusBtn.title = 'In sync';
-      libraryStatusBtn.setAttribute('aria-label', 'In sync with Library');
+    libraryStatusBtn.disabled = true;
+    libraryStatusBtn.setAttribute('aria-disabled', 'true');
+    libraryStatusBtn.title = cue.message || cue.header_label;
+    libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+    if (cue.cue === 'synced') {
+      libraryStatusBtn.classList.add('scripts-library-status-btn--ok');
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = false;
     } else {
-      libraryStatusBtn.title = 'Tip unknown';
-      libraryStatusBtn.setAttribute('aria-label', 'Library tip unknown');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
     }
   }
 
   function applyDriftChrome(btn, item) {
-    if (!btn || !item) return;
-    var drift = item.drift_state || 'local';
-    var orphan = !!item.orphan;
-    var reason = (item.orphan_reason || '').trim();
+    if (!btn || !item || !libStatus) return;
+    var cue = libStatus.resolveFromItem(item);
     var lang = item.language || btn.getAttribute('data-language') || 'YAML';
-    var modified = item.modified_at || btn.getAttribute('data-modified-at') || '';
-    btn.setAttribute('data-drift-state', drift);
-    btn.setAttribute('data-orphan', orphan ? '1' : '0');
-    btn.setAttribute('data-orphan-reason', reason);
+    btn.setAttribute('data-drift-state', item.drift_state || 'local');
+    btn.setAttribute('data-source-status', item.source_status || '');
+    btn.setAttribute('data-sync-state', item.sync_state || '');
+    btn.setAttribute('data-source-status-message', item.source_status_message || '');
+    btn.setAttribute('data-library-cue', cue.cue);
+    btn.setAttribute('data-orphan', item.orphan ? '1' : '0');
+    btn.setAttribute('data-orphan-reason', (item.orphan_reason || '').trim());
     btn.setAttribute('data-language', lang);
     if (item.modified_at) btn.setAttribute('data-modified-at', item.modified_at);
     if (item.library_provenance) {
@@ -576,13 +623,18 @@
     }
     var sub = btn.querySelector('.scripts-nav-sub');
     if (sub) {
-      sub.textContent = clutchSubLabel(lang, drift, orphan);
+      var suffix = cue.short ? (' · ' + cue.short) : '';
+      sub.textContent = languageLabel(lang) + suffix;
     }
-    var icon = btn.querySelector('.inventory-nav-drift-icon, .scripts-nav-drift-icon');
-    if (icon) {
-      var show = drift === 'out_of_sync' || orphan;
-      icon.hidden = !show;
-      icon.title = orphan ? (reason || 'Library source missing') : 'Out of sync';
+    var warnIcon = btn.querySelector('[data-library-cue-icon="warn"]');
+    var okIcon = btn.querySelector('[data-library-cue-icon="ok"]');
+    if (warnIcon) {
+      var showWarn = cue.show_rail_icon && cue.cue !== 'synced';
+      warnIcon.hidden = !showWarn;
+      warnIcon.title = cue.message || cue.short || 'Library status';
+    }
+    if (okIcon) {
+      okIcon.hidden = cue.cue !== 'synced';
     }
   }
 
@@ -723,10 +775,14 @@
       items[next].focus();
     });
 
-    /* Format rail subtitles once on load (ISO → locale). */
+    /* Format rail subtitles once on load from dataset cues. */
     nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
       applyDriftChrome(btn, {
         drift_state: btn.getAttribute('data-drift-state') || 'local',
+        source_status: btn.getAttribute('data-source-status') || '',
+        sync_state: btn.getAttribute('data-sync-state') || '',
+        source_status_message: btn.getAttribute('data-source-status-message') || '',
+        library_cue: btn.getAttribute('data-library-cue') || '',
         orphan: btn.getAttribute('data-orphan') === '1',
         orphan_reason: btn.getAttribute('data-orphan-reason') || '',
         language: btn.getAttribute('data-language') || 'YAML',

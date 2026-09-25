@@ -247,7 +247,10 @@ class TestPageTitles:
         assert 'id="clutches-library-status-btn"' in html
         assert 'aria-label="Copy"' in html
         assert "hatchery.onStatusTick" in html
-        assert "inventory-nav-drift-icon" in html
+        assert "library_status_cues.js" in html
+        assert "HatcheryLibraryStatus" in html
+        assert 'id="clutches-library-status-label"' in html
+        assert 'value="communication"' in html
         assert 'aria-label="Filter Cached Clutches"' in html
         assert 'id="clutches-filter-q"' in html
         assert 'id="clutches-filter-language"' in html
