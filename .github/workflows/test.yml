@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # PR merge wait: ubuntu + macos (+ Lint workflow). See #400.
+  # Merge confidence: ubuntu + macos (+ Lint). See #400.
   test:
     name: pytest (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -49,12 +49,11 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
-  # Windows: post-merge on main (and manual dispatch). Not on pull_request so the
-  # PR merge button goes green when lint + ubuntu + macos finish (~1 min). A red
-  # Windows run on the main push still fails the workflow and sends alerts (#400).
+  # Same portable suite on Windows. Runs on PRs and on push to main so you still
+  # see the check and get failure alerts. Not a required status check - merge when
+  # lint + ubuntu + macos are green even if this job is still running (#400).
   test-windows:
     name: pytest (windows-latest)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
 
     steps:

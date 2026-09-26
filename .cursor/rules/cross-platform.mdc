@@ -40,7 +40,7 @@ Prefer shapes that still work if Hatchery is installed under a system prefix (no
 
 ## Multi-OS CI
 
-PR **merge gates** run the portable pytest suite on **ubuntu-latest** and **macos-latest** (plus Lint). **windows-latest** runs the same suite on the post-merge `push` to `main` (and `workflow_dispatch`) so failure alerts still fire without holding the PR squash button green ([#400](https://github.com/dustinestes/Hatchery/issues/400)). Do not schedule Windows on `pull_request`: GitHub marks PRs `UNSTABLE` while any check is in progress. Coverage gate applies on each OS that runs (`pyproject.toml`).
+PR **ship gates** are lint + portable pytest on **ubuntu-latest** and **macos-latest**. **windows-latest** runs the same suite on every PR and on the post-merge `push` to `main` so the check is visible and failure alerts still fire ([#400](https://github.com/dustinestes/Hatchery/issues/400)). Windows is not a required status check: merge when the three gates are green even if Windows is still running (GitHub may show `UNSTABLE` until it finishes). Coverage gate applies on each OS that runs (`pyproject.toml`).
 
 - Do **not** add host-OS-only assumptions that break CI on another runner
 - Tests that need a real Nest/hypervisor use `@pytest.mark.hypervisor` and are **excluded** from CI (`-m "not hypervisor"`)
