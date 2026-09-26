@@ -78,15 +78,17 @@ uv run pytest tests/test_config.py
 
 GitHub Actions runs on every PR and push to `main` (path-filtered):
 
-| Check | Where | Tool | Blocks PR merge? |
+| Check | Where | Tool | Blocks PR merge wait? |
 |---|---|---|---|
 | Lint | `ubuntu-latest` | `ruff check .` + `ruff format --check .` | Yes |
 | Tests | `ubuntu-latest`, `macos-latest` | `pytest -m "not hypervisor"` with coverage | Yes |
-| Tests | `windows-latest` | same portable suite | **No** ([#400](https://github.com/dustinestes/Hatchery/issues/400)) - still runs; failure alerts fire |
+| Tests | `windows-latest` | same portable suite | **No** ([#400](https://github.com/dustinestes/Hatchery/issues/400)) - runs on **`push` to `main`** after merge (and `workflow_dispatch`), not on the PR |
 
 ### Multi-OS test matrix (#203 / #400)
 
-Portable unit/integration tests still run on **all three** host OS runners. **PR merge** waits on lint + ubuntu + macos. Windows runs in parallel on the PR (and again on the post-merge `push` to `main`); a red Windows job fails that Actions run so notifications still arrive - open a follow-up `fix` PR if needed. Coverage gate is the project default (`--cov-fail-under=90` in `pyproject.toml`) on each OS. Coverage XML is uploaded per OS as `coverage-<runner>`.
+Portable unit/integration tests still run on **all three** host OS runners over the life of a change. **PR merge** waits only on lint + ubuntu + macos (so the squash button goes green in ~1 minute). GitHub treats an in-progress Windows check as `UNSTABLE` and holds the green merge state even when Windows is not “required,” so Windows is **not** scheduled on `pull_request`.
+
+After merge, the same Test workflow’s Windows job runs on the `push` to `main`. A failure fails that Actions run and sends the usual notification - open a follow-up `fix` PR from that SHA. Coverage gate is the project default (`--cov-fail-under=90` in `pyproject.toml`) on each OS that runs. Coverage XML is uploaded per OS as `coverage-<runner>`.
 
 | Suite | CI | When to use |
 |---|---|---|
@@ -99,7 +101,7 @@ Some **libvirt-only** unit tests that assert POSIX file mode bits (`chmod` world
 
 The import-time hatch status poller and validator scheduler are stopped in `tests/conftest.py` so long Windows runs do not race host requirement alerts into the test DB.
 
-**Before merge:** lint + `pytest (ubuntu-latest)` + `pytest (macos-latest)`. Windows is advisory on the PR (and re-checked after merge to `main`).
+**Before merge:** lint + `pytest (ubuntu-latest)` + `pytest (macos-latest)`. Windows runs after merge on `main` (and on manual `workflow_dispatch`).
 
 <br>
 
