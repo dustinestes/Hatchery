@@ -6,7 +6,7 @@
 <h1>CLI</h1>
 <br clear="both">
 
-Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Product north star (CI/CD and external tooling): [ADR-0021](../adr/0021-controller-embeddable-operator-plane.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
+Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Product north star (CI/CD and external tooling): [ADR-0021](../adr/0021-controller-embeddable-operator-plane.md). Dual-surface (UI + CLI) discipline: [ADR-0022](../adr/0022-dual-surface-operator-discipline.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
 
 Code lives under [`lib/cli/`](../../lib/cli/). Docs here mirror that layout: each command module has a matching page.
 
@@ -128,9 +128,10 @@ CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smok
 | [scripts.md](scripts.md) | [`lib/cli/scripts.py`](../../lib/cli/scripts.py) | **Shipped** (#425) | List local automation scripts |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
+| (library) | `lib/cli/library.py` | Planned (#434) | Library enable + connections/bindings CRUD |
 | (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist and Library CLI remain [#344](https://github.com/dustinestes/Hatchery/issues/344) / [#434](https://github.com/dustinestes/Hatchery/issues/434) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)).
 
 
 <br>
