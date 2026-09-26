@@ -75,6 +75,8 @@ uv run hatchery media list
 uv run hatchery scripts list
 uv run hatchery settings get library_enabled
 uv run hatchery settings set library_enabled true
+uv run hatchery library enable
+uv run hatchery library connection list
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -100,6 +102,8 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `scripts list` | `{scripts: [{name, language, relative_path}, …]}` |
 | `settings get` | Object map of requested (or all exportable) keys |
 | `settings set` | `{key, value}` |
+| `library connection list` | `{connections: […]}` |
+| `library binding list` | `{bindings: […]}` |
 
 Schema may evolve; treat field names as the contract for automation, not pretty-print layout.
 
@@ -132,10 +136,10 @@ CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smok
 | [scripts.md](scripts.md) | [`lib/cli/scripts.py`](../../lib/cli/scripts.py) | **Shipped** (#425) | List local automation scripts |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | [`lib/cli/settings.py`](../../lib/cli/settings.py) | **Shipped** (#344) | Persist Settings (`get` / `set`) |
-| (library) | `lib/cli/library.py` | Planned (#434) | Library enable + connections/bindings CRUD |
+| [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434) | Library enable + connections/bindings CRUD |
 | (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library CLI remains [#434](https://github.com/dustinestes/Hatchery/issues/434) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library CLI ships under [#434](https://github.com/dustinestes/Hatchery/issues/434) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)).
 
 
 <br>

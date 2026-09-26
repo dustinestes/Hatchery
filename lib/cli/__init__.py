@@ -7,6 +7,7 @@ from typing import Sequence
 
 from lib.cli import clutch as clutch_cmd
 from lib.cli import hatch as hatch_cmd
+from lib.cli import library as library_cmd
 from lib.cli import media as media_cmd
 from lib.cli import nest as nest_cmd
 from lib.cli import scripts as scripts_cmd
@@ -36,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     media_cmd.register(sub)
     scripts_cmd.register(sub)
     settings_cmd.register(sub)
+    library_cmd.register(sub)
     return parser
 
 
@@ -60,6 +62,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return scripts_cmd.run(args)
     if args.command == "settings":
         return settings_cmd.run(args)
+    if args.command == "library":
+        return library_cmd.run(args)
     parser.error(f"unknown command: {args.command}")
     return 2
 

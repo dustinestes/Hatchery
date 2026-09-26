@@ -866,3 +866,101 @@ class TestSettingsCli:
         with patch("lib.cli.settings.run", return_value=0) as run:
             assert cli.main(["settings", "get"]) == 0
         run.assert_called_once()
+
+
+class TestLibraryCli:
+    def _seed(self, sandbox: Path) -> None:
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime(create=True)
+
+    def test_enable_and_connection_crud(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.library as library_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        share = tmp_path / "share"
+        share.mkdir()
+
+        en = cli.build_parser().parse_args(["library", "--data-dir", str(sandbox), "enable"])
+        assert library_cmd.run(en) == 0
+        assert cfg.library_enabled() is True
+        capsys.readouterr()
+
+        add = cli.build_parser().parse_args(
+            [
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "connection",
+                "add",
+                "--id",
+                "local-share",
+                "--label",
+                "Share",
+                "--type",
+                "path",
+                "--base-uri",
+                str(share),
+                "--kinds",
+                "scripts",
+            ]
+        )
+        assert library_cmd.run(add) == 0
+        capsys.readouterr()
+
+        listing = cli.build_parser().parse_args(
+            ["--json", "library", "--data-dir", str(sandbox), "connection", "list"]
+        )
+        assert library_cmd.run(listing) == 0
+        payload = json.loads(capsys.readouterr().out)
+        ids = {c["id"] for c in payload["connections"]}
+        assert "local-share" in ids
+
+        rem = cli.build_parser().parse_args(
+            [
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "connection",
+                "remove",
+                "local-share",
+            ]
+        )
+        assert library_cmd.run(rem) == 0
+
+    def test_connection_add_requires_enabled(self, isolated_config, tmp_path, capsys):
+        import lib.cli.library as library_cmd
+        import lib.settings_io as settings_io_lib
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        settings_io_lib.set_exportable_setting("library_enabled", False)
+        share = tmp_path / "share"
+        share.mkdir()
+        add = cli.build_parser().parse_args(
+            [
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "connection",
+                "add",
+                "--id",
+                "x",
+                "--type",
+                "path",
+                "--base-uri",
+                str(share),
+                "--kinds",
+                "scripts",
+            ]
+        )
+        assert library_cmd.run(add) == 1
+        assert "disabled" in capsys.readouterr().err.lower()
+
+    def test_main_dispatches_library(self):
+        with patch("lib.cli.library.run", return_value=0) as run:
+            assert cli.main(["library", "enable"]) == 0
+        run.assert_called_once()
