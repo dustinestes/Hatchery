@@ -38,13 +38,14 @@ Controller requirements ≠ Nest-local tool requirements ([#208](https://github.
 
 Prefer shapes that still work if Hatchery is installed under a system prefix (no repo checkout, no `WorkingDirectory=/path/to/clone`). Checkout-coupled helpers (e.g. v1 `scripts/install-service.sh`) are POC - do not extend them as the product install surface. Ship package formulas **after** Controller is Nest-optional and multi-OS; keep this goal in mind on every install/run/path change.
 
-## Multi-OS CI (required)
+## Multi-OS CI
 
-PR acceptance runs the **portable** pytest suite on **ubuntu-latest**, **macos-latest**, and **windows-latest** (`.github/workflows/test.yml`). Coverage gate applies on each OS (`pyproject.toml`).
+PR **merge gates** run the portable pytest suite on **ubuntu-latest** and **macos-latest** (plus Lint). **windows-latest** still runs the same suite on every PR and on the post-merge `push` to `main` so failure alerts still fire, but Windows is **not** a required status check ([#400](https://github.com/dustinestes/Hatchery/issues/400)). Coverage gate applies on each OS that runs (`pyproject.toml`).
 
 - Do **not** add host-OS-only assumptions that break CI on another runner
 - Tests that need a real Nest/hypervisor use `@pytest.mark.hypervisor` and are **excluded** from CI (`-m "not hypervisor"`)
 - Mock Nest transport and provider subprocesses in the default suite
+- A red Windows job after merge (or in the background on a PR) is a follow-up `fix`, not a reason to block every PR on a ~7 minute runner
 
 ```
 ✅ Pathlib, mocked virsh/ssh, skipif for optional tools (e.g. pwsh)

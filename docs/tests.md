@@ -78,14 +78,15 @@ uv run pytest tests/test_config.py
 
 GitHub Actions runs on every PR and push to `main` (path-filtered):
 
-| Check | Where | Tool |
-|---|---|---|
-| Lint | `ubuntu-latest` | `ruff check .` + `ruff format --check .` |
-| Tests | **Matrix:** `ubuntu-latest`, `macos-latest`, `windows-latest` | `pytest -m "not hypervisor"` with coverage |
+| Check | Where | Tool | Blocks PR merge? |
+|---|---|---|---|
+| Lint | `ubuntu-latest` | `ruff check .` + `ruff format --check .` | Yes |
+| Tests | `ubuntu-latest`, `macos-latest` | `pytest -m "not hypervisor"` with coverage | Yes |
+| Tests | `windows-latest` | same portable suite | **No** ([#400](https://github.com/dustinestes/Hatchery/issues/400)) - still runs; failure alerts fire |
 
-### Multi-OS test matrix (#203)
+### Multi-OS test matrix (#203 / #400)
 
-Portable unit/integration tests must pass on **all three** host OS runners. The coverage gate is the project default (`--cov-fail-under=90` in `pyproject.toml`) on **each** OS. Coverage XML is uploaded per OS as `coverage-<runner>`.
+Portable unit/integration tests still run on **all three** host OS runners. **PR merge** waits on lint + ubuntu + macos. Windows runs in parallel on the PR (and again on the post-merge `push` to `main`); a red Windows job fails that Actions run so notifications still arrive - open a follow-up `fix` PR if needed. Coverage gate is the project default (`--cov-fail-under=90` in `pyproject.toml`) on each OS. Coverage XML is uploaded per OS as `coverage-<runner>`.
 
 | Suite | CI | When to use |
 |---|---|---|
@@ -98,7 +99,7 @@ Some **libvirt-only** unit tests that assert POSIX file mode bits (`chmod` world
 
 The import-time hatch status poller and validator scheduler are stopped in `tests/conftest.py` so long Windows runs do not race host requirement alerts into the test DB.
 
-Both lint and the full OS matrix must pass before merge.
+**Before merge:** lint + `pytest (ubuntu-latest)` + `pytest (macos-latest)`. Windows is advisory on the PR (and re-checked after merge to `main`).
 
 <br>
 
