@@ -25,6 +25,8 @@ def register(sub: argparse._SubParsersAction) -> None:
         ("start", "Power on a VM"),
         ("stop", "Gracefully shut down a VM"),
         ("force-stop", "Forcibly power off a VM"),
+        ("pause", "Suspend a running VM (hypervisor pause)"),
+        ("resume", "Resume a paused VM"),
         ("destroy", "Destroy a VM and remove its storage"),
         ("health", "Guest health: IP + WinRM TCP reachability"),
     ):
@@ -85,7 +87,7 @@ def run(args: argparse.Namespace) -> int:
         return _list_vms(args.nest, as_json=as_json)
     if cmd == "snap":
         return _snap(args, as_json=as_json)
-    if cmd in ("start", "stop", "force-stop", "destroy", "health"):
+    if cmd in ("start", "stop", "force-stop", "pause", "resume", "destroy", "health"):
         return _power_or_health(cmd, args.nest, args.name, as_json=as_json)
     bootstrap.print_err(f"unknown vm command: {cmd}")
     return 2
@@ -180,6 +182,16 @@ def _power_or_health(cmd: str, nest_arg: str | None, name: str, *, as_json: bool
         return _run_provider(
             lambda: provider.force_stop_vm(name),
             ok_msg=f"Force-stopped '{name}' on Nest '{nest_id}'.",
+        )
+    if cmd == "pause":
+        return _run_provider(
+            lambda: provider.pause_vm(name),
+            ok_msg=f"Paused '{name}' on Nest '{nest_id}'.",
+        )
+    if cmd == "resume":
+        return _run_provider(
+            lambda: provider.resume_vm(name),
+            ok_msg=f"Resumed '{name}' on Nest '{nest_id}'.",
         )
     if cmd == "destroy":
         return _run_provider(

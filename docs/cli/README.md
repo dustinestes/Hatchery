@@ -66,6 +66,8 @@ uv run hatchery --json nest list
 uv run hatchery clutch list
 uv run hatchery vm list --nest local
 uv run hatchery vm start test26
+uv run hatchery vm pause test26
+uv run hatchery vm resume test26
 uv run hatchery vm snap take test26 --label smoke
 uv run hatchery hatch --clutch demo.yaml --password dc01=secret
 uv run hatchery session list

@@ -47,6 +47,14 @@ class BaseProvider(ABC):
         """Forcibly power off a VM."""
 
     @abstractmethod
+    def pause_vm(self, name: str) -> None:
+        """Suspend a running VM (hypervisor pause)."""
+
+    @abstractmethod
+    def resume_vm(self, name: str) -> None:
+        """Resume a paused VM."""
+
+    @abstractmethod
     def destroy_vm(self, name: str) -> None:
         """Cull a VM — undefine it and remove its allocated storage."""
 

@@ -353,6 +353,12 @@ class LibvirtProvider(BaseProvider):
     def force_stop_vm(self, name: str) -> None:
         subprocess.run(["virsh", "destroy", name], check=True)
 
+    def pause_vm(self, name: str) -> None:
+        subprocess.run(["virsh", "suspend", name], check=True)
+
+    def resume_vm(self, name: str) -> None:
+        subprocess.run(["virsh", "resume", name], check=True)
+
     def destroy_vm(self, name: str) -> None:
         subprocess.run(["virsh", "undefine", name, "--remove-all-storage"], check=True)
         floppy = self._floppy_path(name)
