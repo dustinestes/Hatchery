@@ -31,14 +31,10 @@
     {% endif %}
 {% endcall %}
 
-{% with tab_prefix='media', tablist_label=(pane_title ~ ' inventory source') %}
-  {% include "_inventory_source_tabs.html" %}
-{% endwith %}
-
-<div class="scripts-panel" id="media-panel-cache" role="tabpanel" aria-labelledby="media-tab-cache">
+<div class="scripts-panel" id="media-panel-cache">
   {{ inventory_cached_filters(
        "media",
-       "Filter Cached " ~ pane_title,
+       "Filter " ~ pane_title,
        "media-nav",
        filter_class="inventory-cached-filters"
      ) }}
@@ -228,10 +224,6 @@
 {% endcall %}
 </div>
 
-{% with id_prefix='media', filter_aria=('Filter Library ' ~ pane_title), empty_message=('No media hits from your Library bindings for this target. Configure connections under Settings → Library.') %}
-  {% include "_library_browser_panel.html" %}
-{% endwith %}
-
 {% include '_library_reattach_modal.html' %}
 
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
@@ -257,23 +249,6 @@
   const DELETE_URL_PREFIX = {{ delete_url_prefix | tojson }};
   const libraryEnabled = {{ library_enabled | tojson }};
 
-  var mediaTabs = null;
-  if (window.hatchery && typeof hatchery.bindInventoryTabs === 'function') {
-    mediaTabs = hatchery.bindInventoryTabs({
-      libraryEnabled: libraryEnabled,
-      cacheTab: document.getElementById('media-tab-cache'),
-      libTab: document.getElementById('media-tab-library'),
-      cachePanel: document.getElementById('media-panel-cache'),
-      libPanel: document.getElementById('media-panel-library'),
-      tabsRoot: document.querySelector('.inventory-tabs'),
-      onShowLibrary: function () {
-        if (window._mediaLibraryBrowser && typeof window._mediaLibraryBrowser.load === 'function') {
-          window._mediaLibraryBrowser.load();
-        }
-      },
-    });
-  }
-
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
       button: document.getElementById('media-import-btn'),
@@ -286,15 +261,6 @@
       onFromLibrary: libraryEnabled
         ? function () { window.location = '/library/content?tab=available&domain=media'; }
         : null,
-    });
-  }
-
-  if (libraryEnabled && window.hatchery && typeof hatchery.bindLibraryBrowserByPrefix === 'function') {
-    window._mediaLibraryBrowser = hatchery.bindLibraryBrowserByPrefix({
-      idPrefix: 'media',
-      catalogUrl: {{ library_catalog_url | tojson }},
-      pullUrl: {{ library_pull_url | tojson }},
-      pullExtra: { target: {{ library_media_target | tojson }} },
     });
   }
 

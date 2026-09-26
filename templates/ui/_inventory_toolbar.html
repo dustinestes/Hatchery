@@ -1,11 +1,12 @@
-{# Inventory toolbar (#391).
+{# Inventory toolbar (#391 / #397).
+   Visible title is omitted (topbar owns the page name). Title stays
+   visually-hidden for an accessible heading when actions are present.
    {% from "_inventory_toolbar.html" import inventory_toolbar %}
    {% call inventory_toolbar("Script files") %}…actions…{% endcall %}
-   Or: {{ inventory_toolbar("Linked content") }} with no actions.
 #}
 {% macro inventory_toolbar(title) -%}
 <div class="section-header inventory-toolbar">
-  <h2 class="section-title">{{ title }}</h2>
+  <h2 class="section-title visually-hidden">{{ title }}</h2>
   {%- if caller is defined -%}
   <div class="section-header-actions">{{ caller() }}</div>
   {%- endif -%}
