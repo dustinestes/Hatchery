@@ -981,6 +981,137 @@ class TestLibraryCli:
         assert library_cmd.run(add) == 1
         assert "disabled" in capsys.readouterr().err.lower()
 
+    def test_connection_test_and_content_list_pull(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.library as library_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        share = tmp_path / "share"
+        share.mkdir()
+        script = share / "hello.ps1"
+        script.write_text("Write-Host hi\n", encoding="utf-8")
+
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(["library", "--data-dir", str(sandbox), "enable"])
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(
+                    [
+                        "library",
+                        "--data-dir",
+                        str(sandbox),
+                        "connection",
+                        "add",
+                        "--id",
+                        "local-share",
+                        "--type",
+                        "path",
+                        "--base-uri",
+                        str(share),
+                        "--kinds",
+                        "scripts",
+                    ]
+                )
+            )
+            == 0
+        )
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(
+                    [
+                        "library",
+                        "--data-dir",
+                        str(sandbox),
+                        "binding",
+                        "add",
+                        "--id",
+                        "scripts-all",
+                        "--connection-id",
+                        "local-share",
+                        "--domain",
+                        "scripts",
+                        "--filter",
+                        "*.ps1",
+                    ]
+                )
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        test = cli.build_parser().parse_args(
+            [
+                "--json",
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "connection",
+                "test",
+                "local-share",
+            ]
+        )
+        assert library_cmd.run(test) == 0
+        test_payload = json.loads(capsys.readouterr().out)
+        assert test_payload["ok"] is True
+        assert test_payload["connection_id"] == "local-share"
+
+        listing = cli.build_parser().parse_args(
+            [
+                "--json",
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "content",
+                "list",
+                "--domain",
+                "scripts",
+                "--connection",
+                "local-share",
+            ]
+        )
+        assert library_cmd.run(listing) == 0
+        list_payload = json.loads(capsys.readouterr().out)
+        assert list_payload["domain"] == "scripts"
+        names = {i["name"] for i in list_payload["items"]}
+        assert "hello.ps1" in names
+        item = next(i for i in list_payload["items"] if i["name"] == "hello.ps1")
+        assert item["cached"] is False
+
+        pull = cli.build_parser().parse_args(
+            [
+                "--json",
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "content",
+                "pull",
+                "--domain",
+                "scripts",
+                "--connection",
+                "local-share",
+                "--path",
+                item["relative_path"],
+                "--binding-id",
+                "scripts-all",
+            ]
+        )
+        assert library_cmd.run(pull) == 0
+        pull_payload = json.loads(capsys.readouterr().out)
+        assert pull_payload["imported"] == ["hello.ps1"]
+        dest = sandbox / "automation" / "scripts" / "hello.ps1"
+        assert dest.is_file()
+
+        # Create-only: second pull fails
+        assert library_cmd.run(pull) == 1
+        assert capsys.readouterr().err
+
     def test_main_dispatches_library(self):
         with patch("lib.cli.library.run", return_value=0) as run:
             assert cli.main(["library", "enable"]) == 0
