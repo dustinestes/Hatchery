@@ -2294,7 +2294,7 @@ class TestHatchClutchRoute:
         )
         c = Clutch(name="my-lab", vms=[vm])
         clutch_lib.export(c, "my-lab", clutches_dir)
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         assert resp.status_code == 200
@@ -2315,7 +2315,7 @@ class TestHatchClutchRoute:
         )
         c = Clutch(name="my-lab", vms=[vm])
         clutch_lib.export(c, "my-lab", clutches_dir)
-        with patch("hatchery._run_hatch_session") as mock_run:
+        with patch("lib.hatch_lifecycle.run_hatch_session") as mock_run:
             resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         assert resp.status_code == 200
         html = resp.data.decode()
@@ -2326,7 +2326,7 @@ class TestHatchClutchRoute:
     def test_post_creates_session_and_redirects_to_nests(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             resp = client.post(
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
@@ -2338,7 +2338,7 @@ class TestHatchClutchRoute:
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             client.post(
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
@@ -2351,7 +2351,7 @@ class TestHatchClutchRoute:
     def test_post_redirects_even_when_provider_would_fail(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             resp = client.post(
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
@@ -2364,7 +2364,7 @@ class TestRunHatchSession:
 
     @pytest.fixture(autouse=True)
     def no_side_effects(self):
-        with patch("hatchery.time.sleep"), patch("hatchery._send_boot_key"):
+        with patch("lib.hatch_lifecycle.time.sleep"), patch("lib.hatch_lifecycle.send_boot_key"):
             yield
 
     def _setup_session(self, tmp_path, vm_name="dc01"):
@@ -2385,7 +2385,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         mock_prov.return_value.create_vm.assert_called_once()
@@ -2402,7 +2402,7 @@ class TestRunHatchSession:
             os_media="win11.iso",
             admin_username="alice",
         )
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": "s3cr3t"}, "lab.yaml")
         _, kwargs = mock_prov.return_value.create_vm.call_args
@@ -2421,7 +2421,7 @@ class TestRunHatchSession:
             s = next(s for s in sessions if s["id"] == sid)
             observed.append(next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01"))
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = fake_create_vm
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert observed == ["hatching"]
@@ -2430,7 +2430,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "failed"
@@ -2440,7 +2440,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
             )
@@ -2454,7 +2454,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         events = hatch_lib.get_events(sid, "dc01")
@@ -2479,7 +2479,7 @@ class TestRunHatchSession:
             if vm_cfg.name == "dc01":
                 raise FileNotFoundError("dc01 failed")
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = fake_create
             app_module._run_hatch_session(sid, vms, {"dc01": None, "ws01": None}, "lab.yaml")
 
@@ -2495,8 +2495,8 @@ class TestRunHatchSession:
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with (
-            patch("hatchery._provider") as mock_prov,
-            patch("hatchery.threading.Thread") as mock_thread_cls,
+            patch("lib.hatch_lifecycle.get_provider") as mock_prov,
+            patch("lib.hatch_lifecycle.threading.Thread") as mock_thread_cls,
         ):
             mock_thread = MagicMock()
             mock_thread_cls.return_value = mock_thread
@@ -2505,7 +2505,7 @@ class TestRunHatchSession:
         boot_calls = [
             c
             for c in mock_thread_cls.call_args_list
-            if c.kwargs.get("target") is app_module._send_boot_key
+            if c.kwargs.get("target") is app_module.hatch_lifecycle_lib.send_boot_key
         ]
         assert len(boot_calls) == 1
         assert boot_calls[0].kwargs["args"] == (mock_prov.return_value, "dc01")
@@ -2517,8 +2517,8 @@ class TestRunHatchSession:
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         call_order = []
         with (
-            patch("hatchery._provider") as mock_prov,
-            patch("hatchery.threading.Thread") as mock_thread_cls,
+            patch("lib.hatch_lifecycle.get_provider") as mock_prov,
+            patch("lib.hatch_lifecycle.threading.Thread") as mock_thread_cls,
         ):
             mock_thread = MagicMock()
             mock_thread_cls.return_value = mock_thread
@@ -2533,7 +2533,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2543,7 +2543,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session.side_effect = RuntimeError("virsh failed")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2555,7 +2555,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.return_value = "test-uuid-1234"
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2568,7 +2568,7 @@ class TestRunHatchSession:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
         vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2578,7 +2578,7 @@ class TestRunHatchSession:
 class TestSendBootKey:
     @pytest.fixture(autouse=True)
     def no_sleep(self):
-        with patch("hatchery.time.sleep"):
+        with patch("lib.hatch_lifecycle.time.sleep"):
             yield
 
     def test_polls_until_vm_running(self):
@@ -2613,7 +2613,7 @@ class TestSendBootKey:
     def test_settles_after_running_before_burst(self):
         provider = MagicMock()
         provider.get_status.return_value = "running"
-        with patch("hatchery.time.sleep") as mock_sleep:
+        with patch("lib.hatch_lifecycle.time.sleep") as mock_sleep:
             app_module._send_boot_key(provider, "myvm")
         assert mock_sleep.call_args_list[0].args == (app_module._BOOT_KEY_SETTLE_SECONDS,)
 
@@ -2669,7 +2669,9 @@ class TestSyncHatchStatus:
 
     def _setup_hatching(self, tmp_path, with_uuid=True):
         import lib.hatch as hatch_lib
+        import lib.nests as nests_lib
 
+        nests_lib.ensure_local_nest()
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.set_vm_status(sid, "dc01", "hatching")
@@ -2685,11 +2687,11 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=True):
-                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
-                        with patch("hatchery.provision_lib.delete_setup_log"):
-                            with patch("hatchery.provision_lib.delete_setup_flag"):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                    with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
+                        with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
+                            with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -2707,13 +2709,13 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=True):
-                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
                     with patch(
-                        "hatchery.provision_lib.read_setup_log", return_value=setup_log
+                        "lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=setup_log
                     ) as mock_read:
-                        with patch("hatchery.provision_lib.delete_setup_log") as mock_del_log:
-                            with patch("hatchery.provision_lib.delete_setup_flag"):
+                        with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log") as mock_del_log:
+                            with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         mock_read.assert_called_once_with("192.168.122.40", "", "")
         mock_del_log.assert_called_once_with("192.168.122.40", "", "")
@@ -2732,11 +2734,11 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=True):
-                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
-                        with patch("hatchery.provision_lib.delete_setup_log"):
-                            with patch("hatchery.provision_lib.delete_setup_flag"):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                    with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
+                        with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
+                            with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         events = hatch_lib.get_events(sid, "dc01")
         assert any("no automation scripts" in e["message"].lower() for e in events)
@@ -2749,8 +2751,8 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=True):
-                with patch("hatchery.provision_lib.check_setup_complete", return_value=False):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=False):
                     app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -2762,11 +2764,11 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=True):
-                with patch("hatchery.provision_lib.check_setup_complete", return_value=True):
-                    with patch("hatchery.provision_lib.read_setup_log", return_value=""):
-                        with patch("hatchery.provision_lib.delete_setup_log"):
-                            with patch("hatchery.provision_lib.delete_setup_flag") as mock_del:
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                    with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
+                        with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
+                            with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag") as mock_del:
                                 app_module._sync_hatch_status()
         mock_del.assert_called_once_with("192.168.122.40", "", "")
 
@@ -2782,7 +2784,7 @@ class TestSyncHatchStatus:
     def test_does_not_check_winrm_when_shut_off(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         self._setup_hatching(tmp_path)
-        with patch("hatchery._provider") as mock_prov, patch("hatchery._check_winrm") as mock_winrm:
+        with patch("hatchery._provider") as mock_prov, patch("lib.hatch_lifecycle.check_winrm") as mock_winrm:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
             app_module._sync_hatch_status()
@@ -2837,7 +2839,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("hatchery._check_winrm", return_value=False):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=False):
                 app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -3006,7 +3008,7 @@ class TestApiSessions:
     def test_returns_sessions_after_hatch(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab")
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         data = client.get("/api/sessions").get_json()
         assert len(data) == 1
@@ -3015,7 +3017,7 @@ class TestApiSessions:
     def test_session_includes_vms(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         data = client.get("/api/sessions").get_json()
         assert data[0]["vms"][0]["vm_name"] == "dc01"
@@ -3023,7 +3025,7 @@ class TestApiSessions:
     def test_session_includes_status(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path)
-        with patch("hatchery._run_hatch_session"):
+        with patch("lib.hatch_lifecycle.run_hatch_session"):
             client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         data = client.get("/api/sessions").get_json()
         assert "status" in data[0]
@@ -4526,7 +4528,7 @@ class TestApiRetryVm:
         import lib.hatch as hatch_lib
 
         sid = self._setup_failed_vm(tmp_path)
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.get_vm_ip.return_value = None
             resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
         assert resp.status_code == 200
@@ -4591,8 +4593,8 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
-            with patch("hatchery._provider"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
@@ -4614,8 +4616,8 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery.provision_lib.run_script", return_value=(1, "error")):
-            with patch("hatchery._provider"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(1, "error")):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
@@ -4642,8 +4644,8 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_A(), _B()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery.provision_lib.run_script", return_value=(1, "fail")):
-            with patch("hatchery._provider"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(1, "fail")):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         scripts = hatch_lib.get_vm_scripts(sid, "dc01")
@@ -4674,10 +4676,10 @@ class TestProvisionVmThread:
 
         call_count = []
         with patch(
-            "hatchery.provision_lib.run_script",
+            "lib.hatch_lifecycle.provision_lib.run_script",
             side_effect=lambda *a, **kw: call_count.append(1) or (0, "ok"),
         ):
-            with patch("hatchery._provider"):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         assert len(call_count) == 1  # only b.ps1 ran
@@ -4699,8 +4701,8 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery.provision_lib.run_script", side_effect=ConnectionError("refused")):
-            with patch("hatchery._provider"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", side_effect=ConnectionError("refused")):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
@@ -4722,10 +4724,10 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
-            with patch("hatchery.provision_lib.restart_guest") as mock_restart:
-                with patch("hatchery._check_winrm", return_value=True):
-                    with patch("hatchery.time.sleep"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("lib.hatch_lifecycle.provision_lib.restart_guest") as mock_restart:
+                with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+                    with patch("lib.hatch_lifecycle.time.sleep"):
                         app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         mock_restart.assert_called_once_with("192.168.1.1", "admin", "pass")
@@ -4741,8 +4743,8 @@ class TestProvisionVmThread:
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
         app_module._provisioning.add((sid, "dc01"))
 
-        with patch("hatchery.provision_lib.run_script", return_value=(0, "ok")):
-            with patch("hatchery._provider"):
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
         assert (sid, "dc01") not in app_module._provisioning

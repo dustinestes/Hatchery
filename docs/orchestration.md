@@ -62,7 +62,7 @@ Failure at any phase lands the VM in `failed` status. The VM can be retried from
 When the user submits a Clutch for hatching:
 
 1. Hatchery creates a hatch session in the database and records each VM with status `pending`.
-2. A background thread (`_run_hatch_session`) is spawned immediately. The UI redirects to the Nests pane without waiting.
+2. A background thread (`lib.hatch_lifecycle.run_hatch_session`) is spawned immediately. The UI redirects to the Nests pane without waiting.
 3. For each VM in the Clutch, the thread:
    - Sets the VM status to `hatching`
    - Spawns a concurrent sub-thread (`_send_boot_key`) to handle the BIOS boot prompt
@@ -110,7 +110,7 @@ Windows Setup runs entirely unattended from the answer file. The process takes s
 
 Windows sends an ACPI power-off signal at certain points during setup (notably after initial file copy and after OOBE). From libvirt's perspective the VM simply shuts off - there is no signal distinguishing a setup reboot from a user shutdown.
 
-Hatchery's background polling loop (`_sync_hatch_status`) runs on a configurable interval (default: 10 seconds) and detects when a VM in `hatching` status is shut off. It restarts the VM automatically via `virsh start`. This continues until Windows reaches the desktop and AutoLogon triggers.
+Hatchery's background polling loop (`lib.hatch_lifecycle.sync_hatch_status`) runs on a configurable interval (default: 10 seconds) and detects when a VM in `hatching` status is shut off. It restarts the VM automatically via `virsh start`. This continues until Windows reaches the desktop and AutoLogon triggers.
 
 This behaviour is **scoped to `hatching` status only**. Fledged VMs that are shut off are left alone. Script reboots during the automation phase use `Restart-Computer` (an in-guest restart) and never leave the VM in `shut off` state, so they do not interact with this mechanism.
 
@@ -216,7 +216,7 @@ If a WinRM connection error occurs (e.g. the VM rebooted unexpectedly), the scri
 
 ### Reboot after
 
-If a script has `reboot_after: true`, Hatchery issues `Restart-Computer -Force` over WinRM after the script succeeds. The WinRM connection drops immediately (this is expected). Hatchery then polls `_check_winrm()` up to 120 times at 5-second intervals (10 minutes maximum) until the VM's WinRM port is reachable again before continuing to the next script.
+If a script has `reboot_after: true`, Hatchery issues `Restart-Computer -Force` over WinRM after the script succeeds. The WinRM connection drops immediately (this is expected). Hatchery then polls WinRM TCP (`lib.guest_health.check_winrm`) up to 120 times at 5-second intervals (10 minutes maximum) until the VM's WinRM port is reachable again before continuing to the next script.
 
 ### Completion
 
@@ -271,7 +271,7 @@ Re-spawns the provision thread immediately if WinRM is reachable, or queues it f
 
 ## Multi-VM Clutches
 
-When a Clutch defines multiple VMs, `_run_hatch_session` creates them **sequentially** in the order they appear in the Clutch file. Each VM's `virt-install` call must complete before the next VM begins creation. Once created, all VMs are monitored concurrently by the polling loop and their automation phases run in parallel.
+When a Clutch defines multiple VMs, `run_hatch_session` creates them **sequentially** in the order they appear in the Clutch file. Each VM's `virt-install` call must complete before the next VM begins creation. Once created, all VMs are monitored concurrently by the polling loop and their automation phases run in parallel.
 
 `depends_on` declarations are validated at Clutch load time (no unknown references, no cycles) and stored in the Clutch YAML, but **do not currently affect execution order**. Dependency-ordered hatching - waiting for a prerequisite VM to reach `fledged` before starting a dependent VM - is tracked in issue #123 and planned for a future release.
 

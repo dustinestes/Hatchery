@@ -64,6 +64,9 @@ uv run hatchery serve --data-dir /path/to/sandbox-local --nest-local --host 127.
 uv run hatchery nest list
 uv run hatchery clutch list
 uv run hatchery vm list --nest local
+uv run hatchery vm start test26
+uv run hatchery vm snap take test26 --label smoke
+uv run hatchery hatch --clutch demo.yaml --password dc01=secret
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -88,12 +91,13 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 |---|---|---|---|
 | [serve.md](serve.md) | [`lib/cli/serve.py`](../../lib/cli/serve.py) | **Shipped** (#22, #266 `--nest-local`) | Start the Controller HTTP server |
 | [clutch.md](clutch.md) | [`lib/cli/clutch.py`](../../lib/cli/clutch.py) | **Shipped (inspect)** (#23) | List/show Clutch files |
-| [vm.md](vm.md) | [`lib/cli/vm.py`](../../lib/cli/vm.py) | **Shipped (inspect)** (#23) | Nest-scoped VM list (lifecycle later) |
-| [hatch.md](hatch.md) | `lib/cli/hatch.py` | Planned (#23 follow-on) | Hatch a Clutch onto a Nest |
+| [vm.md](vm.md) | [`lib/cli/vm.py`](../../lib/cli/vm.py) | **Shipped** (#23 inspect, #353 mutate) | Nest-scoped VM list + lifecycle |
+| [hatch.md](hatch.md) | [`lib/cli/hatch.py`](../../lib/cli/hatch.py) | **Shipped** (#353) | Hatch a Clutch onto a Nest |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
 
-Operator inspect commands (`nest`, `clutch`, `vm list`) ship under [#23](https://github.com/dustinestes/Hatchery/issues/23); mutating VM lifecycle and `hatch` remain follow-on work on that issue.
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle (`start` / `stop` / `force-stop` / `destroy` / `snap` / `health`) ship under [#353](https://github.com/dustinestes/Hatchery/issues/353).
+
 
 <br>
 
