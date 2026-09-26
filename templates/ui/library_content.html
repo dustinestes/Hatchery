@@ -3,46 +3,23 @@
 {% block title %}Content - Library - Hatchery{% endblock %}
 
 {% block content %}
-<div class="section-header inventory-toolbar">
-  <h2 class="section-title">Linked content</h2>
-</div>
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{{ inventory_toolbar("Linked content") }}
 
 <div class="scripts-panel" id="library-content-panel-root">
-  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter linked content">
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="library-content-filter-q">Search</label>
-      <input type="search"
-             id="library-content-filter-q"
-             class="form-input"
-             placeholder="Name"
-             autocomplete="off"
-             aria-controls="library-content-nav">
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="library-content-filter-domain">Domain</label>
-      <select id="library-content-filter-domain" class="form-select" aria-controls="library-content-nav">
-        <option value="">All</option>
-        <option value="scripts">Scripts</option>
-        <option value="clutches">Clutches</option>
-        <option value="media">Media</option>
-      </select>
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="library-content-filter-state">Library state</label>
-      <select id="library-content-filter-state" class="form-select" aria-controls="library-content-nav">
-        <option value="">All</option>
-        <option value="in_sync">Synced</option>
-        <option value="out_of_sync">Out of sync</option>
-        <option value="orphan">Orphaned</option>
-        <option value="missing">Source missing</option>
-        <option value="communication">Communication</option>
-        <option value="disabled">Connection disabled</option>
-        <option value="unconfirmable">Tip unconfirmable</option>
-      </select>
-    </div>
-  </div>
+  {{ inventory_cached_filters(
+       "library-content",
+       "Filter linked content",
+       "library-content-nav",
+       extras=["domain"],
+       include_local=false,
+       filter_class="inventory-cached-filters"
+     ) }}
 
-<div class="scripts-layout">
+{% call inventory_split() %}
 
   <nav class="scripts-nav" aria-label="Linked Library content" id="library-content-nav">
     {% if content_items %}
@@ -188,7 +165,7 @@
     <div class="stub" id="library-content-stub">Select a linked item to inspect</div>
   </div>
 
-</div>
+{% endcall %}
 </div>
 
 {% include "_library_reattach_modal.html" %}

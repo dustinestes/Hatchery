@@ -1,0 +1,10 @@
+{# Master–detail split (#391).
+   {% from "_inventory_split_layout.html" import inventory_split %}
+   {% call inventory_split() %}…nav + detail…{% endcall %}
+   Media: {% call inventory_split("media-layout") %}…{% endcall %}
+#}
+{% macro inventory_split(layout_class="scripts-layout") -%}
+<div class="{{ layout_class }}">
+{{ caller() }}
+</div>
+{%- endmacro %}

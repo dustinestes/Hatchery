@@ -304,6 +304,45 @@ class TestPageTitles:
         assert "From library…" not in html
         assert 'id="scripts-library-browser"' not in html
 
+    def test_inventory_panes_share_cached_chrome_macros(self, client, monkeypatch):
+        """#391: toolbar / filters / split layout macros keep stable filter ids."""
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+
+        scripts = client.get("/automation/scripts").data.decode()
+        assert "inventory-toolbar" in scripts
+        assert 'id="scripts-filter-q"' in scripts
+        assert 'id="scripts-filter-language"' in scripts
+        assert 'id="scripts-filter-state"' in scripts
+        assert "scripts-layout" in scripts
+        assert 'id="scripts-tab-cache"' in scripts
+
+        media = client.get("/media/iso").data.decode()
+        assert "inventory-toolbar" in media
+        assert 'id="media-filter-q"' in media
+        assert 'id="media-filter-state"' in media
+        assert "media-filter-language" not in media
+        assert "media-layout" in media
+
+        clutches = client.get("/clutches").data.decode()
+        assert "inventory-toolbar" in clutches
+        assert 'id="clutches-filter-q"' in clutches
+        assert 'id="clutches-filter-language"' in clutches
+        assert 'id="clutches-filter-state"' in clutches
+        assert "scripts-layout" in clutches
+
+        content = client.get("/library/content").data.decode()
+        assert "inventory-toolbar" in content
+        assert 'id="library-content-filter-q"' in content
+        assert 'id="library-content-filter-domain"' in content
+        assert 'id="library-content-filter-state"' in content
+        assert "scripts-layout" in content
+        state_opts = content.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
+        assert 'value="local"' not in state_opts
+
     def test_media_iso_library_tabs_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/media/iso").data.decode()
@@ -896,6 +935,10 @@ class TestLibraryContentPane:
         assert html.count("sidebar-subitem active") == 1
         assert 'href="/library/content"' in html
         assert "library_status_cues.js" in html or "HatcheryLibraryStatus" in html
+        assert 'id="library-content-filter-q"' in html
+        assert 'id="library-content-filter-domain"' in html
+        assert 'id="library-content-filter-state"' in html
+        assert 'value="local"' not in html.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
 
     def test_library_content_api_json(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
