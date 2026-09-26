@@ -26,6 +26,8 @@ pytest test suite for Hatchery.
 
 ```
 tests/
+├── test_cli.py                - operator CLI in-process (parser / dispatch)
+├── test_cli_entrypoint.py     - ``hatchery`` console script subprocess smoke (#432)
 ├── test_providers.py          - libvirt provider (KVM/QEMU); Hyper-V TBD
 ├── test_factory.py            - Nest id → BaseProvider factory (#206)
 ├── test_nest_transport.py     - Nest SSH control plane (#218); mocked ssh
@@ -35,6 +37,8 @@ tests/
 ```
 
 Tests mirror the structure of `lib/`. Every module in `lib/` should have a corresponding test file.
+
+In-process CLI coverage (`tests/test_cli.py`) is the main contract suite. `tests/test_cli_entrypoint.py` only checks that the installed `hatchery` console script starts and honors root flags such as `--json` (packaging smoke). Live Nest power / hatch against a real hypervisor stays `@pytest.mark.hypervisor` or manual operator checks; it is not part of the PR gate.
 
 <br>
 

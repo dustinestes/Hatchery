@@ -111,6 +111,8 @@ uv run python -m lib.cli serve --host 127.0.0.1 --port 5000
 
 Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.md](../getting-started.md). Contributor notes and Run and Debug configs: [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
+CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smoke (`tests/test_cli_entrypoint.py`, [#432](https://github.com/dustinestes/Hatchery/issues/432)) runs `hatchery --help` and one `--json nest list` via subprocess. Live Nest lifecycle against real hypervisors is not in the PR gate (see [tests.md](../tests.md)).
+
 <br>
 
 ## Modules
