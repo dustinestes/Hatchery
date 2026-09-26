@@ -94,6 +94,7 @@ class TestCliEntrypointSmoke:
             "media",
             "scripts",
             "settings",
+            "library",
         ):
             assert name in out
 
