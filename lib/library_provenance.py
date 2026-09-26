@@ -669,8 +669,13 @@ def enrich_inventory(
     connection_ids: set[str],
     binding_ids: set[str] | None = None,
     media_target: str | None = None,
+    library_enabled: bool = True,
 ) -> list[dict[str, Any]]:
-    """Attach provenance fields onto filesystem inventory dicts (keyed by name)."""
+    """Attach provenance fields onto filesystem inventory dicts (keyed by name).
+
+    When ``library_enabled`` is false, link rows still attach so soft-disable
+    Cached chrome can show a linked cue without Sync / re-attach (#408).
+    """
     from lib import library_status_cues as cues
 
     by_name = {r["cache_name"]: r for r in list_for_domain(domain, media_target=media_target)}
@@ -701,7 +706,7 @@ def enrich_inventory(
             enriched["source_status_message"] = row.get("source_status_message") or ""
             enriched["orphan"] = bool(row.get("orphan"))
             enriched["orphan_reason"] = row.get("orphan_reason") or ""
-        cues.attach_to_inventory_item(enriched)
+        cues.attach_to_inventory_item(enriched, library_enabled=library_enabled)
         out.append(enriched)
     return out
 

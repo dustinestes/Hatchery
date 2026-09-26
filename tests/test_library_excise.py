@@ -185,3 +185,44 @@ class TestApiLibraryDisable:
         assert body["ok"] is False
         assert "mutually exclusive" in (body.get("error") or "")
         assert live_cfg.library_enabled() is True
+
+
+class TestSoftDisableCachedChrome:
+    """#408: linked cue on Cached inventory while Library is soft-disabled."""
+
+    def test_scripts_inventory_shows_linked_cue(self, client, live_cfg, tmp_path):
+        data = Path(live_cfg.data_dir())
+        share = tmp_path / "share"
+        share.mkdir()
+        _seed_linked_script(data, share)
+
+        resp = client.post(
+            "/api/library/disable",
+            json={
+                "clear_connections": False,
+                "clear_content": False,
+                "clear_links": False,
+            },
+        )
+        assert resp.status_code == 200
+        assert live_cfg.library_enabled() is False
+
+        inv = client.get("/api/automation/scripts")
+        assert inv.status_code == 200
+        items = inv.get_json()
+        row = next(i for i in items if i.get("name") == "hello.ps1")
+        assert row["library_cue"] == "linked"
+        assert row["library_can_sync"] is False
+        assert row["library_can_reattach"] is False
+        assert row["library_provenance"] is not None
+
+        sync = client.post(
+            "/api/library/cache/sync",
+            json={"domain": "scripts", "name": "hello.ps1"},
+        )
+        assert sync.status_code == 403
+
+    def test_scripts_page_shows_linked_filter(self, client, live_cfg):
+        html = client.get("/automation/scripts").data.decode()
+        assert 'value="linked"' in html
+        assert "setLibraryEnabled" in html

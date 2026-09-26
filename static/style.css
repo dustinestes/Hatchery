@@ -3899,6 +3899,15 @@ html.sidebar-collapsed-init .topbar-name {
   color: var(--color-success, #15803d);
 }
 
+.library-status-cue-icon--linked {
+  color: var(--color-text-muted, #64748b);
+}
+
+.scripts-library-status-btn.scripts-library-status-btn--linked {
+  color: var(--color-text-muted, #64748b);
+  cursor: default;
+}
+
 .scripts-nav-drift-icon[hidden],
 .inventory-nav-drift-icon[hidden],
 .media-nav-drift-icon[hidden] {
