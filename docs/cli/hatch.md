@@ -19,7 +19,7 @@ Hatch a Clutch onto a Nest from the terminal (same orchestration as the UI via [
 ## Usage
 
 ```bash
-uv run hatchery hatch --clutch <file> [--nest <id>] [--password VM=SECRET]... [--ensure-cache] [--no-wait]
+uv run hatchery hatch [--data-dir PATH] --clutch <file> [--nest <id>] [--password VM=SECRET]... [--ensure-cache] [--no-wait]
 ```
 
 | Flag | Notes |

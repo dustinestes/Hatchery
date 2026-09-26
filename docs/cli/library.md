@@ -12,7 +12,7 @@ Code: [`lib/cli/library.py`](../../lib/cli/library.py). Parent: [CLI index](READ
 
 ## Purpose
 
-Operator CLI for the Library plane: convenience enable/disable (Settings `library_enabled`), connection and binding CRUD on first-class tables, plus **consume** verbs for Available Content (list / connection test / pull into operator cache).
+Operator CLI for the Library plane: convenience enable/disable (Settings `library_enabled`), connection and binding CRUD on first-class tables, plus **consume** verbs for Available Content (`content list|pull|remove`) and `connection test`.
 
 Consume-only: no forge push or Clutch round-trip ([ADR-0011](../adr/0011-library-consume-only-no-clutch-roundtrip.md)). Cache sync/reattach remain UI / follow-on.
 
@@ -35,9 +35,9 @@ uv run hatchery library connection add --help
 | `connection list\|show` | Read registry (works while Library is disabled) |
 | `connection add\|remove\|test` | Requires Library enabled; `add` upserts by `--id` (optional; auto-id like UI); `test` uses shared `library.test_connection` |
 | `binding *` | Same enable gate on mutate; `--domain` filter on list |
-| `content list` | Available Content catalog from bindings (`--domain` required); optional `--connection`, media `--target` |
-| `content pull` | Create-only pull into operator cache; requires `--connection` + `--path`; media needs `--target` |
-| `content remove` | Delete one Library-linked cache file + provenance (same as Content trash); `--name` is the **cached basename**, media needs `--target` |
+| `content list` | Requires Library enabled. Available Content catalog from bindings (`--domain` required); optional `--connection`, media `--target` |
+| `content pull` | Requires Library enabled. Create-only pull into operator cache; requires `--connection` + `--path` (catalog `relative_path`); media needs `--target` |
+| `content remove` | Requires Library enabled. Delete one Library-linked cache file + provenance (same as Content trash); `--name` is the **cached basename**, media needs `--target` |
 
 Deeper disable/excise teardown (clear links/content/registry) remains UI / follow-on ([ADR-0019](../adr/0019-library-disable-excise.md)).
 
@@ -53,7 +53,7 @@ Local Controller cache inventory (`hatchery scripts list` / `media list`) is **n
 | `--type` | yes | `path` · `https` · `api` · `forge` (classic `git` removed - ADR-0020) |
 | `--base-uri` | yes | Absolute filesystem path (`path`) or HTTPS URL (`https` / `api` / `forge`) |
 | `--kinds` | yes | Comma-separated from `scripts`, `clutches`, `media`, `packages` |
-| `--label` | no | Display name (defaults to `--id`) |
+| `--label` | no | Display name. Defaults to `--id` when provided; otherwise a placeholder until upsert returns the generated id |
 | `--provider` | for `api` / `forge` | Adapter id: forge `github`; api `artifactory` (omit for `path` / `https`) |
 | `--token` | no | Auth token for `api` / `forge` (stored in SQLite; prefer env/secret workflows later) |
 
@@ -156,7 +156,7 @@ uv run hatchery library content remove \
   --name hello.ps1
 ```
 
-`--json` shapes: connection test `{connection_id, ok, message}`; content list `{domain, items: […]}`; content pull `{domain, imported, sha256, dest}`; content remove `{ok, domain, name, deleted}`.
+`--json` field names: see [CLI index](README.md#machine-readable-output---json) (enable/disable, connection/binding list/show/add/remove/test, content list/pull/remove).
 
 <br>
 

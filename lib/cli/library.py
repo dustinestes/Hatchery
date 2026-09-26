@@ -12,7 +12,7 @@ from lib.cli import output as cli_out
 def register(sub: argparse._SubParsersAction) -> None:
     library = sub.add_parser(
         "library",
-        help="Library enable, connections/bindings, and content list/pull",
+        help="Library enable, connections/bindings, and content list/pull/remove",
     )
     bootstrap.add_data_dir_argument(library)
     lib_sub = library.add_subparsers(dest="library_command", required=True)

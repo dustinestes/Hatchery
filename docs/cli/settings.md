@@ -29,9 +29,23 @@ uv run hatchery settings set library_enabled true
 |---|---|
 | `get` | Omit keys to list all exportable Settings; data dir must already exist |
 | `set` | Partial write (`update_settings`); creates Controller state under `--data-dir` when needed |
-| Values | `true`/`false` for booleans; integers for intervals; JSON strings for maps/lists (`validators`, tiers) |
 
-`data_dir` is **not** a Settings CLI key (bootstrap / `--data-dir` only). Runtime cache keys such as `nest_reachability_status` are not exportable.
+<br>
+
+## Exportable keys
+
+| Key | CLI value | Notes |
+|---|---|---|
+| `bg_interval` | integer | Hatch status poll seconds (minimum 10) |
+| `validators` | JSON object | Per-validator `{enabled, interval_seconds}` map |
+| `validators_run_retention` | integer | Max run history rows per validator (10–500) |
+| `show_passwords` | bool | `true`/`false`/`1`/`0`/`yes`/`no`/`on`/`off` |
+| `display_timezone` | string | `UTC` or `local` |
+| `nest_key_alert_tiers` | JSON list | Nest SSH expiry alert windows |
+| `nest_ssh_identities` | JSON list | Tracked Nest SSH identities (legacy/alert use) |
+| `library_enabled` | bool | Same tokens as `show_passwords`; also `library enable\|disable` |
+
+**Not** Settings CLI keys: bootstrap `data_dir` (use `--data-dir` / serve), runtime `nest_reachability_status`, meta `_settings_rev`. Product meaning: [settings.md](../settings.md).
 
 Shared writer: `lib.settings_io.set_exportable_setting` (also used by product convenience verbs such as `library enable`).
 

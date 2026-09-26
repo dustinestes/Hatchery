@@ -29,18 +29,27 @@ Code lives under [`lib/cli/`](../../lib/cli/). Docs here mirror that layout: eac
 flowchart LR
   subgraph entry [hatchery CLI]
     serve[serve]
+    nest[nest]
     clutch[clutch]
     vm[vm]
     hatchCmd[hatch]
-    nest[nest]
+    session[session]
+    media[media]
+    scripts[scripts]
     settings[settings]
+    library[library]
   end
   serve --> controller[Controller HTTP process]
   clutch --> factory[Nest factory plus transport]
   vm --> factory
   hatchCmd --> factory
   nest --> factory
+  session --> factory
+  media --> dataDir[Controller data dir]
+  scripts --> dataDir
   settings --> configStore[Settings bootstrap and SQLite]
+  library --> configStore
+  library --> factory
   factory --> localNest[Local Nest]
   factory --> remoteNest[Remote Nest]
 ```
@@ -48,8 +57,10 @@ flowchart LR
 | Surface | Job | Session vs persist |
 |---|---|---|
 | **Launch** (`serve`) | Start the Controller | `--data-dir` / `--nest-local` / bind are session-only; never write Settings |
-| **Operator** (`clutch`, `vm`, `hatch`, `nest`, `session`) | Nest-scoped inspect and lifecycle | In-process Nest factory; no running Controller required. Inspect is read-only: requires an existing data dir (does not mkdir / create DB). |
+| **Operator** (`nest`, `clutch`, `vm`, `hatch`, `session`) | Nest-scoped inspect and lifecycle | In-process Nest factory; no running Controller required. Inspect is read-only: requires an existing data dir (does not mkdir / create DB). |
+| **Local inventory** (`media`, `scripts`) | List Controller cache files | Inspect against `data_dir`; not Library Content catalog |
 | **Settings** (`settings`) | Persist Settings from the terminal | Distinct from launch overrides ([#344](https://github.com/dustinestes/Hatchery/issues/344)) |
+| **Library** (`library`) | Enable flag, connections/bindings, content consume | Settings flag + first-class tables + pull/remove ([#434](https://github.com/dustinestes/Hatchery/issues/434), [#440](https://github.com/dustinestes/Hatchery/issues/440); [ADR-0022](../adr/0022-dual-surface-operator-discipline.md)) |
 
 <br>
 
@@ -85,7 +96,9 @@ uv run hatchery serve --help
 
 ## Machine-readable output (`--json`)
 
-Global flag on the root parser: `hatchery --json <command> …` ([#423](https://github.com/dustinestes/Hatchery/issues/423)). Default remains human tables / text. Exit codes are unchanged. Mutate verbs (`vm start`, `hatch`, `session retry`, …) stay text-only in this pass.
+Global flag on the root parser: `hatchery --json <command> …` ([#423](https://github.com/dustinestes/Hatchery/issues/423)). Default remains human tables / text. Exit codes are unchanged.
+
+**JSON today:** inspect/list/show surfaces, `settings get|set`, and Library enable/disable/connection/binding/content verbs that call `emit_json`. **Text-only:** VM power/snap mutates, `hatch`, and `session retry`.
 
 | Command | JSON shape (field names) |
 |---|---|
@@ -102,10 +115,15 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `scripts list` | `{scripts: [{name, language, relative_path}, …]}` |
 | `settings get` | Object map of requested (or all exportable) keys |
 | `settings set` | `{key, value}` |
-| `library connection list` | `{connections: […]}` |
-| `library binding list` | `{bindings: […]}` |
+| `library enable\|disable` | `{library_enabled}` |
+| `library connection list` | `{connections: [{id, label, type, provider, base_uri, kinds, enabled, expires_at, has_token}, …]}` |
+| `library connection show\|add` | One connection object (same fields as list rows) |
+| `library connection remove` | `{removed}` |
 | `library connection test` | `{connection_id, ok, message}` |
-| `library content list` | `{domain, items: […]}` |
+| `library binding list` | `{bindings: [{id, connection_id, domain, label, filter, target, enabled}, …]}` |
+| `library binding show\|add` | One binding object (same fields as list rows) |
+| `library binding remove` | `{removed}` |
+| `library content list` | `{domain, items: [{name, relative_path, connection_id, source_type, sha256, cached, …}, …]}` |
 | `library content pull` | `{domain, imported, sha256, dest}` |
 | `library content remove` | `{ok, domain, name, deleted}` |
 
@@ -140,10 +158,30 @@ CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smok
 | [scripts.md](scripts.md) | [`lib/cli/scripts.py`](../../lib/cli/scripts.py) | **Shipped** (#425) | List local automation scripts |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | [`lib/cli/settings.py`](../../lib/cli/settings.py) | **Shipped** (#344) | Persist Settings (`get` / `set`) |
-| [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434, #440) | Library enable + connections/bindings + content list/test/pull/remove |
-| (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
+| [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434, #440) | Library enable + connections/bindings + content list/pull/remove (+ connection test) |
+| (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` for inspect and Library/Settings JSON emitters |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library CLI ships under [#434](https://github.com/dustinestes/Hatchery/issues/434) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421); session retry under [#422](https://github.com/dustinestes/Hatchery/issues/422). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library registry ships under [#434](https://github.com/dustinestes/Hatchery/issues/434); Library content consume under [#440](https://github.com/dustinestes/Hatchery/issues/440) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)). Docs/flags audit: [#441](https://github.com/dustinestes/Hatchery/issues/441).
+
+<br>
+
+## Docs audit checklist (#441)
+
+Inventory vs `register()` / `--help` (commands, required flags, accepted values):
+
+| Module | Status |
+|---|---|
+| serve | OK |
+| nest | OK |
+| clutch | OK |
+| vm (`destroy`, `snap take\|list\|apply\|delete`) | OK |
+| hatch | OK |
+| session | OK |
+| media | OK (`--type iso\|virtio`) |
+| scripts | OK |
+| settings (exportable key table) | OK |
+| library (connection/binding/content + enums) | OK |
+| index `--json` shapes | OK |
 
 
 <br>

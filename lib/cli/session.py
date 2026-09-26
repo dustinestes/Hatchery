@@ -13,7 +13,7 @@ _EVENT_CAP = 10
 def register(sub: argparse._SubParsersAction) -> None:
     session = sub.add_parser(
         "session",
-        help="Inspect hatch sessions (list / show)",
+        help="Inspect hatch sessions (list / show) and retry failed VMs",
     )
     bootstrap.add_data_dir_argument(session)
     session_sub = session.add_subparsers(dest="session_command", required=True)
