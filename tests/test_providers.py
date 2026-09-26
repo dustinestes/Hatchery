@@ -458,6 +458,16 @@ class TestPowerState:
             provider.force_stop_vm("myvm")
         mock_run.assert_called_once_with(["virsh", "destroy", "myvm"], check=True)
 
+    def test_pause_vm(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.pause_vm("myvm")
+        mock_run.assert_called_once_with(["virsh", "suspend", "myvm"], check=True)
+
+    def test_resume_vm(self, provider):
+        with patch("subprocess.run") as mock_run:
+            provider.resume_vm("myvm")
+        mock_run.assert_called_once_with(["virsh", "resume", "myvm"], check=True)
+
     def test_destroy_vm(self, provider):
         with patch("subprocess.run") as mock_run:
             provider.destroy_vm("myvm")

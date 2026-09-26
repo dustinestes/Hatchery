@@ -335,6 +335,8 @@ class TestOperatorInspect:
             ("start", "start_vm"),
             ("stop", "stop_vm"),
             ("force-stop", "force_stop_vm"),
+            ("pause", "pause_vm"),
+            ("resume", "resume_vm"),
             ("destroy", "destroy_vm"),
         ):
             args = cli.build_parser().parse_args(
@@ -345,6 +347,8 @@ class TestOperatorInspect:
             getattr(fake, method).assert_called_with("dc01")
         out = capsys.readouterr().out
         assert "Started" in out
+        assert "Paused" in out
+        assert "Resumed" in out
         assert "Destroyed" in out
 
     def test_vm_snap_take_list_apply_delete(self, isolated_config, tmp_path, capsys):

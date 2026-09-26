@@ -57,12 +57,12 @@ Guest WinRM provisioning is **not** Nest transport - see [Nest transport](nest-t
 | Cull (`destroy_vm`) | Works | Planned | Planned | Planned | Planned | Planned |
 | List / status | Works | Planned | Planned | Planned | Planned | Planned |
 | Start / Stop / Force stop | Works | Planned | Planned | Planned | Planned | Planned |
-| Pause / Resume | Planned | Planned | Planned | Planned | Planned | Planned |
+| Pause / Resume | Works | Planned | Planned | Planned | Planned | Planned |
 | Snapshot / list | Works | Planned | Planned | Planned | Planned | Planned |
 | Revert snapshot | Works | Planned | Planned | Planned | Planned | Planned |
 | Delete snapshot | Works | Planned | Planned | Planned | Planned | Planned |
 
-Pause and Resume are product language only today (status may show paused from libvirt); there is no provider API or UI action yet.
+Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local libvirt). Operator CLI: `hatchery vm pause|resume` ([#424](https://github.com/dustinestes/Hatchery/issues/424)). UI wiring can follow under the VMs pane epic.
 
 <br>
 

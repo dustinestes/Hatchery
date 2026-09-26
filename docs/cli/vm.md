@@ -20,7 +20,7 @@ Nest-scoped VM inventory and lifecycle. Power, destroy, snap, and guest health r
 
 ```bash
 uv run hatchery vm [--data-dir PATH] list [--nest <id>]
-uv run hatchery vm [--data-dir PATH] start|stop|force-stop|destroy [--nest <id>] <vm-name>
+uv run hatchery vm [--data-dir PATH] start|stop|force-stop|pause|resume|destroy [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] health [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] snap take [--nest <id>] <vm-name> --label <id>
 uv run hatchery vm [--data-dir PATH] snap list [--nest <id>] <vm-name>
@@ -38,6 +38,7 @@ uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 | `--nest` | Required unless exactly one Nest is registered (ADR-0014) |
 | `--data-dir` | Session-only Controller data dir (must already exist for these commands) |
 | `destroy` | Remove VM and storage (`destroy_vm`); CLI uses plain destroy, not Cull |
+| `pause` / `resume` | Hypervisor suspend / resume (`pause_vm` / `resume_vm`); local libvirt only today |
 | `snap *` | VM state snapshot (Hyper-V calls this a checkpoint) |
 | `health` | Guest IP + WinRM TCP reachability (exit 1 if unreachable) |
 
