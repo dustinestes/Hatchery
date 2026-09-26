@@ -4296,59 +4296,59 @@ class TestApiNestVms:
         return mock
 
     def test_returns_200_with_empty_list(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider()
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         assert resp.status_code == 200
         assert resp.get_json() == []
 
     def test_returns_vm_name_and_status(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}]
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert len(data) == 1
         assert data[0]["name"] == "dc01"
         assert data[0]["status"] == "running"
 
     def test_includes_ip_when_available(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 ip="192.168.122.10",
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["ip"] == "192.168.122.10"
 
     def test_ip_is_none_when_unavailable(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "shut off"}], ip=None
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["ip"] is None
 
     def test_includes_session_and_clutch_from_tag(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": "abc-123", "clutch_file": "lab.yaml"},
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["session_id"] == "abc-123"
         assert data[0]["clutch_file"] == "lab.yaml"
 
     def test_session_and_clutch_null_when_untagged(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}], tag=None
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["session_id"] is None
         assert data[0]["clutch_file"] is None
@@ -4360,22 +4360,22 @@ class TestApiNestVms:
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["hatch_status"] == "provisioning"
 
     def test_hatch_status_null_when_untagged(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}], tag=None
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["hatch_status"] is None
 
@@ -4385,14 +4385,14 @@ class TestApiNestVms:
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01", admin_username="alice", admin_password="s3cr3t")
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
             with patch.object(cfg, "show_passwords", return_value=True):
-                resp = client.get("/api/nests/local/vms")
+                resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["admin_username"] == "alice"
         assert data[0]["admin_password"] == "s3cr3t"
@@ -4403,33 +4403,33 @@ class TestApiNestVms:
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01", admin_username="alice", admin_password="s3cr3t")
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
             with patch.object(cfg, "show_passwords", return_value=False):
-                resp = client.get("/api/nests/local/vms")
+                resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["admin_username"] == "alice"
         assert data[0]["admin_password"] is None
 
     def test_ip_exception_does_not_crash(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(vms=[{"name": "dc01", "status": "running"}])
             prov.get_vm_ip.side_effect = Exception("network error")
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         assert resp.status_code == 200
         assert resp.get_json()[0]["ip"] is None
 
     def test_tag_exception_does_not_crash(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(vms=[{"name": "dc01", "status": "running"}])
             prov.get_vm_session_tag.side_effect = Exception("metadata error")
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         assert resp.status_code == 200
         assert resp.get_json()[0]["session_id"] is None
 
@@ -4446,22 +4446,22 @@ class TestApiNestVms:
 
         hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["scripts"][0]["script_name"] == "setup.ps1"
 
     def test_scripts_empty_when_untagged(self, client):
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             mock_prov.return_value = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}], tag=None
             )
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         assert resp.get_json()[0]["scripts"] == []
 
     def test_scripts_include_last_event_from_hatch_events(self, client):
@@ -4484,13 +4484,13 @@ class TestApiNestVms:
             sid, "dc01", "script", "INFO", "Rename complete", script_name="setup.ps1"
         )
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         script = resp.get_json()[0]["scripts"][0]
         assert script["last_event"] == "Rename complete"
 
@@ -4508,13 +4508,13 @@ class TestApiNestVms:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S("setup.ps1")])
         hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "lifecycle only")
 
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
             prov = self._mock_provider(
                 vms=[{"name": "dc01", "status": "running"}],
                 tag={"session_id": sid, "clutch_file": "lab.yaml"},
             )
             mock_prov.return_value = prov
-            resp = client.get("/api/nests/local/vms")
+            resp = client.get("/api/nests/local/vms?include_external=1")
         assert resp.get_json()[0]["scripts"][0]["last_event"] is None
 
 

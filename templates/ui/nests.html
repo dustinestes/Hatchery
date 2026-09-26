@@ -3,39 +3,78 @@
 {% block title %}Nests - Hatchery{% endblock %}
 
 {% block content %}
-<div class="nests-layout">
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_split_layout.html" import inventory_split %}
 
-  <!-- Left: nest navigator -->
-  <nav class="nests-nav" aria-label="Nests">
+{% call inventory_toolbar("Nests") %}
+  <a href="{{ url_for('settings_section', section='nests') }}" class="btn btn-primary btn-sm">Manage Nests</a>
+{% endcall %}
+
+<div class="scripts-panel" id="nests-panel">
+<div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Nests">
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="nests-filter-q">Search</label>
+    <input type="search"
+           id="nests-filter-q"
+           class="form-input"
+           placeholder="Name or id"
+           autocomplete="off"
+           aria-controls="nests-nav">
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="nests-filter-location">Location</label>
+    <select id="nests-filter-location" class="form-select" aria-controls="nests-nav">
+      <option value="">All</option>
+      <option value="local">Local</option>
+      <option value="remote">Remote</option>
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="nests-filter-provider">Provider</label>
+    <select id="nests-filter-provider" class="form-select" aria-controls="nests-nav">
+      <option value="">All</option>
+      <option value="libvirt">libvirt</option>
+      <option value="utm">UTM</option>
+      <option value="hyperv">Hyper-V</option>
+    </select>
+  </div>
+</div>
+
+{% call inventory_split() %}
+
+  <nav class="scripts-nav" aria-label="Nests" id="nests-nav">
     {% for nest in nests %}
     <button type="button"
-            class="nests-nav-item{% if nest.id == selected_nest_id %} active{% endif %}"
+            class="scripts-nav-item"
             data-nest="{{ nest.id }}"
             data-nest-name="{{ nest.name }}"
             data-nest-location="{{ nest.location }}"
-            aria-pressed="{% if nest.id == selected_nest_id %}true{% else %}false{% endif %}"
+            data-nest-provider="{{ nest.provider_type }}"
+            aria-pressed="false"
             aria-label="{{ nest.name }} ({{ nest.id }}, {{ nest.location }} {{ nest.provider_type }}, {{ nest.reachability_label }})">
       <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
-      <span class="nests-nav-text">
-        <span class="nests-nav-label">{{ nest.name }}</span>
-        <span class="nests-nav-id">{{ nest.id }} · {{ nest.reachability_label }}</span>
+      <span class="scripts-nav-main">
+        <span class="scripts-nav-label">{{ nest.name }}</span>
+        <span class="scripts-nav-sub">{{ nest.id }} · {{ nest.location }} · {{ nest.provider_type }} · {{ nest.reachability_label }}</span>
       </span>
     </button>
     {% else %}
-    <p class="empty-state">No Nests registered. Add one under Settings → Nests.</p>
+    <p class="scripts-nav-empty" id="nests-nav-empty">No Nests registered. Add one under Settings → Nests.</p>
     {% endfor %}
+    <div class="scripts-nav-empty" id="nests-nav-filtered-empty" role="status" hidden>
+      No Nests match these filters.
+    </div>
   </nav>
 
-  <!-- Right: VM inventory for the selected nest -->
-  <div class="nests-content" id="nests-content">
-    <div class="nests-content-header">
-      <span class="nests-content-title" id="nests-content-title">
-        {% for nest in nests if nest.id == selected_nest_id %}{{ nest.name }}{% endfor %}
-      </span>
-      <span class="nests-refresh-label" id="nests-refresh-label"></span>
+  <div class="scripts-content" id="nests-content">
+    <div class="scripts-content-header" id="nests-content-header" hidden>
+      <div class="scripts-content-heading">
+        <span class="scripts-content-title" id="nests-content-title"></span>
+        <span class="scripts-content-meta" id="nests-refresh-label"></span>
+      </div>
     </div>
 
-    <div id="vm-list" class="vm-inventory">
+    <div id="vm-list" class="vm-inventory" hidden>
       <div class="vm-inventory-empty" id="vm-empty" style="display:none">
         No VMs found on this Nest. <a href="{{ url_for('hatch_clutch') }}" class="link">Hatch a Clutch</a> to get started.
       </div>
@@ -43,8 +82,11 @@
         Provider not available for this Nest yet. Use Settings → Nests to Test Nest connection.
       </div>
     </div>
+
+    <div class="stub" id="nests-stub">Select a Nest to inspect</div>
   </div>
 
+{% endcall %}
 </div>
 {% endblock %}
 
@@ -56,9 +98,15 @@
   const providerEmpty = document.getElementById('vm-provider-empty');
   const refreshLabel = document.getElementById('nests-refresh-label');
   const titleEl     = document.getElementById('nests-content-title');
-  const navItems    = Array.prototype.slice.call(document.querySelectorAll('.nests-nav-item'));
+  const contentHeader = document.getElementById('nests-content-header');
+  const stub        = document.getElementById('nests-stub');
+  const navItems    = Array.prototype.slice.call(document.querySelectorAll('#nests-nav .scripts-nav-item'));
+  const filterQ     = document.getElementById('nests-filter-q');
+  const filterLoc   = document.getElementById('nests-filter-location');
+  const filterProv  = document.getElementById('nests-filter-provider');
+  const filteredEmpty = document.getElementById('nests-nav-filtered-empty');
 
-  let selectedNestId = {{ selected_nest_id | tojson }};
+  let selectedNestId = '';
 
   const VM_STATUS_LABEL = {
     'running':     'Running',
@@ -153,10 +201,50 @@
 
   const CHEVRON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
 
-  // Track which VMs / script sections the user has manually collapsed so the
-  // state survives poll-driven re-renders.
   const collapsedVms = new Set();
   const collapsedScripts = new Set();
+
+  function applyNestFilters() {
+    const q = (filterQ.value || '').trim().toLowerCase();
+    const loc = filterLoc.value || '';
+    const prov = filterProv.value || '';
+    let visible = 0;
+    navItems.forEach(btn => {
+      const name = (btn.dataset.nestName || '').toLowerCase();
+      const id = (btn.dataset.nest || '').toLowerCase();
+      const matchQ = !q || name.includes(q) || id.includes(q);
+      const matchLoc = !loc || btn.dataset.nestLocation === loc;
+      const matchProv = !prov || btn.dataset.nestProvider === prov;
+      const show = matchQ && matchLoc && matchProv;
+      btn.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (filteredEmpty) {
+      filteredEmpty.hidden = !(navItems.length > 0 && visible === 0);
+    }
+    if (selectedNestId) {
+      const sel = navItems.find(b => b.dataset.nest === selectedNestId);
+      if (sel && sel.hidden) {
+        clearNestSelection();
+      }
+    }
+  }
+
+  function clearNestSelection() {
+    selectedNestId = '';
+    navItems.forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (contentHeader) contentHeader.hidden = true;
+    if (vmList) vmList.hidden = true;
+    if (stub) stub.hidden = false;
+    if (titleEl) titleEl.textContent = '';
+    if (refreshLabel) refreshLabel.textContent = '';
+    clearCards();
+    emptyMsg.style.display = 'none';
+    providerEmpty.style.display = 'none';
+  }
 
   function renderScripts(vm) {
     if (!vm.scripts || !vm.scripts.length) return '';
@@ -175,7 +263,6 @@
       const elapsed = s.status === 'pending' ? '—' : scriptElapsed(s);
       const exit = s.exit_code !== null && s.exit_code !== undefined
         ? escHtml(String(s.exit_code)) : '—';
-      // Prefer latest Write-HatchEvent; fall back to last raw output line.
       const lastLine = escHtml(s.last_event || scriptLastLine(s.output));
       return `<div class="script-row">
         <span class="script-col-name">${escHtml(s.script_name)}</span>
@@ -188,7 +275,7 @@
 
     const canRetry = vm.session_id && vm.scripts.some(s => s.status === 'failed');
     const retryBtn = canRetry
-      ? `<button class="btn btn-sm vm-retry-btn"
+      ? `<button class="btn btn-sm btn-secondary vm-retry-btn"
            data-session="${escHtml(vm.session_id)}" data-vm="${escHtml(vm.name)}">
            Retry
          </button>`
@@ -215,12 +302,16 @@
     const hatchBadge = vm.hatch_status
       ? `<span class="hatch-status-badge hatch-status-badge--${escHtml(vm.hatch_status)}">${escHtml(HATCH_STATUS_LABEL[vm.hatch_status] || vm.hatch_status)}</span>`
       : '';
+    const externalCue = vm.hatchery_sourced === false
+      ? `<span class="vms-external-cue">External</span>`
+      : '';
     return `
       <div class="vm-card">
         <div class="vm-card-header">
           <button type="button" class="vm-card-toggle" aria-expanded="true">
             <span class="vm-card-chevron">${CHEVRON}</span>
             <span class="vm-card-name">${escHtml(vm.name)}</span>
+            ${externalCue}
             <span class="hatch-status-badge hatch-status-badge--vm-${sc}">${label}</span>
             ${hatchBadge}
           </button>
@@ -315,6 +406,9 @@
   function selectNest(btn) {
     selectedNestId = btn.dataset.nest;
     if (titleEl) titleEl.textContent = btn.dataset.nestName || selectedNestId;
+    if (contentHeader) contentHeader.hidden = false;
+    if (vmList) vmList.hidden = false;
+    if (stub) stub.hidden = true;
     navItems.forEach(function (el) {
       const on = el === btn;
       el.classList.toggle('active', on);
@@ -325,6 +419,12 @@
 
   navItems.forEach(function (btn) {
     btn.addEventListener('click', function () { selectNest(btn); });
+  });
+
+  [filterQ, filterLoc, filterProv].forEach(el => {
+    if (!el) return;
+    el.addEventListener('input', applyNestFilters);
+    el.addEventListener('change', applyNestFilters);
   });
 
   function poll() {
@@ -350,7 +450,6 @@
   }
 
   vmList.addEventListener('click', function (e) {
-    // VM-level collapse toggle
     const cardToggle = e.target.closest('.vm-card-toggle');
     if (cardToggle) {
       const card = cardToggle.closest('.vm-card');
@@ -362,7 +461,6 @@
       return;
     }
 
-    // Scripts section collapse toggle
     const scriptsToggle = e.target.closest('.vm-scripts-toggle');
     if (scriptsToggle) {
       const card = scriptsToggle.closest('.vm-card');
@@ -375,7 +473,6 @@
       return;
     }
 
-    // Retry button
     const retryBtn = e.target.closest('.vm-retry-btn');
     if (!retryBtn) return;
     const sessionId = retryBtn.dataset.session;
@@ -390,8 +487,10 @@
     });
   });
 
-  poll();
-  setInterval(poll, 5000);
+  applyNestFilters();
+  setInterval(function () {
+    if (selectedNestId) poll();
+  }, 5000);
 })();
 </script>
 {% endblock %}

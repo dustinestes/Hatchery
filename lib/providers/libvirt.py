@@ -11,6 +11,7 @@ from lib import answerfile as answerfile_lib
 from lib.clutch import GuestOS, VMConfig
 from lib.providers.base import BaseProvider
 from lib.requirements import NestToolSpec
+from lib.run_cmd import run_cmd
 
 _QEMU_CONF = Path("/etc/libvirt/qemu.conf")
 
@@ -345,22 +346,22 @@ class LibvirtProvider(BaseProvider):
     # ── Power state ───────────────────────────────────────────────────────────
 
     def start_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "start", name], check=True)
+        run_cmd(["virsh", "start", name])
 
     def stop_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "shutdown", name], check=True)
+        run_cmd(["virsh", "shutdown", name])
 
     def force_stop_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "destroy", name], check=True)
+        run_cmd(["virsh", "destroy", name])
 
     def pause_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "suspend", name], check=True)
+        run_cmd(["virsh", "suspend", name])
 
     def resume_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "resume", name], check=True)
+        run_cmd(["virsh", "resume", name])
 
     def destroy_vm(self, name: str) -> None:
-        subprocess.run(["virsh", "undefine", name, "--remove-all-storage"], check=True)
+        run_cmd(["virsh", "undefine", name, "--remove-all-storage"])
         floppy = self._floppy_path(name)
         if floppy.exists():
             floppy.unlink()
@@ -389,31 +390,17 @@ class LibvirtProvider(BaseProvider):
     # ── Snapshots ─────────────────────────────────────────────────────────────
 
     def create_snapshot(self, name: str, label: str) -> None:
-        subprocess.run(
-            ["virsh", "snapshot-create-as", name, "--name", label],
-            check=True,
-        )
+        run_cmd(["virsh", "snapshot-create-as", name, "--name", label])
 
     def list_snapshots(self, name: str) -> list[str]:
-        result = subprocess.run(
-            ["virsh", "snapshot-list", name, "--name"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        result = run_cmd(["virsh", "snapshot-list", name, "--name"])
         return [s.strip() for s in result.stdout.splitlines() if s.strip()]
 
     def revert_snapshot(self, name: str, label: str) -> None:
-        subprocess.run(
-            ["virsh", "snapshot-revert", name, label],
-            check=True,
-        )
+        run_cmd(["virsh", "snapshot-revert", name, label])
 
     def delete_snapshot(self, name: str, label: str) -> None:
-        subprocess.run(
-            ["virsh", "snapshot-delete", name, label],
-            check=True,
-        )
+        run_cmd(["virsh", "snapshot-delete", name, label])
 
     # ── Fledged detection ─────────────────────────────────────────────────────
 

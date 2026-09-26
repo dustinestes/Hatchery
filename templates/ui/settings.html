@@ -407,6 +407,19 @@
       </div>
     </div>
   </section>
+  <section class="form-section">
+    <h2 class="form-section-title">VMs</h2>
+    <div class="form-grid form-grid-1">
+      <div class="form-group">
+        <label class="form-toggle" for="vms-show-external">
+          <input type="checkbox" id="vms-show-external" name="vms_show_external"
+                 {% if cfg.vms_show_external %}checked{% endif %}>
+          <span class="form-toggle-label">Show external VMs</span>
+        </label>
+        <p class="form-help-text">When off (default), VMs and Nests inventory list only Hatchery-sourced guests (session-tagged). When on, also show hypervisor VMs created outside Hatchery, labeled External.</p>
+      </div>
+    </div>
+  </section>
 {% endif %}
 {% endif %}
 

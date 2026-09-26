@@ -24,6 +24,7 @@ def isolated_config(monkeypatch, tmp_path):
             "nest_reachability_status": {},
             "show_passwords": False,
             "display_timezone": "UTC",
+            "vms_show_external": False,
             "library_enabled": False,
             "library_connections": [],
             "library_script_bindings": [],

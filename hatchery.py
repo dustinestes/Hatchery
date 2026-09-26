@@ -34,6 +34,8 @@ from lib.validators.scheduler import run_validator, start_scheduler, stop_schedu
 from lib.validators.settings import list_validator_configs, migrate_bg_interval
 
 from lib import hatch_lifecycle as hatch_lifecycle_lib
+from lib import vm_inventory as vm_inventory_lib
+from lib import vm_ops as vm_ops_lib
 from lib.guest_health import check_winrm as _check_winrm  # noqa: F401 - test alias
 
 app = Flask(__name__, template_folder="templates/ui")
@@ -420,7 +422,6 @@ def nests():
         "nests.html",
         active_pane="nests",
         nests=registered,
-        selected_nest_id=registered[0]["id"] if registered else "",
     )
 
 
@@ -441,6 +442,12 @@ def clutches():
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
+
+
+@app.route("/vms")
+def vms_pane():
+    """Top-level VMs inventory + controls (#418)."""
+    return render_template("vms.html", active_pane="vms", nests=nests_lib.list_nests())
 
 
 @app.route("/automation")
@@ -920,6 +927,7 @@ def settings_section_post(section: str):
     if display_timezone_raw not in ("UTC", "local"):
         display_timezone_raw = "UTC"
     new_cfg["display_timezone"] = display_timezone_raw
+    new_cfg["vms_show_external"] = "vms_show_external" in request.form
     config.save(new_cfg)
     return redirect(url_for("settings_section", section="display", saved="1"))
 
@@ -2585,72 +2593,145 @@ def clutch_delete(filename):
     return redirect(url_for("clutches"))
 
 
+@app.route("/api/vms")
+def api_vms():
+    """Cross-Nest enriched VM inventory (#418 / #445)."""
+    include_external = request.args.get("include_external")
+    override = None
+    if include_external is not None:
+        override = include_external.strip().lower() in ("1", "true", "yes")
+    hatchery_only = None if override is None else (not override)
+    payload = vm_inventory_lib.list_enriched_vms_all_nests(hatchery_sourced_only=hatchery_only)
+    return jsonify(payload)
+
+
 @app.route("/api/nests/<nest>/vms")
 def api_nest_vms(nest: str):
     """Return the enriched VM inventory for a nest: provider data + metadata + DB records."""
-    nest_row = nests_lib.get_nest(nest)
-    if nest_row is None:
-        return jsonify({"error": f"Unknown Nest id: {nest}"}), 404
-
     try:
-        provider = _provider(nest)
-    except (NoNestSelectedError, UnsupportedProviderError) as exc:
+        result = vm_inventory_lib.list_enriched_vms(nest)
+    except vm_inventory_lib.NestNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except vm_inventory_lib.NestProviderUnavailableError as exc:
         return jsonify({"error": str(exc)}), 501
-
-    show_pw = config.show_passwords()
-
-    vms = provider.list_vms()
-    result = []
-    for vm in vms:
-        name = vm["name"]
-        record: dict = {
-            "name": name,
-            "status": vm["status"],
-            "hatch_status": None,
-            "ip": None,
-            "clutch_file": None,
-            "session_id": None,
-            "started_at": None,
-            "admin_username": None,
-            "admin_password": None,
-        }
-
-        try:
-            record["ip"] = provider.get_vm_ip(name)
-        except Exception:
-            pass
-
-        try:
-            tag = provider.get_vm_session_tag(name)
-        except Exception:
-            tag = None
-
-        if tag:
-            session = hatch_lib.get_session(tag["session_id"])
-            if session is not None and session.get("nest") != nest:
-                record["scripts"] = []
-                result.append(record)
-                continue
-            record["session_id"] = tag["session_id"]
-            record["clutch_file"] = tag["clutch_file"]
-            db_row = hatch_lib.get_vm_record(tag["session_id"], name)
-            if db_row:
-                record["hatch_status"] = db_row.get("status")
-                record["started_at"] = db_row.get("started_at")
-                record["admin_username"] = db_row.get("admin_username")
-                if show_pw:
-                    record["admin_password"] = db_row.get("admin_password")
-            scripts = hatch_lib.get_vm_scripts(tag["session_id"], name)
-            last_events = hatch_lib.get_last_script_event_messages(tag["session_id"], name)
-            for script in scripts:
-                script["last_event"] = last_events.get(script["script_name"])
-            record["scripts"] = scripts
-        else:
-            record["scripts"] = []
-
-        result.append(record)
-
+    include_external = request.args.get("include_external")
+    if include_external is None:
+        show_ext = config.vms_show_external()
+    else:
+        show_ext = include_external.strip().lower() in ("1", "true", "yes")
+    result = vm_inventory_lib.filter_external(result, include_external=show_ext)
     return jsonify(result)
+
+
+def _vm_ops_response(exc: vm_ops_lib.VmOpsError):
+    if exc.code == "not_found":
+        return jsonify({"error": str(exc)}), 404
+    if exc.code == "unavailable":
+        return jsonify({"error": str(exc)}), 501
+    return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/nests/<nest>/vms/<name>/start", methods=["POST"])
+def api_vm_start(nest: str, name: str):
+    try:
+        vm_ops_lib.start_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/stop", methods=["POST"])
+def api_vm_stop(nest: str, name: str):
+    try:
+        vm_ops_lib.stop_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/force-stop", methods=["POST"])
+def api_vm_force_stop(nest: str, name: str):
+    try:
+        vm_ops_lib.force_stop_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/pause", methods=["POST"])
+def api_vm_pause(nest: str, name: str):
+    try:
+        vm_ops_lib.pause_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/resume", methods=["POST"])
+def api_vm_resume(nest: str, name: str):
+    try:
+        vm_ops_lib.resume_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/destroy", methods=["POST"])
+def api_vm_destroy(nest: str, name: str):
+    try:
+        vm_ops_lib.destroy_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/health")
+def api_vm_health(nest: str, name: str):
+    try:
+        result = vm_ops_lib.health_vm(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"nest": nest, "name": name, **result})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/snapshots")
+def api_vm_snapshots_list(nest: str, name: str):
+    try:
+        labels = vm_ops_lib.list_snapshots(nest, name)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"nest": nest, "name": name, "snapshots": labels})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/snapshots", methods=["POST"])
+def api_vm_snapshots_take(nest: str, name: str):
+    body = request.get_json(silent=True) or {}
+    label = (body.get("label") or "").strip()
+    if not label:
+        return jsonify({"error": "label is required"}), 400
+    try:
+        vm_ops_lib.take_snapshot(nest, name, label)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True, "label": label})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/snapshots/<label>/apply", methods=["POST"])
+def api_vm_snapshots_apply(nest: str, name: str, label: str):
+    try:
+        vm_ops_lib.apply_snapshot(nest, name, label)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nests/<nest>/vms/<name>/snapshots/<label>", methods=["DELETE"])
+def api_vm_snapshots_delete(nest: str, name: str, label: str):
+    try:
+        vm_ops_lib.delete_snapshot(nest, name, label)
+    except vm_ops_lib.VmOpsError as exc:
+        return _vm_ops_response(exc)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/sessions")

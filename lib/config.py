@@ -39,6 +39,7 @@ _DB_SETTING_KEYS = frozenset(
         "nest_reachability_status",
         "show_passwords",
         "display_timezone",
+        "vms_show_external",
         "nest_key_alert_tiers",
         "nest_ssh_identities",
         "library_enabled",
@@ -67,6 +68,7 @@ _DEFAULTS: dict = {
     "nest_reachability_status": {},
     "show_passwords": False,
     "display_timezone": "UTC",
+    "vms_show_external": False,
     "library_enabled": False,
     # Nest SSH identity expiry alerts (#219) — tiers + tracked identities (until Nest registry).
     "nest_key_alert_tiers": [
@@ -326,6 +328,11 @@ def nest_ssh_identities() -> list:
 def library_enabled() -> bool:
     """Return whether the Library feature (Settings section + Import-from-library) is on."""
     return bool(get().get("library_enabled", False))
+
+
+def vms_show_external() -> bool:
+    """Return whether inventory shows hypervisor VMs without Hatchery session tags (#445)."""
+    return bool(get().get("vms_show_external", False))
 
 
 def library_connections() -> list:

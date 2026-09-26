@@ -62,7 +62,9 @@ Guest WinRM provisioning is **not** Nest transport - see [Nest transport](nest-t
 | Revert snapshot | Works | Planned | Planned | Planned | Planned | Planned |
 | Delete snapshot | Works | Planned | Planned | Planned | Planned | Planned |
 
-Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local libvirt). Operator CLI: `hatchery vm pause|resume` ([#424](https://github.com/dustinestes/Hatchery/issues/424)). UI wiring can follow under the VMs pane epic.
+Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local libvirt). Operator CLI: `hatchery vm pause|resume` ([#424](https://github.com/dustinestes/Hatchery/issues/424)). UI wiring: VMs pane (#418).
+
+Resource metrics (configured vs actual; Nest push vs Controller pull) are deferred under [#420](https://github.com/dustinestes/Hatchery/issues/420) until Nest remoting / job transport shape lands under epic [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
 <br>
 
@@ -77,7 +79,7 @@ Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local
 | Guest health check | Planned | Planned | Planned | Planned | Planned | Planned |
 | OOBE poweroff patch (`set_poweroff_action`) | Works | Planned | N/A | N/A | Planned | Planned |
 
-Guest health check is tracked in [#14](https://github.com/dustinestes/Hatchery/issues/14). Nest connectivity check (Test Nest connection) lives in Nest transport, not the hypervisor provider.
+Guest health check is available via operator CLI `hatchery vm health` and the VMs pane (#418). Nest connectivity check (Test Nest connection) lives in Nest transport, not the hypervisor provider.
 
 <br>
 

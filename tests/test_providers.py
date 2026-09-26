@@ -443,48 +443,85 @@ class TestCreateVM:
 
 
 class TestPowerState:
+    def _ok(self):
+        return MagicMock(returncode=0, stdout="", stderr="")
+
     def test_start_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.start_vm("myvm")
-        mock_run.assert_called_once_with(["virsh", "start", "myvm"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "start", "myvm"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_stop_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.stop_vm("myvm")
-        mock_run.assert_called_once_with(["virsh", "shutdown", "myvm"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "shutdown", "myvm"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_force_stop_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.force_stop_vm("myvm")
-        mock_run.assert_called_once_with(["virsh", "destroy", "myvm"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "destroy", "myvm"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_pause_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.pause_vm("myvm")
-        mock_run.assert_called_once_with(["virsh", "suspend", "myvm"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "suspend", "myvm"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_resume_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.resume_vm("myvm")
-        mock_run.assert_called_once_with(["virsh", "resume", "myvm"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "resume", "myvm"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_destroy_vm(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.destroy_vm("myvm")
         mock_run.assert_called_once_with(
-            ["virsh", "undefine", "myvm", "--remove-all-storage"], check=True
+            ["virsh", "undefine", "myvm", "--remove-all-storage"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
         )
 
     def test_destroy_vm_removes_floppy_if_present(self, tmp_path, provider, monkeypatch):
         monkeypatch.setattr(provider, "_floppy_path", lambda name: tmp_path / f"{name}.img")
         floppy = tmp_path / "myvm.img"
         floppy.touch()
-        with patch("subprocess.run"):
+        with patch("subprocess.run", return_value=self._ok()):
             provider.destroy_vm("myvm")
         assert not floppy.exists()
 
     def test_destroy_vm_noop_when_no_floppy(self, provider):
-        with patch("subprocess.run"):
+        with patch("subprocess.run", return_value=self._ok()):
             provider.destroy_vm("myvm")  # no floppy file — should not raise
 
 
@@ -756,34 +793,51 @@ class TestSetPoweroffAction:
 
 
 class TestSnapshots:
+    def _ok(self, stdout=""):
+        return MagicMock(returncode=0, stdout=stdout, stderr="")
+
     def test_create_snapshot(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.create_snapshot("myvm", "snap1")
         mock_run.assert_called_once_with(
-            ["virsh", "snapshot-create-as", "myvm", "--name", "snap1"], check=True
+            ["virsh", "snapshot-create-as", "myvm", "--name", "snap1"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
         )
 
     def test_list_snapshots(self, provider):
-        result = MagicMock(stdout="snap1\nsnap2\n")
-        with patch("subprocess.run", return_value=result):
+        with patch("subprocess.run", return_value=self._ok("snap1\nsnap2\n")):
             snaps = provider.list_snapshots("myvm")
         assert snaps == ["snap1", "snap2"]
 
     def test_list_snapshots_empty(self, provider):
-        result = MagicMock(stdout="\n")
-        with patch("subprocess.run", return_value=result):
+        with patch("subprocess.run", return_value=self._ok("\n")):
             snaps = provider.list_snapshots("myvm")
         assert snaps == []
 
     def test_revert_snapshot(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.revert_snapshot("myvm", "snap1")
-        mock_run.assert_called_once_with(["virsh", "snapshot-revert", "myvm", "snap1"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "snapshot-revert", "myvm", "snap1"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
     def test_delete_snapshot(self, provider):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.delete_snapshot("myvm", "snap1")
-        mock_run.assert_called_once_with(["virsh", "snapshot-delete", "myvm", "snap1"], check=True)
+        mock_run.assert_called_once_with(
+            ["virsh", "snapshot-delete", "myvm", "snap1"],
+            capture_output=True,
+            text=True,
+            env=None,
+            cwd=None,
+        )
 
 
 # ── create_command_description ────────────────────────────────────────────────

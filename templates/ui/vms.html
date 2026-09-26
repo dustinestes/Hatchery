@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+
+{% block title %}VMs - Hatchery{% endblock %}
+
+{% block content %}
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{% call inventory_toolbar("Virtual machines") %}
+  <a href="{{ url_for('hatch_clutch') }}" class="btn btn-primary btn-sm">Hatch a Clutch</a>
+{% endcall %}
+
+<div class="scripts-panel" id="vms-panel">
+
+<div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter VMs">
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="vms-filter-q">Search</label>
+    <input type="search" id="vms-filter-q" class="form-input" placeholder="Name" autocomplete="off" aria-controls="vms-nav">
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="vms-filter-nest">Nest</label>
+    <select id="vms-filter-nest" class="form-select" aria-controls="vms-nav">
+      <option value="">All</option>
+      {% for nest in nests %}
+      <option value="{{ nest.id }}">{{ nest.name }} ({{ nest.id }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="vms-filter-clutch">Clutch</label>
+    <select id="vms-filter-clutch" class="form-select" aria-controls="vms-nav">
+      <option value="">All</option>
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="vms-filter-os">OS</label>
+    <select id="vms-filter-os" class="form-select" aria-controls="vms-nav">
+      <option value="">All</option>
+    </select>
+  </div>
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="vms-filter-state">Power state</label>
+    <select id="vms-filter-state" class="form-select" aria-controls="vms-nav">
+      <option value="">All</option>
+      <option value="running">Running</option>
+      <option value="shut off">Shut Off</option>
+      <option value="paused">Paused</option>
+      <option value="other">Other</option>
+    </select>
+  </div>
+</div>
+
+{% call inventory_split() %}
+
+  <nav class="scripts-nav" aria-label="Virtual machines" id="vms-nav">
+    <div class="scripts-nav-empty" id="vms-nav-empty" hidden>No VMs found across registered Nests.</div>
+    <div class="scripts-nav-empty" id="vms-nav-filtered-empty" hidden role="status">No VMs match the current filters.</div>
+  </nav>
+
+  <div class="scripts-content" id="vms-content">
+    <div class="scripts-content-header" id="vms-content-header" hidden>
+      <div class="scripts-content-heading">
+        <span class="scripts-content-title" id="vms-detail-name"></span>
+        <span class="scripts-content-meta" id="vms-detail-sub"></span>
+      </div>
+    </div>
+
+    <div class="vms-lifecycle-actions" id="vms-detail-actions" hidden>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="start">Start</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="stop">Stop</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="force-stop">Force Stop</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="pause">Pause</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="resume">Resume</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="destroy">Destroy</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-vm-action="health">Health</button>
+    </div>
+
+    <div class="scripts-detail" id="vms-detail" hidden>
+      <dl class="scripts-meta-list" id="vms-detail-meta"></dl>
+      <div class="vm-detail-health" id="vms-detail-health" role="status" aria-live="polite"></div>
+      <section class="vm-detail-snaps" aria-labelledby="vms-snaps-heading">
+        <h2 class="scripts-section-title" id="vms-snaps-heading">Snapshots</h2>
+        <div class="vm-snap-take">
+          <label class="form-label visually-hidden" for="vms-snap-label">Snapshot label</label>
+          <input type="text" id="vms-snap-label" class="form-input" placeholder="Snapshot label" autocomplete="off">
+          <button type="button" class="btn btn-sm btn-primary" id="vms-snap-take">Take snapshot</button>
+        </div>
+        <ul class="vm-snap-list" id="vms-snap-list" aria-label="Snapshot list"></ul>
+      </section>
+    </div>
+
+    <div class="stub" id="vms-detail-empty">Select a VM to inspect</div>
+  </div>
+
+{% endcall %}
+</div>
+
+<div id="vms-modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vms-modal-title">
+    <h2 class="modal-title" id="vms-modal-title">Confirm</h2>
+    <div class="modal-body">
+      <p id="vms-modal-message"></p>
+      <p class="modal-warning" id="vms-modal-warning" hidden></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="vms-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="vms-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const nav = document.getElementById('vms-nav');
+  const navEmpty = document.getElementById('vms-nav-empty');
+  const navFilteredEmpty = document.getElementById('vms-nav-filtered-empty');
+  const contentHeader = document.getElementById('vms-content-header');
+  const detailActions = document.getElementById('vms-detail-actions');
+  const detail = document.getElementById('vms-detail');
+  const detailEmpty = document.getElementById('vms-detail-empty');
+  const detailName = document.getElementById('vms-detail-name');
+  const detailSub = document.getElementById('vms-detail-sub');
+  const detailMeta = document.getElementById('vms-detail-meta');
+  const detailHealth = document.getElementById('vms-detail-health');
+  const snapList = document.getElementById('vms-snap-list');
+  const snapLabel = document.getElementById('vms-snap-label');
+  const filterQ = document.getElementById('vms-filter-q');
+  const filterNest = document.getElementById('vms-filter-nest');
+  const filterClutch = document.getElementById('vms-filter-clutch');
+  const filterOs = document.getElementById('vms-filter-os');
+  const filterState = document.getElementById('vms-filter-state');
+  const modalBackdrop = document.getElementById('vms-modal-backdrop');
+  const modalTitle = document.getElementById('vms-modal-title');
+  const modalMessage = document.getElementById('vms-modal-message');
+  const modalWarning = document.getElementById('vms-modal-warning');
+  const modalCancel = document.getElementById('vms-modal-cancel');
+  const modalConfirm = document.getElementById('vms-modal-confirm');
+
+  let vms = [];
+  let selectedKey = null;
+  let modalResolve = null;
+  let modalFocusReturn = null;
+
+  const POWER_LABEL = {
+    'running': 'Running',
+    'shut off': 'Shut Off',
+    'paused': 'Paused',
+    'suspended': 'Suspended',
+    'crashed': 'Crashed',
+    'pmsuspended': 'Suspended (PM)',
+  };
+
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function vmKey(vm) {
+    return (vm.nest || '') + '\0' + (vm.name || '');
+  }
+
+  function powerBucket(status) {
+    const s = (status || '').toLowerCase();
+    if (s === 'running') return 'running';
+    if (s === 'shut off') return 'shut off';
+    if (s === 'paused' || s === 'suspended' || s === 'pmsuspended') return 'paused';
+    return 'other';
+  }
+
+  function currentFilters() {
+    return {
+      q: (filterQ.value || '').trim().toLowerCase(),
+      nest: filterNest.value || '',
+      clutch: filterClutch.value || '',
+      os: filterOs.value || '',
+      state: filterState.value || '',
+    };
+  }
+
+  function matchesFilters(vm, f) {
+    if (f.q && !(vm.name || '').toLowerCase().includes(f.q)) return false;
+    if (f.nest && vm.nest !== f.nest) return false;
+    if (f.clutch && (vm.clutch_file || '') !== f.clutch) return false;
+    const os = (vm.os || 'unknown');
+    if (f.os && os !== f.os) return false;
+    if (f.state && powerBucket(vm.status) !== f.state) return false;
+    return true;
+  }
+
+  function refillSelect(select, values, keep) {
+    const cur = keep || select.value;
+    select.innerHTML = '<option value="">All</option>';
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+    if ([...select.options].some(o => o.value === cur)) select.value = cur;
+  }
+
+  function updateFacetOptions() {
+    const clutches = [...new Set(vms.map(v => v.clutch_file).filter(Boolean))].sort();
+    const oses = [...new Set(vms.map(v => v.os || 'unknown'))].sort();
+    refillSelect(filterClutch, clutches);
+    refillSelect(filterOs, oses);
+  }
+
+  function applyFilters() {
+    const f = currentFilters();
+    const items = nav.querySelectorAll('.scripts-nav-item');
+    let visible = 0;
+    items.forEach(btn => {
+      const vm = {
+        name: btn.dataset.name,
+        nest: btn.dataset.nest,
+        clutch_file: btn.dataset.clutch || '',
+        os: btn.dataset.os || 'unknown',
+        status: btn.dataset.status || '',
+      };
+      const show = matchesFilters(vm, f);
+      btn.hidden = !show;
+      if (show) visible += 1;
+    });
+    const hasAny = items.length > 0;
+    navEmpty.hidden = hasAny || vms.length === 0 ? (vms.length > 0) : true;
+    if (vms.length === 0) {
+      navEmpty.hidden = false;
+      navFilteredEmpty.hidden = true;
+    } else {
+      navEmpty.hidden = true;
+      navFilteredEmpty.hidden = visible > 0;
+    }
+    if (selectedKey) {
+      const sel = nav.querySelector('.scripts-nav-item[aria-pressed="true"]');
+      if (sel && sel.hidden) {
+        selectedKey = null;
+        showEmptyDetail();
+      }
+    }
+  }
+
+  function showEmptyDetail() {
+    if (contentHeader) contentHeader.hidden = true;
+    if (detailActions) detailActions.hidden = true;
+    detail.hidden = true;
+    detailEmpty.hidden = false;
+    nav.querySelectorAll('.scripts-nav-item').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  }
+
+  function renderRail() {
+    nav.querySelectorAll('.scripts-nav-item').forEach(el => el.remove());
+    vms.forEach(vm => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'scripts-nav-item';
+      btn.dataset.name = vm.name || '';
+      btn.dataset.nest = vm.nest || '';
+      btn.dataset.clutch = vm.clutch_file || '';
+      btn.dataset.os = vm.os || 'unknown';
+      btn.dataset.status = vm.status || '';
+      btn.dataset.hatcherySourced = vm.hatchery_sourced ? '1' : '0';
+      btn.setAttribute('aria-pressed', vmKey(vm) === selectedKey ? 'true' : 'false');
+      const power = POWER_LABEL[vm.status] || (vm.status || 'Unknown');
+      const hatch = vm.hatch_status ? ` · ${vm.hatch_status}` : '';
+      const external = vm.hatchery_sourced ? '' : ' <span class="vms-external-cue">External</span>';
+      btn.innerHTML = `<span class="scripts-nav-main">
+        <span class="scripts-nav-label">${esc(vm.name)}${external}</span>
+        <span class="scripts-nav-sub">${esc(vm.nest)} · ${esc(power)}${esc(hatch)}</span>
+      </span>`;
+      btn.addEventListener('click', () => selectVm(vm));
+      nav.appendChild(btn);
+    });
+    updateFacetOptions();
+    applyFilters();
+    if (selectedKey) {
+      const still = vms.find(v => vmKey(v) === selectedKey);
+      if (still) selectVm(still, { skipFetchSnaps: false });
+      else showEmptyDetail();
+    }
+  }
+
+  function metaRow(label, value) {
+    return `<div class="scripts-meta-row"><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
+  }
+
+  function selectVm(vm, opts) {
+    selectedKey = vmKey(vm);
+    nav.querySelectorAll('.scripts-nav-item').forEach(b => {
+      b.setAttribute('aria-pressed', (b.dataset.nest === vm.nest && b.dataset.name === vm.name) ? 'true' : 'false');
+    });
+    if (contentHeader) contentHeader.hidden = false;
+    if (detailActions) detailActions.hidden = false;
+    detail.hidden = false;
+    detailEmpty.hidden = true;
+    detailName.textContent = vm.name || '—';
+    const power = POWER_LABEL[vm.status] || vm.status || 'Unknown';
+    detailSub.textContent = `${vm.nest || '—'} · ${power}` + (vm.hatchery_sourced ? '' : ' · External');
+    detailMeta.innerHTML = [
+      metaRow('Nest', esc(vm.nest || '—')),
+      metaRow('Power', esc(power)),
+      metaRow('Hatch status', esc(vm.hatch_status || '—')),
+      metaRow('IP', esc(vm.ip || '—')),
+      metaRow('Clutch', esc(vm.clutch_file || '—')),
+      metaRow('Session', esc(vm.session_id || '—')),
+      metaRow('Provenance', vm.hatchery_sourced ? 'Hatchery' : 'External'),
+    ].join('');
+    detailHealth.textContent = '';
+    detail.dataset.nest = vm.nest || '';
+    detail.dataset.name = vm.name || '';
+    if (detailActions) {
+      detailActions.dataset.nest = vm.nest || '';
+      detailActions.dataset.name = vm.name || '';
+    }
+    if (!opts || !opts.skipFetchSnaps) loadSnapshots(vm.nest, vm.name);
+  }
+
+  async function refresh() {
+    try {
+      const resp = await fetch('/api/vms');
+      if (!resp.ok) throw new Error('Failed to load VMs');
+      const data = await resp.json();
+      vms = Array.isArray(data.vms) ? data.vms : [];
+      renderRail();
+    } catch (err) {
+      navEmpty.hidden = false;
+      navEmpty.textContent = err.message || 'Failed to load VMs';
+    }
+  }
+
+  function closeVmModal(result) {
+    if (modalBackdrop.hidden) return;
+    modalBackdrop.hidden = true;
+    const resolve = modalResolve;
+    modalResolve = null;
+    const focusEl = modalFocusReturn;
+    modalFocusReturn = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+    if (resolve) resolve(result);
+  }
+
+  function openVmModal(opts) {
+    const title = opts.title || 'Confirm';
+    const message = opts.message || '';
+    const warning = opts.warning || '';
+    const confirmLabel = opts.confirmLabel || 'Confirm';
+    const mode = opts.mode || 'confirm'; // confirm | notice
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    if (warning) {
+      modalWarning.textContent = warning;
+      modalWarning.hidden = false;
+    } else {
+      modalWarning.textContent = '';
+      modalWarning.hidden = true;
+    }
+    modalConfirm.textContent = confirmLabel;
+    modalCancel.hidden = mode === 'notice';
+    modalFocusReturn = document.activeElement;
+    modalBackdrop.hidden = false;
+    modalConfirm.focus();
+    return new Promise((resolve) => {
+      modalResolve = resolve;
+    });
+  }
+
+  function showNotice(title, message) {
+    return openVmModal({
+      title: title,
+      message: message,
+      confirmLabel: 'OK',
+      mode: 'notice',
+    });
+  }
+
+  function askConfirm(opts) {
+    return openVmModal({
+      title: opts.title,
+      message: opts.message,
+      warning: opts.warning,
+      confirmLabel: opts.confirmLabel || 'Confirm',
+      mode: 'confirm',
+    });
+  }
+
+  modalCancel.addEventListener('click', () => closeVmModal(false));
+  modalConfirm.addEventListener('click', () => closeVmModal(true));
+  modalBackdrop.addEventListener('click', (e) => {
+    if (e.target === modalBackdrop) closeVmModal(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modalBackdrop.hidden) {
+      e.preventDefault();
+      closeVmModal(false);
+    }
+  });
+
+  async function postAction(action) {
+    const nest = detailActions.dataset.nest || detail.dataset.nest;
+    const name = detailActions.dataset.name || detail.dataset.name;
+    if (!nest || !name) return;
+    if (action === 'destroy') {
+      const ok = await askConfirm({
+        title: 'Destroy VM',
+        message: `Destroy "${name}" on Nest "${nest}"?`,
+        warning: 'This removes the VM and its storage.',
+        confirmLabel: 'Destroy',
+      });
+      if (!ok) return;
+    }
+    const path = `/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/${action}`;
+    const resp = await fetch(path, { method: 'POST' });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      await showNotice('Action failed', body.error || `Action failed (${resp.status})`);
+      return;
+    }
+    await refresh();
+  }
+
+  async function runHealth() {
+    const nest = detailActions.dataset.nest || detail.dataset.nest;
+    const name = detailActions.dataset.name || detail.dataset.name;
+    if (!nest || !name) return;
+    detailHealth.textContent = 'Checking health…';
+    const resp = await fetch(`/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/health`);
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      detailHealth.textContent = body.error || 'Health check failed';
+      await showNotice('Health check failed', body.error || 'Health check failed');
+      return;
+    }
+    const winrm = body.winrm ? 'reachable' : 'unreachable';
+    detailHealth.textContent = `IP ${body.ip || '—'}; WinRM ${winrm}`;
+  }
+
+  async function loadSnapshots(nest, name) {
+    snapList.innerHTML = '<li>Loading…</li>';
+    const resp = await fetch(`/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/snapshots`);
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      snapList.innerHTML = `<li>${esc(body.error || 'Failed to list snapshots')}</li>`;
+      return;
+    }
+    const labels = body.snapshots || [];
+    if (!labels.length) {
+      snapList.innerHTML = '<li>No snapshots</li>';
+      return;
+    }
+    snapList.innerHTML = labels.map(label => `
+      <li class="vm-snap-item">
+        <span class="vm-snap-label">${esc(label)}</span>
+        <button type="button" class="btn btn-secondary btn-sm" data-snap-apply="${esc(label)}">Apply</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-snap-delete="${esc(label)}">Delete</button>
+      </li>`).join('');
+  }
+
+  document.getElementById('vms-detail-actions').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-vm-action]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-vm-action');
+    if (action === 'health') runHealth();
+    else postAction(action);
+  });
+
+  document.getElementById('vms-snap-take').addEventListener('click', async () => {
+    const nest = detail.dataset.nest;
+    const name = detail.dataset.name;
+    const label = (snapLabel.value || '').trim();
+    if (!nest || !name || !label) {
+      await showNotice('Snapshot label required', 'Enter a snapshot label before taking a snapshot.');
+      return;
+    }
+    const resp = await fetch(`/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/snapshots`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      await showNotice('Take snapshot failed', body.error || 'Take snapshot failed');
+      return;
+    }
+    snapLabel.value = '';
+    loadSnapshots(nest, name);
+  });
+
+  snapList.addEventListener('click', async (ev) => {
+    const applyBtn = ev.target.closest('[data-snap-apply]');
+    const deleteBtn = ev.target.closest('[data-snap-delete]');
+    const nest = detail.dataset.nest;
+    const name = detail.dataset.name;
+    if (!nest || !name) return;
+    if (applyBtn) {
+      const label = applyBtn.getAttribute('data-snap-apply');
+      const ok = await askConfirm({
+        title: 'Apply snapshot',
+        message: `Apply snapshot "${label}" to "${name}"?`,
+        warning: 'The VM returns to the state captured in that snapshot.',
+        confirmLabel: 'Apply',
+      });
+      if (!ok) return;
+      const resp = await fetch(
+        `/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/snapshots/${encodeURIComponent(label)}/apply`,
+        { method: 'POST' }
+      );
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) await showNotice('Apply failed', body.error || 'Apply failed');
+      else await refresh();
+      return;
+    }
+    if (deleteBtn) {
+      const label = deleteBtn.getAttribute('data-snap-delete');
+      const ok = await askConfirm({
+        title: 'Delete snapshot',
+        message: `Delete snapshot "${label}"?`,
+        warning: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+      });
+      if (!ok) return;
+      const resp = await fetch(
+        `/api/nests/${encodeURIComponent(nest)}/vms/${encodeURIComponent(name)}/snapshots/${encodeURIComponent(label)}`,
+        { method: 'DELETE' }
+      );
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) await showNotice('Delete failed', body.error || 'Delete failed');
+      else loadSnapshots(nest, name);
+    }
+  });
+
+  [filterQ, filterNest, filterClutch, filterOs, filterState].forEach(el => {
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+{% endblock %}

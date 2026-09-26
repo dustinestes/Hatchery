@@ -32,6 +32,7 @@ def isolated_config(monkeypatch, tmp_path):
             "nest_reachability_status": {},
             "show_passwords": False,
             "display_timezone": "UTC",
+            "vms_show_external": False,
             "library_enabled": False,
             "library_connections": [],
             "library_script_bindings": [],
@@ -94,6 +95,9 @@ class TestBuildParser:
         assert args.command == "vm"
         assert args.vm_command == "list"
         assert args.nest == "local"
+        assert args.all is False
+        args_all = cli.build_parser().parse_args(["vm", "list", "--all"])
+        assert args_all.all is True
 
     def test_requires_command(self):
         parser = cli.build_parser()
@@ -281,6 +285,7 @@ class TestOperatorInspect:
         nests_lib.ensure_local_nest()
         fake = MagicMock()
         fake.list_vms.return_value = [{"name": "dc01", "status": "running"}]
+        fake.get_vm_session_tag.return_value = {"session_id": "s1", "clutch_file": "lab.yaml"}
         args = cli.build_parser().parse_args(
             ["vm", "--data-dir", str(sandbox), "list", "--nest", "local"]
         )
@@ -290,6 +295,7 @@ class TestOperatorInspect:
         out = capsys.readouterr().out
         assert "dc01" in out
         assert "running" in out
+        assert "hatchery" in out
 
     def test_vm_list_remote_unsupported(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
