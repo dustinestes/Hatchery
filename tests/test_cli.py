@@ -727,3 +727,77 @@ class TestJsonOutput:
         assert isinstance(payload, list)
         assert payload[0]["id"] == sid
         assert payload[0]["clutch_file"] == "lab.yaml"
+
+
+class TestMediaAndScriptsList:
+    def _seed(self, sandbox: Path) -> None:
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime()
+
+    def test_media_list_and_type_filter(self, isolated_config, tmp_path, capsys):
+        import lib.cli.media as media_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        iso_dir = cfg.data_dir() / "media" / "iso"
+        virtio_dir = cfg.data_dir() / "media" / "virtio"
+        iso_dir.mkdir(parents=True, exist_ok=True)
+        virtio_dir.mkdir(parents=True, exist_ok=True)
+        (iso_dir / "win11.iso").write_bytes(b"iso")
+        (virtio_dir / "virtio.iso").write_bytes(b"virtio")
+
+        args = cli.build_parser().parse_args(["media", "--data-dir", str(sandbox), "list"])
+        assert media_cmd.run(args) == 0
+        out = capsys.readouterr().out
+        assert "win11.iso" in out
+        assert "virtio.iso" in out
+
+        args = cli.build_parser().parse_args(
+            ["media", "--data-dir", str(sandbox), "list", "--type", "iso"]
+        )
+        assert media_cmd.run(args) == 0
+        out = capsys.readouterr().out
+        assert "win11.iso" in out
+        assert "virtio.iso" not in out
+
+    def test_scripts_list(self, isolated_config, tmp_path, capsys):
+        import lib.cli.scripts as scripts_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        scripts = cfg.data_dir() / "automation" / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / "setup.ps1").write_text("# setup\n")
+
+        args = cli.build_parser().parse_args(["scripts", "--data-dir", str(sandbox), "list"])
+        assert scripts_cmd.run(args) == 0
+        out = capsys.readouterr().out
+        assert "setup.ps1" in out
+        assert "PowerShell" in out
+
+    def test_media_list_json(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.media as media_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        iso_dir = cfg.data_dir() / "media" / "iso"
+        iso_dir.mkdir(parents=True, exist_ok=True)
+        (iso_dir / "win11.iso").write_bytes(b"iso")
+        args = cli.build_parser().parse_args(
+            ["--json", "media", "--data-dir", str(sandbox), "list", "--type", "iso"]
+        )
+        assert media_cmd.run(args) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["media"][0]["name"] == "win11.iso"
+        assert payload["media"][0]["type"] == "iso"
+
+    def test_main_dispatches_media_and_scripts(self):
+        with patch("lib.cli.media.run", return_value=0) as run:
+            assert cli.main(["media", "list"]) == 0
+        run.assert_called_once()
+        with patch("lib.cli.scripts.run", return_value=0) as run:
+            assert cli.main(["scripts", "list"]) == 0
+        run.assert_called_once()
