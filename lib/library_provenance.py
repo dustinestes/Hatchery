@@ -559,6 +559,14 @@ def delete_row(
         return cur.rowcount > 0
 
 
+def delete_all_rows() -> int:
+    """Delete every provenance / link row. Returns the number of rows removed."""
+    with db.get_connection() as conn:
+        cur = conn.execute("DELETE FROM library_cache_provenance")
+        conn.commit()
+        return int(cur.rowcount or 0)
+
+
 def rows_for_connection(connection_id: str) -> list[dict[str, Any]]:
     cid = (connection_id or "").strip()
     with db.get_connection() as conn:

@@ -1281,28 +1281,103 @@ html.sidebar-collapsed-init .topbar-name {
 .form-radio-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-radio {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   user-select: none;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.form-radio:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 8%, var(--color-surface));
+}
+
+.form-radio:has(input[type="radio"]:checked) {
+  background: color-mix(in srgb, var(--gold) 12%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--color-border));
 }
 
 .form-radio input[type="radio"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--color-accent, #2563eb);
-  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--gold) 65%, var(--color-border));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text-muted) 14%, var(--color-surface));
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.form-radio input[type="radio"]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 140ms ease;
+}
+
+.form-radio input[type="radio"]:checked {
+  background: color-mix(in srgb, var(--gold) 18%, var(--color-surface));
+  border-color: var(--gold-dark);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
+}
+
+.form-radio input[type="radio"]:checked::before {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.form-radio input[type="radio"]:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.form-radio input[type="radio"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.form-radio:has(input[type="radio"]:disabled) {
+  cursor: not-allowed;
+  opacity: 0.85;
 }
 
 .form-radio-label {
   font-size: 13px;
   color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-radio,
+  .form-radio input[type="radio"],
+  .form-radio input[type="radio"]::before {
+    transition: none;
+  }
 }
 
 .form-help-text {

@@ -1406,6 +1406,31 @@ def api_library_test_filter():
     return jsonify(result), status
 
 
+@app.route("/api/library/disable", methods=["POST"])
+def api_library_disable():
+    """Disable Library with optional Clear Connections / Content / Links (#407)."""
+    data = request.get_json(silent=True) or {}
+    clear_connections = bool(data.get("clear_connections"))
+    clear_content = bool(data.get("clear_content"))
+    clear_links = bool(data.get("clear_links"))
+    from lib import library_excise as library_excise_lib
+    from lib import library_health as library_health_lib
+
+    try:
+        counts = library_excise_lib.apply_disable_excise(
+            clear_connections=clear_connections,
+            clear_content=clear_content,
+            clear_links=clear_links,
+            data_dir=config.data_dir(),
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    config.update_settings({"library_enabled": False})
+    library_health_lib.resolve_all_library_alerts()
+    return jsonify({"ok": True, **counts})
+
+
 @app.route("/api/library/connections", methods=["PUT"])
 def api_library_connection_upsert():
     """Upsert one Library connection (scoped Save from Settings → Library)."""
