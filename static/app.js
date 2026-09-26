@@ -1769,12 +1769,13 @@ hatchery.bindUnsavedLeave = function (opts) {
     }
     apply('footer-hatchery', status.hatchery_title, status.hatchery_dot);
     apply('footer-nests', status.nests_title, status.nests_dot);
-    apply(
-      'footer-libraries',
-      status.libraries_title,
-      status.libraries_dot,
-      !!status.libraries_visible
-    );
+    apply('footer-libraries', status.libraries_title, status.libraries_dot);
+    // Optional chrome (nav, chips): keep in DOM; toggle hidden from plane-status keys.
+    document.querySelectorAll('[data-plane-visible]').forEach(function (el) {
+      var key = el.getAttribute('data-plane-visible');
+      if (!key || !Object.prototype.hasOwnProperty.call(status, key)) return;
+      el.hidden = !status[key];
+    });
   }
 
   function pollPlaneStatus() {

@@ -21,9 +21,10 @@ External Settings YAML/git watch is a different problem ([#253](https://github.c
 ## Consequences
 
 - CLI `settings set` against the same data dir is visible to a running UI on the next `get()` / status poll / request that reads Settings - no serve restart.
+- Optional chrome (sidebar Library nav, Libraries footer chip) stays in the DOM and toggles via `data-plane-visible` + plane-status ([ADR-0004](0004-status-surfaces-gather-store-poll.md)).
 - Every Settings write pays a small revision UPSERT; readers pay a cheap rev SELECT when already fresh.
 - DB file mtime is not used (other tables change the file without Settings meaning).
-- Does not push UI redraw beyond existing status surfaces; memory refresh is enough for the next render/API.
+- Does not add websockets; plane-status poll is enough for chrome that already listens.
 
 ## Alternatives
 

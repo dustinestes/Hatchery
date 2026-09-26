@@ -27,12 +27,24 @@ Controller UI health is three layers:
 
 Surfaces **must not** invent health logic or re-run checks. Client bus: `hatchery.refreshStatusSurfaces` / `hatchery.onStatusTick` in `static/app.js`. Prefer Alerts (+ live Nest registry) for footer rollups; do not invent a third store per chip.
 
+### Optional chrome visibility
+
+Feature-gated UI chrome (sidebar nav groups, footer chips, similar) follows one pattern:
+
+1. **Always render** the element in the base layout (do not `{% if feature %}` omit it from the DOM).
+2. SSR sets initial `hidden` from the current flag.
+3. Mark with `data-plane-visible="<plane-status-key>"` where the key is a boolean on `GET /api/plane-status` (e.g. `library_enabled`, `libraries_visible`).
+4. `applyPlaneStatus` toggles `el.hidden` from that key on each poll - no full page reload when another process flips Settings ([ADR-0023](0023-settings-sqlite-revision-reload.md)).
+
+New optional products add a plane-status boolean + the attribute; they do not invent a second show/hide path.
+
 ## Consequences
 
 **Good**
 
 - Validators and Nest checks write once; bell, tray, footer, and panes stay consistent
 - New chips subscribe to the bus instead of adding `setInterval` loops
+- Optional feature chrome (nav / chips) stays in the DOM and toggles via `data-plane-visible` + plane-status
 - Vanilla HTML/JS constraint is preserved
 
 **Neutral / follow-on**

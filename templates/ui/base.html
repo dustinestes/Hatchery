@@ -150,9 +150,11 @@
           </ul>
         </li>
 
-        {% if library_enabled %}
+        {# Optional chrome: always in the DOM; toggle via data-plane-visible + plane-status (ADR-0004). #}
         <li id="sidebar-nav-library"
-            class="sidebar-item sidebar-item--group{% if active_pane in ('library_connections', 'library_content') %} active open{% endif %}">
+            class="sidebar-item sidebar-item--group{% if active_pane in ('library_connections', 'library_content') %} active open{% endif %}"
+            data-plane-visible="library_enabled"
+            {% if not library_enabled %}hidden{% endif %}>
           <a href="{{ url_for('library_content_pane') }}" class="sidebar-link" title="Library" aria-haspopup="true" aria-expanded="{% if active_pane in ('library_connections', 'library_content') %}true{% else %}false{% endif %}">
             <svg class="sidebar-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -173,7 +175,6 @@
             </li>
           </ul>
         </li>
-        {% endif %}
 
         <li class="sidebar-item sidebar-item--group{% if active_pane in ('alerts', 'events', 'validators') %} active open{% endif %}">
           <a href="{{ url_for('alerts_pane') }}" class="sidebar-link" title="Notifications" aria-haspopup="true" aria-expanded="{% if active_pane in ('alerts', 'events', 'validators') %}true{% else %}false{% endif %}">
@@ -254,8 +255,7 @@
 
   <!-- Footer: Hatchery + Nests + Libraries (#277 / #254). Alerts stay on the bell.
        Counts from live registry + alerts via /api/plane-status (not the page URL).
-       Libraries chip stays in the DOM (hidden when Library disabled) so the poller
-       can show/hide without a full reload. -->
+       Optional chrome uses data-plane-visible so the poller can show/hide without reload. -->
   <footer class="footer">
     <div class="footer-left">
       <div class="nest-status" id="footer-hatchery"
@@ -275,6 +275,7 @@
       <div class="nest-status" id="footer-libraries"
            title="{{ libraries_title }}"
            data-dot="{{ libraries_dot }}"
+           data-plane-visible="libraries_visible"
            {% if not libraries_visible %}hidden{% endif %}>
         <span class="nest-status-dot nest-status-dot--{{ libraries_dot }}" aria-hidden="true"></span>
         <span class="nest-status-label">Libraries</span>
