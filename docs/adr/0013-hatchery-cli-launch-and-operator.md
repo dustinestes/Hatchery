@@ -41,6 +41,7 @@ We also need clear boundaries:
 - Persisting Settings from the terminal (#344) after Settings stabilize
 - Empty Nest registry ([ADR-0014](0014-optional-local-nest.md) / #266) and launch configs (#337)
 - Nest hatch job agent + async event catch-up (#345 under epic #202)
+- Embeddable operator plane for CI/CD and external tooling ([ADR-0021](0021-controller-embeddable-operator-plane.md)); HTTP operator API later, same orchestration as CLI
 
 **Bad / accepted cost**
 
