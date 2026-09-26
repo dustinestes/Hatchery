@@ -25,23 +25,38 @@ def register(sub: argparse._SubParsersAction) -> None:
     conn_sub.add_parser("list", help="List Library connections")
     show_c = conn_sub.add_parser("show", help="Show one connection")
     show_c.add_argument("connection_id", metavar="ID")
-    add_c = conn_sub.add_parser("add", help="Upsert a Library connection")
+    add_c = conn_sub.add_parser(
+        "add",
+        help="Upsert a Library connection (see docs/cli/library.md for accepted values)",
+    )
     add_c.add_argument("--id", required=True, dest="conn_id", metavar="ID")
     add_c.add_argument("--label", default="", metavar="TEXT")
     add_c.add_argument(
         "--type",
         required=True,
         dest="conn_type",
-        choices=("path", "forge", "https", "api"),
+        choices=("path", "https", "api", "forge"),
         metavar="TYPE",
+        help="Connection type: path | https | api | forge",
     )
-    add_c.add_argument("--base-uri", required=True, dest="base_uri", metavar="URI")
-    add_c.add_argument("--provider", default="", metavar="NAME")
+    add_c.add_argument(
+        "--base-uri",
+        required=True,
+        dest="base_uri",
+        metavar="URI",
+        help="Filesystem path (path) or HTTPS URL (https/api/forge)",
+    )
+    add_c.add_argument(
+        "--provider",
+        default="",
+        metavar="NAME",
+        help="Required for api/forge (e.g. github, artifactory); omit for path/https",
+    )
     add_c.add_argument(
         "--kinds",
         required=True,
         metavar="LIST",
-        help="Comma-separated kinds: scripts,clutches,media",
+        help="Comma-separated: scripts,clutches,media,packages",
     )
     add_c.add_argument("--token", default="", metavar="TOKEN")
     rem_c = conn_sub.add_parser("remove", help="Delete a connection (cascades bindings)")
@@ -58,7 +73,10 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     show_b = bind_sub.add_parser("show", help="Show one binding")
     show_b.add_argument("binding_id", metavar="ID")
-    add_b = bind_sub.add_parser("add", help="Upsert a Library binding")
+    add_b = bind_sub.add_parser(
+        "add",
+        help="Upsert a Library binding (see docs/cli/library.md for accepted values)",
+    )
     add_b.add_argument("--id", required=True, dest="bind_id", metavar="ID")
     add_b.add_argument("--connection-id", required=True, dest="connection_id", metavar="ID")
     add_b.add_argument(
@@ -66,15 +84,22 @@ def register(sub: argparse._SubParsersAction) -> None:
         required=True,
         choices=("scripts", "clutches", "media"),
         metavar="DOMAIN",
+        help="Binding domain: scripts | clutches | media",
     )
-    add_b.add_argument("--filter", required=True, dest="filt", metavar="GLOB")
+    add_b.add_argument(
+        "--filter",
+        required=True,
+        dest="filt",
+        metavar="GLOB",
+        help="Glob under the connection (e.g. *.ps1 or clutches/*.yaml)",
+    )
     add_b.add_argument("--label", default="", metavar="TEXT")
     add_b.add_argument(
         "--target",
         choices=("iso", "virtio"),
         default="iso",
         metavar="TARGET",
-        help="Media target (media domain only)",
+        help="Media cache target when --domain media: iso | virtio (default iso)",
     )
     rem_b = bind_sub.add_parser("remove", help="Delete a binding")
     rem_b.add_argument("binding_id", metavar="ID")
