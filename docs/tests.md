@@ -76,7 +76,7 @@ uv run pytest tests/test_config.py
 
 ## CI
 
-GitHub Actions runs on every PR and push to `main` (path-filtered):
+GitHub Actions runs on every PR and push to `main` (path-filtered). Both Lint and Test use `concurrency` with `cancel-in-progress` so a newer push on the same ref cancels the older run (avoids stacking Windows jobs).
 
 | Check | Where | Tool | Blocks PR merge? |
 |---|---|---|---|
