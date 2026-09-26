@@ -26,7 +26,8 @@ uv run hatchery --json media list
 | Flag | Notes |
 |---|---|
 | `--type` | Limit to `iso` (`media/iso/`) or `virtio` (`media/virtio/`); omit to list both |
-| `--json` | Machine-readable shape in [CLI index](README.md#machine-readable-output---json) |
+
+Global `--json`: `hatchery --json media list` (shape in [CLI index](README.md#machine-readable-output---json)).
 
 Inspect bootstrap: the data directory must already exist.
 

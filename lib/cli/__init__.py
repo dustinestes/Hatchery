@@ -25,7 +25,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Machine-readable JSON on stdout for inspect/list/show commands",
+        help="Machine-readable JSON on stdout where the command supports it "
+        "(inspect/list/show; settings get/set; library enable/CRUD/content)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     serve_cmd.register(sub)

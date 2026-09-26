@@ -6,7 +6,7 @@
 <h1>CLI: session</h1>
 <br clear="both">
 
-Code: [`lib/cli/session.py`](../../lib/cli/session.py). Parent: [CLI index](README.md). Issue: [#421](https://github.com/dustinestes/Hatchery/issues/421). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
+Code: [`lib/cli/session.py`](../../lib/cli/session.py). Parent: [CLI index](README.md). Issues: [#421](https://github.com/dustinestes/Hatchery/issues/421) (list/show), [#422](https://github.com/dustinestes/Hatchery/issues/422) (retry). ADR: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md).
 
 <br>
 
