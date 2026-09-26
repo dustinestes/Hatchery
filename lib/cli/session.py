@@ -28,6 +28,13 @@ def register(sub: argparse._SubParsersAction) -> None:
     show = session_sub.add_parser("show", help="Show a hatch session and recent events")
     show.add_argument("session_id", metavar="SESSION", help="Hatch session id")
 
+    retry = session_sub.add_parser(
+        "retry",
+        help="Retry provisioning for a failed VM in a hatch session",
+    )
+    retry.add_argument("session_id", metavar="SESSION", help="Hatch session id")
+    retry.add_argument("vm_name", metavar="VM", help="VM name in the session")
+
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``session`` subcommands."""
@@ -41,6 +48,8 @@ def run(args: argparse.Namespace) -> int:
         return _list_sessions(args.nest)
     if cmd == "show":
         return _show_session(args.session_id)
+    if cmd == "retry":
+        return _retry_vm(args.session_id, args.vm_name)
     bootstrap.print_err(f"unknown session command: {cmd}")
     return 2
 
@@ -112,4 +121,21 @@ def _show_session(session_id: str) -> int:
             level = ev.get("level") or "-"
             msg = (ev.get("message") or "").replace("\n", " ")
             print(f"        [{ts}] {level}: {msg}")
+    return 0
+
+
+def _retry_vm(session_id: str, vm_name: str) -> int:
+    from lib import hatch_lifecycle as hatch_lifecycle_lib
+
+    try:
+        result = hatch_lifecycle_lib.retry_failed_vm(session_id, vm_name)
+    except hatch_lifecycle_lib.RetryError as exc:
+        bootstrap.print_err(str(exc))
+        return 1
+
+    if result["queued"]:
+        print(f"Retry queued for '{vm_name}' in session {session_id}.")
+        return 0
+    msg = result.get("message") or "not queued"
+    print(f"Retry recorded for '{vm_name}' in session {session_id}: {msg}")
     return 0

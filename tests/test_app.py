@@ -4557,11 +4557,11 @@ class TestApiRetryVm:
     def test_spawns_thread_when_winrm_reachable(self, client, tmp_path):
         sid = self._setup_failed_vm(tmp_path)
         spawned = []
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.get_vm_ip.return_value = "192.168.1.10"
-            with patch("hatchery._check_winrm", return_value=True):
+            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
                 with patch(
-                    "hatchery._spawn_provision_thread",
+                    "lib.hatch_lifecycle.spawn_provision_thread",
                     side_effect=lambda *a, **kw: spawned.append(a),
                 ):
                     resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
@@ -4571,7 +4571,7 @@ class TestApiRetryVm:
 
     def test_queued_false_when_vm_unreachable(self, client, tmp_path):
         sid = self._setup_failed_vm(tmp_path)
-        with patch("hatchery._provider") as mock_prov:
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.get_vm_ip.return_value = None
             resp = client.post(f"/api/sessions/{sid}/vms/dc01/retry")
         assert resp.get_json()["queued"] is False

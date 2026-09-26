@@ -34,7 +34,7 @@ from lib.validators.scheduler import run_validator, start_scheduler, stop_schedu
 from lib.validators.settings import list_validator_configs, migrate_bg_interval
 
 from lib import hatch_lifecycle as hatch_lifecycle_lib
-from lib.guest_health import check_winrm as _check_winrm
+from lib.guest_health import check_winrm as _check_winrm  # noqa: F401 - test alias
 
 app = Flask(__name__, template_folder="templates/ui")
 app.secret_key = os.environ.get("HATCHERY_SECRET_KEY", "dev-secret-change-in-production")
@@ -2667,43 +2667,19 @@ def api_dismiss_session(session_id):
 @app.route("/api/sessions/<session_id>/vms/<vm_name>/retry", methods=["POST"])
 def api_retry_vm(session_id, vm_name):
     """Retry provisioning for a failed VM — re-runs only failed/skipped scripts."""
-    db_record = hatch_lib.get_vm_record(session_id, vm_name)
-    if db_record is None:
-        return jsonify({"error": "VM not found"}), 404
-    if db_record["status"] != "failed":
-        return jsonify({"error": "VM is not in a failed state"}), 409
-
-    hatch_lib.reset_scripts_for_retry(session_id, vm_name)
-    hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
-    hatch_lib.add_event(session_id, vm_name, "hatchery", "INFO", "Retry initiated")
-
-    session = hatch_lib.get_session(session_id)
-    nest_id = (session or {}).get("nest") or nests_lib.default_nest_id()
     try:
-        if not nest_id:
-            raise NoNestSelectedError()
-        provider = _provider(nest_id)
-    except (NoNestSelectedError, UnknownNestError, UnsupportedProviderError) as exc:
+        result = hatch_lifecycle_lib.retry_failed_vm(session_id, vm_name)
+    except hatch_lifecycle_lib.RetryError as exc:
+        if exc.code == "not_found":
+            return jsonify({"error": str(exc)}), 404
+        if exc.code == "not_failed":
+            return jsonify({"error": str(exc)}), 409
         return jsonify({"error": str(exc)}), 501
 
-    try:
-        ip = provider.get_vm_ip(vm_name)
-    except Exception:
-        ip = None
-
-    if ip and _check_winrm(ip):
-        _spawn_provision_thread(
-            session_id,
-            vm_name,
-            ip,
-            db_record.get("admin_username") or "",
-            db_record.get("admin_password") or "",
-        )
-        return jsonify({"ok": True, "queued": True})
-
-    return jsonify(
-        {"ok": True, "queued": False, "message": "VM unreachable - will retry on next sync"}
-    )
+    body: dict = {"ok": True, "queued": result["queued"]}
+    if result.get("message"):
+        body["message"] = result["message"]
+    return jsonify(body)
 
 
 @app.route("/api/alerts")
