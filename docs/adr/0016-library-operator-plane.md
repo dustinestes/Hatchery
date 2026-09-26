@@ -43,7 +43,7 @@ Operators need one Library plane for configuration and (soon) link/sync lifecycl
 
 **Neutral / follow-on**
 
-- In-pane Library tabs may linger until Content deep-links replace them; treat as transitional
+- Content **Available** catalog ships on Library → Content ([#392](https://github.com/dustinestes/Hatchery/issues/392)); domain in-pane Library tabs remain transitional until [#397](https://github.com/dustinestes/Hatchery/issues/397)
 - #370 scenario matrix and Content UX land on the Library plane
 - Export/backup must document Settings YAML vs Library DB ([ADR-0017](0017-library-connections-bindings-tables.md))
 

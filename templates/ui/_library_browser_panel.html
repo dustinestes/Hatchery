@@ -1,12 +1,35 @@
-{# In-pane Library browser panel. Requires: id_prefix, filter_aria, empty_message #}
+{# Library catalog browser (#392).
+   Requires: id_prefix, filter_aria, empty_message
+   Optional: panel_id, tab_labelledby, panel_hidden (default true),
+             include_domain_filter, include_domain_column, bare_browser,
+             sort_include_domain (adds Domain sort option when domain filter on)
+#}
 {% if library_enabled %}
-<div class="scripts-panel" id="{{ id_prefix }}-panel-library" role="tabpanel" aria-labelledby="{{ id_prefix }}-tab-library" hidden>
+{% set _panel_id = panel_id if panel_id is defined else (id_prefix ~ '-panel-library') %}
+{% set _tab_id = tab_labelledby if tab_labelledby is defined else (id_prefix ~ '-tab-library') %}
+{% set _panel_hidden = panel_hidden if panel_hidden is defined else true %}
+{% set _domain_filter = include_domain_filter if include_domain_filter is defined else false %}
+{% set _domain_column = include_domain_column if include_domain_column is defined else _domain_filter %}
+{% if not bare_browser|default(false) %}
+<div class="scripts-panel" id="{{ _panel_id }}" role="tabpanel" aria-labelledby="{{ _tab_id }}"{% if _panel_hidden %} hidden{% endif %}>
+{% endif %}
   <div class="library-browser" id="{{ id_prefix }}-library-browser">
     <div class="notif-filters library-browser-filters" role="search" aria-label="{{ filter_aria }}">
       <div class="form-group notif-filter-field">
         <label class="form-label" for="{{ id_prefix }}-lib-filter-q">Search</label>
         <input type="search" id="{{ id_prefix }}-lib-filter-q" class="form-input" placeholder="Name or path">
       </div>
+      {% if _domain_filter %}
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="{{ id_prefix }}-lib-filter-domain">Domain</label>
+        <select id="{{ id_prefix }}-lib-filter-domain" class="form-select">
+          <option value="">All</option>
+          <option value="scripts">Scripts</option>
+          <option value="clutches">Clutches</option>
+          <option value="media">Media</option>
+        </select>
+      </div>
+      {% endif %}
       <div class="form-group notif-filter-field">
         <label class="form-label" for="{{ id_prefix }}-lib-filter-conn">Connection</label>
         <select id="{{ id_prefix }}-lib-filter-conn" class="form-select">
@@ -25,6 +48,9 @@
         <label class="form-label" for="{{ id_prefix }}-lib-sort">Sort</label>
         <select id="{{ id_prefix }}-lib-sort" class="form-select">
           <option value="name">Name</option>
+          {% if _domain_filter %}
+          <option value="domain">Domain</option>
+          {% endif %}
           <option value="connection">Connection</option>
           <option value="path">Path</option>
         </select>
@@ -48,6 +74,9 @@
               <input type="checkbox" id="{{ id_prefix }}-lib-select-all" title="Select all visible">
             </th>
             <th scope="col">Name</th>
+            {% if _domain_column %}
+            <th scope="col">Domain</th>
+            {% endif %}
             <th scope="col">Connection</th>
             <th scope="col" class="library-browser-sha-col">SHA</th>
             <th scope="col">Status</th>
@@ -58,5 +87,7 @@
       <p class="empty-state" id="{{ id_prefix }}-lib-empty" hidden>{{ empty_message }}</p>
     </div>
   </div>
+{% if not bare_browser|default(false) %}
 </div>
+{% endif %}
 {% endif %}

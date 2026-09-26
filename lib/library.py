@@ -1556,3 +1556,67 @@ def annotate_cached(items: list[dict], cached_names: set[str] | list[str]) -> li
         row["cached"] = str(row.get("name") or "") in names
         out.append(row)
     return out
+
+
+def catalog_content_union(
+    *,
+    connections: list[dict],
+    script_bindings: list[dict],
+    clutch_bindings: list[dict],
+    media_bindings: list[dict],
+    script_cached_names: set[str] | list[str],
+    clutch_cached_names: set[str] | list[str],
+    media_cached_names: set[str] | list[str],
+    domain: str | None = None,
+) -> list[dict]:
+    """Cross-domain catalog for Library → Content Available (#392).
+
+    Stamps each row with ``domain`` (and media ``target`` from bindings).
+    Optional ``domain`` filters to scripts | clutches | media.
+    """
+    domain_norm = (domain or "").strip().lower() or None
+    if domain_norm and domain_norm not in ("scripts", "clutches", "media"):
+        raise ValueError("domain must be scripts, clutches, or media")
+
+    out: list[dict] = []
+    if domain_norm in (None, "scripts"):
+        script_conns = connections_for_bindings(connections, script_bindings)
+        scripts = annotate_cached(
+            catalog_scripts(script_conns, parse_script_bindings(script_bindings, script_conns)),
+            script_cached_names,
+        )
+        for item in scripts:
+            row = dict(item)
+            row["domain"] = "scripts"
+            out.append(row)
+
+    if domain_norm in (None, "clutches"):
+        clutch_conns = connections_for_bindings(connections, clutch_bindings)
+        clutches = annotate_cached(
+            catalog_clutches(clutch_conns, parse_clutch_bindings(clutch_bindings, clutch_conns)),
+            clutch_cached_names,
+        )
+        for item in clutches:
+            row = dict(item)
+            row["domain"] = "clutches"
+            out.append(row)
+
+    if domain_norm in (None, "media"):
+        media_conns = connections_for_bindings(connections, media_bindings)
+        media_items = annotate_cached(
+            catalog_media(media_conns, parse_media_bindings(media_bindings, media_conns)),
+            media_cached_names,
+        )
+        for item in media_items:
+            row = dict(item)
+            row["domain"] = "media"
+            out.append(row)
+
+    out.sort(
+        key=lambda h: (
+            str(h.get("domain") or ""),
+            str(h.get("name") or "").lower(),
+            str(h.get("relative_path") or "").lower(),
+        )
+    )
+    return out

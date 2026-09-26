@@ -294,6 +294,7 @@ class TestPageTitles:
         assert 'id="scripts-library-browser"' in html
         assert "From library…" in html
         assert "bindLibraryBrowser" in html
+        assert "/library/content?tab=available&domain=scripts" in html
 
     def test_automation_scripts_cached_tab_when_library_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -335,7 +336,7 @@ class TestPageTitles:
         assert "scripts-layout" in clutches
 
         content = client.get("/library/content").data.decode()
-        assert "inventory-toolbar" in content
+        assert 'id="library-content-tab-linked"' in content
         assert 'id="library-content-filter-q"' in content
         assert 'id="library-content-filter-domain"' in content
         assert 'id="library-content-filter-state"' in content
@@ -354,6 +355,7 @@ class TestPageTitles:
         assert 'id="media-library-browser"' in html
         assert "From library…" in html
         assert "library-import-backdrop" not in html
+        assert "/library/content?tab=available&domain=media" in html
 
     def test_media_iso_cached_tab_when_library_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -372,6 +374,7 @@ class TestPageTitles:
         assert 'id="clutches-library-browser"' in html
         assert "From library…" in html
         assert "library-import-backdrop" not in html
+        assert "/library/content?tab=available&domain=clutches" in html
 
     def test_clutches_cached_tab_when_library_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -929,10 +932,9 @@ class TestLibraryContentPane:
         resp = client.get("/library/content")
         assert resp.status_code == 200
         html = resp.data.decode()
-        assert "Linked content" in html or "No linked Cached items" in html
+        assert "No linked Cached items" in html or 'id="library-content-nav"' in html
         assert "scripts-panel" in html
         assert "scripts-layout" in html
-        assert "inventory-toolbar" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
         assert 'href="/library/content"' in html
@@ -944,6 +946,42 @@ class TestLibraryContentPane:
             'value="local"'
             not in html.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
         )
+        assert 'id="library-content-tab-available"' in html
+        assert 'id="library-content-tab-linked"' in html
+        assert 'id="library-content-panel-available"' in html
+        assert 'id="library-content-panel-linked"' in html
+        assert 'id="library-content-lib-filter-q"' in html
+        assert 'id="library-content-lib-filter-domain"' in html
+        assert "bindLibraryBrowserByPrefix" in html
+        assert "api/library/content/catalog" in html or "/api/library/content/catalog" in html
+
+    def test_library_content_available_tab_query(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        html = client.get("/library/content?tab=available&domain=scripts").data.decode()
+        assert 'id="library-content-tab-available"' in html
+        assert "initialTab" in html or "available" in html
+        assert '"available"' in html
+
+    def test_library_content_catalog_api(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        resp = client.get("/api/library/content/catalog")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "items" in data
+        assert isinstance(data["items"], list)
+
+    def test_library_content_catalog_api_forbidden_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        resp = client.get("/api/library/content/catalog")
+        assert resp.status_code == 403
 
     def test_library_content_api_json(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)

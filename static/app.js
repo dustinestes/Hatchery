@@ -959,7 +959,7 @@ hatchery.bindUnsavedLeave = function (opts) {
 
   /**
    * Wire bindLibraryBrowser from a shared id prefix (see _library_browser_panel.html).
-   * opts: idPrefix, catalogUrl, pullUrl, pullExtra
+   * opts: idPrefix, catalogUrl, pullUrl, pullUrls, pullExtra, showDomainColumn
    */
   hatchery.bindLibraryBrowserByPrefix = function (opts) {
     var p = opts.idPrefix;
@@ -970,7 +970,9 @@ hatchery.bindUnsavedLeave = function (opts) {
       root: document.getElementById(p + '-library-browser'),
       catalogUrl: opts.catalogUrl,
       pullUrl: opts.pullUrl,
+      pullUrls: opts.pullUrls || null,
       pullExtra: opts.pullExtra || {},
+      showDomainColumn: !!opts.showDomainColumn,
       status: document.getElementById(p + '-lib-status'),
       tbody: document.getElementById(p + '-lib-tbody'),
       empty: document.getElementById(p + '-lib-empty'),
@@ -978,6 +980,7 @@ hatchery.bindUnsavedLeave = function (opts) {
       pullBtn: document.getElementById(p + '-lib-pull'),
       refreshBtn: document.getElementById(p + '-lib-refresh'),
       filterQ: document.getElementById(p + '-lib-filter-q'),
+      filterDomain: document.getElementById(p + '-lib-filter-domain'),
       filterConn: document.getElementById(p + '-lib-filter-conn'),
       filterCached: document.getElementById(p + '-lib-filter-cached'),
       sort: document.getElementById(p + '-lib-sort'),
@@ -1262,9 +1265,10 @@ hatchery.bindUnsavedLeave = function (opts) {
 
   /**
    * In-pane Library catalog browser (filter / sort / batch pull).
-   * opts: root, catalogUrl, pullUrl, status, tbody, empty, selectAll, pullBtn,
-   *   refreshBtn, filterQ, filterConn, filterCached, sort,
-   *   pullExtra (optional object merged into each pull POST body)
+   * opts: root, catalogUrl, pullUrl, pullUrls (optional domain→url map), status, tbody, empty, selectAll, pullBtn,
+   *   refreshBtn, filterQ, filterDomain, filterConn, filterCached, sort,
+   *   pullExtra (optional object merged into each pull POST body),
+   *   showDomainColumn (optional; Domain cell when rows have domain)
    * Returns { load: function }
    */
   hatchery.bindLibraryBrowser = function (opts) {
@@ -1290,6 +1294,13 @@ hatchery.bindUnsavedLeave = function (opts) {
       return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
       });
+    }
+
+    function domainLabel(domain) {
+      if (domain === 'scripts') return 'Scripts';
+      if (domain === 'clutches') return 'Clutches';
+      if (domain === 'media') return 'Media';
+      return domain || '';
     }
 
     function copySha(sha) {
@@ -1329,10 +1340,12 @@ hatchery.bindUnsavedLeave = function (opts) {
 
     function filteredSorted() {
       var q = ((opts.filterQ && opts.filterQ.value) || '').trim().toLowerCase();
+      var domain = (opts.filterDomain && opts.filterDomain.value) || '';
       var conn = (opts.filterConn && opts.filterConn.value) || '';
       var cached = (opts.filterCached && opts.filterCached.value) || '';
       var sortKey = (opts.sort && opts.sort.value) || 'name';
       var rows = items.filter(function (row) {
+        if (domain && (row.domain || '') !== domain) return false;
         if (conn && row.connection_id !== conn) return false;
         if (cached === 'yes' && !row.cached) return false;
         if (cached === 'no' && row.cached) return false;
@@ -1341,6 +1354,8 @@ hatchery.bindUnsavedLeave = function (opts) {
             row.name || '',
             row.relative_path || '',
             row.connection_label || '',
+            row.domain || '',
+            domainLabel(row.domain),
           ].join(' ').toLowerCase();
           if (hay.indexOf(q) === -1) return false;
         }
@@ -1355,6 +1370,9 @@ hatchery.bindUnsavedLeave = function (opts) {
         } else if (sortKey === 'path') {
           av = (a.relative_path || '').toLowerCase();
           bv = (b.relative_path || '').toLowerCase();
+        } else if (sortKey === 'domain') {
+          av = (a.domain || '').toLowerCase();
+          bv = (b.domain || '').toLowerCase();
         } else {
           av = (a.name || '').toLowerCase();
           bv = (b.name || '').toLowerCase();
@@ -1367,7 +1385,7 @@ hatchery.bindUnsavedLeave = function (opts) {
     }
 
     function rowKey(row) {
-      return (row.connection_id || '') + '\0' + (row.relative_path || row.name || '');
+      return (row.domain || '') + '\0' + (row.connection_id || '') + '\0' + (row.relative_path || row.name || '');
     }
 
     function syncPullBtn() {
@@ -1390,10 +1408,16 @@ hatchery.bindUnsavedLeave = function (opts) {
       opts.selectAll.indeterminate = n > 0 && n < visible.length;
     }
 
+    function showDomainCol() {
+      if (opts.showDomainColumn) return true;
+      return items.some(function (row) { return !!row.domain; });
+    }
+
     function render() {
       var tbody = opts.tbody;
       if (!tbody) return;
       var rows = filteredSorted();
+      var withDomain = showDomainCol();
       tbody.innerHTML = '';
       if (opts.empty) opts.empty.hidden = rows.length > 0 || !loaded;
       rows.forEach(function (row, idx) {
@@ -1413,6 +1437,11 @@ hatchery.bindUnsavedLeave = function (opts) {
              'aria-label="Copy SHA-256 for ' + esc(name || path || 'item') + '" ' +
              'title="Copy SHA-256">' + COPY_SVG + '</button>')
           : '<span class="library-browser-sha-empty" title="SHA-256 unknown">—</span>';
+        var domainCell = withDomain
+          ? ('<td>' + esc(domainLabel(row.domain) || row.domain || '') +
+             (row.domain === 'media' && row.target ? (' · ' + esc(row.target)) : '') +
+             '</td>')
+          : '';
         tr.innerHTML =
           '<td class="library-browser-check-col">' +
             '<input type="checkbox" id="' + id + '"' +
@@ -1427,6 +1456,7 @@ hatchery.bindUnsavedLeave = function (opts) {
                 : '') +
             '</div>' +
           '</td>' +
+          domainCell +
           '<td>' + esc(row.connection_label || row.connection_id || '') + '</td>' +
           '<td class="library-browser-sha-col">' + shaCell + '</td>' +
           '<td><span class="' + statusClass + '">' + esc(statusText) + '</span></td>';
@@ -1500,9 +1530,30 @@ hatchery.bindUnsavedLeave = function (opts) {
         });
     }
 
+    function pullUrlForRow(row) {
+      var map = opts.pullUrls;
+      if (map && row && row.domain && map[row.domain]) {
+        return map[row.domain];
+      }
+      return opts.pullUrl || null;
+    }
+
+    function pullBodyForRow(row) {
+      var body = Object.assign({
+        connection_id: row.connection_id,
+        relative_path: row.relative_path,
+        binding_id: row.binding_id || undefined,
+      }, opts.pullExtra || {});
+      if (row.domain === 'media' || (!row.domain && body.target)) {
+        if (row.target) body.target = row.target;
+      }
+      return body;
+    }
+
     function pullSelected() {
       var keys = Object.keys(selected);
-      if (!keys.length || !opts.pullUrl) return;
+      if (!keys.length) return;
+      if (!opts.pullUrl && !opts.pullUrls) return;
       if (opts.pullBtn) opts.pullBtn.disabled = true;
       setStatus('Pulling…', true);
       var imported = [];
@@ -1511,14 +1562,18 @@ hatchery.bindUnsavedLeave = function (opts) {
       keys.forEach(function (key) {
         var row = selected[key];
         chain = chain.then(function () {
-          return fetch(opts.pullUrl, {
+          var url = pullUrlForRow(row);
+          if (!url) {
+            errors.push({
+              name: row.name || row.relative_path,
+              reason: 'no pull URL for domain',
+            });
+            return;
+          }
+          return fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(Object.assign({
-              connection_id: row.connection_id,
-              relative_path: row.relative_path,
-              binding_id: row.binding_id || undefined,
-            }, opts.pullExtra || {})),
+            body: JSON.stringify(pullBodyForRow(row)),
           }).then(function (r) {
             return r.json().then(function (data) {
               return { ok: r.ok, data: data };
@@ -1545,7 +1600,7 @@ hatchery.bindUnsavedLeave = function (opts) {
           var msg = imported.length === 1
             ? ('Pulled ' + imported[0])
             : ('Pulled ' + imported.length + ' items');
-          showToast(msg + ' - ready to use.', 'info', 3200);
+          showToast(msg + (opts.pullUrls ? ' - ready on Linked.' : ' - ready to use.'), 'info', 3200);
           window.setTimeout(function () { window.location.reload(); }, 400);
           return;
         }
@@ -1571,7 +1626,7 @@ hatchery.bindUnsavedLeave = function (opts) {
         render();
       });
     }
-    ['filterQ', 'filterConn', 'filterCached', 'sort'].forEach(function (key) {
+    ['filterQ', 'filterDomain', 'filterConn', 'filterCached', 'sort'].forEach(function (key) {
       var el = opts[key];
       if (!el) return;
       var evt = el.tagName === 'INPUT' ? 'input' : 'change';
