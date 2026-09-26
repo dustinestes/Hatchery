@@ -1260,17 +1260,13 @@ html.sidebar-collapsed-init .topbar-name {
   color: var(--color-text);
 }
 
-.library-conn-remove-git-opts {
-  margin-top: 14px;
-}
-
-.library-conn-remove-git-row {
+.library-conn-remove-opt-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.library-conn-remove-git-row .form-help-icon {
+.library-conn-remove-opt-row .form-help-icon {
   margin-left: 0;
   align-self: center;
 }

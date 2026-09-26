@@ -1,10 +1,10 @@
 # ADR-0009: Library git checkout cache on the Controller
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0020](0020-library-forge-path-only.md)
 - **Date:** 2026-09-19
-- **Issues:** [#251](https://github.com/dustinestes/Hatchery/issues/251), [#295](https://github.com/dustinestes/Hatchery/issues/295)
-- **Code:** [`lib/library.py`](../../lib/library.py) (`ensure_git_checkout`, `delete_git_cache`)
-- **How-to:** [library.md - Git connections](../library.md#git-connections-251)
+- **Issues:** [#251](https://github.com/dustinestes/Hatchery/issues/251), [#295](https://github.com/dustinestes/Hatchery/issues/295); removed by [#406](https://github.com/dustinestes/Hatchery/issues/406)
+- **Code:** historically [`lib/library.py`](../../lib/library.py) (`ensure_git_checkout`, `delete_git_cache`) - removed under ADR-0020
+- **How-to:** [library.md](../library.md) (classic git section retired; use Forge)
 
 ## Context
 
@@ -46,3 +46,7 @@ Library `type: git` needs list and pull into the operator domain cache (Scripts 
 | Sparse checkout at ensure | Binding filters vary per domain; defer vs #307 |
 | Background sync daemon | Unexpected network/disk; list/pull refresh is enough |
 | Auto-update pulled domain files | Separate product (#308); create-only stays default |
+
+## Supersession
+
+[#406](https://github.com/dustinestes/Hatchery/issues/406) / [ADR-0020](0020-library-forge-path-only.md) remove classic `type: git` and the Controller clone cache. Operators use **forge** or **path**. Digest kind `git_blob` remains for forge/path identity.

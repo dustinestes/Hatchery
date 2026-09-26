@@ -1457,7 +1457,6 @@ def api_library_connection_delete(conn_id: str):
         return jsonify({"ok": False, "error": "Unknown connection id"}), 404
 
     data = request.get_json(silent=True) or {}
-    delete_git_cache = bool(data.get("delete_git_cache"))
     delete_attributed_cache = bool(data.get("delete_attributed_cache"))
 
     bindings_removed = sum(
@@ -1478,23 +1477,23 @@ def api_library_connection_delete(conn_id: str):
             data_dir=config.data_dir(),
         )
 
-    git_cache_deleted = False
-    git_cache_warning = None
-    if delete_git_cache and str(removed.get("type") or "").strip().lower() == "git":
-        try:
-            git_cache_deleted = library_lib.delete_git_cache(cid)
-        except (ValueError, OSError) as exc:
-            git_cache_warning = str(exc)
+    # GC leftover classic clone dirs from pre-#406 Controllers (any connection id).
+    legacy_git_cache_deleted = False
+    legacy_git_cache_warning = None
+    try:
+        legacy_git_cache_deleted = library_lib.purge_legacy_git_cache(cid)
+    except (ValueError, OSError) as exc:
+        legacy_git_cache_warning = str(exc)
 
     payload = {
         "ok": True,
         "id": cid,
         "bindings_removed": bindings_removed,
-        "git_cache_deleted": git_cache_deleted,
         "attributed_cache_deleted": attributed_deleted,
+        "legacy_git_cache_deleted": legacy_git_cache_deleted,
     }
-    if git_cache_warning:
-        payload["git_cache_warning"] = git_cache_warning
+    if legacy_git_cache_warning:
+        payload["legacy_git_cache_warning"] = legacy_git_cache_warning
     return jsonify(payload)
 
 

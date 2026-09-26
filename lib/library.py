@@ -1,8 +1,9 @@
-"""Library connections and domain bindings — list, test, and pull into the operator cache.
+"""Library connections and domain bindings - list, test, and pull into the operator cache.
 
-``path`` (local or mounted share), ``https`` (single relative file), ``git``
-(shallow clone cache), ``api`` (pluggable catalog providers — #255), and ``forge``
-(pluggable git forge providers — #307) are supported.
+``path`` (local or mounted share), ``https`` (single relative file), ``api``
+(pluggable catalog providers - #255), and ``forge`` (pluggable git forge
+providers - #307) are supported. Classic ``type: git`` clone cache was removed
+(#406 / ADR-0020); leftover rows refuse test/list/pull/tip.
 """
 
 from __future__ import annotations
@@ -10,19 +11,17 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
-import subprocess
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from lib.import_files import SCRIPT_EXTENSIONS
 
-CONNECTION_TYPES = frozenset({"path", "https", "git", "api", "forge"})
+CONNECTION_TYPES = frozenset({"path", "https", "api", "forge"})
 CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
@@ -30,8 +29,10 @@ CLUTCH_EXTENSIONS = frozenset({".yaml"})
 _SAMPLE_LIMIT = 5
 _SCRIPT_PULL_DEST = "automation/scripts"
 _CLUTCH_PULL_DEST = "clutches"
-_GIT_CACHE_SUBDIR = "library/git"
-_GIT_TIMEOUT_S = 120
+_LEGACY_GIT_CACHE_SUBDIR = "library/git"
+_LEGACY_GIT_REMOVED_MSG = (
+    "Library connection type 'git' was removed; recreate as forge or path (#406 / ADR-0020)"
+)
 
 
 def new_id() -> str:
@@ -559,7 +560,7 @@ def resolve_source_tip(
     if ctype == "https":
         return _https_source_tip(conn, rel)
     if ctype == "git":
-        return _git_blob_tip(conn, rel)
+        return TipResolveResult(status="unreachable", detail=_LEGACY_GIT_REMOVED_MSG)
     if ctype == "api":
         return _adapter_source_tip(conn, rel, single_file=single_file, forge=False)
     if ctype == "forge":
@@ -639,37 +640,6 @@ def _https_source_tip(conn: dict, rel: str) -> TipResolveResult:
         return TipResolveResult(status="unreachable", detail=str(exc)[:240])
 
 
-def _git_blob_digest(conn: dict, rel: str) -> tuple[str, str] | None:
-    result = _git_blob_tip(conn, rel)
-    return result.tip if result.status == "ok" else None
-
-
-def _git_blob_tip(conn: dict, rel: str) -> TipResolveResult:
-    if not git_available():
-        return TipResolveResult(status="unreachable", detail="git is not available")
-    try:
-        root = ensure_git_checkout(conn)
-    except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
-        return TipResolveResult(status="unreachable", detail=str(exc)[:240])
-    result = _run_git(["ls-tree", "HEAD", "--", rel], cwd=root, timeout=60)
-    if result.returncode != 0:
-        return TipResolveResult(
-            status="unreachable",
-            detail=(result.stderr or result.stdout or "git ls-tree failed")[:240],
-        )
-    line = (result.stdout or "").strip().splitlines()
-    if not line:
-        return TipResolveResult(status="missing")
-    # mode type sha\tpath
-    parts = line[0].split()
-    if len(parts) < 3:
-        return TipResolveResult(status="missing")
-    sha = parts[2]
-    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
-        return TipResolveResult(status="unconfirmable", detail="Unexpected git blob id")
-    return TipResolveResult(status="ok", tip=("git_blob", sha))
-
-
 def _expand_base(base_uri: str) -> Path:
     return Path(base_uri).expanduser().resolve()
 
@@ -689,7 +659,7 @@ def test_connection(conn: dict) -> dict:
     if ctype == "https":
         return _test_https(conn)
     if ctype == "git":
-        return _test_git(conn)
+        return {"ok": False, "message": _LEGACY_GIT_REMOVED_MSG}
     if ctype == "api":
         return _test_api(conn)
     if ctype == "forge":
@@ -705,118 +675,14 @@ def os_access_dir(path: Path) -> bool:
         return False
 
 
-def git_available() -> bool:
-    """True when the Controller has a ``git`` executable on PATH."""
-    return shutil.which("git") is not None
-
-
-def git_remote_url(base_uri: str, token: str = "") -> str:
-    """Return a clone/ls-remote URL, embedding ``token`` for HTTPS remotes.
-
-    SSH and ``file://`` / local-path remotes are returned unchanged (token ignored).
-    GitHub hosts use ``x-access-token``; other HTTPS hosts use ``oauth2`` (GitLab-style).
-    """
-    uri = (base_uri or "").strip()
-    if not uri:
-        raise ValueError("git connection needs a repository URL")
-    token = (token or "").strip()
-    if not token:
-        return uri
-    # Local path / file URL / scp-style SSH — token does not apply
-    if uri.startswith("git@") or uri.startswith("/") or uri.startswith("file:"):
-        return uri
-    if re.match(r"^[A-Za-z]:[\\/]", uri):
-        return uri
-    # scp-style user@host:path (no scheme)
-    if "://" not in uri and re.match(r"^[^/]+@[^/]+:", uri):
-        return uri
-    parsed = urlparse(uri)
-    if parsed.scheme not in ("http", "https"):
-        return uri
-    host = (parsed.hostname or "").lower()
-    port = f":{parsed.port}" if parsed.port else ""
-    user = (
-        "x-access-token"
-        if host in ("github.com", "www.github.com", "gist.github.com")
-        else "oauth2"
-    )
-    netloc = f"{user}:{quote(token, safe='')}@{host}{port}"
-    return urlunparse((parsed.scheme, netloc, parsed.path or "", "", "", ""))
-
-
-def _git_env() -> dict[str, str]:
-    """Env for non-interactive git (no credential prompts)."""
-    import os
-
-    env = dict(os.environ)
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    env["GIT_ASKPASS"] = "echo"
-    return env
-
-
-def _run_git(
-    args: list[str],
-    *,
-    cwd: Path | None = None,
-    timeout: int = _GIT_TIMEOUT_S,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=str(cwd) if cwd else None,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-        env=_git_env(),
-    )
-
-
-def _git_error_detail(result: subprocess.CompletedProcess[str]) -> str:
-    err = (result.stderr or result.stdout or "").strip()
-    # Never echo URLs that may embed tokens — keep the last non-URL line.
-    lines = [ln for ln in err.splitlines() if "://" not in ln and "@" not in ln]
-    detail = lines[-1] if lines else err.splitlines()[-1] if err else f"exit {result.returncode}"
-    return detail[:300]
-
-
-def _test_git(conn: dict) -> dict:
-    if not git_available():
-        return {
-            "ok": False,
-            "message": "git is not installed on this Hatchery Controller - install git to use Library git connections.",
-        }
-    try:
-        url = git_remote_url(conn["base_uri"], conn.get("token") or "")
-    except ValueError as exc:
-        return {"ok": False, "message": str(exc)}
-    try:
-        result = _run_git(["ls-remote", "--heads", url], timeout=60)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "message": "git ls-remote timed out"}
-    except OSError as exc:
-        return {"ok": False, "message": str(exc)}
-    if result.returncode != 0:
-        return {"ok": False, "message": f"git ls-remote failed: {_git_error_detail(result)}"}
-    heads = [ln for ln in (result.stdout or "").splitlines() if ln.strip()]
-    if not heads:
-        return {"ok": False, "message": "Repository reachable but has no heads (empty?)"}
-    display = (conn.get("base_uri") or "").strip()
-    return {"ok": True, "message": f"Git remote OK ({len(heads)} head(s)): {display}"}
-
-
-def git_cache_dir(conn: dict) -> Path:
-    """Return the per-connection shallow clone path under the data directory."""
-    return git_cache_path_for_id(str(conn.get("id") or "").strip() or "unknown")
-
-
-def git_cache_path_for_id(connection_id: str) -> Path:
-    """Return ``{data_dir}/library/git/{connection_id}`` for a connection id."""
+def _legacy_git_cache_path_for_id(connection_id: str) -> Path:
+    """Return leftover ``{data_dir}/library/git/{connection_id}`` if any (ADR-0020 GC)."""
     from lib import config as config_lib
 
     cid = str(connection_id or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", cid):
-        raise ValueError(f"invalid connection id for git cache: {cid!r}")
-    return config_lib.data_dir() / _GIT_CACHE_SUBDIR / cid
+        raise ValueError(f"invalid connection id for legacy git cache: {cid!r}")
+    return config_lib.data_dir() / _LEGACY_GIT_CACHE_SUBDIR / cid
 
 
 def _rmtree_portable(path: Path) -> None:
@@ -826,7 +692,7 @@ def _rmtree_portable(path: Path) -> None:
     """
     import stat
 
-    def _onexc(func, p, exc_info=None):  # noqa: ARG001 — shutil signature varies
+    def _onexc(func, p, exc_info=None):  # noqa: ARG001 - shutil signature varies
         target = Path(p)
         try:
             if target.exists():
@@ -842,119 +708,30 @@ def _rmtree_portable(path: Path) -> None:
         shutil.rmtree(path, onerror=lambda func, p, _err: _onexc(func, p))
 
 
-def delete_git_cache(connection_id: str) -> bool:
-    """Remove the shallow clone cache for ``connection_id`` if present.
+def purge_legacy_git_cache(connection_id: str) -> bool:
+    """Remove a leftover classic git clone dir for ``connection_id`` if present.
 
     Returns True when a directory was removed. No-op (False) when missing.
     Refuses paths that resolve outside ``{data_dir}/library/git/``.
     """
     from lib import config as config_lib
 
-    cache = git_cache_path_for_id(connection_id)
-    root = (config_lib.data_dir() / _GIT_CACHE_SUBDIR).resolve()
+    cache = _legacy_git_cache_path_for_id(connection_id)
+    root = (config_lib.data_dir() / _LEGACY_GIT_CACHE_SUBDIR).resolve()
     try:
         resolved = cache.resolve(strict=False)
     except OSError as exc:
-        raise ValueError(f"cannot resolve git cache path: {exc}") from exc
+        raise ValueError(f"cannot resolve legacy git cache path: {exc}") from exc
     try:
         resolved.relative_to(root)
     except ValueError as exc:
-        raise ValueError("git cache path escapes library/git root") from exc
+        raise ValueError("legacy git cache path escapes library/git root") from exc
     if not cache.exists():
         return False
     if not cache.is_dir():
-        raise ValueError(f"git cache path is not a directory: {cache}")
+        raise ValueError(f"legacy git cache path is not a directory: {cache}")
     _rmtree_portable(cache)
     return True
-
-
-def _configure_git_cache_line_endings(cache: Path) -> None:
-    """Disable CRLF conversion so working-tree bytes match git blob tips (#308).
-
-    Windows Controllers often default ``core.autocrlf=true``, which rewrites text
-    files on checkout and breaks ``git_blob`` provenance / pull verification.
-    """
-    for key, value in (("core.autocrlf", "false"), ("core.eol", "lf")):
-        cfg = _run_git(["config", key, value], cwd=cache, timeout=30)
-        if cfg.returncode != 0:
-            raise ValueError(f"git config {key} failed: {_git_error_detail(cfg)}")
-
-
-def ensure_git_checkout(conn: dict) -> Path:
-    """Clone or update a shallow checkout for ``conn``; return the working tree path."""
-    if not git_available():
-        raise ValueError(
-            "git is not installed on this Hatchery Controller - install git to use Library git connections."
-        )
-    url = git_remote_url(conn["base_uri"], conn.get("token") or "")
-    cache = git_cache_dir(conn)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    git_dir = cache / ".git"
-    try:
-        if not git_dir.is_dir():
-            if cache.exists():
-                _rmtree_portable(cache)
-            # -c flags apply during the initial checkout before repo config exists.
-            result = _run_git(
-                [
-                    "-c",
-                    "core.autocrlf=false",
-                    "-c",
-                    "core.eol=lf",
-                    "clone",
-                    "--depth",
-                    "1",
-                    "--single-branch",
-                    url,
-                    str(cache),
-                ],
-                timeout=_GIT_TIMEOUT_S,
-            )
-            if result.returncode != 0:
-                if cache.exists():
-                    try:
-                        _rmtree_portable(cache)
-                    except OSError:
-                        shutil.rmtree(cache, ignore_errors=True)
-                raise ValueError(f"git clone failed: {_git_error_detail(result)}")
-            _configure_git_cache_line_endings(cache)
-        else:
-            _configure_git_cache_line_endings(cache)
-            fetch = _run_git(
-                ["fetch", "--depth", "1", "origin"],
-                cwd=cache,
-                timeout=_GIT_TIMEOUT_S,
-            )
-            if fetch.returncode != 0:
-                raise ValueError(f"git fetch failed: {_git_error_detail(fetch)}")
-            reset = _run_git(
-                ["reset", "--hard", "FETCH_HEAD"],
-                cwd=cache,
-                timeout=60,
-            )
-            if reset.returncode != 0:
-                raise ValueError(f"git reset failed: {_git_error_detail(reset)}")
-    except subprocess.TimeoutExpired as exc:
-        raise ValueError("git operation timed out") from exc
-    return cache
-
-
-def _list_git_files(
-    conn: dict,
-    filt: str,
-    *,
-    extensions: frozenset[str],
-    limit: int | None,
-) -> list[dict]:
-    root = ensure_git_checkout(conn)
-    return _list_tree_files(
-        root,
-        filt,
-        extensions=extensions,
-        limit=limit,
-        connection_id=conn["id"],
-        source_type="git",
-    )
 
 
 def _api_adapter(conn: dict):
@@ -1086,7 +863,7 @@ def list_hits(
     if ctype == "https":
         return _list_https_files(conn, filt, extensions=extensions, limit=limit)
     if ctype == "git":
-        return _list_git_files(conn, filt, extensions=extensions, limit=limit)
+        raise ValueError(_LEGACY_GIT_REMOVED_MSG)
     if ctype == "api":
         return _list_api_files(conn, filt, extensions=extensions, limit=limit)
     if ctype == "forge":
@@ -1463,13 +1240,7 @@ def _pull_file(
         digest = sha256_file(dest)
         return {"name": name, "sha256": digest, "dest": str(dest)}
     if ctype == "git":
-        root = ensure_git_checkout(conn)
-        src = root / rel
-        if not src.is_file():
-            raise FileNotFoundError(f"Not found in git checkout: {rel}")
-        shutil.copy2(src, dest)
-        digest = sha256_file(dest)
-        return {"name": name, "sha256": digest, "dest": str(dest)}
+        raise ValueError(_LEGACY_GIT_REMOVED_MSG)
     if ctype == "api":
         adapter = _api_adapter(conn)
         return adapter.pull_file(conn, rel, dest)

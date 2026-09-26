@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-26
 - **Issues:** Planning [#379](https://github.com/dustinestes/Hatchery/issues/379); remove classic git [#406](https://github.com/dustinestes/Hatchery/issues/406); modal [#407](https://github.com/dustinestes/Hatchery/issues/407); soft-disable chrome [#408](https://github.com/dustinestes/Hatchery/issues/408)
-- **Related:** [ADR-0016](0016-library-operator-plane.md) (plane + no dual inventory root), [ADR-0017](0017-library-connections-bindings-tables.md), [ADR-0012](0012-library-cache-provenance-drift.md) / [ADR-0018](0018-library-drift-scenario-matrix.md) (linked / sync), [ADR-0009](0009-library-git-checkout-cache.md) (clone cache until [#406](https://github.com/dustinestes/Hatchery/issues/406))
+- **Related:** [ADR-0016](0016-library-operator-plane.md) (plane + no dual inventory root), [ADR-0017](0017-library-connections-bindings-tables.md), [ADR-0012](0012-library-cache-provenance-drift.md) / [ADR-0018](0018-library-drift-scenario-matrix.md) (linked / sync), [ADR-0020](0020-library-forge-path-only.md) (classic git removed)
 - **How-to:** [library.md - Enable / disable Library](../library.md#enable--disable-library-379)
 
 ## Context
@@ -52,7 +52,7 @@ On Settings → General, when turning **Enable Library** from on to off, show a 
 ### Disk layout
 
 - Operator bytes stay in `automation/scripts/`, `clutches/`, `media/…` - **no** dual attributed root under `data-dir/library/{domain}/` ([ADR-0016](0016-library-operator-plane.md))
-- `{data_dir}/library/git/` is only the classic **`type: git`** shallow-clone cache ([ADR-0009](0009-library-git-checkout-cache.md)). Forge never writes there. Prefer removing `type: git` ([#406](https://github.com/dustinestes/Hatchery/issues/406)) **before** modal implementation so Clear Connections need not delete clones. Until then, Clear Connections also removes those clone dirs for any remaining git connections
+- Classic `{data_dir}/library/git/` clone cache is removed ([ADR-0020](0020-library-forge-path-only.md) / [#406](https://github.com/dustinestes/Hatchery/issues/406)). Clear Connections need not delete clone dirs; connection delete still GCs any leftover dir under that path
 
 ### Non-goals
 
@@ -72,7 +72,7 @@ On Settings → General, when turning **Enable Library** from on to off, show a 
 **Neutral / follow-on**
 
 - Implementation: [#407](https://github.com/dustinestes/Hatchery/issues/407) (modal), [#408](https://github.com/dustinestes/Hatchery/issues/408) (soft-disable chrome)
-- Pre-work: [#406](https://github.com/dustinestes/Hatchery/issues/406) remove classic git
+- Pre-work: [#406](https://github.com/dustinestes/Hatchery/issues/406) remove classic git ([ADR-0020](0020-library-forge-path-only.md))
 
 **Bad / accepted cost**
 

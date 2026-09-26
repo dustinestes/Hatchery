@@ -206,3 +206,121 @@ class TestGetConnection:
             assert row["message"] == "hello"
         finally:
             conn.close()
+
+
+class TestLibraryDropGitType:
+    def test_fresh_schema_excludes_git_from_type_check(self):
+        conn = db_module.get_connection()
+        try:
+            ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connections'"
+            ).fetchone()[0]
+            assert "'git'" not in ddl
+            assert "'forge'" in ddl
+        finally:
+            conn.close()
+
+    def test_migrates_legacy_check_when_no_git_rows(self, tmp_path):
+        path = tmp_path / "legacy-git-check.db"
+        sqlite3 = __import__("sqlite3")
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE library_connections (
+                    id          TEXT PRIMARY KEY,
+                    label       TEXT    NOT NULL,
+                    type        TEXT    NOT NULL,
+                    provider    TEXT    NOT NULL DEFAULT '',
+                    base_uri    TEXT    NOT NULL,
+                    token       TEXT    NOT NULL DEFAULT '',
+                    expires_at  TEXT,
+                    enabled     INTEGER NOT NULL DEFAULT 1,
+                    created_at  TEXT    NOT NULL,
+                    updated_at  TEXT    NOT NULL,
+                    CHECK (type IN ('path', 'https', 'git', 'api', 'forge')),
+                    CHECK (enabled IN (0, 1))
+                );
+                CREATE TABLE library_connection_kinds (
+                    connection_id   TEXT    NOT NULL,
+                    kind            TEXT    NOT NULL,
+                    PRIMARY KEY (connection_id, kind),
+                    FOREIGN KEY (connection_id) REFERENCES library_connections(id)
+                        ON DELETE CASCADE,
+                    CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+                );
+                INSERT INTO library_connections (
+                    id, label, type, provider, base_uri, token, expires_at,
+                    enabled, created_at, updated_at
+                ) VALUES (
+                    'c1', 'Share', 'path', '', '/tmp/share', '', NULL,
+                    1, '2026-01-01', '2026-01-01'
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        db_module.init_db(path)
+        conn = db_module.get_connection()
+        try:
+            ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connections'"
+            ).fetchone()[0]
+            assert "'git'" not in ddl
+            row = conn.execute("SELECT type FROM library_connections WHERE id='c1'").fetchone()
+            assert row["type"] == "path"
+        finally:
+            conn.close()
+
+    def test_keeps_git_in_check_while_legacy_rows_exist(self, tmp_path):
+        path = tmp_path / "legacy-git-row.db"
+        sqlite3 = __import__("sqlite3")
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE library_connections (
+                    id          TEXT PRIMARY KEY,
+                    label       TEXT    NOT NULL,
+                    type        TEXT    NOT NULL,
+                    provider    TEXT    NOT NULL DEFAULT '',
+                    base_uri    TEXT    NOT NULL,
+                    token       TEXT    NOT NULL DEFAULT '',
+                    expires_at  TEXT,
+                    enabled     INTEGER NOT NULL DEFAULT 1,
+                    created_at  TEXT    NOT NULL,
+                    updated_at  TEXT    NOT NULL,
+                    CHECK (type IN ('path', 'https', 'git', 'api', 'forge')),
+                    CHECK (enabled IN (0, 1))
+                );
+                CREATE TABLE library_connection_kinds (
+                    connection_id   TEXT    NOT NULL,
+                    kind            TEXT    NOT NULL,
+                    PRIMARY KEY (connection_id, kind)
+                );
+                INSERT INTO library_connections (
+                    id, label, type, provider, base_uri, token, expires_at,
+                    enabled, created_at, updated_at
+                ) VALUES (
+                    'g1', 'Old git', 'git', '', 'https://example.com/r.git', '', NULL,
+                    1, '2026-01-01', '2026-01-01'
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        db_module.init_db(path)
+        conn = db_module.get_connection()
+        try:
+            ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connections'"
+            ).fetchone()[0]
+            assert "'git'" in ddl
+            row = conn.execute("SELECT type FROM library_connections WHERE id='g1'").fetchone()
+            assert row["type"] == "git"
+        finally:
+            conn.close()

@@ -29,7 +29,7 @@ Operators need one Library plane for configuration and (soon) link/sync lifecycl
 
 5. **Library → Content** (cross-domain attributed inventory, Sync, re-attach, [#370](https://github.com/dustinestes/Hatchery/issues/370) / [#384](https://github.com/dustinestes/Hatchery/issues/384) linked/synced language) is the home for lifecycle UX. Connections configures registry; Content inspects and corrects linked Cached items. Do not grow new permanent Library lifecycle UI on domain panes (Cached may deep-link into Content).
 
-6. **Operator cache paths stay domain trees** (`automation/scripts/`, `clutches/`, `media/…`). Do **not** introduce a second attributed inventory root under `data-dir/library/` for pulled files. `{data_dir}/library/git/` remains the classic **`type: git`** clone cache only ([ADR-0009](0009-library-git-checkout-cache.md)) until removed ([#406](https://github.com/dustinestes/Hatchery/issues/406)). Soft disable vs teardown depth is [ADR-0019](0019-library-disable-excise.md) - not a parallel file tree.
+6. **Operator cache paths stay domain trees** (`automation/scripts/`, `clutches/`, `media/…`). Do **not** introduce a second attributed inventory root under `data-dir/library/` for pulled files. Classic `{data_dir}/library/git/` clone cache was removed ([ADR-0020](0020-library-forge-path-only.md) / [#406](https://github.com/dustinestes/Hatchery/issues/406)). Soft disable vs teardown depth is [ADR-0019](0019-library-disable-excise.md) - not a parallel file tree.
 
 7. **Configuration storage** for connections/bindings is first-class SQLite tables ([ADR-0017](0017-library-connections-bindings-tables.md)), edited from Library → Connections - not Settings JSON blobs.
 
