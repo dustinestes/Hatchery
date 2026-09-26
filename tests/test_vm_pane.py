@@ -101,7 +101,10 @@ def test_vm_ops_lifecycle_and_snap():
         ops.delete_snapshot("local", "dc01", "s1")
         prov.list_snapshots.return_value = ["s1"]
         assert ops.list_snapshots("local", "dc01") == ["s1"]
-        with patch("lib.vm_ops.guest_health", return_value={"ip": "1.2.3.4", "winrm": True, "reachable": True}):
+        with patch(
+            "lib.vm_ops.guest_health",
+            return_value={"ip": "1.2.3.4", "winrm": True, "reachable": True},
+        ):
             assert ops.health_vm("local", "dc01")["reachable"] is True
     prov.start_vm.assert_called()
     prov.destroy_vm.assert_called_with("dc01")
@@ -152,7 +155,9 @@ def test_api_vm_mutate_and_snap_routes(client):
         assert client.post("/api/nests/local/vms/dc01/pause").status_code == 200
         assert client.post("/api/nests/local/vms/dc01/resume").status_code == 200
         assert client.post("/api/nests/local/vms/dc01/destroy").status_code == 200
-        with patch("lib.vm_ops.guest_health", return_value={"ip": None, "winrm": False, "reachable": False}):
+        with patch(
+            "lib.vm_ops.guest_health", return_value={"ip": None, "winrm": False, "reachable": False}
+        ):
             assert client.get("/api/nests/local/vms/dc01/health").status_code == 200
         resp = client.get("/api/nests/local/vms/dc01/snapshots")
         assert resp.get_json()["snapshots"] == ["base"]
@@ -185,6 +190,7 @@ def test_vms_pane_markers(client):
     assert "External VM (not Hatchery-sourced)" in html
     assert "window.confirm" not in html
     assert "window.alert" not in html
+    assert "syncLifecycleButtons" in html
 
 
 def test_nests_pane_inventory_chrome(client):

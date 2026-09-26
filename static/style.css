@@ -711,6 +711,18 @@ html.sidebar-collapsed-init .topbar-name {
   font-size: 12px;
 }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary:disabled:hover,
+.btn-secondary[disabled]:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+}
+
 .btn-danger {
   background: #C62828;
   color: #fff;

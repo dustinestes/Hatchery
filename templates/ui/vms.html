@@ -297,6 +297,35 @@
     return `<div class="scripts-meta-row"><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
   }
 
+  function syncLifecycleButtons(status) {
+    if (!detailActions) return;
+    const power = (status || '').toLowerCase();
+    const shutOff = power === 'shut off';
+    const running = power === 'running';
+    const paused = power === 'paused' || power === 'suspended' || power === 'pmsuspended';
+    const rules = {
+      start: { on: shutOff, when: 'Shut Off' },
+      stop: { on: running, when: 'Running' },
+      'force-stop': { on: running, when: 'Running' },
+      pause: { on: running, when: 'Running' },
+      resume: { on: paused, when: 'Paused' },
+      destroy: { on: true, when: '' },
+      health: { on: true, when: '' },
+    };
+    detailActions.querySelectorAll('[data-vm-action]').forEach((btn) => {
+      const action = btn.getAttribute('data-vm-action');
+      const rule = rules[action];
+      if (!rule) return;
+      const enabled = !!rule.on;
+      btn.disabled = !enabled;
+      if (enabled || !rule.when) {
+        btn.removeAttribute('title');
+      } else {
+        btn.title = `Available when power is ${rule.when}`;
+      }
+    });
+  }
+
   function selectVm(vm, opts) {
     selectedKey = vmKey(vm);
     nav.querySelectorAll('.scripts-nav-item').forEach(b => {
@@ -325,6 +354,7 @@
       detailActions.dataset.nest = vm.nest || '';
       detailActions.dataset.name = vm.name || '';
     }
+    syncLifecycleButtons(vm.status);
     if (!opts || !opts.skipFetchSnaps) loadSnapshots(vm.nest, vm.name);
   }
 
