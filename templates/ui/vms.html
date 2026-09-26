@@ -266,11 +266,21 @@
       btn.setAttribute('aria-pressed', vmKey(vm) === selectedKey ? 'true' : 'false');
       const power = POWER_LABEL[vm.status] || (vm.status || 'Unknown');
       const hatch = vm.hatch_status ? ` · ${vm.hatch_status}` : '';
-      const external = vm.hatchery_sourced ? '' : ' <span class="vms-external-cue">External</span>';
+      const externalIcon = vm.hatchery_sourced ? '' : `
+        <span class="scripts-nav-drift-icon vms-external-cue-icon"
+              title="External VM (not Hatchery-sourced)"
+              aria-label="External VM (not Hatchery-sourced)"
+              role="img">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </span>`;
       btn.innerHTML = `<span class="scripts-nav-main">
-        <span class="scripts-nav-label">${esc(vm.name)}${external}</span>
+        <span class="scripts-nav-label">${esc(vm.name)}</span>
         <span class="scripts-nav-sub">${esc(vm.nest)} · ${esc(power)}${esc(hatch)}</span>
-      </span>`;
+      </span>${externalIcon}`;
       btn.addEventListener('click', () => selectVm(vm));
       nav.appendChild(btn);
     });

@@ -181,6 +181,8 @@ def test_vms_pane_markers(client):
     assert "vms-lifecycle-actions" in html
     assert "vms-rollup" not in html
     assert 'id="vms-modal-backdrop"' in html
+    assert "vms-external-cue-icon" in html
+    assert "External VM (not Hatchery-sourced)" in html
     assert "window.confirm" not in html
     assert "window.alert" not in html
 
