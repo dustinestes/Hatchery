@@ -3920,7 +3920,7 @@ body {
 
 .scripts-meta-row {
   display: grid;
-  grid-template-columns: 6rem 1fr;
+  grid-template-columns: 9rem 1fr;
   gap: 8px;
   font-size: 13px;
 }
@@ -3929,6 +3929,7 @@ body {
   margin: 0;
   color: var(--color-text-muted);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .scripts-meta-row dd {
@@ -4193,7 +4194,7 @@ body {
 
 .media-meta-row {
   display: grid;
-  grid-template-columns: 6rem 1fr;
+  grid-template-columns: 9rem 1fr;
   gap: 8px;
   font-size: 13px;
 }
@@ -4202,6 +4203,7 @@ body {
   margin: 0;
   color: var(--color-text-muted);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .media-meta-row dd {
