@@ -256,7 +256,7 @@ class TestPageTitles:
         assert "HatcheryLibraryStatus" in html
         assert 'id="clutches-library-status-label"' in html
         assert 'value="communication"' in html
-        assert 'aria-label="Filter Cached Clutches"' in html
+        assert 'aria-label="Filter Clutches"' in html
         assert 'id="clutches-filter-q"' in html
         assert 'id="clutches-filter-language"' in html
         assert 'id="clutches-filter-state"' in html
@@ -285,25 +285,22 @@ class TestPageTitles:
         assert html.count("sidebar-subitem active") == 1
         assert "Scripts" in html
 
-    def test_automation_scripts_library_tabs_when_enabled(self, client, monkeypatch):
+    def test_automation_scripts_from_library_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/automation/scripts").data.decode()
-        assert 'id="scripts-tab-cache"' in html
-        assert 'id="scripts-tab-library"' in html
-        assert "inventory-tab--disabled" not in html
-        assert 'id="scripts-library-browser"' in html
+        assert 'id="scripts-tab-cache"' not in html
+        assert 'id="scripts-tab-library"' not in html
+        assert 'id="scripts-library-browser"' not in html
         assert "From library…" in html
-        assert "bindLibraryBrowser" in html
         assert "/library/content?tab=available&domain=scripts" in html
+        assert "inventory-tabs" not in html
 
-    def test_automation_scripts_cached_tab_when_library_disabled(self, client, monkeypatch):
+    def test_automation_scripts_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/automation/scripts").data.decode()
-        assert 'id="scripts-tab-cache"' in html
-        assert 'id="scripts-tab-library"' in html
-        assert "inventory-tab--disabled" in html
         assert "From library…" not in html
         assert 'id="scripts-library-browser"' not in html
+        assert "inventory-tabs" not in html
 
     def test_inventory_panes_share_cached_chrome_macros(self, client, monkeypatch):
         """#391: toolbar / filters / split layout macros keep stable filter ids."""
@@ -319,7 +316,7 @@ class TestPageTitles:
         assert 'id="scripts-filter-language"' in scripts
         assert 'id="scripts-filter-state"' in scripts
         assert "scripts-layout" in scripts
-        assert 'id="scripts-tab-cache"' in scripts
+        assert 'id="scripts-tab-cache"' not in scripts
 
         media = client.get("/media/iso").data.decode()
         assert "inventory-toolbar" in media
@@ -346,43 +343,42 @@ class TestPageTitles:
         ]
         assert 'value="local"' not in state_opts
 
-    def test_media_iso_library_tabs_when_enabled(self, client, monkeypatch):
+    def test_media_iso_from_library_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/media/iso").data.decode()
-        assert 'id="media-tab-cache"' in html
-        assert 'id="media-tab-library"' in html
-        assert "inventory-tab--disabled" not in html
-        assert 'id="media-library-browser"' in html
+        assert 'id="media-tab-cache"' not in html
+        assert 'id="media-tab-library"' not in html
+        assert 'id="media-library-browser"' not in html
         assert "From library…" in html
         assert "library-import-backdrop" not in html
         assert "/library/content?tab=available&domain=media" in html
 
-    def test_media_iso_cached_tab_when_library_disabled(self, client, monkeypatch):
+    def test_media_iso_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/media/iso").data.decode()
-        assert 'id="media-tab-cache"' in html
-        assert 'id="media-tab-library"' in html
-        assert "inventory-tab--disabled" in html
+        assert 'id="media-tab-cache"' not in html
+        assert 'id="media-tab-library"' not in html
+        assert "inventory-tab--disabled" not in html
         assert 'id="media-library-browser"' not in html
+        assert "From library…" not in html
 
-    def test_clutches_library_tabs_when_enabled(self, client, monkeypatch):
+    def test_clutches_from_library_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/clutches").data.decode()
-        assert 'id="clutches-tab-cache"' in html
-        assert 'id="clutches-tab-library"' in html
-        assert "inventory-tab--disabled" not in html
-        assert 'id="clutches-library-browser"' in html
+        assert 'id="clutches-tab-cache"' not in html
+        assert 'id="clutches-tab-library"' not in html
+        assert 'id="clutches-library-browser"' not in html
         assert "From library…" in html
         assert "library-import-backdrop" not in html
         assert "/library/content?tab=available&domain=clutches" in html
 
-    def test_clutches_cached_tab_when_library_disabled(self, client, monkeypatch):
+    def test_clutches_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/clutches").data.decode()
-        assert 'id="clutches-tab-cache"' in html
-        assert 'id="clutches-tab-library"' in html
-        assert "inventory-tab--disabled" in html
+        assert 'id="clutches-tab-cache"' not in html
+        assert 'id="clutches-tab-library"' not in html
         assert 'id="clutches-library-browser"' not in html
+        assert "From library…" not in html
 
     def test_media_iso_title_and_nav(self, client):
         html = client.get("/media/iso").data.decode()
@@ -3992,7 +3988,7 @@ class TestAutomationScriptsPane:
         assert "Shell" in html
         assert "automation/scripts/setup.ps1" in html
         assert "scripts-layout" in html
-        assert 'aria-label="Filter Cached scripts"' in html
+        assert 'aria-label="Filter scripts"' in html
         assert 'id="scripts-filter-q"' in html
         assert 'id="scripts-filter-language"' in html
         assert 'id="scripts-filter-state"' in html
@@ -4120,7 +4116,7 @@ class TestMediaPanes:
         assert "media-copy-content-item" not in html
         assert "media-nav-drift-icon" in html
         assert 'id="media-library-status-btn"' in html
-        assert 'aria-label="Filter Cached ISO"' in html or "Filter Cached" in html
+        assert 'aria-label="Filter ISO"' in html or "Filter ISO" in html
         assert 'id="media-filter-q"' in html
         assert 'id="media-filter-state"' in html
         assert "hatchery.onStatusTick" in html

@@ -31,14 +31,10 @@
     {% endif %}
 {% endcall %}
 
-{% with tab_prefix='scripts', tablist_label='Scripts inventory source' %}
-  {% include "_inventory_source_tabs.html" %}
-{% endwith %}
-
-<div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
+<div class="scripts-panel" id="scripts-panel-cache">
   {{ inventory_cached_filters(
        "scripts",
-       "Filter Cached scripts",
+       "Filter scripts",
        "scripts-nav",
        extras=["language"],
        filter_class="scripts-cached-filters"
@@ -215,70 +211,6 @@
 {% endcall %}
 </div>
 
-{% if library_enabled %}
-<div class="scripts-panel" id="scripts-panel-library" role="tabpanel" aria-labelledby="scripts-tab-library" hidden>
-  <div class="library-browser" id="scripts-library-browser">
-    <div class="notif-filters library-browser-filters" role="search" aria-label="Filter Library scripts">
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-lib-filter-q">Search</label>
-        <input type="search" id="scripts-lib-filter-q" class="form-input" placeholder="Name or path">
-      </div>
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-lib-filter-conn">Connection</label>
-        <select id="scripts-lib-filter-conn" class="form-select">
-          <option value="">All connections</option>
-        </select>
-      </div>
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-lib-filter-cached">In cache</label>
-        <select id="scripts-lib-filter-cached" class="form-select">
-          <option value="">Any</option>
-          <option value="yes">Cached</option>
-          <option value="no">Library only</option>
-        </select>
-      </div>
-      <div class="form-group notif-filter-field">
-        <label class="form-label" for="scripts-lib-sort">Sort</label>
-        <select id="scripts-lib-sort" class="form-select">
-          <option value="name">Name</option>
-          <option value="connection">Connection</option>
-          <option value="path">Path</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="library-browser-toolbar">
-      <p class="library-browser-status" id="scripts-lib-status" role="status" aria-live="polite"></p>
-      <div class="library-browser-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="scripts-lib-refresh">Refresh</button>
-        <button type="button" class="btn btn-primary btn-sm" id="scripts-lib-pull" disabled>Pull selected</button>
-      </div>
-    </div>
-
-    <div class="library-browser-table-wrap">
-      <table class="notif-table library-browser-table" id="scripts-lib-table">
-        <thead>
-          <tr>
-            <th scope="col" class="library-browser-check-col">
-              <label class="visually-hidden" for="scripts-lib-select-all">Select all visible</label>
-              <input type="checkbox" id="scripts-lib-select-all" title="Select all visible">
-            </th>
-            <th scope="col">Name</th>
-            <th scope="col">Connection</th>
-            <th scope="col" class="library-browser-sha-col">SHA</th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-        <tbody id="scripts-lib-tbody"></tbody>
-      </table>
-      <p class="empty-state" id="scripts-lib-empty" hidden>
-        No script hits from your Library bindings. Configure connections under Settings → Library.
-      </p>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <div id="delete-modal-backdrop" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
     <h2 class="modal-title" id="delete-modal-title">Delete Script</h2>
@@ -302,48 +234,6 @@
   const USED_BY = {{ used_by | tojson }};
   const libraryEnabled = {{ library_enabled | tojson }};
 
-  function showScriptsTab(which) {
-    var cacheTab = document.getElementById('scripts-tab-cache');
-    var libTab = document.getElementById('scripts-tab-library');
-    var cachePanel = document.getElementById('scripts-panel-cache');
-    var libPanel = document.getElementById('scripts-panel-library');
-    if (!cacheTab || !cachePanel) return;
-    var showLib = which === 'library';
-    if (showLib && (!libraryEnabled || !libTab || libTab.disabled || !libPanel)) {
-      return;
-    }
-    cacheTab.setAttribute('aria-selected', showLib ? 'false' : 'true');
-    cacheTab.tabIndex = showLib ? -1 : 0;
-    cachePanel.hidden = showLib;
-    if (libTab) {
-      libTab.setAttribute('aria-selected', showLib ? 'true' : 'false');
-      libTab.tabIndex = (showLib && libraryEnabled) ? 0 : -1;
-    }
-    if (libPanel) libPanel.hidden = !showLib;
-    if (showLib && window._scriptsLibraryBrowser && typeof window._scriptsLibraryBrowser.load === 'function') {
-      window._scriptsLibraryBrowser.load();
-    }
-  }
-
-  var cacheTabBtn = document.getElementById('scripts-tab-cache');
-  var libTabBtn = document.getElementById('scripts-tab-library');
-  if (cacheTabBtn) {
-    cacheTabBtn.addEventListener('click', function () { showScriptsTab('cache'); });
-  }
-  if (libTabBtn && libraryEnabled) {
-    libTabBtn.addEventListener('click', function () { showScriptsTab('library'); });
-  }
-  document.querySelector('.inventory-tabs')?.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    if (!libraryEnabled || !libTabBtn || libTabBtn.disabled) return;
-    e.preventDefault();
-    var selected = document.querySelector('.inventory-tab[aria-selected="true"]');
-    if (selected === cacheTabBtn) showScriptsTab('library');
-    else showScriptsTab('cache');
-    var next = document.querySelector('.inventory-tab[aria-selected="true"]');
-    if (next) next.focus();
-  });
-
   if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
     hatchery.bindImportControl({
       button: document.getElementById('scripts-import-btn'),
@@ -356,24 +246,6 @@
       onFromLibrary: libraryEnabled
         ? function () { window.location = '/library/content?tab=available&domain=scripts'; }
         : null,
-    });
-  }
-
-  if (libraryEnabled && window.hatchery && typeof hatchery.bindLibraryBrowser === 'function') {
-    window._scriptsLibraryBrowser = hatchery.bindLibraryBrowser({
-      root: document.getElementById('scripts-library-browser'),
-      catalogUrl: {{ url_for('api_library_scripts') | tojson }},
-      pullUrl: {{ url_for('api_library_scripts_pull') | tojson }},
-      status: document.getElementById('scripts-lib-status'),
-      tbody: document.getElementById('scripts-lib-tbody'),
-      empty: document.getElementById('scripts-lib-empty'),
-      selectAll: document.getElementById('scripts-lib-select-all'),
-      pullBtn: document.getElementById('scripts-lib-pull'),
-      refreshBtn: document.getElementById('scripts-lib-refresh'),
-      filterQ: document.getElementById('scripts-lib-filter-q'),
-      filterConn: document.getElementById('scripts-lib-filter-conn'),
-      filterCached: document.getElementById('scripts-lib-filter-cached'),
-      sort: document.getElementById('scripts-lib-sort'),
     });
   }
 

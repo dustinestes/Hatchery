@@ -85,7 +85,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 **Settings owns the Library feature flag** (`library_enabled` under General). Connection/binding **configuration** is stored in SQLite tables `library_connections`, `library_connection_kinds`, and `library_bindings` ([ADR-0017](adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)) and edited from **Library → Connections** ([ADR-0016](adr/0016-library-operator-plane.md), [#375](https://github.com/dustinestes/Hatchery/issues/375)).
 
-Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media`). Domain panes may still show a transitional Cached | Library catalog tab; primary catalog browse and linked-item lifecycle live on **Library → Content**.
+Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
 
 **Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db`, domain caches, and `{data_dir}/library/git/`). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
@@ -286,7 +286,7 @@ Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
 
 **Sync integrity:** downloads that claim a content-addressable tip must match pulled bytes before evaluate can promote anchors. Forge pulls use the GitHub Contents API (blob sha + body), not `raw.githubusercontent.com` CDN.
 
-**Scripts Cached filters (#320 / #391):** Automations → Scripts → Cached has a filter bar (search, language, Library state) so operators can narrow the rail without leaving the pane. Media and Clutches Cached filter bars match that layout via shared macros (search + Library state; Clutches also filters by language for future control-plane formats). Library → Content uses the same filter shell with Domain instead of Local.
+**Scripts inventory filters (#320 / #391):** Automations → Scripts has a filter bar (search, language, Library state) so operators can narrow the rail without leaving the pane. Media and Clutches filter bars match that layout via shared macros (search + Library state; Clutches also filters by language for future control-plane formats). Library → Content **Linked** uses the same filter shell with Domain instead of Local.
 
 #### Forge / GitHub rate limits
 
@@ -311,9 +311,9 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 
 <br>
 
-## Inventory browse (Content Available + domain tabs)
+## Inventory browse (Content + domain cache)
 
-**Library → Content** is the primary catalog + linked lifecycle surface ([ADR-0016](adr/0016-library-operator-plane.md), [#392](https://github.com/dustinestes/Hatchery/issues/392)):
+**Library → Content** is the catalog + linked lifecycle surface ([ADR-0016](adr/0016-library-operator-plane.md), [#392](https://github.com/dustinestes/Hatchery/issues/392)):
 
 | Surface | Role |
 |---|---|
@@ -321,24 +321,19 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 | **Available** | Union catalog across enabled connections/bindings; domain / connection / in-cache filters; multi-select pull into domain caches (`GET /api/library/content/catalog`; pull via existing domain `/pull` APIs) |
 | **Import → From library…** | Deep-links to Content Available (`?tab=available&domain=…`) when Library is enabled |
 
-Domain inventory panes (Scripts, Media, Clutches) still use a transitional **Cached | Library** tab strip ([ADR-0002](adr/0002-library-in-pane-browser.md)). Prefer Content Available for discovery; domain Library tabs remain until [#397](https://github.com/dustinestes/Hatchery/issues/397).
+Domain inventory panes (Scripts, Media, Clutches) list the **operator cache only** ([#397](https://github.com/dustinestes/Hatchery/issues/397)). In-pane Library catalog tabs are removed; ADR-0002’s browser UX lives on Content Available.
 
-| Surface | Role |
-|---|---|
-| **Cached** | Operator cache inventory (always shown) |
-| **Library (domain)** | Transitional in-pane catalog (same browser UX as Content Available, single domain) |
+**Shared inventory chrome (#321 / #391):** Scripts, Media, Clutches, and Library → Content **Linked** use the same inventory grammar - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Filter bars sit full-width above the rail and detail pane. Shared Jinja macros live in `_inventory_toolbar.html`, `_inventory_cached_filters.html`, and `_inventory_split_layout.html` (plus `_library_content_tabs.html` for Linked | Available).
 
-**Shared Cached chrome (#321 / #391):** Scripts, Media, Clutches, and Library → Content **Linked** use the same inventory grammar - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Cached filter bars sit full-width above the rail and detail pane. Shared Jinja macros live in `_inventory_toolbar.html`, `_inventory_cached_filters.html`, and `_inventory_split_layout.html` (plus `_inventory_source_tabs.html` for domain Cached | Library; `_library_content_tabs.html` for Linked | Available).
-
-An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded** by the Cached | Library tab model above.
+An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded**.
 
 <br>
 
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **From library…** opens Library → Content **Available** (domain filter when useful). A transitional in-pane **Library** tab still supports catalog discovery and pull-into-cache. Linked-item Sync / re-attach / Remove live on Content **Linked** (deep-link from Cached when an item is attributed).
+**Default (cache-first):** domain panes list the operator cache. **From library…** opens Library → Content **Available** (domain filter when useful). Linked-item Sync / re-attach / Remove live on Content **Linked** (deep-link from domain cache when an item is attributed).
 
-Visibility on the Library tab is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
+Visibility in Content Available is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
 
 <br>
 
