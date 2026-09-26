@@ -1,19 +1,20 @@
-"""PowerShell syntax validation for .ps1.j2 templates and example scripts.
+"""PowerShell syntax validation for .ps1.j2 templates.
 
-Uses pwsh's built-in AST parser (ParseFile) — no execution, just parse.
+Uses pwsh's built-in AST parser (ParseFile) - no execution, just parse.
 Tests are skipped automatically when pwsh is not available on the host.
+
+Sample automation scripts live in the Hatchery Library repo
+(https://github.com/dustinestes/Hatchery-Library), not in this tree.
 """
 
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
 from lib import answerfile
 
 _PWSH = shutil.which("pwsh")
-_EXAMPLES_DIR = Path(__file__).parent.parent / ".hatchery" / "examples" / "scripts"
 
 
 def _ps1_syntax_errors(path: str) -> list[str]:
@@ -38,51 +39,6 @@ class TestPs1Syntax:
         ps1.write_text(answerfile.render_setup_script(), encoding="utf-8")
         errors = _ps1_syntax_errors(str(ps1))
         assert errors == [], "PowerShell syntax errors in hatchery-setup.ps1:\n" + "\n".join(errors)
-
-    def test_cleanup_script_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "hatchery-cleanup.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in hatchery-cleanup.ps1:\n" + "\n".join(
-            errors
-        )
-
-    def test_configure_vm_basics_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "configure-vm-basics.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in configure-vm-basics.ps1:\n" + "\n".join(
-            errors
-        )
-
-    def test_hatchery_script_template_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "hatchery-script-template.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], (
-            "PowerShell syntax errors in hatchery-script-template.ps1:\n" + "\n".join(errors)
-        )
-
-    def test_retry_script_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "hatchery-testretry.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in hatchery-testretry.ps1:\n" + "\n".join(
-            errors
-        )
-
-    def test_enable_rdp_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "enable-rdp.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in enable-rdp.ps1:\n" + "\n".join(errors)
-
-    def test_remove_appx_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "remove-appx.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], "PowerShell syntax errors in remove-appx.ps1:\n" + "\n".join(errors)
-
-    def test_install_virtio_drivers_is_valid_powershell(self):
-        path = _EXAMPLES_DIR / "install-virtio-drivers.ps1"
-        errors = _ps1_syntax_errors(str(path))
-        assert errors == [], (
-            "PowerShell syntax errors in install-virtio-drivers.ps1:\n" + "\n".join(errors)
-        )
 
     def test_invalid_powershell_is_caught(self, tmp_path):
         ps1 = tmp_path / "bad.ps1"

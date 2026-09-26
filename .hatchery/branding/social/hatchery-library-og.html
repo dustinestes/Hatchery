@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hatchery Library - social preview (scaffold)</title>
+  <!--
+    Design source for GitHub Social preview (1280x640), three slides:
+      1 = brand mark (Hatchery | Library)
+      2 = Dashboard UI (ui-dashboard.png)
+      3 = Library UI (ui-library.png)
+
+    Design mode (default): all cards stacked; use chrome controls.
+    Export mode: ?slide=1|2|3 (hides chrome; card fills viewport).
+
+    Capture + GIF (from repo root):
+      bash .hatchery/branding/social/export-og.sh library
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #e4c87a;
+      --font-heading: "Space Grotesk", sans-serif;
+      --font-body: "Inter", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+      /* Dark card (default) - gold reads stronger on charcoal */
+      --og-bg: #141412;
+      --og-text: #f0efe9;
+      --og-muted: #8a8880;
+      --og-rule: #2a2a27;
+      --og-pipe: #c9a84c;
+      --og-product: #f0efe9;
+      --og-variant: #c9a84c;
+    }
+
+    [data-theme="light"] {
+      --og-bg: #fafaf7;
+      --og-text: #1a1916;
+      --og-muted: #6b6862;
+      --og-rule: #e3e3df;
+      --og-pipe: #a6872f;
+      --og-product: #1a1916;
+      --og-variant: #a6872f;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: var(--font-body);
+      background: #2a2a27;
+      color: #f0efe9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.25rem;
+      padding: 2rem;
+    }
+
+    .chrome {
+      width: 1280px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: #8a8880;
+    }
+
+    .chrome strong {
+      color: #f0efe9;
+      font-weight: 500;
+    }
+
+    .chrome-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .chrome button {
+      cursor: pointer;
+      border: 1px solid #3a3a36;
+      background: #1a1916;
+      color: #f0efe9;
+      font: inherit;
+      font-size: 12px;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+    }
+
+    .chrome button:hover,
+    .chrome button[aria-pressed="true"] {
+      border-color: var(--gold);
+    }
+
+    .chrome button[aria-pressed="true"] {
+      color: var(--gold);
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    /* Exact GitHub social preview frame */
+    .og-card {
+      width: 1280px;
+      height: 640px;
+      background: var(--og-bg);
+      color: var(--og-text);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 88px 80px;
+      flex-shrink: 0;
+    }
+
+    .og-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    }
+
+    .og-card[data-slide="2"],
+    .og-card[data-slide="3"] {
+      justify-content: flex-start;
+      padding: 40px 48px 48px;
+    }
+
+    /* Slide 1: dragon scale + Hatchery | Library */
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      margin: 0 0 28px;
+    }
+
+    .mark-icon {
+      width: 96px;
+      height: 128px;
+      flex-shrink: 0;
+      background: url("../icons/hatchery-icon-dark.svg") center / contain no-repeat;
+    }
+
+    .mark-wordmark {
+      display: flex;
+      align-items: baseline;
+      gap: 22px;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 72px;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .mark-product {
+      color: var(--og-product);
+    }
+
+    .mark-pipe {
+      color: var(--og-pipe);
+      font-weight: 500;
+      opacity: 0.9;
+    }
+
+    .mark-variant {
+      color: var(--og-variant);
+    }
+
+    .tagline {
+      font-family: var(--font-heading);
+      font-weight: 600;
+      font-size: 26px;
+      letter-spacing: 0.02em;
+      color: var(--og-text);
+      margin-bottom: 18px;
+    }
+
+    .description {
+      font-family: var(--font-body);
+      font-weight: 400;
+      font-size: 22px;
+      line-height: 1.45;
+      color: var(--og-muted);
+      max-width: 48ch;
+    }
+
+    .attribution {
+      position: absolute;
+      right: 88px;
+      bottom: 48px;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      color: var(--og-muted);
+      letter-spacing: 0.01em;
+    }
+
+    /* UI slides */
+    .ui-header {
+      margin-bottom: 20px;
+    }
+
+    .ui-kicker {
+      font-family: var(--font-heading);
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--og-variant);
+    }
+
+    .ui-frame {
+      flex: 1;
+      min-height: 0;
+      border-radius: 12px;
+      border: 1px solid var(--og-rule);
+      overflow: hidden;
+      background: #0e0e0c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ui-frame img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top left;
+    }
+
+    .slide-label {
+      width: 1280px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b6862;
+      margin-bottom: -0.75rem;
+    }
+
+    .hint {
+      width: 1280px;
+      font-size: 12px;
+      color: #6b6862;
+      line-height: 1.5;
+    }
+
+    .hint code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #a8a69e;
+    }
+
+    /* Export: only the requested slide, flush to viewport */
+    body.export {
+      margin: 0;
+      padding: 0;
+      min-height: 640px;
+      height: 640px;
+      width: 1280px;
+      overflow: hidden;
+      background: var(--og-bg);
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 0;
+    }
+
+    body.export .chrome,
+    body.export .hint,
+    body.export .slide-label {
+      display: none !important;
+    }
+
+    body.export .stage {
+      gap: 0;
+    }
+
+    body.export .og-card {
+      display: none;
+    }
+
+    body.export[data-export-slide="1"] .og-card[data-slide="1"],
+    body.export[data-export-slide="2"] .og-card[data-slide="2"],
+    body.export[data-export-slide="3"] .og-card[data-slide="3"] {
+      display: flex;
+    }
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="chrome">
+    <span><strong>Hatchery Library</strong> · GitHub social preview · 1280×640 · 3 slides</span>
+    <div class="chrome-actions">
+      <button type="button" data-slide-btn="1" aria-pressed="true">1 · brand</button>
+      <button type="button" data-slide-btn="2" aria-pressed="false">2 · dashboard</button>
+      <button type="button" data-slide-btn="3" aria-pressed="false">3 · library</button>
+      <button type="button" id="theme-toggle" aria-label="Toggle light and dark card">
+        Toggle theme
+      </button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <p class="slide-label">Slide 1 · brand</p>
+    <article class="og-card" data-slide="1" id="card-1" aria-label="Hatchery Library brand slide">
+      <div class="mark" role="img" aria-label="Hatchery Library">
+        <div class="mark-icon" aria-hidden="true"></div>
+        <div class="mark-wordmark">
+          <span class="mark-product">Hatchery</span>
+          <span class="mark-pipe" aria-hidden="true">|</span>
+          <span class="mark-variant">Library</span>
+        </div>
+      </div>
+      <p class="tagline">Hatch. Provision. Scale.</p>
+      <p class="description">
+        Sample Clutches, scripts, and media for Hatchery Forge connections.
+      </p>
+      <p class="attribution">github.com/dustinestes</p>
+    </article>
+
+    <p class="slide-label">Slide 2 · dashboard</p>
+    <article class="og-card" data-slide="2" id="card-2" aria-label="Hatchery dashboard UI slide">
+      <div class="ui-header">
+        <p class="ui-kicker">Hatchery</p>
+      </div>
+      <div class="ui-frame">
+        <img src="ui-dashboard.png" alt="Hatchery Dashboard" width="1184" height="520" />
+      </div>
+    </article>
+
+    <p class="slide-label">Slide 3 · library</p>
+    <article class="og-card" data-slide="3" id="card-3" aria-label="Hatchery Library UI slide">
+      <div class="ui-header">
+        <p class="ui-kicker">Hatchery Library</p>
+      </div>
+      <div class="ui-frame">
+        <img src="ui-library.png" alt="Hatchery Library pane" width="1184" height="520" />
+      </div>
+    </article>
+  </div>
+
+  <p class="hint">
+    Design chrome is not exported. Use <code>?slide=1|2|3</code> for headless capture, or
+    run <code>bash .hatchery/branding/social/export-og.sh library</code>. Sibling:
+    <code>hatchery-og.html</code>. Prefer PNG-only Social preview if the GIF does not
+    feel right on Slack.
+  </p>
+
+  <script>
+    const root = document.body;
+    const params = new URLSearchParams(window.location.search);
+    const slideParam = params.get("slide");
+    const slideBtns = [...document.querySelectorAll("[data-slide-btn]")];
+
+    function setTheme(theme) {
+      root.setAttribute("data-theme", theme);
+    }
+
+    function scrollToSlide(n) {
+      const el = document.getElementById("card-" + n);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      slideBtns.forEach((btn) => {
+        btn.setAttribute("aria-pressed", btn.getAttribute("data-slide-btn") === String(n) ? "true" : "false");
+      });
+    }
+
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      setTheme(next);
+    });
+    slideBtns.forEach((btn) => {
+      btn.addEventListener("click", () => scrollToSlide(Number(btn.getAttribute("data-slide-btn"))));
+    });
+
+    if (slideParam === "1" || slideParam === "2" || slideParam === "3") {
+      root.classList.add("export");
+      root.setAttribute("data-export-slide", slideParam);
+      document.documentElement.style.background = getComputedStyle(root).getPropertyValue("--og-bg");
+    }
+  </script>
+</body>
+</html>

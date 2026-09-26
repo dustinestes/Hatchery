@@ -213,3 +213,51 @@ def test_migrate_kinds_json_sketch_column(tmp_path, monkeypatch):
         assert "kinds_json" not in cols
     finally:
         conn.close()
+
+
+def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
+    _init(tmp_path, monkeypatch)
+    assert registry.list_connections() == []
+    assert cfg.library_enabled() is False
+
+    assert registry.ensure_hatchery_library() is True
+    assert cfg.library_enabled() is True
+
+    conns = registry.list_connections()
+    assert len(conns) == 1
+    conn = conns[0]
+    assert conn["id"] == registry.HATCHERY_LIBRARY_CONNECTION_ID
+    assert conn["label"] == "Hatchery Library"
+    assert conn["type"] == "forge"
+    assert conn["provider"] == "github"
+    assert conn["base_uri"] == registry.HATCHERY_LIBRARY_BASE_URI
+    assert conn["token"] == ""
+    assert set(conn["kinds"]) == {"scripts", "clutches", "media", "packages"}
+
+    scripts = registry.list_bindings(domain="scripts")
+    clutches = registry.list_bindings(domain="clutches")
+    media = registry.list_bindings(domain="media")
+    assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*")]
+    assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
+    by_target = {(b["target"], b["label"], b["filter"]) for b in media}
+    assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
+
+    # Second call is a no-op once any connection exists.
+    assert registry.ensure_hatchery_library() is False
+
+
+def test_ensure_hatchery_library_skips_nonempty_registry(tmp_path, monkeypatch):
+    _init(tmp_path, monkeypatch)
+    registry.upsert_connection(
+        {
+            "id": "other",
+            "label": "Other",
+            "type": "path",
+            "base_uri": str(tmp_path / "share"),
+            "kinds": ["scripts"],
+            "enabled": True,
+        }
+    )
+    assert registry.ensure_hatchery_library() is False
+    assert [c["id"] for c in registry.list_connections()] == ["other"]
+    assert cfg.library_enabled() is False

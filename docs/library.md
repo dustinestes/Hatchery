@@ -164,7 +164,25 @@ Strategy: connection **`type: forge`** + **`provider`** plugin - list/pull via f
 | **List** | Git Trees API (`recursive=1`); truncated trees fail closed |
 | **Pull** | Raw content download; SHA-256 of bytes written to the domain cache |
 
-Library stays **consume-only** - no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)). A sample public catalog for demos is tracked as [#315](https://github.com/dustinestes/Hatchery/issues/315) (`hatchery_catalog`).
+Library stays **consume-only** - no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)).
+
+#### Sample catalog: Hatchery Library
+
+Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
+
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, and **All VirtIO** (`filter: *`). Existing Controllers with any connection are left unchanged.
+
+| | |
+|---|---|
+| **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
+| **Provider** | `github` |
+| **Kinds** | scripts, clutches, media, packages |
+| **Scripts** | label `All Scripts` · filter `*` |
+| **Clutches** | label `All Clutches` · filter `*` |
+| **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
+| **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
+
+Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 
 ### API connections (#255)
 

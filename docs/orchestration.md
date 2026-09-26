@@ -184,7 +184,7 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 
 Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
 
-If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup.ps1` as the last entry in your Clutch's `automations` list. See `.hatchery/examples/scripts/hatchery-cleanup.ps1`. If omitted, the directory remains on the guest as a local audit record.
+If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). If omitted, the directory remains on the guest as a local audit record.
 
 <br>
 

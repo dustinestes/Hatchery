@@ -270,18 +270,20 @@ You can mix both forms freely in the same list. Hatchery normalizes them on load
 
 ## Example Files
 
-Example files ship with Hatchery under `.hatchery/examples/scripts/`:
+Sample scripts, Clutches, and media ship in the public **[Hatchery Library](https://github.com/dustinestes/Hatchery-Library)** repo. Add it as a Forge connection and pull into the operator cache (see [Library - Forge connections](library.md#forge-connections-307)).
 
-| File | Purpose |
+| File (Windows) | Purpose |
 |---|---|
-| [`hatchery-script-template.ps1`](../.hatchery/examples/scripts/hatchery-script-template.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
-| [`configure-vm-basics.ps1`](../.hatchery/examples/scripts/configure-vm-basics.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
-| [`enable-rdp.ps1`](../.hatchery/examples/scripts/enable-rdp.ps1) | Enables Remote Desktop and the firewall group; optional `RdpUsers` (comma-separated) adds non-admin accounts to Remote Desktop Users (Administrators already have RDP access) |
-| [`remove-appx.ps1`](../.hatchery/examples/scripts/remove-appx.ps1) | Removes AppX packages by comma-separated `PackageNames`, or all non-framework packages when `RemoveAll` is true |
-| [`install-virtio-drivers.ps1`](../.hatchery/examples/scripts/install-virtio-drivers.ps1) | Installs VirtIO guest tools / drivers from the attached VirtIO ISO (`DriveLetter` or `IsoLabel`); see [VirtIO driver automation](#virtio-driver-automation) |
-| [`hatchery-cleanup.ps1`](../.hatchery/examples/scripts/hatchery-cleanup.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
+| [`hatchery-script-template-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-script-template-windows.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
+| [`configure-vm-basics-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/configure-vm-basics-windows.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
+| [`enable-rdp-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-rdp-windows.ps1) | Enables Remote Desktop and the firewall group; optional `RdpUsers` (comma-separated) adds non-admin accounts to Remote Desktop Users (Administrators already have RDP access) |
+| [`remove-appx-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/remove-appx-windows.ps1) | Removes AppX packages by comma-separated `PackageNames`, or all non-framework packages when `RemoveAll` is true |
+| [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) | Installs VirtIO guest tools / drivers from the attached VirtIO ISO (`DriveLetter` or `IsoLabel`); see [VirtIO driver automation](#virtio-driver-automation) |
+| [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) | Removes `C:\Program Files\Hatchery\` and all its contents from the guest; add as the last automation if you want no Hatchery artifacts left after provisioning |
 
-Copy any file to your `automation/scripts/` directory as a starting point. The template is the recommended starting point for new scripts.
+Linux and macOS counterparts live under `scripts/linux/` and `scripts/macos/` in the same repo (unique basenames with `-linux` / `-macos` suffixes).
+
+Pull into `automation/scripts/` via Library, or download a starting point manually. The Windows template is the recommended starting point for new PowerShell scripts.
 
 Clutch parameters are always strings. For multi-value inputs (`RdpUsers`, `PackageNames`), pass a comma-separated list. For booleans (`RemoveAll`), use `"true"` or `"false"`.
 
@@ -293,13 +295,13 @@ VirtIO drivers improve disk and network performance for Windows guests but are *
 
 Full flow when you do want VirtIO:
 
-1. Import a [virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) ISO under **Media → VirtIO** (or place it in the media directory).
+1. Import a [virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) ISO under **Media → VirtIO** (or pull the slim sample from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library) Media → VirtIO).
 2. In the Clutch / Hatch form, set the **VirtIO Drivers** field to that ISO. Hatchery attaches it as a secondary CD-ROM at hatch time and configures VirtIO disk/network adapters.
-3. Copy [`install-virtio-drivers.ps1`](../.hatchery/examples/scripts/install-virtio-drivers.ps1) into `automation/scripts/` and add it to the VM's `automations` list with either `DriveLetter` (e.g. `E`) or `IsoLabel` (default `virtio-win`):
+3. Pull [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) into `automation/scripts/` and add it to the VM's `automations` list with either `DriveLetter` (e.g. `E`) or `IsoLabel` (default `virtio-win`):
 
 ```yaml
 automations:
-  - name: install-virtio-drivers.ps1
+  - name: install-virtio-drivers-windows.ps1
     parameters:
       IsoLabel: virtio-win
 ```
