@@ -63,6 +63,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0016](0016-library-operator-plane.md) | First-class Library operator plane (Connections admin) | Accepted |
 | [0017](0017-library-connections-bindings-tables.md) | Library connections and bindings as first-class tables | Accepted |
 | [0018](0018-library-drift-scenario-matrix.md) | Library source reachability + sync state (scenario matrix) | Accepted |
+| [0019](0019-library-disable-excise.md) | Library disable / excise (soft vs teardown depth) | Accepted |
 
 <br>
 

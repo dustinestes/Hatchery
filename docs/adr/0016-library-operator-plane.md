@@ -4,7 +4,7 @@
 - **Date:** 2026-09-24
 - **Issues:** [#375](https://github.com/dustinestes/Hatchery/issues/375); storage [#367](https://github.com/dustinestes/Hatchery/issues/367); linked/synced UX [#370](https://github.com/dustinestes/Hatchery/issues/370)
 - **Supersedes:** [ADR-0002](0002-library-in-pane-browser.md) (in-pane Library catalog as the primary browse surface)
-- **Related:** [ADR-0007](0007-library-nest-content-planes.md), [ADR-0012](0012-library-cache-provenance-drift.md), [ADR-0015](0015-settings-partial-writes-worker-services.md), [ADR-0017](0017-library-connections-bindings-tables.md)
+- **Related:** [ADR-0007](0007-library-nest-content-planes.md), [ADR-0012](0012-library-cache-provenance-drift.md), [ADR-0015](0015-settings-partial-writes-worker-services.md), [ADR-0017](0017-library-connections-bindings-tables.md), [ADR-0019](0019-library-disable-excise.md) (soft disable / excise; dual inventory root remains rejected)
 - **How-to:** [library.md](../library.md)
 
 ## Context
@@ -29,7 +29,7 @@ Operators need one Library plane for configuration and (soon) link/sync lifecycl
 
 5. **Library → Content** (cross-domain attributed inventory, Sync, re-attach, [#370](https://github.com/dustinestes/Hatchery/issues/370) / [#384](https://github.com/dustinestes/Hatchery/issues/384) linked/synced language) is the home for lifecycle UX. Connections configures registry; Content inspects and corrects linked Cached items. Do not grow new permanent Library lifecycle UI on domain panes (Cached may deep-link into Content).
 
-6. **Operator cache paths stay domain trees** (`automation/scripts/`, `clutches/`, `media/…`). Do **not** introduce a second attributed inventory root under `data-dir/library/` for pulled files. `{data_dir}/library/git/` remains the git **clone** cache only ([ADR-0009](0009-library-git-checkout-cache.md)). Provenance + `library_enabled` define “cut Library out,” not a parallel file tree.
+6. **Operator cache paths stay domain trees** (`automation/scripts/`, `clutches/`, `media/…`). Do **not** introduce a second attributed inventory root under `data-dir/library/` for pulled files. `{data_dir}/library/git/` remains the classic **`type: git`** clone cache only ([ADR-0009](0009-library-git-checkout-cache.md)) until removed ([#406](https://github.com/dustinestes/Hatchery/issues/406)). Soft disable vs teardown depth is [ADR-0019](0019-library-disable-excise.md) - not a parallel file tree.
 
 7. **Configuration storage** for connections/bindings is first-class SQLite tables ([ADR-0017](0017-library-connections-bindings-tables.md)), edited from Library → Connections - not Settings JSON blobs.
 
@@ -46,6 +46,7 @@ Operators need one Library plane for configuration and (soon) link/sync lifecycl
 - Content **Available** is the catalog shop surface ([#392](https://github.com/dustinestes/Hatchery/issues/392)); domain in-pane Library tabs removed ([#397](https://github.com/dustinestes/Hatchery/issues/397))
 - #370 scenario matrix and Content UX land on the Library plane
 - Export/backup must document Settings YAML vs Library DB ([ADR-0017](0017-library-connections-bindings-tables.md))
+- Disable / excise depth when turning Library off: [ADR-0019](0019-library-disable-excise.md) / [#379](https://github.com/dustinestes/Hatchery/issues/379)
 
 **Bad / accepted cost**
 

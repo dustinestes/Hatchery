@@ -101,7 +101,28 @@ When Library is on, the sidebar gains a **Library** group (above Notifications) 
 - **Connections** - registry rows (path/share, HTTPS, git, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
 - **Clutches / Media / Scripts** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
 
-### Enable / disable
+### Enable / disable Library (#379)
+
+Architecture: [ADR-0019](adr/0019-library-disable-excise.md).
+
+| State | Meaning |
+|---|---|
+| **Enabled** | `library_enabled` on - Library nav, Connections, From library… |
+| **Disabled** | Flag off - includes never enabled and soft disable after enable |
+
+Turning **Enable Library** off under Settings → General opens a confirm modal (implementation [#407](https://github.com/dustinestes/Hatchery/issues/407)). All teardown toggles default **off** (soft disable):
+
+| Toggle | Helper | Effect |
+|---|---|---|
+| **Clear Connections** | Includes all bindings | Remove all Library connections and bindings |
+| **Clear Content** | Deletes Cached files that came from Library | Delete linked cache files (not local-only files) |
+| **Clear Links** | Leaves files as local inventory | Drop Library links; keep files |
+
+**Clear Content** and **Clear Links** cannot both be on (one deletes files, the other keeps them). Soft disable keeps link rows so re-enable can restore linked UX; Sync chrome is suppressed while Disabled ([#408](https://github.com/dustinestes/Hatchery/issues/408)).
+
+Classic **`type: git`** clone cache under `{data_dir}/library/git/` is separate from domain inventory and is being removed ([#406](https://github.com/dustinestes/Hatchery/issues/406)).
+
+### Enable / disable (connection and binding)
 
 Operators can park a connection or binding without deleting its config:
 
