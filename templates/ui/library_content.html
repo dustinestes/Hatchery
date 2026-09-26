@@ -3,35 +3,42 @@
 {% block title %}Content - Library - Hatchery{% endblock %}
 
 {% block content %}
-<div class="domain-pane">
 <div class="pane-header">
-  <div class="pane-header-row">
-    <div class="pane-header-text">
-      <h1 class="pane-title">Content</h1>
-      <p class="pane-subtitle">Linked Cached items across Scripts, Clutches, and Media. Sync, re-attach, or Remove here.</p>
-    </div>
+  <h1 class="pane-title">Content</h1>
+  <p class="pane-subtitle">Linked Cached items across Scripts, Clutches, and Media. Sync, re-attach, or Remove here.</p>
+</div>
+
+<div class="section-header inventory-toolbar">
+  <h2 class="section-title">Linked content</h2>
+  <div class="section-header-actions">
+    <a href="{{ url_for('library_connections_pane') }}" class="btn btn-secondary btn-sm">Connections</a>
   </div>
 </div>
 
-<div class="domain-pane-body">
-<div class="scripts-layout library-content-layout">
-  <aside class="library-content-nav-pane">
-    <div class="scripts-filter-bar library-content-filters" role="search" aria-label="Filter linked content">
-      <label class="visually-hidden" for="library-content-filter-q">Search</label>
-      <input type="search" id="library-content-filter-q" class="form-input scripts-filter-q"
-             placeholder="Search…" autocomplete="off">
-      <label class="visually-hidden" for="library-content-filter-domain">Domain</label>
-      <select id="library-content-filter-domain" class="form-select scripts-filter-select"
-              aria-label="Domain">
-        <option value="">All domains</option>
+<div class="scripts-panel" id="library-content-panel-root">
+  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter linked content">
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="library-content-filter-q">Search</label>
+      <input type="search"
+             id="library-content-filter-q"
+             class="form-input"
+             placeholder="Name"
+             autocomplete="off"
+             aria-controls="library-content-nav">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="library-content-filter-domain">Domain</label>
+      <select id="library-content-filter-domain" class="form-select" aria-controls="library-content-nav">
+        <option value="">All</option>
         <option value="scripts">Scripts</option>
         <option value="clutches">Clutches</option>
         <option value="media">Media</option>
       </select>
-      <label class="visually-hidden" for="library-content-filter-state">Library state</label>
-      <select id="library-content-filter-state" class="form-select scripts-filter-select"
-              aria-label="Library state">
-        <option value="">All Library states</option>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="library-content-filter-state">Library state</label>
+      <select id="library-content-filter-state" class="form-select" aria-controls="library-content-nav">
+        <option value="">All</option>
         <option value="in_sync">Synced</option>
         <option value="out_of_sync">Out of sync</option>
         <option value="orphan">Orphaned</option>
@@ -41,13 +48,15 @@
         <option value="unconfirmable">Tip unconfirmable</option>
       </select>
     </div>
-    <span class="form-label" id="library-content-nav-label">Linked content</span>
-    <nav class="scripts-nav" id="library-content-nav" role="listbox"
-         aria-labelledby="library-content-nav-label"
-         {% if not content_items %}hidden{% endif %}>
+  </div>
+
+<div class="scripts-layout">
+
+  <nav class="scripts-nav" aria-label="Linked Library content" id="library-content-nav">
+    {% if content_items %}
       {% for item in content_items %}
-      <button type="button" class="scripts-nav-item library-content-nav-item"
-              role="option"
+      <button type="button"
+              class="scripts-nav-item library-content-nav-item"
               data-name="{{ item.name }}"
               data-domain="{{ item.domain }}"
               data-media-target="{{ item.media_target or '' }}"
@@ -63,11 +72,6 @@
               data-bind-label="{{ item.binding_label or '' }}"
               data-conn-type="{{ item.connection_type or '' }}"
               data-library-cue="{{ item.library_cue or '' }}"
-              data-library-can-sync="{{ '1' if item.library_can_sync else '0' }}"
-              data-library-can-reattach="{{ '1' if item.library_can_reattach else '0' }}"
-              data-library-header-label="{{ item.library_header_label or '' }}"
-              data-library-header-aria="{{ item.library_header_aria or '' }}"
-              data-library-filter-keys="{{ (item.library_filter_keys or []) | join(',') }}"
               aria-pressed="false">
         <span class="scripts-nav-main">
           <span class="scripts-nav-label">{{ item.name }}</span>
@@ -97,101 +101,101 @@
         </span>
       </button>
       {% endfor %}
-    </nav>
-    <p class="empty-state" id="library-content-nav-empty"
-       {% if content_items %}hidden{% endif %}>
-      No linked Cached items yet. Pull from a Library catalog on a domain pane, or import with attribution.
-    </p>
-    <p class="empty-state" id="library-content-nav-filtered-empty" role="status" hidden>
-      No linked items match these filters.
-    </p>
-  </aside>
-
-  <div class="scripts-detail library-content-detail" id="library-content-detail">
-    <div class="empty-state" id="library-content-detail-empty" role="status">
-      Select a linked item on the left to inspect connection, binding, and sync state.
-    </div>
-    <div id="library-content-panel" hidden>
-      <div class="scripts-content-header library-content-panel-header">
-        <div class="scripts-content-heading">
-          <span class="scripts-content-title" id="library-content-title"></span>
-          <span class="scripts-content-meta" id="library-content-meta"></span>
-        </div>
-        <div class="scripts-content-actions">
-          <button type="button"
-                  class="scripts-copy-btn scripts-library-status-btn"
-                  id="library-content-status-btn"
-                  disabled
-                  aria-disabled="true"
-                  title=""
-                  aria-label="">
-            <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-              <path d="M16 16h5v5"/>
-            </svg>
-            <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <svg class="scripts-library-icon scripts-library-icon--ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-            </svg>
-            <span class="scripts-library-status-label" id="library-content-status-label" hidden></span>
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm" id="library-content-remove-btn"
-                  aria-label="Remove linked cache file">Remove</button>
-        </div>
+    {% else %}
+      <div class="scripts-nav-empty" id="library-content-nav-empty">
+        No linked Cached items yet. Pull from a Library catalog on a domain pane, or import with attribution.
       </div>
-
-      <section class="form-section" aria-label="Attribution">
-        <h2 class="form-section-title">Attribution</h2>
-        <dl class="library-content-dl">
-          <div class="library-content-dl-row">
-            <dt>Domain</dt>
-            <dd id="library-content-domain">—</dd>
-          </div>
-          <div class="library-content-dl-row">
-            <dt>Connection</dt>
-            <dd id="library-content-connection">—</dd>
-          </div>
-          <div class="library-content-dl-row">
-            <dt>Binding</dt>
-            <dd id="library-content-binding">—</dd>
-          </div>
-          <div class="library-content-dl-row">
-            <dt>Relative path</dt>
-            <dd><code id="library-content-relpath">—</code></dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="form-section" aria-label="Library status">
-        <h2 class="form-section-title">Library status</h2>
-        <dl class="library-content-dl">
-          <div class="library-content-dl-row">
-            <dt>Source status</dt>
-            <dd id="library-content-source-status">—</dd>
-          </div>
-          <div class="library-content-dl-row">
-            <dt>Sync state</dt>
-            <dd id="library-content-sync-state">—</dd>
-          </div>
-          <div class="library-content-dl-row" id="library-content-message-row" hidden>
-            <dt>Message</dt>
-            <dd id="library-content-message"></dd>
-          </div>
-        </dl>
-        <p class="form-help-text">
-          Open <a href="{{ url_for('library_connections_pane') }}">Connections</a> to edit endpoints and bindings.
-        </p>
-      </section>
+    {% endif %}
+    <div class="scripts-nav-empty" id="library-content-nav-filtered-empty" role="status" hidden>
+      No linked items match these filters.
     </div>
+  </nav>
+
+  <div class="scripts-content" id="library-content-shell">
+    <div class="scripts-content-header" id="library-content-header" hidden>
+      <div class="scripts-content-heading">
+        <span class="scripts-content-title" id="library-content-title"></span>
+        <span class="scripts-content-meta" id="library-content-meta"></span>
+      </div>
+      <div class="scripts-content-actions">
+        <button type="button"
+                class="scripts-copy-btn scripts-library-status-btn"
+                id="library-content-status-btn"
+                hidden
+                disabled
+                aria-disabled="true"
+                title=""
+                aria-label="">
+          <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 16h5v5"/>
+          </svg>
+          <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <svg class="scripts-library-icon scripts-library-icon--ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <span class="scripts-library-status-label" id="library-content-status-label" hidden></span>
+        </button>
+        <button type="button"
+                class="scripts-copy-btn"
+                id="library-content-remove-btn"
+                title="Remove"
+                aria-label="Remove linked cache file"
+                hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="scripts-detail" id="library-content-detail" hidden>
+      <dl class="scripts-meta-list">
+        <div class="scripts-meta-row">
+          <dt>Domain</dt>
+          <dd id="library-content-domain"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Connection</dt>
+          <dd id="library-content-connection"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Binding</dt>
+          <dd id="library-content-binding"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Relative path</dt>
+          <dd id="library-content-relpath"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Source status</dt>
+          <dd id="library-content-source-status"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Sync state</dt>
+          <dd id="library-content-sync-state"></dd>
+        </div>
+        <div class="scripts-meta-row" id="library-content-message-row" hidden>
+          <dt>Message</dt>
+          <dd id="library-content-message"></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="stub" id="library-content-stub">Select a linked item to inspect</div>
   </div>
-</div>
+
 </div>
 </div>
 
@@ -218,12 +222,14 @@
   const nav = document.getElementById('library-content-nav');
   const navEmpty = document.getElementById('library-content-nav-empty');
   const navFilteredEmpty = document.getElementById('library-content-nav-filtered-empty');
-  const detailEmpty = document.getElementById('library-content-detail-empty');
-  const panel = document.getElementById('library-content-panel');
+  const header = document.getElementById('library-content-header');
+  const detail = document.getElementById('library-content-detail');
+  const stub = document.getElementById('library-content-stub');
   const titleEl = document.getElementById('library-content-title');
   const metaEl = document.getElementById('library-content-meta');
   const statusBtn = document.getElementById('library-content-status-btn');
   const statusLabel = document.getElementById('library-content-status-label');
+  const removeBtn = document.getElementById('library-content-remove-btn');
   const syncIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--sync') : null;
   const warnIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--warn') : null;
   const okIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--ok') : null;
@@ -246,12 +252,6 @@
   let selectedBtn = null;
   let libraryMode = 'hidden';
 
-  function esc(str) {
-    return String(str ?? '').replace(/[&<>"']/g, function (c) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
-    });
-  }
-
   function domainNoun(domain) {
     if (domain === 'scripts') return 'Scripts';
     if (domain === 'clutches') return 'Clutches';
@@ -261,9 +261,9 @@
 
   function applyFilters() {
     if (!nav) return;
-    const q = (filterQ && filterQ.value || '').trim().toLowerCase();
-    const domain = (filterDomain && filterDomain.value || '').trim().toLowerCase();
-    const state = (filterState && filterState.value || '').trim();
+    const q = ((filterQ && filterQ.value) || '').trim().toLowerCase();
+    const domain = ((filterDomain && filterDomain.value) || '').trim().toLowerCase();
+    const state = ((filterState && filterState.value) || '').trim();
     let visible = 0;
     nav.querySelectorAll('.library-content-nav-item').forEach(function (btn) {
       const name = (btn.getAttribute('data-name') || '').toLowerCase();
@@ -282,7 +282,6 @@
     });
     const hasItems = nav.querySelectorAll('.library-content-nav-item').length > 0;
     if (navEmpty) navEmpty.hidden = hasItems;
-    if (nav) nav.hidden = !hasItems;
     if (navFilteredEmpty) {
       navFilteredEmpty.hidden = !(hasItems && visible === 0);
     }
@@ -307,10 +306,10 @@
     statusBtn.hidden = false;
     statusBtn.disabled = true;
     statusBtn.setAttribute('aria-disabled', 'true');
-    statusBtn.title = cue.headerAria || cue.headerLabel || 'Library status';
-    statusBtn.setAttribute('aria-label', cue.headerAria || cue.headerLabel || 'Library status');
+    statusBtn.title = cue.header_aria || cue.header_label || 'Library status';
+    statusBtn.setAttribute('aria-label', cue.header_aria || cue.header_label || 'Library status');
 
-    if (cue.canSync) {
+    if (cue.can_sync) {
       libraryMode = 'sync';
       statusBtn.disabled = false;
       statusBtn.setAttribute('aria-disabled', 'false');
@@ -318,9 +317,9 @@
       if (syncIcon) syncIcon.hidden = false;
       if (statusLabel) {
         statusLabel.hidden = false;
-        statusLabel.textContent = cue.headerLabel || 'Out of sync';
+        statusLabel.textContent = cue.header_label || 'Out of sync';
       }
-    } else if (cue.canReattach) {
+    } else if (cue.can_reattach) {
       libraryMode = 'orphan';
       statusBtn.disabled = false;
       statusBtn.setAttribute('aria-disabled', 'false');
@@ -328,7 +327,7 @@
       if (warnIcon) warnIcon.hidden = false;
       if (statusLabel) {
         statusLabel.hidden = false;
-        statusLabel.textContent = cue.headerLabel || 'Re-attach';
+        statusLabel.textContent = cue.header_label || 'Re-attach';
       }
     } else if (cue.cue === 'synced') {
       statusBtn.classList.add('scripts-library-status-btn--ok');
@@ -342,7 +341,7 @@
       if (warnIcon) warnIcon.hidden = false;
       if (statusLabel) {
         statusLabel.hidden = false;
-        statusLabel.textContent = cue.headerLabel || cue.short || 'Library status';
+        statusLabel.textContent = cue.header_label || cue.short || 'Library status';
       }
     }
   }
@@ -369,8 +368,10 @@
     const message = btn.getAttribute('data-source-status-message')
       || btn.getAttribute('data-orphan-reason') || '';
 
-    if (detailEmpty) detailEmpty.hidden = true;
-    if (panel) panel.hidden = false;
+    if (stub) stub.hidden = true;
+    if (header) header.hidden = false;
+    if (detail) detail.hidden = false;
+    if (removeBtn) removeBtn.hidden = false;
     if (titleEl) titleEl.textContent = name;
     if (metaEl) {
       metaEl.textContent = domainNoun(domain)
@@ -494,7 +495,6 @@
     });
   }
 
-  const removeBtn = document.getElementById('library-content-remove-btn');
   const removeBackdrop = document.getElementById('library-content-remove-backdrop');
   const removeNameEl = document.getElementById('library-content-remove-name');
   const removeCancel = document.getElementById('library-content-remove-cancel');
@@ -558,7 +558,6 @@
     });
   }
 
-  // Deep-link: ?domain=&name=&media_target=
   if (initialName && nav) {
     if (initialDomain && filterDomain) {
       filterDomain.value = initialDomain;

@@ -884,7 +884,9 @@ class TestLibraryContentPane:
         assert resp.status_code == 200
         html = resp.data.decode()
         assert "Linked content" in html or "No linked Cached items" in html
-        assert "library-content-layout" in html
+        assert "scripts-panel" in html
+        assert "scripts-layout" in html
+        assert "inventory-toolbar" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
         assert 'href="/library/content"' in html

@@ -4307,54 +4307,7 @@ body {
   }
 }
 
-/* Library → Content (#384) */
-.library-content-nav-pane {
-  width: 280px;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-}
-
-.library-content-filters {
-  flex-shrink: 0;
-}
-
-.library-content-nav-pane .scripts-nav {
-  flex: 1;
-  min-height: 0;
-}
-
-.library-content-dl {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.library-content-dl-row {
-  display: grid;
-  grid-template-columns: 8.5rem 1fr;
-  gap: 8px 12px;
-  align-items: baseline;
-}
-
-.library-content-dl-row dt {
-  margin: 0;
-  color: var(--text-muted, #6b7280);
-  font-size: 0.875rem;
-}
-
-.library-content-dl-row dd {
-  margin: 0;
-  font-size: 0.9375rem;
-  word-break: break-word;
-}
-
-.library-content-panel-header {
-  margin-bottom: 1rem;
-}
+/* Library → Content (#384): reuse scripts-panel / scripts-layout chrome */
 
 .scripts-open-in-content {
   align-self: center;
