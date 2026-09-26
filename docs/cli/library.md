@@ -43,7 +43,7 @@ Deeper disable/excise teardown (clear links/content/registry) remains UI / follo
 
 | Flag | Required | Accepted values |
 |---|---|---|
-| `--id` | yes | Stable id string (upsert key) |
+| `--id` | no | Stable id string. Omit to auto-generate (same as UI). Pass to upsert or restore a known id for re-linking bindings |
 | `--type` | yes | `path` · `https` · `api` · `forge` (classic `git` removed - ADR-0020) |
 | `--base-uri` | yes | Absolute filesystem path (`path`) or HTTPS URL (`https` / `api` / `forge`) |
 | `--kinds` | yes | Comma-separated from `scripts`, `clutches`, `media`, `packages` |
@@ -56,8 +56,15 @@ Deeper disable/excise teardown (clear links/content/registry) remains UI / follo
 ### Examples
 
 ```bash
-# Local share of scripts + clutches
+# Local share of scripts + clutches (id auto-generated; printed on success)
 uv run hatchery library enable
+uv run hatchery library connection add \
+  --label "Lab share" \
+  --type path \
+  --base-uri /path/to/share \
+  --kinds scripts,clutches
+
+# Restore / upsert a known id (e.g. re-link bindings after recreate)
 uv run hatchery library connection add \
   --id local-share \
   --label "Lab share" \
@@ -81,8 +88,8 @@ uv run hatchery library connection add \
 
 | Flag | Required | Accepted values |
 |---|---|---|
-| `--id` | yes | Stable binding id |
-| `--connection-id` | yes | Existing connection `--id` |
+| `--id` | no | Stable binding id. Omit to auto-generate; pass to upsert/restore |
+| `--connection-id` | yes | Existing connection id |
 | `--domain` | yes | `scripts` · `clutches` · `media` |
 | `--filter` | yes | Glob relative to the connection (e.g. `*.ps1`, `clutches/*.yaml`, `*`) |
 | `--label` | no | Display name (defaults to `--filter`) |

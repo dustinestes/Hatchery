@@ -911,6 +911,27 @@ class TestLibraryCli:
         assert library_cmd.run(add) == 0
         capsys.readouterr()
 
+        auto = cli.build_parser().parse_args(
+            [
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "connection",
+                "add",
+                "--label",
+                "Auto id",
+                "--type",
+                "path",
+                "--base-uri",
+                str(share),
+                "--kinds",
+                "scripts",
+            ]
+        )
+        assert library_cmd.run(auto) == 0
+        out = capsys.readouterr().out
+        assert "Upserted connection" in out
+
         listing = cli.build_parser().parse_args(
             ["--json", "library", "--data-dir", str(sandbox), "connection", "list"]
         )

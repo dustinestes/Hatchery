@@ -29,7 +29,13 @@ def register(sub: argparse._SubParsersAction) -> None:
         "add",
         help="Upsert a Library connection (see docs/cli/library.md for accepted values)",
     )
-    add_c.add_argument("--id", required=True, dest="conn_id", metavar="ID")
+    add_c.add_argument(
+        "--id",
+        default="",
+        dest="conn_id",
+        metavar="ID",
+        help="Connection id (optional; auto-generated if omitted; pass to upsert/restore)",
+    )
     add_c.add_argument("--label", default="", metavar="TEXT")
     add_c.add_argument(
         "--type",
@@ -77,7 +83,13 @@ def register(sub: argparse._SubParsersAction) -> None:
         "add",
         help="Upsert a Library binding (see docs/cli/library.md for accepted values)",
     )
-    add_b.add_argument("--id", required=True, dest="bind_id", metavar="ID")
+    add_b.add_argument(
+        "--id",
+        default="",
+        dest="bind_id",
+        metavar="ID",
+        help="Binding id (optional; auto-generated if omitted; pass to upsert/restore)",
+    )
     add_b.add_argument("--connection-id", required=True, dest="connection_id", metavar="ID")
     add_b.add_argument(
         "--domain",
@@ -216,8 +228,8 @@ def _connection(args: argparse.Namespace, *, as_json: bool) -> int:
         if not _require_library_enabled():
             return 1
         raw = {
-            "id": args.conn_id,
-            "label": args.label or args.conn_id,
+            "id": args.conn_id or None,
+            "label": args.label or args.conn_id or "connection",
             "type": args.conn_type,
             "base_uri": args.base_uri,
             "provider": args.provider,
@@ -288,7 +300,7 @@ def _binding(args: argparse.Namespace, *, as_json: bool) -> int:
         if not _require_library_enabled():
             return 1
         raw = {
-            "id": args.bind_id,
+            "id": args.bind_id or None,
             "connection_id": args.connection_id,
             "domain": args.domain,
             "filter": args.filt,
