@@ -6,6 +6,7 @@ import argparse
 import subprocess
 
 from lib.cli import bootstrap
+from lib.cli import output as cli_out
 from lib.cli.bootstrap import NestResolveError
 
 
@@ -79,12 +80,13 @@ def run(args: argparse.Namespace) -> int:
         bootstrap.print_err(str(exc))
         return 1
     cmd = args.vm_command
+    as_json = cli_out.use_json(args)
     if cmd == "list":
-        return _list_vms(args.nest)
+        return _list_vms(args.nest, as_json=as_json)
     if cmd == "snap":
-        return _snap(args)
+        return _snap(args, as_json=as_json)
     if cmd in ("start", "stop", "force-stop", "destroy", "health"):
-        return _power_or_health(cmd, args.nest, args.name)
+        return _power_or_health(cmd, args.nest, args.name, as_json=as_json)
     bootstrap.print_err(f"unknown vm command: {cmd}")
     return 2
 
@@ -118,12 +120,20 @@ def _with_provider(nest_arg: str | None):
     return nest_id, provider
 
 
-def _list_vms(nest_arg: str | None) -> int:
+def _list_vms(nest_arg: str | None, *, as_json: bool = False) -> int:
     nest_id, provider = _with_provider(nest_arg)
     if provider is None:
         return 1
 
     vms = provider.list_vms()
+    if as_json:
+        cli_out.emit_json(
+            {
+                "nest": nest_id,
+                "vms": [{"name": v.get("name"), "status": v.get("status")} for v in vms],
+            }
+        )
+        return 0
     if not vms:
         print(f"No VMs on Nest '{nest_id}'.")
         return 0
@@ -149,7 +159,7 @@ def _run_provider(action, *, ok_msg: str) -> int:
     return 0
 
 
-def _power_or_health(cmd: str, nest_arg: str | None, name: str) -> int:
+def _power_or_health(cmd: str, nest_arg: str | None, name: str, *, as_json: bool = False) -> int:
     from lib.guest_health import guest_health
 
     nest_id, provider = _with_provider(nest_arg)
@@ -182,6 +192,17 @@ def _power_or_health(cmd: str, nest_arg: str | None, name: str) -> int:
         except Exception as exc:
             bootstrap.print_err(str(exc))
             return 1
+        if as_json:
+            cli_out.emit_json(
+                {
+                    "nest": nest_id,
+                    "name": name,
+                    "ip": result["ip"],
+                    "winrm": result["winrm"],
+                    "reachable": result["reachable"],
+                }
+            )
+            return 0 if result["reachable"] else 1
         ip = result["ip"] or "-"
         winrm = "ok" if result["winrm"] else "unreachable"
         print(f"VM '{name}' on Nest '{nest_id}': ip={ip} winrm={winrm}")
@@ -190,7 +211,7 @@ def _power_or_health(cmd: str, nest_arg: str | None, name: str) -> int:
     return 2
 
 
-def _snap(args: argparse.Namespace) -> int:
+def _snap(args: argparse.Namespace, *, as_json: bool = False) -> int:
     nest_id, provider = _with_provider(args.nest)
     if provider is None:
         return 1
@@ -203,6 +224,9 @@ def _snap(args: argparse.Namespace) -> int:
         except Exception as exc:
             bootstrap.print_err(str(exc))
             return 1
+        if as_json:
+            cli_out.emit_json({"nest": nest_id, "name": name, "snapshots": labels})
+            return 0
         if not labels:
             print(f"No snapshots for '{name}' on Nest '{nest_id}'.")
             return 0

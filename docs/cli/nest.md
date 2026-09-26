@@ -21,7 +21,11 @@ Inspect registered Nests (Controller SQLite registry) and run Test Nest connecti
 ```bash
 uv run hatchery nest [--data-dir PATH] list
 uv run hatchery nest [--data-dir PATH] test <id>
+uv run hatchery --json nest list
+uv run hatchery --json nest test <id>
 ```
+
+With `--json`, stdout is machine-readable (field names in [CLI index](README.md#machine-readable-output---json)).
 
 | Command | Source |
 |---|---|

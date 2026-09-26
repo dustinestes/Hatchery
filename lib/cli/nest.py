@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from lib.cli import bootstrap
+from lib.cli import output as cli_out
 
 
 def register(sub: argparse._SubParsersAction) -> None:
@@ -28,19 +29,34 @@ def run(args: argparse.Namespace) -> int:
     except bootstrap.DataDirMissingError as exc:
         bootstrap.print_err(str(exc))
         return 1
+    as_json = cli_out.use_json(args)
     cmd = args.nest_command
     if cmd == "list":
-        return _list_nests()
+        return _list_nests(as_json=as_json)
     if cmd == "test":
-        return _test_nest(args.nest_id)
+        return _test_nest(args.nest_id, as_json=as_json)
     bootstrap.print_err(f"unknown nest command: {cmd}")
     return 2
 
 
-def _list_nests() -> int:
+def _list_nests(*, as_json: bool) -> int:
     from lib import nests as nests_lib
 
     rows = nests_lib.list_nests()
+    if as_json:
+        cli_out.emit_json(
+            [
+                {
+                    "id": n["id"],
+                    "name": n["name"],
+                    "provider_type": n["provider_type"],
+                    "location": n["location"],
+                    "host": n.get("host"),
+                }
+                for n in rows
+            ]
+        )
+        return 0
     if not rows:
         print("No Nests registered.")
         return 0
@@ -51,7 +67,7 @@ def _list_nests() -> int:
     return 0
 
 
-def _test_nest(nest_id: str) -> int:
+def _test_nest(nest_id: str, *, as_json: bool) -> int:
     from lib import nests as nests_lib
 
     nid = (nest_id or "").strip()
@@ -62,5 +78,8 @@ def _test_nest(nest_id: str) -> int:
     result = nests_lib.test_connection(nest)
     ok = bool(result.get("ok"))
     message = result.get("message") or ("OK" if ok else "Test failed")
+    if as_json:
+        cli_out.emit_json({"ok": ok, "message": message, "nest_id": nid})
+        return 0 if ok else 1
     print(message)
     return 0 if ok else 1

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from lib.cli import bootstrap
+from lib.cli import output as cli_out
 
 _EVENT_CAP = 10
 
@@ -43,32 +44,50 @@ def run(args: argparse.Namespace) -> int:
     except bootstrap.DataDirMissingError as exc:
         bootstrap.print_err(str(exc))
         return 1
+    as_json = cli_out.use_json(args)
     cmd = args.session_command
     if cmd == "list":
-        return _list_sessions(args.nest)
+        return _list_sessions(args.nest, as_json=as_json)
     if cmd == "show":
-        return _show_session(args.session_id)
+        return _show_session(args.session_id, as_json=as_json)
     if cmd == "retry":
         return _retry_vm(args.session_id, args.vm_name)
     bootstrap.print_err(f"unknown session command: {cmd}")
     return 2
 
 
-def _list_sessions(nest_arg: str | None) -> int:
+def _collect_sessions(nest_arg: str | None) -> list[dict]:
     from lib import hatch as hatch_lib
     from lib import nests as nests_lib
 
     nest_id = (nest_arg or "").strip()
     if nest_id:
-        sessions = hatch_lib.list_sessions(nest_id)
-    else:
-        sessions = []
-        for nest in nests_lib.list_nests():
-            sessions.extend(hatch_lib.list_sessions(nest["id"]))
-        if not nests_lib.list_nests():
-            # Sessions may still exist under the default nest id used at create time.
-            sessions = hatch_lib.list_sessions("local")
+        return hatch_lib.list_sessions(nest_id)
+    sessions: list[dict] = []
+    for nest in nests_lib.list_nests():
+        sessions.extend(hatch_lib.list_sessions(nest["id"]))
+    if not nests_lib.list_nests():
+        sessions = hatch_lib.list_sessions("local")
+    return sessions
 
+
+def _list_sessions(nest_arg: str | None, *, as_json: bool = False) -> int:
+    sessions = _collect_sessions(nest_arg)
+    if as_json:
+        cli_out.emit_json(
+            [
+                {
+                    "id": s.get("id"),
+                    "nest": s.get("nest"),
+                    "status": s.get("status"),
+                    "clutch_file": s.get("clutch_file"),
+                    "clutch_name": s.get("clutch_name"),
+                    "hatched_at": s.get("hatched_at"),
+                }
+                for s in sessions
+            ]
+        )
+        return 0
     if not sessions:
         print("No active hatch sessions.")
         return 0
@@ -84,13 +103,42 @@ def _list_sessions(nest_arg: str | None) -> int:
     return 0
 
 
-def _show_session(session_id: str) -> int:
+def _show_session(session_id: str, *, as_json: bool = False) -> int:
     from lib import hatch as hatch_lib
 
     detail = hatch_lib.get_session_detail(session_id)
     if detail is None:
         bootstrap.print_err(f"Session not found: {session_id}")
         return 1
+
+    vms_out = []
+    for vm in detail.get("vms") or []:
+        name = vm.get("vm_name") or "?"
+        events = hatch_lib.get_events(session_id, name)
+        recent = events[-_EVENT_CAP:] if events else []
+        vms_out.append(
+            {
+                "vm_name": name,
+                "status": vm.get("status"),
+                "error": vm.get("error"),
+                "events": recent,
+            }
+        )
+
+    if as_json:
+        cli_out.emit_json(
+            {
+                "id": detail.get("id"),
+                "nest": detail.get("nest"),
+                "clutch_file": detail.get("clutch_file"),
+                "clutch_name": detail.get("clutch_name"),
+                "status": detail.get("status"),
+                "hatched_at": detail.get("hatched_at"),
+                "archived_at": detail.get("archived_at"),
+                "vms": vms_out,
+            }
+        )
+        return 0
 
     print(f"id: {detail.get('id')}")
     print(f"nest: {detail.get('nest') or '-'}")
@@ -100,18 +148,16 @@ def _show_session(session_id: str) -> int:
     if detail.get("archived_at"):
         print(f"archived_at: {detail['archived_at']}")
     print("vms:")
-    vms = detail.get("vms") or []
-    if not vms:
+    if not vms_out:
         print("  (none)")
         return 0
 
-    for vm in vms:
-        name = vm.get("vm_name") or "?"
+    for vm in vms_out:
+        name = vm["vm_name"]
         print(f"  - {name}: {vm.get('status') or '-'}")
         if vm.get("error"):
             print(f"      error: {vm['error']}")
-        events = hatch_lib.get_events(session_id, name)
-        recent = events[-_EVENT_CAP:] if events else []
+        recent = vm.get("events") or []
         if not recent:
             print("      events: (none)")
             continue
