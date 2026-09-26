@@ -164,7 +164,22 @@ Strategy: connection **`type: forge`** + **`provider`** plugin - list/pull via f
 | **List** | Git Trees API (`recursive=1`); truncated trees fail closed |
 | **Pull** | Raw content download; SHA-256 of bytes written to the domain cache |
 
-Library stays **consume-only** - no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)). A sample public catalog for demos is tracked as [#315](https://github.com/dustinestes/Hatchery/issues/315) (`hatchery_catalog`).
+Library stays **consume-only** - no Clutch↔forge round-trip or push back to remotes ([ADR-0011](adr/0011-library-consume-only-no-clutch-roundtrip.md)).
+
+#### Sample catalog: Hatchery Library
+
+Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
+
+| | |
+|---|---|
+| **Base URI** | `https://github.com/dustinestes/Hatchery-Library` or `dustinestes/Hatchery-Library` |
+| **Provider** | `github` |
+| **Scripts** | `scripts/windows/**/*.ps1`, `scripts/linux/**/*.sh`, `scripts/macos/**/*.sh` |
+| **Clutches** | `clutches/**/*.yaml` |
+| **Media ISO** | `media/iso/**/*.iso` (target `iso`) |
+| **Media VirtIO** | `media/virtio/**/*.iso` (target `virtio`) |
+
+Token optional for this public repo. Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only).
 
 ### API connections (#255)
 
