@@ -71,6 +71,8 @@ uv run hatchery vm resume test26
 uv run hatchery vm snap take test26 --label smoke
 uv run hatchery hatch --clutch demo.yaml --password dc01=secret
 uv run hatchery session list
+uv run hatchery media list
+uv run hatchery scripts list
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -92,6 +94,8 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `vm snap list` | `{nest, name, snapshots: [label, …]}` |
 | `session list` | Array of `{id, nest, status, clutch_file, clutch_name, hatched_at}` |
 | `session show` | `{id, nest, clutch_file, clutch_name, status, hatched_at, archived_at, vms: [{vm_name, status, error, events}, …]}` |
+| `media list` | `{media: [{type, name, size_bytes, modified_at, relative_path}, …]}` |
+| `scripts list` | `{scripts: [{name, language, relative_path}, …]}` |
 
 Schema may evolve; treat field names as the contract for automation, not pretty-print layout.
 
@@ -118,11 +122,13 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 | [vm.md](vm.md) | [`lib/cli/vm.py`](../../lib/cli/vm.py) | **Shipped** (#23 inspect, #353 mutate) | Nest-scoped VM list + lifecycle |
 | [hatch.md](hatch.md) | [`lib/cli/hatch.py`](../../lib/cli/hatch.py) | **Shipped** (#353) | Hatch a Clutch onto a Nest |
 | [session.md](session.md) | [`lib/cli/session.py`](../../lib/cli/session.py) | **Shipped** (#421 list/show, #422 retry) | Hatch sessions inspect + retry |
+| [media.md](media.md) | [`lib/cli/media.py`](../../lib/cli/media.py) | **Shipped** (#425) | List local ISO / VirtIO media |
+| [scripts.md](scripts.md) | [`lib/cli/scripts.py`](../../lib/cli/scripts.py) | **Shipped** (#425) | List local automation scripts |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
 | (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425).
 
 
 <br>
