@@ -188,7 +188,7 @@ Health and content checks run as **pluggable validators** ([validators.md](valid
 - `clutch_files` - invalid Clutch YAML (`Invalid Clutch file:`)
 - `nest_key_expiry` - Nest SSH identity windows
 
-The Hatch lifecycle poller (`_sync_hatch_status`) remains separate and uses the **Hatch status poll** interval (`bg_interval`).
+The Hatch lifecycle poller (`lib.hatch_lifecycle.sync_hatch_status`) remains separate and uses the **Hatch status poll** interval (`bg_interval`).
 
 ### Footer vs Alerts (#277)
 

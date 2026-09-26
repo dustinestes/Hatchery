@@ -319,3 +319,260 @@ class TestOperatorInspect:
             rc = vm_cmd.run(args)
         assert rc == 1
         assert "not available" in capsys.readouterr().err.lower()
+
+    def _seed_local_nest(self, sandbox: Path) -> None:
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime()
+        nests_lib.ensure_local_nest()
+
+    def test_vm_start_stop_destroy(self, isolated_config, tmp_path, capsys):
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        fake = MagicMock()
+        for cmd, method in (
+            ("start", "start_vm"),
+            ("stop", "stop_vm"),
+            ("force-stop", "force_stop_vm"),
+            ("destroy", "destroy_vm"),
+        ):
+            args = cli.build_parser().parse_args(
+                ["vm", "--data-dir", str(sandbox), cmd, "--nest", "local", "dc01"]
+            )
+            with patch("lib.providers.factory.get_provider", return_value=fake):
+                assert vm_cmd.run(args) == 0
+            getattr(fake, method).assert_called_with("dc01")
+        out = capsys.readouterr().out
+        assert "Started" in out
+        assert "Destroyed" in out
+
+    def test_vm_snap_take_list_apply_delete(self, isolated_config, tmp_path, capsys):
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        fake = MagicMock()
+        fake.list_snapshots.return_value = ["smoke"]
+        parser = cli.build_parser()
+        with patch("lib.providers.factory.get_provider", return_value=fake):
+            assert (
+                vm_cmd.run(
+                    parser.parse_args(
+                        [
+                            "vm",
+                            "--data-dir",
+                            str(sandbox),
+                            "snap",
+                            "take",
+                            "--nest",
+                            "local",
+                            "dc01",
+                            "--label",
+                            "smoke",
+                        ]
+                    )
+                )
+                == 0
+            )
+            assert (
+                vm_cmd.run(
+                    parser.parse_args(
+                        [
+                            "vm",
+                            "--data-dir",
+                            str(sandbox),
+                            "snap",
+                            "list",
+                            "--nest",
+                            "local",
+                            "dc01",
+                        ]
+                    )
+                )
+                == 0
+            )
+            assert (
+                vm_cmd.run(
+                    parser.parse_args(
+                        [
+                            "vm",
+                            "--data-dir",
+                            str(sandbox),
+                            "snap",
+                            "apply",
+                            "--nest",
+                            "local",
+                            "dc01",
+                            "smoke",
+                        ]
+                    )
+                )
+                == 0
+            )
+            assert (
+                vm_cmd.run(
+                    parser.parse_args(
+                        [
+                            "vm",
+                            "--data-dir",
+                            str(sandbox),
+                            "snap",
+                            "delete",
+                            "--nest",
+                            "local",
+                            "dc01",
+                            "smoke",
+                        ]
+                    )
+                )
+                == 0
+            )
+        fake.create_snapshot.assert_called_with("dc01", "smoke")
+        fake.revert_snapshot.assert_called_with("dc01", "smoke")
+        fake.delete_snapshot.assert_called_with("dc01", "smoke")
+        assert "smoke" in capsys.readouterr().out
+
+    def test_vm_health_reachable(self, isolated_config, tmp_path, capsys):
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        fake = MagicMock()
+        args = cli.build_parser().parse_args(
+            ["vm", "--data-dir", str(sandbox), "health", "--nest", "local", "dc01"]
+        )
+        with (
+            patch("lib.providers.factory.get_provider", return_value=fake),
+            patch(
+                "lib.guest_health.guest_health",
+                return_value={"ip": "10.0.0.2", "winrm": True, "reachable": True},
+            ),
+        ):
+            assert vm_cmd.run(args) == 0
+        assert "10.0.0.2" in capsys.readouterr().out
+
+    def test_vm_health_unreachable(self, isolated_config, tmp_path):
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        fake = MagicMock()
+        args = cli.build_parser().parse_args(
+            ["vm", "--data-dir", str(sandbox), "health", "--nest", "local", "dc01"]
+        )
+        with (
+            patch("lib.providers.factory.get_provider", return_value=fake),
+            patch(
+                "lib.guest_health.guest_health",
+                return_value={"ip": None, "winrm": False, "reachable": False},
+            ),
+        ):
+            assert vm_cmd.run(args) == 1
+
+    def test_hatch_parse_and_dispatch(self, isolated_config, tmp_path):
+        args = cli.build_parser().parse_args(
+            [
+                "hatch",
+                "--data-dir",
+                str(tmp_path / "sandbox"),
+                "--clutch",
+                "lab.yaml",
+                "--password",
+                "dc01=s3cret",
+                "--no-wait",
+            ]
+        )
+        assert args.command == "hatch"
+        assert args.clutch == "lab.yaml"
+        with patch("lib.cli.hatch.run", return_value=0) as run:
+            assert (
+                cli.main(
+                    [
+                        "hatch",
+                        "--clutch",
+                        "lab.yaml",
+                        "--password",
+                        "dc01=x",
+                    ]
+                )
+                == 0
+            )
+        run.assert_called_once()
+
+    def test_hatch_missing_password(self, isolated_config, tmp_path, capsys):
+        import lib.cli.hatch as hatch_cmd
+        from lib import clutch as clutch_lib
+        from lib.clutch import Clutch, VMConfig
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        clutches = sandbox / "clutches"
+        clutches.mkdir(parents=True, exist_ok=True)
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="win11",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    admin_username="Administrator",
+                )
+            ],
+        )
+        clutch_lib.save(clutch, clutches / "lab.yaml")
+        args = cli.build_parser().parse_args(
+            ["hatch", "--data-dir", str(sandbox), "--clutch", "lab.yaml", "--nest", "local"]
+        )
+        with patch("lib.providers.factory.get_provider", return_value=MagicMock()):
+            rc = hatch_cmd.run(args)
+        assert rc == 1
+        assert "Password required" in capsys.readouterr().err
+
+    def test_hatch_runs_create_and_poll(self, isolated_config, tmp_path, capsys):
+        import lib.cli.hatch as hatch_cmd
+        from lib import clutch as clutch_lib
+        from lib.clutch import Clutch, VMConfig
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        clutches = sandbox / "clutches"
+        clutches.mkdir(parents=True, exist_ok=True)
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="win11",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                )
+            ],
+        )
+        clutch_lib.save(clutch, clutches / "lab.yaml")
+        args = cli.build_parser().parse_args(
+            [
+                "hatch",
+                "--data-dir",
+                str(sandbox),
+                "--clutch",
+                "lab.yaml",
+                "--nest",
+                "local",
+                "--no-wait",
+            ]
+        )
+        preflight = MagicMock()
+        preflight.ok = True
+        with (
+            patch("lib.providers.factory.get_provider", return_value=MagicMock()),
+            patch("lib.nest_cache.preflight_clutch", return_value=preflight),
+            patch(
+                "lib.hatch_lifecycle.create_and_start_hatch",
+                return_value="sess-1",
+            ) as create,
+        ):
+            rc = hatch_cmd.run(args)
+        assert rc == 0
+        create.assert_called_once()
+        assert create.call_args.kwargs["background"] is False
+        assert "sess-1" in capsys.readouterr().out

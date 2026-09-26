@@ -111,7 +111,7 @@ Emitted in `hatch_clutch_post` when a clutch hatch is submitted from the UI, bef
 
 ### VM Creation
 
-Emitted in `_run_hatch_session` (background thread). The "Creating VM" event includes the full `virt-install` command so you can see exactly what Hatchery passed to libvirt.
+Emitted in `lib.hatch_lifecycle.run_hatch_session` (background thread). The "Creating VM" event includes the full `virt-install` command so you can see exactly what Hatchery passed to libvirt.
 
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|
@@ -125,7 +125,7 @@ The "Creating VM" message contains the complete command as it will be run, inclu
 
 ### Windows Setup
 
-Emitted in `_sync_hatch_status` (Hatch status poller, runs every `bg_interval` seconds). These events track the Windows unattended install phase after `virt-install` returns.
+Emitted in `lib.hatch_lifecycle.sync_hatch_status` (Hatch status poller, runs every `bg_interval` seconds). These events track the Windows unattended install phase after `virt-install` returns.
 
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|

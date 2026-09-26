@@ -65,7 +65,7 @@ ADR-0013’s rejection of **HTTP-only** operator remains: CLI must work without 
 
 ### Documentation and discoverability
 
-Operator nouns stay product terms (Controller, Nest, Clutch, Hatch, Cull, Snapshot, Revert). Docs and CLI help should be enough for an operator or agent to **infer how to use** Hatchery without reading Flask handlers. Prefer:
+Operator nouns stay product terms (Controller, Nest, Clutch, Hatch). CLI lifecycle verbs prefer universal language (`destroy`, `snap take|list|apply|delete`, `health`) per [ADR-0013](0013-hatchery-cli-launch-and-operator.md). Docs and CLI help should be enough for an operator or agent to **infer how to use** Hatchery without reading Flask handlers. Prefer:
 
 - Documented commands and Nest targeting (`--nest`, empty-registry guidance)
 - Predictable, machine-friendly inspect/mutate output over time (JSON where it helps automation)

@@ -24,7 +24,7 @@ We needed an extensibility boundary that:
    - **Alerts** - findings that need attention (bell / tray / toasts / Alerts pane)
    - **`validator_runs`** - scheduled or on-demand execution history (ok/error, summary, trigger)
 4. Persist runs in SQLite (not memory-only `last_run`)
-5. **Not a validator:** hatch lifecycle poller (`_sync_hatch_status`) stays app-owned - operators must not disable fledging by accident
+5. **Not a validator:** hatch lifecycle poller (`lib.hatch_lifecycle.sync_hatch_status`) stays app-owned - operators must not disable fledging by accident
 6. Controller vs Nest requirement **bodies** (#208) and Nest reachability (#263) register as validators - they do not extend a private catch-all loop
 
 Validators are the **gather** layer only ([ADR-0004](0004-status-surfaces-gather-store-poll.md)); they must not push to the DOM.
