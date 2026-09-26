@@ -576,3 +576,47 @@ class TestOperatorInspect:
         create.assert_called_once()
         assert create.call_args.kwargs["background"] is False
         assert "sess-1" in capsys.readouterr().out
+
+    def test_session_list_and_show(self, isolated_config, tmp_path, capsys):
+        import lib.cli.session as session_cmd
+        import lib.hatch as hatch_lib
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        sid = hatch_lib.create_session("lab.yaml", "Lab", nest="local")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "Creating VM")
+
+        list_args = cli.build_parser().parse_args(
+            ["session", "--data-dir", str(sandbox), "list", "--nest", "local"]
+        )
+        assert session_cmd.run(list_args) == 0
+        out = capsys.readouterr().out
+        assert sid[:8] in out
+        assert "lab.yaml" in out
+        assert "in_progress" in out
+
+        show_args = cli.build_parser().parse_args(
+            ["session", "--data-dir", str(sandbox), "show", sid]
+        )
+        assert session_cmd.run(show_args) == 0
+        show_out = capsys.readouterr().out
+        assert "dc01: hatching" in show_out
+        assert "Creating VM" in show_out
+
+    def test_session_show_missing(self, isolated_config, tmp_path, capsys):
+        import lib.cli.session as session_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        args = cli.build_parser().parse_args(
+            ["session", "--data-dir", str(sandbox), "show", "no-such-session"]
+        )
+        assert session_cmd.run(args) == 1
+        assert "not found" in capsys.readouterr().err.lower()
+
+    def test_main_dispatches_session(self):
+        with patch("lib.cli.session.run", return_value=0) as run:
+            assert cli.main(["session", "list"]) == 0
+        run.assert_called_once()

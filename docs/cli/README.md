@@ -48,7 +48,7 @@ flowchart LR
 | Surface | Job | Session vs persist |
 |---|---|---|
 | **Launch** (`serve`) | Start the Controller | `--data-dir` / `--nest-local` / bind are session-only; never write Settings |
-| **Operator** (`clutch`, `vm`, `hatch`, `nest`) | Nest-scoped inspect and lifecycle | In-process Nest factory; no running Controller required. Inspect is read-only: requires an existing data dir (does not mkdir / create DB). |
+| **Operator** (`clutch`, `vm`, `hatch`, `nest`, `session`) | Nest-scoped inspect and lifecycle | In-process Nest factory; no running Controller required. Inspect is read-only: requires an existing data dir (does not mkdir / create DB). |
 | **Settings** (`settings`) | Persist Settings from the terminal | Distinct from launch overrides ([#344](https://github.com/dustinestes/Hatchery/issues/344)) |
 
 <br>
@@ -67,6 +67,7 @@ uv run hatchery vm list --nest local
 uv run hatchery vm start test26
 uv run hatchery vm snap take test26 --label smoke
 uv run hatchery hatch --clutch demo.yaml --password dc01=secret
+uv run hatchery session list
 uv run hatchery --help
 uv run hatchery serve --help
 ```
@@ -93,10 +94,11 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 | [clutch.md](clutch.md) | [`lib/cli/clutch.py`](../../lib/cli/clutch.py) | **Shipped (inspect)** (#23) | List/show Clutch files |
 | [vm.md](vm.md) | [`lib/cli/vm.py`](../../lib/cli/vm.py) | **Shipped** (#23 inspect, #353 mutate) | Nest-scoped VM list + lifecycle |
 | [hatch.md](hatch.md) | [`lib/cli/hatch.py`](../../lib/cli/hatch.py) | **Shipped** (#353) | Hatch a Clutch onto a Nest |
+| [session.md](session.md) | [`lib/cli/session.py`](../../lib/cli/session.py) | **Shipped** (#421) | List/show hatch sessions |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle (`start` / `stop` / `force-stop` / `destroy` / `snap` / `health`) ship under [#353](https://github.com/dustinestes/Hatchery/issues/353).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421).
 
 
 <br>
