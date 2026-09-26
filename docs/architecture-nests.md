@@ -37,6 +37,8 @@ Hatchery is **one application** with two first-class planes:
 
 v1 shipped as Linux Controller + Local Nest (libvirt). Cross-platform work **does not** fork the product into three apps, and **does not** treat Windows/macOS as “skip Linux code.” It **decouples Nest backends** behind a shared shell so each Nest type can evolve independently and optionally. A Controller may eventually have **no Local Nest** (only Remotes - [#266](https://github.com/dustinestes/Hatchery/issues/266)).
 
+**Embeddable operator plane:** the Controller is meant to be incorporated into CI/CD and external tooling via a documented operator surface (CLI now; HTTP operator API later), always through Nest id → factory - not only as an adjacent UI. See [ADR-0021](adr/0021-controller-embeddable-operator-plane.md).
+
 <br>
 
 ## Architecture nouns
@@ -184,6 +186,8 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |
 | [Validators](validators.md) | Pluggable checks - Nest onboarding feedback after Controller install |
 | [Notifications - Status surfaces](notifications.md#status-surfaces) | Gather → store → UI poll; `refreshStatusSurfaces` / `onStatusTick` (#282) |
+| [CLI](cli/README.md) | Launch + operator surfaces; embeddable automation entrypoint |
+| [ADR-0021](adr/0021-controller-embeddable-operator-plane.md) | Controller as embeddable operator plane (CI/CD / external tooling) |
 | Epic [#202](https://github.com/dustinestes/Hatchery/issues/202) | Cross-platform & remote Nests |
 | [#273](https://github.com/dustinestes/Hatchery/issues/273) | Distribution north star - Controller-only via OS package managers |
 | [#206](https://github.com/dustinestes/Hatchery/issues/206) / [#207](https://github.com/dustinestes/Hatchery/issues/207) / [#208](https://github.com/dustinestes/Hatchery/issues/208) | Phase A foundation |

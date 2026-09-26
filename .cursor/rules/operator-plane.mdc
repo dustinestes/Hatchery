@@ -1,0 +1,60 @@
+---
+description: Embeddable Controller operator plane for CI/CD and external tooling
+alwaysApply: true
+---
+
+# Embeddable operator plane
+
+Hatchery’s Controller is an **embeddable operator plane**: CI/CD, developer tools, and automation should incorporate it, not only sit beside a UI. Locked: [ADR-0021](../../docs/adr/0021-controller-embeddable-operator-plane.md). Planes: [architecture-nests.md](../../docs/architecture-nests.md). CLI: [ADR-0013](../../docs/adr/0013-hatchery-cli-launch-and-operator.md).
+
+This is general product direction (external operators and tooling), not a single employer’s harness.
+
+## Layers
+
+```
+External tooling / CI / agents
+  → Controller operator surface (CLI now; HTTP operator API later)
+  → Shared Nest orchestration (Nest id → factory)
+  → Nest transport client  ≠  guest provision
+  → Nest providers (libvirt / UTM / Hyper-V × Local | Remote)
+```
+
+UI, CLI, and any future HTTP operator API **share** orchestration. Do not invent a second path that talks to a hypervisor or Nest SSH directly from routes or one-off scripts.
+
+## Surfaces
+
+| Surface | Use |
+|---|---|
+| **Operator CLI** (`hatchery nest\|clutch\|vm\|hatch…`) | Primary embeddable surface today; Nest-scoped; in-process (no required HTTP server) |
+| **UI / Flask `/api/...`** | Human Controller shell; **not** the frozen public contract |
+| **HTTP operator API** | Future optional remote client surface; same lib as CLI when cut |
+
+## Always ask
+
+```
+✅ Does this go through Nest id → factory / shared orchestration?
+✅ Could CI or an external tool call this without the browser?
+✅ Are product nouns stable (Controller, Nest, Clutch, Hatch, Cull, Snapshot, Revert)?
+✅ Is Nest transport separate from guest provision?
+✅ Will docs/CLI help stay enough to infer usage (no “read the Flask handler”)?
+
+❌ Hard-wire libvirt / virsh / ad-hoc SSH in UI routes or CI helpers
+❌ Treat today’s UI JSON routes as a versioned external API
+❌ Employer-specific protocol as the core product surface
+❌ HTTP-only operator that breaks local in-process CLI (ADR-0013)
+❌ Second control path that bypasses Nest registry / transport
+```
+
+## When adding CLI, API, or Nest remoting
+
+```
+✅ Extend operator CLI / shared lib with clear Nest targeting and errors
+✅ Prefer machine-friendly inspect/mutate output over time (stable exit codes; JSON when it helps automation)
+✅ Document in docs/cli or architecture; ADR when locking a new contract
+✅ Nest remoting (#209 / #215 / #345) hardens transport and jobs - same plane for UI and CLI
+
+❌ One-off “SSH to Nest and run this” helpers for a single consumer
+❌ Grow Flask UI routes as the de-facto automation API without a dedicated operator contract
+```
+
+Agents: pair with `cross-platform.mdc` (Controller vs Nest) and `hatchery-core.mdc` (naming).

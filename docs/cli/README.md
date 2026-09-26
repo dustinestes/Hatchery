@@ -6,7 +6,7 @@
 <h1>CLI</h1>
 <br clear="both">
 
-Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
+Hatchery ships one console script, ``hatchery``, with subcommands for **launch** and **operator** work. Design: [ADR-0013](../adr/0013-hatchery-cli-launch-and-operator.md). Product north star (CI/CD and external tooling): [ADR-0021](../adr/0021-controller-embeddable-operator-plane.md). Epic: [#336](https://github.com/dustinestes/Hatchery/issues/336).
 
 Code lives under [`lib/cli/`](../../lib/cli/). Docs here mirror that layout: each command module has a matching page.
 

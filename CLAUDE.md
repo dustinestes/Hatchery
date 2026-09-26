@@ -10,6 +10,7 @@ A local web application for creating, provisioning, and managing VMs. **Host pla
 | `git-workflow.mdc` | Always | Portable issue → branch → PR |
 | `accessibility.mdc` | Always | Inclusive UI: keyboard, labels, focus, contrast |
 | `cross-platform.mdc` | Always | Host vs Nest planes; multi-OS CI |
+| `operator-plane.mdc` | Always | Embeddable Controller operator plane (CLI/CI; Nest factory) |
 | `adr-discipline.mdc` | Always | ADRs when plans lock decisions; supersede correctly |
 | `no-em-dashes.mdc` | Always | No em dashes in copy, comments, docs, commits |
 | `python-style.mdc` | `**/*.py`, `pyproject.toml` | ruff, uv, tests |
