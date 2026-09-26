@@ -333,6 +333,28 @@ def get_session(session_id: str) -> dict | None:
         conn.close()
 
 
+def get_session_detail(session_id: str) -> dict | None:
+    """Return a session with ``vms`` and computed ``status``, or None if missing."""
+    session = get_session(session_id)
+    if session is None:
+        return None
+    conn = db.get_connection()
+    try:
+        vms = conn.execute(
+            """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error
+               FROM hatch_vm_status WHERE session_id=? ORDER BY id""",
+            (session_id,),
+        ).fetchall()
+        vm_dicts = [dict(v) for v in vms]
+        return {
+            **session,
+            "vms": vm_dicts,
+            "status": _compute_session_status(vm_dicts),
+        }
+    finally:
+        conn.close()
+
+
 def list_sessions(nest: str = "local") -> list[dict]:
     """Return active (non-archived) sessions for a nest, each with its VMs and computed status."""
     conn = db.get_connection()
