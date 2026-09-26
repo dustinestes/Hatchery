@@ -292,7 +292,7 @@
       fromFile: document.getElementById('clutch-import-from-file'),
       fromLibrary: document.getElementById('clutch-import-from-library'),
       onFromLibrary: libraryEnabled
-        ? function () { window.location = '/library/connections?domain=clutches'; }
+        ? function () { window.location = '/library/content?tab=available&domain=clutches'; }
         : null,
     });
   }

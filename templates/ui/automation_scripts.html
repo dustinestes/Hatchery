@@ -354,7 +354,7 @@
       fromFile: document.getElementById('scripts-import-from-file'),
       fromLibrary: document.getElementById('scripts-import-from-library'),
       onFromLibrary: libraryEnabled
-        ? function () { window.location = '/library/connections?domain=scripts'; }
+        ? function () { window.location = '/library/content?tab=available&domain=scripts'; }
         : null,
     });
   }

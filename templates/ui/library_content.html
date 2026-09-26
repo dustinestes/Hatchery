@@ -3,13 +3,12 @@
 {% block title %}Content - Library - Hatchery{% endblock %}
 
 {% block content %}
-{% from "_inventory_toolbar.html" import inventory_toolbar %}
 {% from "_inventory_cached_filters.html" import inventory_cached_filters %}
 {% from "_inventory_split_layout.html" import inventory_split %}
 
-{{ inventory_toolbar("Linked content") }}
+{% include "_library_content_tabs.html" %}
 
-<div class="scripts-panel" id="library-content-panel-root">
+<div class="scripts-panel" id="library-content-panel-linked" role="tabpanel" aria-labelledby="library-content-tab-linked">
   {{ inventory_cached_filters(
        "library-content",
        "Filter linked content",
@@ -72,7 +71,7 @@
       {% endfor %}
     {% else %}
       <div class="scripts-nav-empty" id="library-content-nav-empty">
-        No linked Cached items yet. Pull from a Library catalog on a domain pane, or import with attribution.
+        No linked Cached items yet. Pull from Available, or import with attribution.
       </div>
     {% endif %}
     <div class="scripts-nav-empty" id="library-content-nav-filtered-empty" role="status" hidden>
@@ -168,6 +167,16 @@
 {% endcall %}
 </div>
 
+{% with id_prefix='library-content',
+        panel_id='library-content-panel-available',
+        tab_labelledby='library-content-tab-available',
+        panel_hidden=true,
+        include_domain_filter=true,
+        filter_aria='Filter Available Library catalog',
+        empty_message='No catalog hits from your Library bindings. Configure connections under Library → Connections.' %}
+  {% include "_library_browser_panel.html" %}
+{% endwith %}
+
 {% include "_library_reattach_modal.html" %}
 
 <div id="library-content-remove-backdrop" class="modal-backdrop" hidden>
@@ -217,9 +226,58 @@
   const initialDomain = {{ initial_domain | default('') | tojson }};
   const initialName = {{ initial_name | default('') | tojson }};
   const initialMediaTarget = {{ initial_media_target | default('') | tojson }};
+  const initialTab = {{ initial_tab | default('linked') | tojson }};
+  const contentCatalogUrl = {{ url_for('api_library_content_catalog') | tojson }};
+  const scriptsPullUrl = {{ url_for('api_library_scripts_pull') | tojson }};
+  const clutchesPullUrl = {{ url_for('api_library_clutches_pull') | tojson }};
+  const mediaPullUrl = {{ url_for('api_library_media_pull') | tojson }};
 
   let selectedBtn = null;
   let libraryMode = 'hidden';
+  var contentTabs = null;
+  var availableBrowser = null;
+
+  if (window.hatchery && typeof hatchery.bindLibraryBrowserByPrefix === 'function') {
+    availableBrowser = hatchery.bindLibraryBrowserByPrefix({
+      idPrefix: 'library-content',
+      catalogUrl: contentCatalogUrl,
+      pullUrls: {
+        scripts: scriptsPullUrl,
+        clutches: clutchesPullUrl,
+        media: mediaPullUrl,
+      },
+      showDomainColumn: true,
+    });
+  }
+
+  if (window.hatchery && typeof hatchery.bindInventoryTabs === 'function') {
+    contentTabs = hatchery.bindInventoryTabs({
+      libraryEnabled: true,
+      cacheTab: document.getElementById('library-content-tab-linked'),
+      libTab: document.getElementById('library-content-tab-available'),
+      cachePanel: document.getElementById('library-content-panel-linked'),
+      libPanel: document.getElementById('library-content-panel-available'),
+      tabsRoot: document.getElementById('library-content-source-tabs'),
+      onShowLibrary: function () {
+        if (availableBrowser) availableBrowser.load();
+      },
+    });
+  }
+
+  function openInitialTab() {
+    var wantAvailable = initialTab === 'available' && !initialName;
+    if (contentTabs) {
+      contentTabs.show(wantAvailable ? 'library' : 'cache');
+    }
+    if (wantAvailable && availableBrowser) {
+      var domainFilter = document.getElementById('library-content-lib-filter-domain');
+      if (domainFilter && initialDomain) {
+        domainFilter.value = initialDomain;
+      }
+      availableBrowser.load();
+    }
+  }
+  openInitialTab();
 
   function domainNoun(domain) {
     if (domain === 'scripts') return 'Scripts';

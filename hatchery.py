@@ -978,6 +978,14 @@ def library_content_pane():
 
     items = _library_content_items()
     connections = config.library_connections()
+    tab_raw = (request.args.get("tab") or request.args.get("view") or "").strip().lower()
+    initial_name = (request.args.get("name") or "").strip()
+    if initial_name:
+        initial_tab = "linked"
+    elif tab_raw in ("available", "linked"):
+        initial_tab = tab_raw
+    else:
+        initial_tab = "linked"
     return render_template(
         "library_content.html",
         active_pane="library_content",
@@ -990,8 +998,9 @@ def library_content_pane():
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
         library_content_remove_url=url_for("api_library_content_remove"),
         initial_domain=(request.args.get("domain") or "").strip().lower(),
-        initial_name=(request.args.get("name") or "").strip(),
+        initial_name=initial_name,
         initial_media_target=(request.args.get("media_target") or "").strip().lower(),
+        initial_tab=initial_tab,
     )
 
 
@@ -1874,6 +1883,31 @@ def api_library_content():
     if denied:
         return denied
     return jsonify({"items": _library_content_items()})
+
+
+@app.route("/api/library/content/catalog")
+def api_library_content_catalog():
+    """Cross-domain Library catalog for Content Available (#392)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    domain = (request.args.get("domain") or "").strip().lower() or None
+    raw_connections = config.library_connections()
+    try:
+        items = library_lib.catalog_content_union(
+            connections=raw_connections,
+            script_bindings=config.library_script_bindings(),
+            clutch_bindings=config.library_clutch_bindings(),
+            media_bindings=config.library_media_bindings(),
+            script_cached_names={s["name"] for s in _scan_script_inventory()},
+            clutch_cached_names={c["name"] for c in _scan_clutch_inventory()},
+            media_cached_names={i["name"] for i in media_inspect_lib.scan_media_dir("iso")}
+            | {i["name"] for i in media_inspect_lib.scan_media_dir("virtio")},
+            domain=domain,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    return jsonify({"items": items})
 
 
 @app.route("/api/library/content/remove", methods=["POST"])

@@ -284,7 +284,7 @@
       fromFile: document.getElementById('media-import-from-file'),
       fromLibrary: document.getElementById('media-import-from-library'),
       onFromLibrary: libraryEnabled
-        ? function () { window.location = '/library/connections?domain=media'; }
+        ? function () { window.location = '/library/content?tab=available&domain=media'; }
         : null,
     });
   }
