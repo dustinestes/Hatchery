@@ -8,6 +8,7 @@ import subprocess
 from lib.cli import bootstrap
 from lib.cli import output as cli_out
 from lib.cli.bootstrap import NestResolveError
+from lib.run_cmd import format_process_error
 
 
 def register(sub: argparse._SubParsersAction) -> None:
@@ -20,6 +21,11 @@ def register(sub: argparse._SubParsersAction) -> None:
 
     listing = vm_sub.add_parser("list", help="List VMs on a Nest (live hypervisor inventory)")
     _add_nest_arg(listing)
+    listing.add_argument(
+        "--all",
+        action="store_true",
+        help="Include external VMs (no Hatchery session tag); default is Hatchery-sourced only",
+    )
 
     for name, help_text in (
         ("start", "Power on a VM"),
@@ -84,7 +90,7 @@ def run(args: argparse.Namespace) -> int:
     cmd = args.vm_command
     as_json = cli_out.use_json(args)
     if cmd == "list":
-        return _list_vms(args.nest, as_json=as_json)
+        return _list_vms(args.nest, as_json=as_json, include_all=bool(getattr(args, "all", False)))
     if cmd == "snap":
         return _snap(args, as_json=as_json)
     if cmd in ("start", "stop", "force-stop", "pause", "resume", "destroy", "health"):
@@ -122,26 +128,49 @@ def _with_provider(nest_arg: str | None):
     return nest_id, provider
 
 
-def _list_vms(nest_arg: str | None, *, as_json: bool = False) -> int:
+def _list_vms(
+    nest_arg: str | None,
+    *,
+    as_json: bool = False,
+    include_all: bool = False,
+) -> int:
     nest_id, provider = _with_provider(nest_arg)
     if provider is None:
         return 1
 
     vms = provider.list_vms()
-    if as_json:
-        cli_out.emit_json(
+    rows = []
+    for vm in vms:
+        name = vm.get("name")
+        status = vm.get("status")
+        hatchery_sourced = False
+        if name:
+            try:
+                tag = provider.get_vm_session_tag(name)
+            except Exception:
+                tag = None
+            hatchery_sourced = tag is not None
+        if not include_all and not hatchery_sourced:
+            continue
+        rows.append(
             {
-                "nest": nest_id,
-                "vms": [{"name": v.get("name"), "status": v.get("status")} for v in vms],
+                "name": name,
+                "status": status,
+                "hatchery_sourced": hatchery_sourced,
             }
         )
+
+    if as_json:
+        cli_out.emit_json({"nest": nest_id, "vms": rows})
         return 0
-    if not vms:
-        print(f"No VMs on Nest '{nest_id}'.")
+    if not rows:
+        scope = "all VMs" if include_all else "Hatchery-sourced VMs"
+        print(f"No {scope} on Nest '{nest_id}'.")
         return 0
-    print(f"{'NAME':<40} STATUS")
-    for vm in vms:
-        print(f"{vm.get('name', ''):<40} {vm.get('status', '')}")
+    print(f"{'NAME':<40} {'STATUS':<12} SOURCE")
+    for row in rows:
+        src = "hatchery" if row["hatchery_sourced"] else "external"
+        print(f"{row.get('name', ''):<40} {row.get('status', ''):<12} {src}")
     return 0
 
 
@@ -149,13 +178,14 @@ def _run_provider(action, *, ok_msg: str) -> int:
     try:
         action()
     except subprocess.CalledProcessError as exc:
-        detail = (
-            (exc.stderr or exc.stdout or str(exc)).strip() if hasattr(exc, "stderr") else str(exc)
-        )
-        bootstrap.print_err(detail or str(exc))
+        # run_cmd already echoed Nest tool streams to stderr; only print when
+        # there was nothing captured (or the failure bypassed run_cmd).
+        detail = format_process_error(exc)
+        if not ((exc.stderr or "") or (exc.stdout or "")):
+            bootstrap.print_err(detail)
         return 1
     except Exception as exc:
-        bootstrap.print_err(str(exc))
+        bootstrap.print_err(format_process_error(exc))
         return 1
     print(ok_msg)
     return 0

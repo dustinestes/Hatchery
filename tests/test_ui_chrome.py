@@ -30,6 +30,7 @@ def test_pane_titles_cover_sidebar_leaves():
         "dashboard",
         "nests",
         "clutches",
+        "vms",
         "automation_scripts",
         "media_iso",
         "media_virtio",

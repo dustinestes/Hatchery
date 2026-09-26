@@ -40,6 +40,7 @@ uv run hatchery settings set library_enabled true
 | `validators` | JSON object | Per-validator `{enabled, interval_seconds}` map |
 | `validators_run_retention` | integer | Max run history rows per validator (10–500) |
 | `show_passwords` | bool | `true`/`false`/`1`/`0`/`yes`/`no`/`on`/`off` |
+| `vms_show_external` | bool | Same tokens; show untagged hypervisor VMs in inventory |
 | `display_timezone` | string | `UTC` or `local` |
 | `nest_key_alert_tiers` | JSON list | Nest SSH expiry alert windows |
 | `nest_ssh_identities` | JSON list | Tracked Nest SSH identities (legacy/alert use) |

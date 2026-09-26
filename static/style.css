@@ -711,6 +711,18 @@ html.sidebar-collapsed-init .topbar-name {
   font-size: 12px;
 }
 
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary:disabled:hover,
+.btn-secondary[disabled]:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+}
+
 .btn-danger {
   background: #C62828;
   color: #fff;
@@ -3632,10 +3644,12 @@ html.sidebar-collapsed-init .topbar-name {
   color: var(--color-text-muted);
 }
 
-.scripts-panel {
+.scripts-panel,
+.inventory-panel {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Shared gap: filter row → split (and any siblings) across inventory panes */
   gap: 12px;
 }
 
@@ -3766,6 +3780,8 @@ html.sidebar-collapsed-init .topbar-name {
   min-height: 0;
 }
 
+/* Inventory filter bars sit in .scripts-panel / .inventory-panel (gap: 12px).
+   Zero their own margin so spacing is only from the panel gap - same on every pane. */
 .scripts-cached-filters,
 .inventory-cached-filters {
   margin-bottom: 0;
@@ -4053,6 +4069,97 @@ a.scripts-copy-btn {
   flex-direction: column;
   gap: 16px;
   overflow: auto;
+}
+
+.vm-detail-meta {
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vm-detail-meta-row {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.vm-detail-meta-row dt {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.vm-detail-meta-row dd {
+  margin: 0;
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.vm-detail-health {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.vm-detail-snaps h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vm-snap-take {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.vm-snap-take .form-input {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+}
+
+.vm-snap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vm-snap-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.vm-snap-label {
+  flex: 1 1 auto;
+  font-size: 13px;
+}
+
+.vms-external-cue-icon {
+  color: var(--color-text-muted, #64748b);
+  /* Allow hover so title / native tooltip works (base drift icons disable pointer events). */
+  pointer-events: auto;
+}
+
+.vm-card-header .vms-external-cue-icon {
+  margin-inline-start: 4px;
+}
+
+/* Lifecycle verbs sit after scripts-content-header's border (title/subtext),
+   not in scripts-content-actions — too many labeled buttons for the icon rail. */
+.vms-lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .scripts-meta-list {

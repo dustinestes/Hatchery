@@ -19,14 +19,14 @@ Nest-scoped VM inventory and lifecycle. Power, destroy, snap, and guest health r
 ## Usage
 
 ```bash
-uv run hatchery vm [--data-dir PATH] list [--nest <id>]
+uv run hatchery vm [--data-dir PATH] list [--nest <id>] [--all]
 uv run hatchery vm [--data-dir PATH] start|stop|force-stop|pause|resume|destroy [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] health [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] snap take [--nest <id>] <vm-name> --label <id>
 uv run hatchery vm [--data-dir PATH] snap list [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] snap apply [--nest <id>] <vm-name> <label>
 uv run hatchery vm [--data-dir PATH] snap delete [--nest <id>] <vm-name> <label>
-uv run hatchery --json vm list [--nest <id>]
+uv run hatchery --json vm list [--nest <id>] [--all]
 uv run hatchery --json vm health [--nest <id>] <vm-name>
 uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 ```
@@ -37,12 +37,15 @@ uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 |---|---|
 | `--nest` | Required unless exactly one Nest is registered (ADR-0014) |
 | `--data-dir` | Session-only Controller data dir (must already exist for these commands) |
+| `list` | Default: Hatchery-sourced VMs only (session-tagged). `--all` includes external hypervisor VMs. JSON includes `hatchery_sourced` |
 | `destroy` | Remove VM and storage (`destroy_vm`); CLI uses plain destroy, not Cull |
 | `pause` / `resume` | Hypervisor suspend / resume (`pause_vm` / `resume_vm`); local libvirt only today |
 | `snap *` | VM state snapshot (Hyper-V calls this a checkpoint) |
 | `health` | Guest IP + WinRM TCP reachability (exit 1 if unreachable) |
 
 Remote Nest VM ops are not available yet (clear error). Live inventory is not a Controller SQLite table.
+
+UI inventory and Settings → Display → **Show external VMs** mirror the same provenance split ([#445](https://github.com/dustinestes/Hatchery/issues/445)). Deep per-VM controls live on the **VMs** pane ([#418](https://github.com/dustinestes/Hatchery/issues/418)); the Nests pane stays Nest-centric light inventory.
 
 <br>
 

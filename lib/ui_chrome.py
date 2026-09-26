@@ -12,6 +12,7 @@ PANE_TITLES: dict[str, str] = {
     "dashboard": "Dashboard",
     "nests": "Nests",
     "clutches": "Clutches",
+    "vms": "VMs",
     "build": "New Clutch",
     "edit": "Edit Clutch",
     "hatch_clutch": "Hatch Clutch",

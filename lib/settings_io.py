@@ -157,6 +157,7 @@ def apply_document(raw: dict[str, Any]) -> dict[str, Any]:
     new_cfg["display_timezone"] = tz
     new_cfg["show_passwords"] = bool(new_cfg.get("show_passwords", False))
     new_cfg["library_enabled"] = bool(new_cfg.get("library_enabled", False))
+    new_cfg["vms_show_external"] = bool(new_cfg.get("vms_show_external", False))
     new_cfg["data_dir"] = data_dir
 
     config_lib.save(new_cfg)
@@ -203,6 +204,8 @@ def _normalize_setting(key: str, value: Any) -> Any:
         return bool(value)
     if key == "library_enabled":
         return bool(value)
+    if key == "vms_show_external":
+        return bool(value)
     if key == "display_timezone":
         text = str(value or "UTC").strip()
         if text not in ("UTC", "local"):
@@ -240,7 +243,7 @@ def assert_exportable_key(key: str) -> None:
 def parse_cli_value(key: str, raw: str) -> Any:
     """Parse a CLI string into a value for ``key`` (JSON for objects/lists)."""
     text = raw.strip()
-    if key in ("show_passwords", "library_enabled"):
+    if key in ("show_passwords", "library_enabled", "vms_show_external"):
         low = text.lower()
         if low in ("1", "true", "yes", "on"):
             return True
