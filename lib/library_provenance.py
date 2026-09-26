@@ -696,3 +696,71 @@ def enrich_inventory(
         cues.attach_to_inventory_item(enriched)
         out.append(enriched)
     return out
+
+
+_DOMAIN_LABELS = {
+    "scripts": "Scripts",
+    "clutches": "Clutches",
+    "media": "Media",
+}
+
+
+def attributed_inventory(
+    *,
+    connection_ids: set[str],
+    binding_ids: set[str] | None = None,
+    connections_by_id: dict[str, dict[str, Any]] | None = None,
+    bindings_by_id: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Cross-domain provenance rows with cues and connection/binding labels (#384).
+
+    Provenance-first: only linked Cached items (no local/unattributed files).
+    """
+    from lib import library_status_cues as cues
+
+    conn_map = connections_by_id or {}
+    bind_map = bindings_by_id or {}
+    annotated = annotate_orphan_states(
+        list_all(),
+        connection_ids=connection_ids,
+        binding_ids=binding_ids,
+    )
+    out: list[dict[str, Any]] = []
+    for row in annotated:
+        domain = (row.get("domain") or "").strip().lower()
+        name = row.get("cache_name") or ""
+        media_target = (row.get("media_target") or "").strip().lower()
+        cid = str(row.get("connection_id") or "")
+        bid = str(row.get("binding_id") or "").strip()
+        conn = conn_map.get(cid) or {}
+        bind = bind_map.get(bid) or {}
+        item: dict[str, Any] = {
+            "name": name,
+            "domain": domain,
+            "domain_label": _DOMAIN_LABELS.get(domain, domain.title() or "Library"),
+            "media_target": media_target or None,
+            "connection_id": cid,
+            "connection_label": (conn.get("label") or cid or "—"),
+            "connection_type": conn.get("type") or "",
+            "binding_id": bid,
+            "binding_label": (
+                (bind.get("label") or "").strip()
+                or (bind.get("filter") or "").strip()
+                or (bid or "—")
+            ),
+            "relative_path": row.get("relative_path") or name,
+            "cache_sha256": row.get("cache_sha256") or "",
+            "source_digest": row.get("source_digest") or "",
+            "source_digest_kind": row.get("source_digest_kind") or "",
+            "evaluated_at": row.get("evaluated_at") or "",
+            "drift_state": row.get("drift_state") or "unknown",
+            "source_status": row.get("source_status") or "unconfirmable",
+            "sync_state": row.get("sync_state") or "unevaluated",
+            "source_status_message": row.get("source_status_message") or "",
+            "orphan": bool(row.get("orphan")),
+            "orphan_reason": row.get("orphan_reason") or "",
+            "library_provenance": row,
+        }
+        cues.attach_to_inventory_item(item)
+        out.append(item)
+    return out

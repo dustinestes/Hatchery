@@ -126,9 +126,11 @@ class TestActivePane:
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         html = client.get("/settings/general").data.decode()
         assert 'href="/library/connections"' in html
+        assert 'href="/library/content"' in html
         assert 'href="/settings/library"' not in html
         assert ">Library</span>" in html or 'sidebar-label">Library' in html
         assert ">Connections</span>" in html or 'sidebar-label">Connections' in html
+        assert ">Content</span>" in html or 'sidebar-label">Content' in html
 
     def test_settings_nests_nav_always_present(self, client):
         html = client.get("/settings/general").data.decode()
@@ -813,11 +815,11 @@ class TestLibraryConnectionsPane:
         assert resp.status_code == 302
         assert "/library/connections" in resp.headers["Location"]
 
-    def test_library_root_redirects_to_connections(self, client, monkeypatch):
+    def test_library_root_redirects_to_content(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
         resp = client.get("/library")
         assert resp.status_code == 302
-        assert "/library/connections" in resp.headers["Location"]
+        assert "/library/content" in resp.headers["Location"]
 
     def test_library_required_shows_hint_on_general(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -862,6 +864,48 @@ class TestLibraryConnectionsPane:
         assert "library-connections-layout" in html
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
+
+
+class TestLibraryContentPane:
+    def test_library_content_redirects_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        resp = client.get("/library/content")
+        assert resp.status_code == 302
+        assert "/settings/general" in resp.headers["Location"]
+        assert "library_required=1" in resp.headers["Location"]
+
+    def test_library_content_returns_200_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        resp = client.get("/library/content")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "Linked content" in html or "No linked Cached items" in html
+        assert "library-content-layout" in html
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert 'href="/library/content"' in html
+        assert "library_status_cues.js" in html or "HatcheryLibraryStatus" in html
+
+    def test_library_content_api_json(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        resp = client.get("/api/library/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "items" in data
+        assert isinstance(data["items"], list)
+
+    def test_library_content_api_forbidden_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        resp = client.get("/api/library/content")
+        assert resp.status_code == 403
 
     def test_library_api_upsert_and_delete_connection(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"

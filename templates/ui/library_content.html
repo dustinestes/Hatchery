@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+
+{% block title %}Content - Library - Hatchery{% endblock %}
+
+{% block content %}
+<div class="domain-pane">
+<div class="pane-header">
+  <div class="pane-header-row">
+    <div class="pane-header-text">
+      <h1 class="pane-title">Content</h1>
+      <p class="pane-subtitle">Linked Cached items across Scripts, Clutches, and Media. Sync, re-attach, or Remove here.</p>
+    </div>
+  </div>
+</div>
+
+<div class="domain-pane-body">
+<div class="scripts-layout library-content-layout">
+  <aside class="library-content-nav-pane">
+    <div class="scripts-filter-bar library-content-filters" role="search" aria-label="Filter linked content">
+      <label class="visually-hidden" for="library-content-filter-q">Search</label>
+      <input type="search" id="library-content-filter-q" class="form-input scripts-filter-q"
+             placeholder="Search…" autocomplete="off">
+      <label class="visually-hidden" for="library-content-filter-domain">Domain</label>
+      <select id="library-content-filter-domain" class="form-select scripts-filter-select"
+              aria-label="Domain">
+        <option value="">All domains</option>
+        <option value="scripts">Scripts</option>
+        <option value="clutches">Clutches</option>
+        <option value="media">Media</option>
+      </select>
+      <label class="visually-hidden" for="library-content-filter-state">Library state</label>
+      <select id="library-content-filter-state" class="form-select scripts-filter-select"
+              aria-label="Library state">
+        <option value="">All Library states</option>
+        <option value="in_sync">Synced</option>
+        <option value="out_of_sync">Out of sync</option>
+        <option value="orphan">Orphaned</option>
+        <option value="missing">Source missing</option>
+        <option value="communication">Communication</option>
+        <option value="disabled">Connection disabled</option>
+        <option value="unconfirmable">Tip unconfirmable</option>
+      </select>
+    </div>
+    <span class="form-label" id="library-content-nav-label">Linked content</span>
+    <nav class="scripts-nav" id="library-content-nav" role="listbox"
+         aria-labelledby="library-content-nav-label"
+         {% if not content_items %}hidden{% endif %}>
+      {% for item in content_items %}
+      <button type="button" class="scripts-nav-item library-content-nav-item"
+              role="option"
+              data-name="{{ item.name }}"
+              data-domain="{{ item.domain }}"
+              data-media-target="{{ item.media_target or '' }}"
+              data-source-status="{{ item.source_status or '' }}"
+              data-sync-state="{{ item.sync_state or '' }}"
+              data-source-status-message="{{ item.source_status_message or '' }}"
+              data-orphan="{{ '1' if item.orphan else '0' }}"
+              data-orphan-reason="{{ item.orphan_reason or '' }}"
+              data-lib-rel="{{ item.relative_path or item.name }}"
+              data-lib-conn="{{ item.connection_id or '' }}"
+              data-lib-bind="{{ item.binding_id or '' }}"
+              data-conn-label="{{ item.connection_label or '' }}"
+              data-bind-label="{{ item.binding_label or '' }}"
+              data-conn-type="{{ item.connection_type or '' }}"
+              data-library-cue="{{ item.library_cue or '' }}"
+              data-library-can-sync="{{ '1' if item.library_can_sync else '0' }}"
+              data-library-can-reattach="{{ '1' if item.library_can_reattach else '0' }}"
+              data-library-header-label="{{ item.library_header_label or '' }}"
+              data-library-header-aria="{{ item.library_header_aria or '' }}"
+              data-library-filter-keys="{{ (item.library_filter_keys or []) | join(',') }}"
+              aria-pressed="false">
+        <span class="scripts-nav-main">
+          <span class="scripts-nav-label">{{ item.name }}</span>
+          <span class="scripts-nav-sub">{{ item.domain_label }}{% if item.media_target %} · {{ item.media_target }}{% endif %}{% if item.library_cue_short %} · {{ item.library_cue_short }}{% endif %}</span>
+        </span>
+        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--warn"
+              data-library-cue-icon="warn"
+              {% if not item.library_show_rail_icon or item.library_cue == 'synced' %}hidden{% endif %}
+              title="{{ item.source_status_message or item.library_cue_short or 'Library status' }}"
+              aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--ok"
+              data-library-cue-icon="ok"
+              {% if item.library_cue != 'synced' %}hidden{% endif %}
+              title="Synced with Library"
+              aria-label="Synced with Library"
+              role="img">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </span>
+      </button>
+      {% endfor %}
+    </nav>
+    <p class="empty-state" id="library-content-nav-empty"
+       {% if content_items %}hidden{% endif %}>
+      No linked Cached items yet. Pull from a Library catalog on a domain pane, or import with attribution.
+    </p>
+    <p class="empty-state" id="library-content-nav-filtered-empty" role="status" hidden>
+      No linked items match these filters.
+    </p>
+  </aside>
+
+  <div class="scripts-detail library-content-detail" id="library-content-detail">
+    <div class="empty-state" id="library-content-detail-empty" role="status">
+      Select a linked item on the left to inspect connection, binding, and sync state.
+    </div>
+    <div id="library-content-panel" hidden>
+      <div class="scripts-content-header library-content-panel-header">
+        <div class="scripts-content-heading">
+          <span class="scripts-content-title" id="library-content-title"></span>
+          <span class="scripts-content-meta" id="library-content-meta"></span>
+        </div>
+        <div class="scripts-content-actions">
+          <button type="button"
+                  class="scripts-copy-btn scripts-library-status-btn"
+                  id="library-content-status-btn"
+                  disabled
+                  aria-disabled="true"
+                  title=""
+                  aria-label="">
+            <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 16h5v5"/>
+            </svg>
+            <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <svg class="scripts-library-icon scripts-library-icon--ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            <span class="scripts-library-status-label" id="library-content-status-label" hidden></span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" id="library-content-remove-btn"
+                  aria-label="Remove linked cache file">Remove</button>
+        </div>
+      </div>
+
+      <section class="form-section" aria-label="Attribution">
+        <h2 class="form-section-title">Attribution</h2>
+        <dl class="library-content-dl">
+          <div class="library-content-dl-row">
+            <dt>Domain</dt>
+            <dd id="library-content-domain">—</dd>
+          </div>
+          <div class="library-content-dl-row">
+            <dt>Connection</dt>
+            <dd id="library-content-connection">—</dd>
+          </div>
+          <div class="library-content-dl-row">
+            <dt>Binding</dt>
+            <dd id="library-content-binding">—</dd>
+          </div>
+          <div class="library-content-dl-row">
+            <dt>Relative path</dt>
+            <dd><code id="library-content-relpath">—</code></dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="form-section" aria-label="Library status">
+        <h2 class="form-section-title">Library status</h2>
+        <dl class="library-content-dl">
+          <div class="library-content-dl-row">
+            <dt>Source status</dt>
+            <dd id="library-content-source-status">—</dd>
+          </div>
+          <div class="library-content-dl-row">
+            <dt>Sync state</dt>
+            <dd id="library-content-sync-state">—</dd>
+          </div>
+          <div class="library-content-dl-row" id="library-content-message-row" hidden>
+            <dt>Message</dt>
+            <dd id="library-content-message"></dd>
+          </div>
+        </dl>
+        <p class="form-help-text">
+          Open <a href="{{ url_for('library_connections_pane') }}">Connections</a> to edit endpoints and bindings.
+        </p>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+{% include "_library_reattach_modal.html" %}
+
+<div id="library-content-remove-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-content-remove-title">
+    <h2 class="modal-title" id="library-content-remove-title">Remove linked content</h2>
+    <div class="modal-body">
+      <p>Remove <strong id="library-content-remove-name"></strong> from the operator cache and clear its Library provenance? This does not change the upstream source.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-content-remove-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-content-remove-confirm">Remove</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const libStatus = window.HatcheryLibraryStatus;
+  const nav = document.getElementById('library-content-nav');
+  const navEmpty = document.getElementById('library-content-nav-empty');
+  const navFilteredEmpty = document.getElementById('library-content-nav-filtered-empty');
+  const detailEmpty = document.getElementById('library-content-detail-empty');
+  const panel = document.getElementById('library-content-panel');
+  const titleEl = document.getElementById('library-content-title');
+  const metaEl = document.getElementById('library-content-meta');
+  const statusBtn = document.getElementById('library-content-status-btn');
+  const statusLabel = document.getElementById('library-content-status-label');
+  const syncIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--sync') : null;
+  const warnIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--warn') : null;
+  const okIcon = statusBtn ? statusBtn.querySelector('.scripts-library-icon--ok') : null;
+  const filterQ = document.getElementById('library-content-filter-q');
+  const filterDomain = document.getElementById('library-content-filter-domain');
+  const filterState = document.getElementById('library-content-filter-state');
+  const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
+  const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
+  const removeUrl = {{ library_content_remove_url | default('') | tojson }};
+  const libraryConnections = {{ library_connections | default([]) | tojson }};
+  const bindingsByDomain = {
+    scripts: {{ library_script_bindings | default([]) | tojson }},
+    clutches: {{ library_clutch_bindings | default([]) | tojson }},
+    media: {{ library_media_bindings | default([]) | tojson }},
+  };
+  const initialDomain = {{ initial_domain | default('') | tojson }};
+  const initialName = {{ initial_name | default('') | tojson }};
+  const initialMediaTarget = {{ initial_media_target | default('') | tojson }};
+
+  let selectedBtn = null;
+  let libraryMode = 'hidden';
+
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function domainNoun(domain) {
+    if (domain === 'scripts') return 'Scripts';
+    if (domain === 'clutches') return 'Clutches';
+    if (domain === 'media') return 'Media';
+    return 'Library';
+  }
+
+  function applyFilters() {
+    if (!nav) return;
+    const q = (filterQ && filterQ.value || '').trim().toLowerCase();
+    const domain = (filterDomain && filterDomain.value || '').trim().toLowerCase();
+    const state = (filterState && filterState.value || '').trim();
+    let visible = 0;
+    nav.querySelectorAll('.library-content-nav-item').forEach(function (btn) {
+      const name = (btn.getAttribute('data-name') || '').toLowerCase();
+      const d = (btn.getAttribute('data-domain') || '').toLowerCase();
+      const sub = (btn.querySelector('.scripts-nav-sub') || {}).textContent || '';
+      let ok = true;
+      if (q && name.indexOf(q) < 0 && sub.toLowerCase().indexOf(q) < 0) ok = false;
+      if (ok && domain && d !== domain) ok = false;
+      if (ok && state && libStatus) {
+        var cue = libStatus.resolveFromButton(btn);
+        var keys = (cue && cue.filter_keys) || [];
+        if (keys.indexOf(state) < 0) ok = false;
+      }
+      btn.hidden = !ok;
+      if (ok) visible += 1;
+    });
+    const hasItems = nav.querySelectorAll('.library-content-nav-item').length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (nav) nav.hidden = !hasItems;
+    if (navFilteredEmpty) {
+      navFilteredEmpty.hidden = !(hasItems && visible === 0);
+    }
+  }
+
+  function setStatusFromBtn(btn) {
+    if (!statusBtn || !libStatus) return;
+    const cue = libStatus.resolveFromButton(btn);
+    statusBtn.classList.remove(
+      'scripts-library-status-btn--warn',
+      'scripts-library-status-btn--action',
+      'scripts-library-status-btn--ok'
+    );
+    libraryMode = 'hidden';
+    if (syncIcon) syncIcon.hidden = true;
+    if (warnIcon) warnIcon.hidden = true;
+    if (okIcon) okIcon.hidden = true;
+    if (statusLabel) {
+      statusLabel.hidden = true;
+      statusLabel.textContent = '';
+    }
+    statusBtn.hidden = false;
+    statusBtn.disabled = true;
+    statusBtn.setAttribute('aria-disabled', 'true');
+    statusBtn.title = cue.headerAria || cue.headerLabel || 'Library status';
+    statusBtn.setAttribute('aria-label', cue.headerAria || cue.headerLabel || 'Library status');
+
+    if (cue.canSync) {
+      libraryMode = 'sync';
+      statusBtn.disabled = false;
+      statusBtn.setAttribute('aria-disabled', 'false');
+      statusBtn.classList.add('scripts-library-status-btn--action');
+      if (syncIcon) syncIcon.hidden = false;
+      if (statusLabel) {
+        statusLabel.hidden = false;
+        statusLabel.textContent = cue.headerLabel || 'Out of sync';
+      }
+    } else if (cue.canReattach) {
+      libraryMode = 'orphan';
+      statusBtn.disabled = false;
+      statusBtn.setAttribute('aria-disabled', 'false');
+      statusBtn.classList.add('scripts-library-status-btn--warn');
+      if (warnIcon) warnIcon.hidden = false;
+      if (statusLabel) {
+        statusLabel.hidden = false;
+        statusLabel.textContent = cue.headerLabel || 'Re-attach';
+      }
+    } else if (cue.cue === 'synced') {
+      statusBtn.classList.add('scripts-library-status-btn--ok');
+      if (okIcon) okIcon.hidden = false;
+      if (statusLabel) {
+        statusLabel.hidden = false;
+        statusLabel.textContent = 'Synced';
+      }
+    } else if (cue.short || cue.message) {
+      statusBtn.classList.add('scripts-library-status-btn--warn');
+      if (warnIcon) warnIcon.hidden = false;
+      if (statusLabel) {
+        statusLabel.hidden = false;
+        statusLabel.textContent = cue.headerLabel || cue.short || 'Library status';
+      }
+    }
+  }
+
+  function selectItem(btn) {
+    if (!btn) return;
+    nav.querySelectorAll('.library-content-nav-item').forEach(function (b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    selectedBtn = btn;
+
+    const name = btn.getAttribute('data-name') || '';
+    const domain = btn.getAttribute('data-domain') || '';
+    const target = btn.getAttribute('data-media-target') || '';
+    const connLabel = btn.getAttribute('data-conn-label') || '—';
+    const bindLabel = btn.getAttribute('data-bind-label') || '—';
+    const connType = btn.getAttribute('data-conn-type') || '';
+    const rel = btn.getAttribute('data-lib-rel') || name;
+    const source = btn.getAttribute('data-source-status') || '—';
+    const sync = btn.getAttribute('data-sync-state') || '—';
+    const message = btn.getAttribute('data-source-status-message')
+      || btn.getAttribute('data-orphan-reason') || '';
+
+    if (detailEmpty) detailEmpty.hidden = true;
+    if (panel) panel.hidden = false;
+    if (titleEl) titleEl.textContent = name;
+    if (metaEl) {
+      metaEl.textContent = domainNoun(domain)
+        + (target ? ' · ' + target : '')
+        + (connType ? ' · ' + connType : '');
+    }
+    document.getElementById('library-content-domain').textContent =
+      domainNoun(domain) + (target ? ' (' + target + ')' : '');
+    document.getElementById('library-content-connection').textContent = connLabel;
+    document.getElementById('library-content-binding').textContent = bindLabel;
+    document.getElementById('library-content-relpath').textContent = rel;
+    document.getElementById('library-content-source-status').textContent = source;
+    document.getElementById('library-content-sync-state').textContent = sync;
+    const msgRow = document.getElementById('library-content-message-row');
+    const msgEl = document.getElementById('library-content-message');
+    if (message) {
+      msgRow.hidden = false;
+      msgEl.textContent = message;
+    } else {
+      msgRow.hidden = true;
+      msgEl.textContent = '';
+    }
+    setStatusFromBtn(btn);
+  }
+
+  if (nav) {
+    nav.addEventListener('click', function (e) {
+      const btn = e.target.closest('.library-content-nav-item');
+      if (btn) selectItem(btn);
+    });
+  }
+  [filterQ, filterDomain, filterState].forEach(function (el) {
+    if (el) el.addEventListener('input', applyFilters);
+    if (el) el.addEventListener('change', applyFilters);
+  });
+  applyFilters();
+
+  var libraryReattach = null;
+  if (cacheReattachUrl && typeof hatchery.bindLibraryReattach === 'function') {
+    libraryReattach = hatchery.bindLibraryReattach({
+      reattachUrl: cacheReattachUrl,
+      connections: libraryConnections || [],
+      bindings: [],
+      domain: 'scripts',
+      bindingNoun: 'Library',
+      getDomain: function () {
+        return selectedBtn ? (selectedBtn.getAttribute('data-domain') || 'scripts') : 'scripts';
+      },
+      getMediaTarget: function () {
+        if (!selectedBtn) return null;
+        var t = (selectedBtn.getAttribute('data-media-target') || '').trim();
+        return t || null;
+      },
+      getBindings: function () {
+        var d = selectedBtn ? (selectedBtn.getAttribute('data-domain') || '') : '';
+        var list = bindingsByDomain[d] || [];
+        if (d === 'media' && selectedBtn) {
+          var mt = (selectedBtn.getAttribute('data-media-target') || '').trim();
+          if (mt) {
+            return list.filter(function (b) {
+              return String(b.target || '') === mt;
+            });
+          }
+        }
+        return list;
+      },
+      getBindingNoun: function () {
+        return domainNoun(selectedBtn ? selectedBtn.getAttribute('data-domain') : '');
+      },
+      getActiveItem: function () {
+        if (!selectedBtn) return null;
+        var name = selectedBtn.getAttribute('data-name');
+        if (!name) return null;
+        return {
+          name: name,
+          relativePath: selectedBtn.getAttribute('data-lib-rel') || name,
+        };
+      },
+    });
+  }
+
+  if (statusBtn) {
+    statusBtn.addEventListener('click', function () {
+      if (libraryMode === 'orphan') {
+        if (libraryReattach) libraryReattach.open();
+        return;
+      }
+      if (libraryMode !== 'sync' || statusBtn.disabled || !selectedBtn || !cacheSyncUrl) return;
+      var name = selectedBtn.getAttribute('data-name');
+      var domain = selectedBtn.getAttribute('data-domain');
+      var mediaTarget = selectedBtn.getAttribute('data-media-target') || '';
+      statusBtn.disabled = true;
+      var body = { domain: domain, name: name };
+      if (domain === 'media' && mediaTarget) body.media_target = mediaTarget;
+      fetch(cacheSyncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Sync failed', 'warning', 5000);
+            }
+            return;
+          }
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Synced ' + name, 'info', 2200);
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Sync failed: network or server error.', 'alert', 5000);
+          }
+        })
+        .finally(function () {
+          statusBtn.disabled = false;
+        });
+    });
+  }
+
+  const removeBtn = document.getElementById('library-content-remove-btn');
+  const removeBackdrop = document.getElementById('library-content-remove-backdrop');
+  const removeNameEl = document.getElementById('library-content-remove-name');
+  const removeCancel = document.getElementById('library-content-remove-cancel');
+  const removeConfirm = document.getElementById('library-content-remove-confirm');
+
+  function openRemove() {
+    if (!selectedBtn || !removeBackdrop) return;
+    if (removeNameEl) removeNameEl.textContent = selectedBtn.getAttribute('data-name') || '';
+    removeBackdrop.hidden = false;
+    if (removeConfirm) removeConfirm.focus();
+  }
+  function closeRemove() {
+    if (removeBackdrop) removeBackdrop.hidden = true;
+  }
+  if (removeBtn) removeBtn.addEventListener('click', openRemove);
+  if (removeCancel) removeCancel.addEventListener('click', closeRemove);
+  if (removeBackdrop) {
+    removeBackdrop.addEventListener('click', function (e) {
+      if (e.target === removeBackdrop) closeRemove();
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && removeBackdrop && !removeBackdrop.hidden) closeRemove();
+  });
+  if (removeConfirm) {
+    removeConfirm.addEventListener('click', function () {
+      if (!selectedBtn || !removeUrl) return;
+      var name = selectedBtn.getAttribute('data-name');
+      var domain = selectedBtn.getAttribute('data-domain');
+      var mediaTarget = selectedBtn.getAttribute('data-media-target') || '';
+      removeConfirm.disabled = true;
+      var body = { domain: domain, name: name };
+      if (domain === 'media' && mediaTarget) body.media_target = mediaTarget;
+      fetch(removeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Remove failed', 'warning', 5000);
+            }
+            return;
+          }
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Removed ' + name, 'info', 2200);
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Remove failed: network or server error.', 'alert', 5000);
+          }
+        })
+        .finally(function () {
+          removeConfirm.disabled = false;
+          closeRemove();
+        });
+    });
+  }
+
+  // Deep-link: ?domain=&name=&media_target=
+  if (initialName && nav) {
+    if (initialDomain && filterDomain) {
+      filterDomain.value = initialDomain;
+      applyFilters();
+    }
+    var match = null;
+    nav.querySelectorAll('.library-content-nav-item').forEach(function (btn) {
+      if (btn.hidden) return;
+      if ((btn.getAttribute('data-name') || '') !== initialName) return;
+      if (initialDomain && (btn.getAttribute('data-domain') || '') !== initialDomain) return;
+      if (initialMediaTarget
+          && (btn.getAttribute('data-media-target') || '') !== initialMediaTarget) return;
+      match = btn;
+    });
+    if (match) selectItem(match);
+  }
+})();
+</script>
+{% endblock %}
