@@ -1,4 +1,4 @@
-"""``hatchery library`` - enable flag + connection/binding CRUD (operator)."""
+"""``hatchery library`` - enable, connections/bindings, content list/test/pull."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from lib.cli import output as cli_out
 def register(sub: argparse._SubParsersAction) -> None:
     library = sub.add_parser(
         "library",
-        help="Library enable/disable and connection/binding CRUD",
+        help="Library enable, connections/bindings, and content list/pull",
     )
     bootstrap.add_data_dir_argument(library)
     lib_sub = library.add_subparsers(dest="library_command", required=True)
@@ -67,6 +67,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     add_c.add_argument("--token", default="", metavar="TOKEN")
     rem_c = conn_sub.add_parser("remove", help="Delete a connection (cascades bindings)")
     rem_c.add_argument("connection_id", metavar="ID")
+    test_c = conn_sub.add_parser("test", help="Test Library connection reachability")
+    test_c.add_argument("connection_id", metavar="ID")
 
     bind = lib_sub.add_parser("binding", help="Library bindings")
     bind_sub = bind.add_subparsers(dest="binding_command", required=True)
@@ -116,6 +118,94 @@ def register(sub: argparse._SubParsersAction) -> None:
     rem_b = bind_sub.add_parser("remove", help="Delete a binding")
     rem_b.add_argument("binding_id", metavar="ID")
 
+    content = lib_sub.add_parser("content", help="Library Content catalog and pull")
+    content_sub = content.add_subparsers(dest="content_command", required=True)
+    list_ct = content_sub.add_parser(
+        "list",
+        help="List Available Content from bindings (consume catalog)",
+    )
+    list_ct.add_argument(
+        "--domain",
+        required=True,
+        choices=("scripts", "clutches", "media"),
+        metavar="DOMAIN",
+        help="Content domain: scripts | clutches | media",
+    )
+    list_ct.add_argument(
+        "--connection",
+        default=None,
+        dest="connection_id",
+        metavar="ID",
+        help="Limit to one connection id",
+    )
+    list_ct.add_argument(
+        "--target",
+        choices=("iso", "virtio"),
+        default=None,
+        metavar="TARGET",
+        help="Media only: filter catalog by iso | virtio",
+    )
+    pull_ct = content_sub.add_parser(
+        "pull",
+        help="Pull one file into the operator cache (create-only; ADR-0011)",
+    )
+    pull_ct.add_argument(
+        "--domain",
+        required=True,
+        choices=("scripts", "clutches", "media"),
+        metavar="DOMAIN",
+    )
+    pull_ct.add_argument(
+        "--connection",
+        required=True,
+        dest="connection_id",
+        metavar="ID",
+    )
+    pull_ct.add_argument(
+        "--path",
+        required=True,
+        dest="relative_path",
+        metavar="REL",
+        help="Relative path within the connection (from content list)",
+    )
+    pull_ct.add_argument(
+        "--binding-id",
+        default=None,
+        dest="binding_id",
+        metavar="ID",
+        help="Optional binding id for provenance attribution",
+    )
+    pull_ct.add_argument(
+        "--target",
+        choices=("iso", "virtio"),
+        default=None,
+        metavar="TARGET",
+        help="Required when --domain media: iso | virtio",
+    )
+    rem_ct = content_sub.add_parser(
+        "remove",
+        help="Remove one Library-linked cache file and its provenance (UI trash)",
+    )
+    rem_ct.add_argument(
+        "--domain",
+        required=True,
+        choices=("scripts", "clutches", "media"),
+        metavar="DOMAIN",
+    )
+    rem_ct.add_argument(
+        "--name",
+        required=True,
+        metavar="NAME",
+        help="Cached basename (operator cache filename, not forge relative_path)",
+    )
+    rem_ct.add_argument(
+        "--target",
+        choices=("iso", "virtio"),
+        default=None,
+        metavar="TARGET",
+        help="Required when --domain media: iso | virtio",
+    )
+
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``library`` subcommands."""
@@ -124,6 +214,8 @@ def run(args: argparse.Namespace) -> int:
         cmd in ("connection", "binding")
         and getattr(args, f"{cmd}_command", None) in ("add", "remove")
     )
+    if cmd == "content" and getattr(args, "content_command", None) in ("pull", "remove"):
+        mutate = True
     try:
         bootstrap.bootstrap(args, create=mutate)
     except bootstrap.DataDirMissingError as exc:
@@ -138,6 +230,8 @@ def run(args: argparse.Namespace) -> int:
         return _connection(args, as_json=as_json)
     if cmd == "binding":
         return _binding(args, as_json=as_json)
+    if cmd == "content":
+        return _content(args, as_json=as_json)
     bootstrap.print_err(f"unknown library command: {cmd}")
     return 2
 
@@ -194,6 +288,7 @@ def _public_binding(row: dict) -> dict[str, Any]:
 
 def _connection(args: argparse.Namespace, *, as_json: bool) -> int:
     from lib import library as library_lib
+    from lib import library_health
     from lib import library_registry as registry
 
     sub = args.connection_command
@@ -260,6 +355,27 @@ def _connection(args: argparse.Namespace, *, as_json: bool) -> int:
             return 0
         print(f"Removed connection '{args.connection_id}'.")
         return 0
+
+    if sub == "test":
+        if not _require_library_enabled():
+            return 1
+        row = registry.get_connection(args.connection_id)
+        if row is None:
+            bootstrap.print_err(f"Connection not found: {args.connection_id}")
+            return 1
+        result = library_lib.test_connection(row)
+        library_health.apply_manual_test_result(row, result, registered=True)
+        payload = {
+            "connection_id": row["id"],
+            "ok": bool(result.get("ok")),
+            "message": str(result.get("message") or ""),
+        }
+        if as_json:
+            cli_out.emit_json(payload)
+            return 0 if payload["ok"] else 1
+        status = "ok" if payload["ok"] else "failed"
+        print(f"Connection '{row['id']}': {status} - {payload['message']}")
+        return 0 if payload["ok"] else 1
 
     bootstrap.print_err(f"unknown connection command: {sub}")
     return 2
@@ -340,4 +456,180 @@ def _binding(args: argparse.Namespace, *, as_json: bool) -> int:
         return 0
 
     bootstrap.print_err(f"unknown binding command: {sub}")
+    return 2
+
+
+def _cached_basenames(domain: str, *, target: str | None = None) -> set[str]:
+    """Basenames already in the operator cache for annotate_cached."""
+    from lib import config as cfg
+
+    root = cfg.data_dir()
+    if domain == "scripts":
+        directory = root / "automation" / "scripts"
+        if not directory.is_dir():
+            return set()
+        return {p.name for p in directory.iterdir() if p.is_file()}
+    if domain == "clutches":
+        directory = root / "clutches"
+        if not directory.is_dir():
+            return set()
+        return {p.name for p in directory.iterdir() if p.is_file() and p.suffix == ".yaml"}
+    if domain == "media":
+        names: set[str] = set()
+        targets = [target] if target in ("iso", "virtio") else ["iso", "virtio"]
+        for t in targets:
+            directory = root / "media" / t
+            if not directory.is_dir():
+                continue
+            names.update(p.name for p in directory.iterdir() if p.is_file())
+        return names
+    return set()
+
+
+def _catalog_items(
+    domain: str,
+    *,
+    connection_id: str | None = None,
+    target: str | None = None,
+) -> list[dict]:
+    from lib import library as library_lib
+    from lib import library_registry as registry
+
+    raw_connections = registry.list_connections()
+    raw_bindings = registry.list_bindings(domain=domain)
+    if connection_id:
+        raw_bindings = [b for b in raw_bindings if b.get("connection_id") == connection_id]
+    connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+    parsers = {
+        "scripts": library_lib.parse_script_bindings,
+        "clutches": library_lib.parse_clutch_bindings,
+        "media": library_lib.parse_media_bindings,
+    }
+    bindings = parsers[domain](raw_bindings, connections)
+    if domain == "scripts":
+        items = library_lib.catalog_scripts(connections, bindings)
+    elif domain == "clutches":
+        items = library_lib.catalog_clutches(connections, bindings)
+    else:
+        items = library_lib.catalog_media(connections, bindings, target=target)
+    return library_lib.annotate_cached(items, _cached_basenames(domain, target=target))
+
+
+def _content(args: argparse.Namespace, *, as_json: bool) -> int:
+    from lib import library as library_lib
+    from lib import library_registry as registry
+
+    if not _require_library_enabled():
+        return 1
+
+    sub = args.content_command
+    if sub == "list":
+        try:
+            items = _catalog_items(
+                args.domain,
+                connection_id=args.connection_id,
+                target=args.target,
+            )
+        except ValueError as exc:
+            bootstrap.print_err(str(exc))
+            return 1
+        if as_json:
+            cli_out.emit_json({"domain": args.domain, "items": items})
+            return 0
+        if not items:
+            print(f"No Available Content for domain '{args.domain}'.")
+            return 0
+        print(f"{'NAME':<28} {'CACHED':<8} {'CONNECTION':<20} PATH")
+        for item in items:
+            cached = "yes" if item.get("cached") else "no"
+            print(
+                f"{item.get('name', ''):<28} {cached:<8} "
+                f"{item.get('connection_id', ''):<20} {item.get('relative_path', '')}"
+            )
+        return 0
+
+    if sub == "pull":
+        if args.domain == "media" and args.target not in ("iso", "virtio"):
+            bootstrap.print_err("content pull --domain media requires --target iso|virtio")
+            return 1
+        row = registry.get_connection(args.connection_id)
+        if row is None:
+            bootstrap.print_err(f"Connection not found: {args.connection_id}")
+            return 1
+        try:
+            if args.domain == "scripts":
+                result = library_lib.pull_script(
+                    row,
+                    args.relative_path,
+                    binding_id=args.binding_id,
+                )
+            elif args.domain == "clutches":
+                result = library_lib.pull_clutch(
+                    row,
+                    args.relative_path,
+                    binding_id=args.binding_id,
+                )
+            else:
+                result = library_lib.pull_media(
+                    row,
+                    args.relative_path,
+                    target=args.target,
+                    binding_id=args.binding_id,
+                )
+        except FileExistsError as exc:
+            bootstrap.print_err(str(exc))
+            return 1
+        except FileNotFoundError as exc:
+            bootstrap.print_err(str(exc))
+            return 1
+        except ValueError as exc:
+            bootstrap.print_err(str(exc))
+            return 1
+        except OSError as exc:
+            bootstrap.print_err(str(exc))
+            return 1
+        payload = {
+            "domain": args.domain,
+            "imported": [result["name"]],
+            "sha256": result.get("sha256"),
+            "dest": str(result.get("dest") or ""),
+        }
+        if as_json:
+            cli_out.emit_json(payload)
+            return 0
+        print(f"Pulled '{result['name']}' -> {result.get('dest')}")
+        return 0
+
+    if sub == "remove":
+        from lib import config as cfg
+        from lib import library_provenance as prov
+
+        if args.domain == "media" and args.target not in ("iso", "virtio"):
+            bootstrap.print_err("content remove --domain media requires --target iso|virtio")
+            return 1
+        name = str(args.name or "").strip()
+        if not name:
+            bootstrap.print_err("name is required")
+            return 1
+        row = prov.get_for_cache(args.domain, name, media_target=args.target)
+        if row is None:
+            bootstrap.print_err(f"No Library provenance for cached file: {name}")
+            return 1
+        deleted = prov.delete_attributed_cache_files([row], data_dir=cfg.data_dir())
+        payload = {
+            "ok": True,
+            "domain": args.domain,
+            "name": name,
+            "deleted": deleted,
+        }
+        if as_json:
+            cli_out.emit_json(payload)
+            return 0
+        if deleted:
+            print(f"Removed '{name}' from operator cache and cleared Library provenance.")
+        else:
+            print(f"Cleared Library provenance for '{name}' (cache file was already missing).")
+        return 0
+
+    bootstrap.print_err(f"unknown content command: {sub}")
     return 2
