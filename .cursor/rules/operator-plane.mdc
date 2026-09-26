@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Embeddable operator plane
 
-Hatchery’s Controller is an **embeddable operator plane**: CI/CD, developer tools, and automation should incorporate it, not only sit beside a UI. Locked: [ADR-0021](../../docs/adr/0021-controller-embeddable-operator-plane.md). Planes: [architecture-nests.md](../../docs/architecture-nests.md). CLI: [ADR-0013](../../docs/adr/0013-hatchery-cli-launch-and-operator.md).
+Hatchery’s Controller is an **embeddable operator plane**: CI/CD, developer tools, and automation should incorporate it, not only sit beside a UI. Locked: [ADR-0021](../../docs/adr/0021-controller-embeddable-operator-plane.md), [ADR-0022](../../docs/adr/0022-dual-surface-operator-discipline.md) (UI + CLI dual-surface). Planes: [architecture-nests.md](../../docs/architecture-nests.md). CLI: [ADR-0013](../../docs/adr/0013-hatchery-cli-launch-and-operator.md).
 
 This is general product direction (external operators and tooling), not a single employer’s harness.
 
@@ -25,9 +25,18 @@ UI, CLI, and any future HTTP operator API **share** orchestration. Do not invent
 
 | Surface | Use |
 |---|---|
-| **Operator CLI** (`hatchery nest\|clutch\|vm\|hatch…`) | Primary embeddable surface today; Nest-scoped; in-process (no required HTTP server) |
+| **Operator CLI** (`hatchery nest\|clutch\|vm\|hatch\|settings\|library…`) | Primary embeddable surface today; Nest-scoped where applicable; in-process (no required HTTP server) |
 | **UI / Flask `/api/...`** | Human Controller shell; **not** the frozen public contract |
 | **HTTP operator API** | Future optional remote client surface; same lib as CLI when cut |
+
+## Settings vs product CLIs
+
+| Kind of state | CLI |
+|---|---|
+| Exportable `app_settings` flags / maps | `hatchery settings get\|set` ([#344](https://github.com/dustinestes/Hatchery/issues/344)) |
+| First-class tables (Library connections/bindings, Nest registry, …) | Product nouns (`hatchery library …`, `hatchery nest …`) ([#434](https://github.com/dustinestes/Hatchery/issues/434)) |
+
+Product **enable** flags owned by Settings may expose convenience verbs on the product command (`library enable\|disable`) that call the **same** Settings write helper - not a second SoR ([ADR-0022](../../docs/adr/0022-dual-surface-operator-discipline.md)).
 
 ## Always ask
 
@@ -37,12 +46,16 @@ UI, CLI, and any future HTTP operator API **share** orchestration. Do not invent
 ✅ Are product nouns stable (Controller, Nest, Clutch, Hatch, Cull, Snapshot, Revert)?
 ✅ Is Nest transport separate from guest provision?
 ✅ Will docs/CLI help stay enough to infer usage (no “read the Flask handler”)?
+✅ Is new operator state a Settings key or a first-class product graph - and does the CLI match?
+✅ If UI grows operator mutate power, is CLI in this PR or an explicit follow-on issue?
 
 ❌ Hard-wire libvirt / virsh / ad-hoc SSH in UI routes or CI helpers
 ❌ Treat today’s UI JSON routes as a versioned external API
 ❌ Employer-specific protocol as the core product surface
 ❌ HTTP-only operator that breaks local in-process CLI (ADR-0013)
 ❌ Second control path that bypasses Nest registry / transport
+❌ UI-only operator features with no CLI plan (ADR-0022)
+❌ Stuffing Library connections / Nest rows into `settings set`
 ```
 
 ## When adding CLI, API, or Nest remoting
@@ -52,6 +65,7 @@ UI, CLI, and any future HTTP operator API **share** orchestration. Do not invent
 ✅ Prefer machine-friendly inspect/mutate output over time (stable exit codes; JSON when it helps automation)
 ✅ Document in docs/cli or architecture; ADR when locking a new contract
 ✅ Nest remoting (#209 / #215 / #345) hardens transport and jobs - same plane for UI and CLI
+✅ New Settings flags: expose via settings CLI; optional product enable convenience verbs sharing that write path
 
 ❌ One-off “SSH to Nest and run this” helpers for a single consumer
 ❌ Grow Flask UI routes as the de-facto automation API without a dedicated operator contract
