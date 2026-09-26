@@ -2688,7 +2688,9 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                with patch(
+                    "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
+                ):
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
@@ -2710,11 +2712,15 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                with patch(
+                    "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
+                ):
                     with patch(
                         "lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=setup_log
                     ) as mock_read:
-                        with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log") as mock_del_log:
+                        with patch(
+                            "lib.hatch_lifecycle.provision_lib.delete_setup_log"
+                        ) as mock_del_log:
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         mock_read.assert_called_once_with("192.168.122.40", "", "")
@@ -2735,7 +2741,9 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                with patch(
+                    "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
+                ):
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
@@ -2752,7 +2760,9 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=False):
+                with patch(
+                    "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=False
+                ):
                     app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -2765,10 +2775,14 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                with patch("lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True):
+                with patch(
+                    "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
+                ):
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
-                            with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag") as mock_del:
+                            with patch(
+                                "lib.hatch_lifecycle.provision_lib.delete_setup_flag"
+                            ) as mock_del:
                                 app_module._sync_hatch_status()
         mock_del.assert_called_once_with("192.168.122.40", "", "")
 
@@ -2784,7 +2798,10 @@ class TestSyncHatchStatus:
     def test_does_not_check_winrm_when_shut_off(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         self._setup_hatching(tmp_path)
-        with patch("hatchery._provider") as mock_prov, patch("lib.hatch_lifecycle.check_winrm") as mock_winrm:
+        with (
+            patch("hatchery._provider") as mock_prov,
+            patch("lib.hatch_lifecycle.check_winrm") as mock_winrm,
+        ):
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
             app_module._sync_hatch_status()
@@ -4701,7 +4718,9 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
-        with patch("lib.hatch_lifecycle.provision_lib.run_script", side_effect=ConnectionError("refused")):
+        with patch(
+            "lib.hatch_lifecycle.provision_lib.run_script", side_effect=ConnectionError("refused")
+        ):
             with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
