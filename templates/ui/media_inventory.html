@@ -160,6 +160,13 @@
           </svg>
           <span class="scripts-library-status-label" id="media-library-status-label" hidden></span>
         </button>
+        {% if library_enabled %}
+        <a href="{{ url_for('library_content_pane') }}"
+           class="scripts-open-in-content"
+           id="media-open-in-content"
+           hidden
+           title="Open in Library → Content">Content</a>
+        {% endif %}
         <div class="import-dropdown scripts-copy-dropdown" id="media-copy-dropdown" hidden>
           <button type="button"
                   class="scripts-copy-btn"
@@ -346,6 +353,7 @@
     ? libraryStatusBtn.querySelector('.scripts-library-icon--ok')
     : null;
   const libraryStatusLabel = document.getElementById('media-library-status-label');
+  const openInContent = document.getElementById('media-open-in-content');
   const libStatus = window.HatcheryLibraryStatus;
   const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
   const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
@@ -542,6 +550,20 @@
     );
     libraryMode = 'hidden';
 
+    function syncOpenInContent(linked) {
+      if (!openInContent) return;
+      if (!linked || !btn) {
+        openInContent.hidden = true;
+        return;
+      }
+      var name = btn.getAttribute('data-name') || '';
+      var href = {{ url_for('library_content_pane') | tojson }}
+        + '?domain=media&name=' + encodeURIComponent(name)
+        + '&media_target=' + encodeURIComponent(mediaTarget || 'iso');
+      openInContent.href = href;
+      openInContent.hidden = false;
+    }
+
     if (cue.cue === 'local') {
       libraryStatusBtn.hidden = true;
       libraryStatusBtn.disabled = true;
@@ -555,10 +577,12 @@
         libraryStatusLabel.hidden = true;
         libraryStatusLabel.textContent = '';
       }
+      syncOpenInContent(false);
       return;
     }
 
     libraryStatusBtn.hidden = false;
+    syncOpenInContent(true);
     if (libraryStatusLabel) {
       libraryStatusLabel.hidden = false;
       libraryStatusLabel.textContent = cue.header_label || cue.short || '';

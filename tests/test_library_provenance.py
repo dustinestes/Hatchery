@@ -643,6 +643,24 @@ class TestSourceStatusAxes:
         assert items[0]["sync_state"] == "in_sync"
         assert items[0]["source_status_message"] == ""
 
+    def test_attributed_inventory_cross_domain(self, data_env, tmp_path):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "hello.ps1").write_text("x\n", encoding="utf-8")
+        library_lib.pull_script(_path_conn(share), "hello.ps1")
+        items = prov.attributed_inventory(
+            connection_ids={"c1"},
+            binding_ids=set(),
+            connections_by_id={"c1": {"id": "c1", "label": "Share", "type": "path"}},
+            bindings_by_id={},
+        )
+        assert len(items) == 1
+        assert items[0]["name"] == "hello.ps1"
+        assert items[0]["domain"] == "scripts"
+        assert items[0]["connection_label"] == "Share"
+        assert items[0]["library_cue"] in ("synced", "out_of_sync", "unconfirmable")
+        assert items[0]["source_status"] == "ok"
+
     def test_sync_row_skips_missing(self, data_env, tmp_path):
         share = tmp_path / "share"
         share.mkdir()

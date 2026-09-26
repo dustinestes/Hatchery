@@ -167,6 +167,13 @@
           </svg>
           <span class="scripts-library-status-label" id="clutches-library-status-label" hidden></span>
         </button>
+        {% if library_enabled %}
+        <a href="{{ url_for('library_content_pane') }}"
+           class="scripts-open-in-content"
+           id="clutches-open-in-content"
+           hidden
+           title="Open in Library → Content">Content</a>
+        {% endif %}
         <a href="#"
            class="btn-icon"
            id="clutches-edit-link"
@@ -355,6 +362,7 @@
     ? libraryStatusBtn.querySelector('.scripts-library-icon--ok')
     : null;
   var libraryStatusLabel = document.getElementById('clutches-library-status-label');
+  var openInContent = document.getElementById('clutches-open-in-content');
   var libStatus = window.HatcheryLibraryStatus;
   var deleteBackdrop = document.getElementById('delete-modal-backdrop');
   var deleteFilenameEl = document.getElementById('delete-modal-filename');
@@ -538,6 +546,18 @@
     );
     libraryMode = 'hidden';
 
+    function syncOpenInContent(linked) {
+      if (!openInContent) return;
+      if (!linked || !btn) {
+        openInContent.hidden = true;
+        return;
+      }
+      var name = btn.getAttribute('data-name') || '';
+      openInContent.href = {{ url_for('library_content_pane') | tojson }}
+        + '?domain=clutches&name=' + encodeURIComponent(name);
+      openInContent.hidden = false;
+    }
+
     if (cue.cue === 'local') {
       libraryStatusBtn.hidden = true;
       libraryStatusBtn.disabled = true;
@@ -551,10 +571,12 @@
         libraryStatusLabel.hidden = true;
         libraryStatusLabel.textContent = '';
       }
+      syncOpenInContent(false);
       return;
     }
 
     libraryStatusBtn.hidden = false;
+    syncOpenInContent(true);
     if (libraryStatusLabel) {
       libraryStatusLabel.hidden = false;
       libraryStatusLabel.textContent = cue.header_label || cue.short || '';

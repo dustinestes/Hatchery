@@ -2,7 +2,7 @@
 
 Maps ``source_status`` + ``sync_state`` to short operator labels, severity, and
 action flags. Keep :mod:`static/library_status_cues.js` in sync with this module
-so Cached panes and (later) Library → Content stay 1:1.
+so Cached panes and Library → Content stay 1:1.
 """
 
 from __future__ import annotations

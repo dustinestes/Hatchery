@@ -27,7 +27,7 @@ Operators need one Library plane for configuration and (soon) link/sync lifecycl
 
 4. **Domain panes keep Import** (file always). **From library…** becomes a **deep link** into the Library plane (domain filter when useful), not a second full catalog/re-attach stack. Hide From library… when Library is disabled.
 
-5. **Library → Content** (cross-domain attributed inventory, Sync, re-attach, [#370](https://github.com/dustinestes/Hatchery/issues/370) linked/synced language) is the **north star** for lifecycle UX. Implementation may ship Connections first, then Content; do not grow new permanent Library lifecycle UI on domain panes.
+5. **Library → Content** (cross-domain attributed inventory, Sync, re-attach, [#370](https://github.com/dustinestes/Hatchery/issues/370) / [#384](https://github.com/dustinestes/Hatchery/issues/384) linked/synced language) is the home for lifecycle UX. Connections configures registry; Content inspects and corrects linked Cached items. Do not grow new permanent Library lifecycle UI on domain panes (Cached may deep-link into Content).
 
 6. **Operator cache paths stay domain trees** (`automation/scripts/`, `clutches/`, `media/…`). Do **not** introduce a second attributed inventory root under `data-dir/library/` for pulled files. `{data_dir}/library/git/` remains the git **clone** cache only ([ADR-0009](0009-library-git-checkout-cache.md)). Provenance + `library_enabled` define “cut Library out,” not a parallel file tree.
 

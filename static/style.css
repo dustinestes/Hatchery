@@ -4306,3 +4306,19 @@ body {
     transition: none;
   }
 }
+
+/* Library → Content (#384): reuse scripts-panel / scripts-layout chrome */
+
+.scripts-open-in-content {
+  align-self: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #6b7280);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0 4px;
+}
+
+.scripts-open-in-content:hover,
+.scripts-open-in-content:focus-visible {
+  color: var(--text, #111827);
+}

@@ -922,10 +922,74 @@ def _settings_template(
     )
 
 
+def _library_bindings_by_id() -> dict[str, dict]:
+    """Map binding id → row across Scripts / Clutches / Media (for Content labels)."""
+    out: dict[str, dict] = {}
+    try:
+        connections = library_lib.parse_connections(
+            config.library_connections(), enforce_expiry_future=False
+        )
+    except ValueError:
+        return out
+    for parse_fn, getter in (
+        (library_lib.parse_script_bindings, config.library_script_bindings),
+        (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
+        (library_lib.parse_media_bindings, config.library_media_bindings),
+    ):
+        try:
+            binds = parse_fn(getter() or [], connections)
+        except ValueError:
+            continue
+        for b in binds:
+            bid = str(b.get("id") or "").strip()
+            if bid:
+                out[bid] = b
+    return out
+
+
+def _library_content_items() -> list[dict]:
+    """Attributed inventory for Library → Content (#384)."""
+    from lib import library_drift as drift
+    from lib import library_provenance as prov
+
+    cids, bids = drift.connection_and_binding_ids()
+    return prov.attributed_inventory(
+        connection_ids=cids,
+        binding_ids=bids,
+        connections_by_id=drift.connection_by_id(),
+        bindings_by_id=_library_bindings_by_id(),
+    )
+
+
 @app.route("/library")
 def library_root():
-    """Redirect Library group parent to Connections."""
-    return redirect(url_for("library_connections_pane"))
+    """Redirect Library group parent to Content (ADR-0016 north star)."""
+    return redirect(url_for("library_content_pane"))
+
+
+@app.route("/library/content")
+def library_content_pane():
+    """Library → Content: cross-domain attributed inventory (#384 / ADR-0016)."""
+    if not config.library_enabled():
+        return redirect(url_for("settings_section", section="general", library_required="1"))
+
+    items = _library_content_items()
+    connections = config.library_connections()
+    return render_template(
+        "library_content.html",
+        active_pane="library_content",
+        content_items=items,
+        library_connections=connections,
+        library_script_bindings=_library_reattach_bindings("scripts"),
+        library_clutch_bindings=_library_reattach_bindings("clutches"),
+        library_media_bindings=_library_reattach_bindings("media"),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
+        library_content_remove_url=url_for("api_library_content_remove"),
+        initial_domain=(request.args.get("domain") or "").strip().lower(),
+        initial_name=(request.args.get("name") or "").strip(),
+        initial_media_target=(request.args.get("media_target") or "").strip().lower(),
+    )
 
 
 @app.route("/library/connections")
@@ -1798,6 +1862,40 @@ def api_library_cache_reattach():
     )
     refreshed = prov.get_for_cache(domain, name, media_target=media_target) or row
     return jsonify({"ok": True, "provenance": refreshed})
+
+
+@app.route("/api/library/content")
+def api_library_content():
+    """JSON attributed inventory for Library → Content (#384)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    return jsonify({"items": _library_content_items()})
+
+
+@app.route("/api/library/content/remove", methods=["POST"])
+def api_library_content_remove():
+    """Remove one attributed Cached file and its provenance row (#384)."""
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    from lib import library_provenance as prov
+
+    data = request.get_json(silent=True) or {}
+    domain = str(data.get("domain") or "").strip().lower()
+    name = str(data.get("name") or "").strip()
+    media_target = str(data.get("media_target") or "").strip().lower() or None
+    if domain not in ("scripts", "clutches", "media"):
+        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if not name:
+        return jsonify({"ok": False, "error": "name is required"}), 400
+    if domain == "media" and media_target not in ("iso", "virtio"):
+        return jsonify({"ok": False, "error": "media_target must be iso or virtio"}), 400
+    row = prov.get_for_cache(domain, name, media_target=media_target)
+    if row is None:
+        return jsonify({"ok": False, "error": "No Library provenance for this cached file"}), 404
+    deleted = prov.delete_attributed_cache_files([row], data_dir=config.data_dir())
+    return jsonify({"ok": True, "deleted": deleted, "name": name})
 
 
 def _nest_from_request(data: dict) -> NestConnectionConfig:

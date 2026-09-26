@@ -85,7 +85,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 **Settings owns the Library feature flag** (`library_enabled` under General). Connection/binding **configuration** is stored in SQLite tables `library_connections`, `library_connection_kinds`, and `library_bindings` ([ADR-0017](adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)) and edited from **Library → Connections** ([ADR-0016](adr/0016-library-operator-plane.md), [#375](https://github.com/dustinestes/Hatchery/issues/375)).
 
-Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Connections (optionally filtered with `?domain=scripts|clutches|media`). Domain panes may still show a transitional Cached | Library catalog tab until Library → Content ships.
+Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Connections (optionally filtered with `?domain=scripts|clutches|media`). Domain panes may still show a transitional Cached | Library catalog tab; lifecycle chrome for linked items lives on **Library → Content**.
 
 **Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db`, domain caches, and `{data_dir}/library/git/`). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
@@ -94,9 +94,10 @@ Asset panes keep an in-context **Import** control. When Library is on, **From li
 | Off (default) | Single **Import** - file into the operator cache |
 | On | Import becomes a dropdown: **From file…** \| **From library…** |
 
-When Library is on, the sidebar gains a **Library** group (above Notifications) with **Connections**:
+When Library is on, the sidebar gains a **Library** group (above Notifications) with **Content** and **Connections**:
 
-- **Left:** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts bindings for that connection only.
+- **Content** - cross-domain attributed inventory (linked Cached Scripts / Clutches / Media). Inspect connection, binding, `source_status` / `sync_state`, Sync, re-attach, or Remove. Deep-link with `?domain=scripts|clutches|media&name=…` (optional `media_target` for Media). Domain Cached panes link **Content** when the selected file is linked.
+- **Left (Connections):** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts bindings for that connection only.
 - **Connections** - registry rows (path/share, HTTPS, git, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
 - **Clutches / Media / Scripts** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
 
@@ -119,7 +120,7 @@ Missing `enabled` on export/import → treat as enabled (backward compatible).
 
 Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
 
-Enable Library under Settings → General. Deep links to Library → Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled.
+Enable Library under Settings → General. Deep links to Library → Content or Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled. `/library` redirects to `/library/content`.
 
 ### Git connections (#251)
 
@@ -319,7 +320,7 @@ Domain inventory panes (Scripts, Media, Clutches) use a **Cached | Library** tab
 | **Cached** | Operator cache inventory (always shown) |
 | **Library** | Binding catalog: name + muted path, connection, copyable SHA, Cached vs Library-only; filter/sort, multi-select, batch pull. Dimmed when Library is disabled in Settings |
 | **Import** | From file…; **From library…** deep-links to Library → Connections (`?domain=…`) when Library is enabled |
-| **Library tab** | Transitional in-pane catalog (pull into cache) until Library → Content ships ([ADR-0016](adr/0016-library-operator-plane.md)) |
+| **Library tab** | Transitional in-pane catalog (pull into cache); prefer Library → Content for linked lifecycle ([ADR-0016](adr/0016-library-operator-plane.md)) |
 
 **Shared Cached chrome (#321):** Scripts, Media, and Clutches use the same inventory grammar on Cached - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Cached filter bars sit full-width above the rail and detail pane.
 
@@ -329,7 +330,7 @@ An optional overlay of Library hits inside the Cached list was considered ([#250
 
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **From library…** opens Library → Connections (domain filter when useful). A transitional in-pane **Library** tab still supports catalog discovery and pull-into-cache until Library → Content ships.
+**Default (cache-first):** domain panes list the operator cache on the **Cached** tab. **From library…** opens Library → Connections (domain filter when useful). A transitional in-pane **Library** tab still supports catalog discovery and pull-into-cache. Linked-item Sync / re-attach / Remove live on **Library → Content** (deep-link from Cached when an item is attributed).
 
 Visibility on the Library tab is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
 

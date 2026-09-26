@@ -1001,16 +1001,42 @@ hatchery.bindUnsavedLeave = function (opts) {
     var saveBtn = document.getElementById('library-reattach-save');
     var cancelBtn = document.getElementById('library-reattach-cancel');
     var statusEl = document.getElementById('library-reattach-status');
-    if (!backdrop || !connSel || !opts || !opts.reattachUrl || !opts.domain) {
+    if (!backdrop || !connSel || !opts || !opts.reattachUrl || !(opts.domain || opts.getDomain)) {
       return null;
     }
 
-    var noun = opts.bindingNoun || 'Library';
     var connections = opts.connections || [];
-    var bindings = opts.bindings || [];
     var includeType = opts.includeTypeInConnLabel !== false;
     var cacheName = null;
     var tested = false;
+
+    function currentDomain() {
+      if (typeof opts.getDomain === 'function') {
+        return (opts.getDomain() || opts.domain || '').trim().toLowerCase();
+      }
+      return (opts.domain || '').trim().toLowerCase();
+    }
+
+    function currentMediaTarget() {
+      if (typeof opts.getMediaTarget === 'function') {
+        return opts.getMediaTarget();
+      }
+      return opts.mediaTarget || null;
+    }
+
+    function currentBindings() {
+      if (typeof opts.getBindings === 'function') {
+        return opts.getBindings() || [];
+      }
+      return opts.bindings || [];
+    }
+
+    function currentNoun() {
+      if (typeof opts.getBindingNoun === 'function') {
+        return opts.getBindingNoun() || opts.bindingNoun || 'Library';
+      }
+      return opts.bindingNoun || 'Library';
+    }
 
     function basename(p) {
       var s = String(p || '').replace(/\\/g, '/');
@@ -1034,13 +1060,17 @@ hatchery.bindUnsavedLeave = function (opts) {
     }
 
     function noBindingMessage() {
-      return 'Add a ' + noun + ' binding under Settings → Library for this connection first';
+      return (
+        'Add a ' +
+        currentNoun() +
+        ' binding under Library → Connections for this connection first'
+      );
     }
 
     function refreshBindings() {
       if (!bindSel) return;
       var cid = connSel.value;
-      var matches = bindings.filter(function (b) {
+      var matches = currentBindings().filter(function (b) {
         return b.connection_id === cid;
       });
       bindSel.innerHTML = '';
@@ -1111,14 +1141,15 @@ hatchery.bindUnsavedLeave = function (opts) {
 
     function body(commit) {
       var payload = {
-        domain: opts.domain,
+        domain: currentDomain(),
         name: cacheName,
         connection_id: connSel.value,
         relative_path: pathInput ? (pathInput.value || '').trim() : '',
         commit: !!commit,
       };
-      if (opts.mediaTarget) {
-        payload.media_target = opts.mediaTarget;
+      var mt = currentMediaTarget();
+      if (mt) {
+        payload.media_target = mt;
       }
       var bid = bindSel && !bindSel.disabled ? (bindSel.value || '').trim() : '';
       if (bid) payload.binding_id = bid;
