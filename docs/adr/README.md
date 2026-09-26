@@ -53,7 +53,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0006](0006-pluggable-validators.md) | Pluggable validators; Alerts ≠ validator runs | Accepted |
 | [0007](0007-library-nest-content-planes.md) | Library / Nest content planes + local-first hatch cache | Accepted |
 | [0008](0008-alerts-events-audit-separation.md) | Alerts vs Events vs Audit (Notifications umbrella) | Accepted |
-| [0009](0009-library-git-checkout-cache.md) | Library git checkout cache on the Controller | Accepted |
+| [0009](0009-library-git-checkout-cache.md) | Library git checkout cache on the Controller | Superseded by [0020](0020-library-forge-path-only.md) |
 | [0010](0010-library-forge-providers.md) | Library forge connection type + pluggable providers | Accepted |
 | [0011](0011-library-consume-only-no-clutch-roundtrip.md) | Library is consume-only - no Clutch↔forge round-trip | Accepted |
 | [0012](0012-library-cache-provenance-drift.md) | Library cache provenance + drift sync | Accepted (reachability/sync axes refined by [0018](0018-library-drift-scenario-matrix.md)) |
@@ -64,6 +64,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0017](0017-library-connections-bindings-tables.md) | Library connections and bindings as first-class tables | Accepted |
 | [0018](0018-library-drift-scenario-matrix.md) | Library source reachability + sync state (scenario matrix) | Accepted |
 | [0019](0019-library-disable-excise.md) | Library disable / excise (soft vs teardown depth) | Accepted |
+| [0020](0020-library-forge-path-only.md) | Library connections without classic git clone | Accepted |
 
 <br>
 

@@ -124,7 +124,7 @@ Library connection registry ([ADR-0017](../adr/0017-library-connections-bindings
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | Stable 12-hex id |
 | `label` | `TEXT` | `NOT NULL` | Operator display name |
-| `type` | `TEXT` | `NOT NULL` | `path` \| `https` \| `git` \| `api` \| `forge` |
+| `type` | `TEXT` | `NOT NULL` | `path` \| `https` \| `api` \| `forge` |
 | `provider` | `TEXT` | `NOT NULL DEFAULT ''` | Required for `api` / `forge` |
 | `base_uri` | `TEXT` | `NOT NULL` | Path or URL |
 | `token` | `TEXT` | `NOT NULL DEFAULT ''` | Plaintext secret v1; never log |

@@ -17,7 +17,6 @@ How Hatchery keeps a local-first operator model while supporting Library **conne
 - [Connections and Bindings](#connections-and-bindings)
 - [Identity](#identity)
 - [Settings and Import](#settings-and-import)
-- [Git connections (#251)](#git-connections-251)
 - [Forge connections (#307)](#forge-connections-307)
 - [API connections (#255)](#api-connections-255)
 - [Connection health (#254)](#connection-health-254)
@@ -58,13 +57,13 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 **Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
 
-**Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern), and an optional operator **label** for display ([#359](https://github.com/dustinestes/Hatchery/issues/359)). When label is empty, Hatchery stores and shows the filter string. Multiple bindings per domain are allowed (several git repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
+**Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern), and an optional operator **label** for display ([#359](https://github.com/dustinestes/Hatchery/issues/359)). When label is empty, Hatchery stores and shows the filter string. Multiple bindings per domain are allowed (several forge repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
 
 | Concept | Example |
 |---|---|
 | Connection | `Artifactory` - type API / provider Artifactory + token; kinds: media |
 | Binding | Media → that connection + label `Win ISOs` + filter `win-isos/**/*.iso` |
-| Connection | `Ops git` - forge URL + token; kinds: scripts, clutches |
+| Connection | `Ops forge` - forge URL + token; kinds: scripts, clutches |
 | Binding | Scripts → that connection + label `Automation scripts` + path `automation/scripts` |
 
 **Test connection** checks reachability/auth without a full catalog. **Test filter** applies a domain binding and returns a small sample (about five hits) so locators can be validated before rely-on-hatch.
@@ -87,7 +86,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
 
-**Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db`, domain caches, and `{data_dir}/library/git/`). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
+**Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db` and domain caches). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
 | `library_enabled` | Import control |
 |---|---|
@@ -98,7 +97,7 @@ When Library is on, the sidebar gains a **Library** group (above Notifications) 
 
 - **Content** - **Linked | Available** tabs (#392). **Linked** is attributed Cached inventory with Sync / re-attach / Remove (default). **Available** is the cross-domain Library catalog (filter by domain / connection / in-cache, multi-select pull into domain operator caches). Deep-link Linked with `?domain=scripts|clutches|media&name=…` (optional `media_target`); open Available with `?tab=available&domain=…`. Domain Cached panes link **Content** when the selected file is linked.
 - **Left (Connections):** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts bindings for that connection only.
-- **Connections** - registry rows (path/share, HTTPS, git, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, git, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
+- **Connections** - registry rows (path/share, HTTPS, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
 - **Clutches / Media / Scripts** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
 
 ### Enable / disable Library (#379)
@@ -120,7 +119,7 @@ Turning **Enable Library** off under Settings → General opens a confirm modal 
 
 **Clear Content** and **Clear Links** cannot both be on (one deletes files, the other keeps them). Soft disable keeps link rows so re-enable can restore linked UX; Sync chrome is suppressed while Disabled ([#408](https://github.com/dustinestes/Hatchery/issues/408)).
 
-Classic **`type: git`** clone cache under `{data_dir}/library/git/` is separate from domain inventory and is being removed ([#406](https://github.com/dustinestes/Hatchery/issues/406)).
+Classic **`type: git`** and `{data_dir}/library/git/` are removed ([ADR-0020](adr/0020-library-forge-path-only.md) / [#406](https://github.com/dustinestes/Hatchery/issues/406)). Recreate remote SCM as **forge**; local trees as **path**. Leftover clone dirs are deleted when the connection is removed.
 
 ### Enable / disable (connection and binding)
 
@@ -143,24 +142,9 @@ Each connection declares **artifact types** (scripts, clutches, media, packages)
 
 Enable Library under Settings → General. Deep links to Library → Content or Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled. `/library` redirects to `/library/content`.
 
-### Git connections (#251)
-
-Strategy: **shallow clone to a Controller-side cache**, then list/pull like a path connection. Architecture: [ADR-0009](adr/0009-library-git-checkout-cache.md). Prefer [Forge connections](#forge-connections-307) for GitHub/etc. when you want list/pull **without** a local clone ([ADR-0010](adr/0010-library-forge-providers.md)).
-
-| | |
-|---|---|
-| **Base URI** | HTTPS (`https://github.com/org/repo.git`), SSH (`git@host:org/repo.git`), or a local repo path / `file://` |
-| **Token** | Optional HTTPS PAT - embedded for `git ls-remote` / clone (GitHub: `x-access-token`; other HTTPS hosts: `oauth2`). SSH remotes use the Controller’s SSH agent/keys; token is ignored |
-| **Test** | `git ls-remote --heads` (requires `git` on the Controller PATH). Does **not** refresh the local checkout |
-| **List / pull** | Before walking files, `ensure_git_checkout` refreshes a shallow `--depth 1` tree under `{data_dir}/library/git/{connection_id}/` (clone on first use; later `fetch` + hard reset to tip). Checkouts force `core.autocrlf=false` / `core.eol=lf` so working-tree bytes match git blob tips on Windows Controllers. Binding filter is a path glob relative to the repo root (default remote branch). Create-only pull into the domain cache with SHA-256 |
-| **Lifecycle** | No background forge sync. Disabling a connection ([#293](https://github.com/dustinestes/Hatchery/issues/293)) does not prune the checkout. Removing a connection also removes all domain bindings that use it; for **git**, Settings offers to delete that clone cache (not Scripts / Clutches / Media files already pulled). Connection **id** is stable - changing the URI keeps the same cache directory |
-| **Limits** | Large media via git is discouraged; Git LFS is not auto-fetched - without `git-lfs`, LFS pointer files may be copied as-is |
-
-Path and HTTPS behavior are unchanged. Operator-cache drift vs source (sync UI): [#308](https://github.com/dustinestes/Hatchery/issues/308).
-
 ### Forge connections (#307)
 
-Strategy: connection **`type: forge`** + **`provider`** plugin - list/pull via forge HTTP APIs with **no** Controller working tree under `library/git/`. Architecture: [ADR-0010](adr/0010-library-forge-providers.md). Package: [`lib/library_forge/`](../../lib/library_forge/). Dual-run with [Git connections](#git-connections-251) (clone path unchanged).
+Strategy: connection **`type: forge`** + **`provider`** plugin - list/pull via forge HTTP APIs with **no** Controller working tree. Architecture: [ADR-0010](adr/0010-library-forge-providers.md). Package: [`lib/library_forge/`](../../lib/library_forge/). Classic `type: git` clone cache was removed ([ADR-0020](adr/0020-library-forge-path-only.md)).
 
 | | |
 |---|---|
@@ -300,7 +284,6 @@ Hatchery never downloads a file body **only** to compare digests. Tip identity i
 | **path** | Source file **size + mtime** (no live cache↔tip equality; anchors only) |
 | **api** | Catalog/metadata **SHA-256** (e.g. Artifactory); missing → `unconfirmable` |
 | **forge** | Git **blob SHA** from Trees/Contents (not Hatchery content SHA-256) |
-| **git** | Blob id from the shallow checkout tree |
 | **https** | Checksum header on HEAD if present; else `unconfirmable` |
 
 Cached Nest identity remains **SHA-256 of bytes on disk** (`cache_sha256`).
@@ -321,7 +304,7 @@ The `library_connections` validator probes registered connections (via the same 
 
 | Prefix | When |
 |---|---|
-| `Library connection:` | Path/HTTPS/git/API/Forge unreachable, unreadable, or auth failure |
+| `Library connection:` | Path/HTTPS/API/Forge unreachable, unreadable, or auth failure |
 | `Library connection token expiry:` | `expires_at` inside the Nest-style warning windows (default 30 / 7 days) or past due |
 
 Empty `expires_at` → no token-expiry Alert for that connection. Disabling Library or removing a connection resolves that connection’s Library-scoped Alerts. **Disabling a connection** (`enabled: false`, [#293](https://github.com/dustinestes/Hatchery/issues/293)) also skips it in the validator and resolves its Library-scoped Alerts while it stays in Settings. Settings → Test connection **resolves** a reachability Alert on success for a **saved** connection; it does not open Alerts on failure (validator owns opens).
@@ -383,7 +366,7 @@ Bootstrap `data_dir` stays in the external bootstrap file - imports do not repla
 
 The Settings UI export/import controls are a **manual escape hatch**: what you export is what you get on import (omitted keys reset to defaults; `data_dir` never changes). They are **not** a conflict-aware merge UI and **not** the surface for fleet push or per-property updates. Richer property-level configuration belongs on Hatchery’s **CLI/API** later so Hatchery stays extensible without growing a noisy in-app config platform.
 
-Continuous path/git watch of a Settings file is also a later enhancement - not this UI.
+Continuous path watch of a Settings file is also a later enhancement - not this UI.
 
 ### UI
 

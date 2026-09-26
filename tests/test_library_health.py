@@ -122,11 +122,26 @@ class TestConnectionProbe:
         assert stats["down"] == 0
         assert alerts_lib.count_active_by_prefixes((lh.CONNECTION_ALERT_PREFIX,)) == 0
 
-    def test_git_unreachable_alerts(self, monkeypatch):
+    def test_https_unreachable_alerts(self, monkeypatch):
         monkeypatch.setattr(
             "lib.library.test_connection",
-            lambda _conn: {"ok": False, "message": "git ls-remote failed: denied"},
+            lambda _conn: {"ok": False, "message": "HTTPS HEAD failed: denied"},
         )
+        conn = {
+            "id": "https1",
+            "label": "Files",
+            "type": "https",
+            "base_uri": "https://example.com/files",
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts"],
+        }
+        stats = lh.sync_connection_alerts([conn])
+        assert stats["checked"] == 1
+        assert stats["down"] == 1
+        assert alerts_lib.count_active_by_prefixes((lh.CONNECTION_ALERT_PREFIX,)) == 1
+
+    def test_legacy_git_unreachable_alerts(self):
         conn = {
             "id": "git1",
             "label": "Repo",

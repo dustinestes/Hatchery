@@ -147,7 +147,8 @@ class TestFooterStatus:
         assert status["library_connection_registered"] == 2
         assert status["library_connection_disabled"] == 1
         assert status["library_by_type"]["path"] == 2
-        assert status["library_by_type"]["git"] == 0
+        assert status["library_by_type"]["forge"] == 0
+        assert "git" not in status["library_by_type"]
 
     def test_libraries_by_type_counts_registered(self, tmp_path):
         share = tmp_path / "share"
@@ -166,9 +167,9 @@ class TestFooterStatus:
                 },
                 {
                     "id": "c2",
-                    "label": "Repo",
-                    "type": "git",
-                    "base_uri": "https://example.com/r.git",
+                    "label": "HTTPS",
+                    "type": "https",
+                    "base_uri": "https://example.com/files",
                     "token": "",
                     "expires_at": None,
                     "kinds": ["scripts"],
@@ -190,8 +191,7 @@ class TestFooterStatus:
         assert status["library_by_type"] == {
             "api": 0,
             "forge": 1,
-            "git": 1,
-            "https": 0,
+            "https": 1,
             "path": 1,
         }
         assert status["library_drift_alert_count"] == 0

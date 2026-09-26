@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS library_connections (
     enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL,
-    CHECK (type IN ('path', 'https', 'git', 'api', 'forge')),
+    CHECK (type IN ('path', 'https', 'api', 'forge')),
     CHECK (enabled IN (0, 1))
 );
 
@@ -211,6 +211,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_library_cache_provenance(conn)
     _migrate_library_cache_provenance_axes(conn)
     _migrate_library_registry(conn)
+    _migrate_library_drop_git_connection_type(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -357,6 +358,162 @@ def _migrate_library_registry(conn: sqlite3.Connection) -> None:
         conn.execute("DROP TABLE library_connections")
         conn.execute("ALTER TABLE library_connections__new RENAME TO library_connections")
         conn.execute("ALTER TABLE library_connection_kinds__new RENAME TO library_connection_kinds")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind
+                ON library_connection_kinds(kind)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connections_enabled
+                ON library_connections(enabled)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_library_connections_type
+                ON library_connections(type)
+            """
+        )
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
+def _migrate_library_drop_git_connection_type(conn: sqlite3.Connection) -> None:
+    """Drop ``git`` from ``library_connections.type`` CHECK when no legacy rows remain.
+
+    ADR-0020 / #406: leave legacy ``type: git`` rows readable until the operator
+    deletes them; only tighten the CHECK after the table has none.
+    """
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_connections'"
+    ).fetchone()
+    if not table:
+        return
+    ddl_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connections'"
+    ).fetchone()
+    ddl = (ddl_row[0] if ddl_row else "") or ""
+    if "'git'" not in ddl:
+        return
+    git_count = conn.execute(
+        "SELECT COUNT(*) FROM library_connections WHERE type = 'git'"
+    ).fetchone()[0]
+    if git_count:
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE library_connections__nogit (
+                id          TEXT PRIMARY KEY,
+                label       TEXT    NOT NULL,
+                type        TEXT    NOT NULL,
+                provider    TEXT    NOT NULL DEFAULT '',
+                base_uri    TEXT    NOT NULL,
+                token       TEXT    NOT NULL DEFAULT '',
+                expires_at  TEXT,
+                enabled     INTEGER NOT NULL DEFAULT 1,
+                created_at  TEXT    NOT NULL,
+                updated_at  TEXT    NOT NULL,
+                CHECK (type IN ('path', 'https', 'api', 'forge')),
+                CHECK (enabled IN (0, 1))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO library_connections__nogit (
+                id, label, type, provider, base_uri, token, expires_at,
+                enabled, created_at, updated_at
+            )
+            SELECT
+                id, label, type, provider, base_uri, token, expires_at,
+                enabled, created_at, updated_at
+            FROM library_connections
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE library_connection_kinds__nogit (
+                connection_id   TEXT    NOT NULL,
+                kind            TEXT    NOT NULL,
+                PRIMARY KEY (connection_id, kind),
+                FOREIGN KEY (connection_id) REFERENCES library_connections__nogit(id)
+                    ON DELETE CASCADE,
+                CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO library_connection_kinds__nogit (connection_id, kind)
+            SELECT connection_id, kind FROM library_connection_kinds
+            """
+        )
+        # Recreate bindings FK against the rebuilt connections table when present.
+        bindings = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='library_bindings'"
+        ).fetchone()
+        if bindings:
+            conn.execute(
+                """
+                CREATE TABLE library_bindings__nogit (
+                    id              TEXT PRIMARY KEY,
+                    connection_id   TEXT    NOT NULL,
+                    domain          TEXT    NOT NULL,
+                    media_target    TEXT    NOT NULL DEFAULT '',
+                    label           TEXT    NOT NULL,
+                    filter          TEXT    NOT NULL DEFAULT '*',
+                    enabled         INTEGER NOT NULL DEFAULT 1,
+                    created_at      TEXT    NOT NULL,
+                    updated_at      TEXT    NOT NULL,
+                    FOREIGN KEY (connection_id) REFERENCES library_connections__nogit(id)
+                        ON DELETE CASCADE,
+                    CHECK (domain IN ('scripts', 'clutches', 'media')),
+                    CHECK (
+                        (domain != 'media' AND media_target = '')
+                        OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
+                    ),
+                    CHECK (enabled IN (0, 1))
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO library_bindings__nogit (
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                )
+                SELECT
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                FROM library_bindings
+                """
+            )
+            conn.execute("DROP TABLE library_bindings")
+        conn.execute("DROP TABLE library_connection_kinds")
+        conn.execute("DROP TABLE library_connections")
+        conn.execute("ALTER TABLE library_connections__nogit RENAME TO library_connections")
+        conn.execute(
+            "ALTER TABLE library_connection_kinds__nogit RENAME TO library_connection_kinds"
+        )
+        if bindings:
+            conn.execute("ALTER TABLE library_bindings__nogit RENAME TO library_bindings")
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_library_bindings_connection
+                    ON library_bindings(connection_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_library_bindings_domain
+                    ON library_bindings(domain, media_target)
+                """
+            )
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind

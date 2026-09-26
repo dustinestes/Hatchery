@@ -29,9 +29,9 @@
       <section class="form-section library-conn-editor-section" aria-label="Selected connection">
         <h2 class="form-section-title">Connection</h2>
         <p class="form-help-text">
-          Named endpoints (path/share, HTTPS, git, API, Forge) with base URI and token.
+          Named endpoints (path/share, HTTPS, API, Forge) with base URI and token.
           Choose artifact types so domain bindings only offer relevant connections.
-          Path, HTTPS, git, API (e.g. Artifactory), and Forge (e.g. GitHub) support test, list, and pull.
+          Path, HTTPS, API (e.g. Artifactory), and Forge (e.g. GitHub) support test, list, and pull.
         </p>
         <div id="library-conn-rows" class="library-conn-rows" role="group" aria-label="Connection editor">
 
@@ -75,10 +75,13 @@
             </div>
             <div class="form-group">
               <label class="form-label">Type</label>
-              <select name="library_conn_type" class="form-select library-conn-type-input">
+              <select name="library_conn_type" class="form-select library-conn-type-input"
+                      {% if conn.type == 'git' %}disabled aria-disabled="true"{% endif %}>
                 <option value="path" {% if conn.type == 'path' %}selected{% endif %}>Path / share</option>
                 <option value="https" {% if conn.type == 'https' %}selected{% endif %}>HTTPS</option>
-                <option value="git" {% if conn.type == 'git' %}selected{% endif %}>Git</option>
+                {% if conn.type == 'git' %}
+                <option value="git" selected>Git (removed - delete and recreate as forge or path)</option>
+                {% endif %}
                 <option value="api" {% if conn.type == 'api' %}selected{% endif %}>API</option>
                 <option value="forge" {% if conn.type == 'forge' %}selected{% endif %}>Forge</option>
               </select>
@@ -108,7 +111,7 @@
             <div class="form-group">
               <label class="form-label">Token / API key</label>
               <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                     value="{{ conn.token or '' }}" placeholder="Optional - HTTPS / git / API / Forge">
+                     value="{{ conn.token or '' }}" placeholder="Optional - HTTPS / API / Forge">
             </div>
             <div class="form-group">
               <label class="form-label">Token expiry</label>
@@ -335,7 +338,7 @@
 <section class="form-section library-domain-section" id="library-domain-scripts">
     <h2 class="form-section-title">Scripts</h2>
     <p class="form-help-text">
-      Bindings pick a scripts-capable connection and a path/filter (glob for path/git;
+      Bindings pick a scripts-capable connection and a path/filter (glob for path/forge;
       explicit relative file paths for HTTPS; ``repoKey[/path/glob]`` for Artifactory API).
     </p>
     <div class="section-header">
@@ -469,7 +472,6 @@
           <select name="library_conn_type" class="form-select library-conn-type-input">
             <option value="path" selected>Path / share</option>
             <option value="https">HTTPS</option>
-            <option value="git">Git</option>
             <option value="api">API</option>
             <option value="forge">Forge</option>
           </select>
@@ -499,7 +501,7 @@
         <div class="form-group">
           <label class="form-label">Token / API key</label>
           <input type="password" name="library_conn_token" class="form-input" autocomplete="off"
-                 value="" placeholder="Optional - HTTPS / git / API / Forge">
+                 value="" placeholder="Optional - HTTPS / API / Forge">
         </div>
         <div class="form-group">
           <label class="form-label">Token expiry</label>
@@ -728,21 +730,8 @@
     <div class="modal-body">
       <p>Remove <strong id="library-conn-remove-label"></strong> from Library?</p>
       <p class="modal-warning">This also removes all Clutches, Media, and Scripts bindings that use this connection.</p>
-      <div id="library-conn-remove-git-opts" class="library-conn-remove-git-opts" hidden>
-        <div class="library-conn-remove-git-row">
-          <label class="form-toggle" for="library-conn-remove-git-cache">
-            <input type="checkbox" id="library-conn-remove-git-cache" checked>
-            <span class="form-toggle-label">Also delete the git clone cache</span>
-          </label>
-          <span class="form-help-icon"
-                data-tip="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache."
-                tabindex="0"
-                role="img"
-                aria-label="Deletes the shallow clone under library/git/ for this connection. Does not delete Scripts, Clutches, or Media already pulled into the operator cache.">i</span>
-        </div>
-      </div>
       <div class="library-conn-remove-cache-opts" style="margin-top:12px">
-        <div class="library-conn-remove-git-row">
+        <div class="library-conn-remove-opt-row">
           <label class="form-toggle" for="library-conn-remove-attr-cache">
             <input type="checkbox" id="library-conn-remove-attr-cache">
             <span class="form-toggle-label">Also delete Cached files pulled from this connection</span>
@@ -768,7 +757,7 @@
     <div class="modal-body">
       <p>Remove <strong id="library-bind-remove-label"></strong> from Library?</p>
       <div class="library-conn-remove-cache-opts" style="margin-top:12px">
-        <div class="library-conn-remove-git-row">
+        <div class="library-conn-remove-opt-row">
           <label class="form-toggle" for="library-bind-remove-attr-cache">
             <input type="checkbox" id="library-bind-remove-attr-cache">
             <span class="form-toggle-label">Also delete Cached files pulled via this binding</span>
@@ -993,8 +982,6 @@
 
   const removeBackdrop = document.getElementById('library-conn-remove-backdrop');
   const removeLabelEl = document.getElementById('library-conn-remove-label');
-  const removeGitOpts = document.getElementById('library-conn-remove-git-opts');
-  const removeGitCache = document.getElementById('library-conn-remove-git-cache');
   const removeAttrCache = document.getElementById('library-conn-remove-attr-cache');
   const removeCancel = document.getElementById('library-conn-remove-cancel');
   const removeConfirm = document.getElementById('library-conn-remove-confirm');
@@ -1018,17 +1005,10 @@
   function openConnRemoveModal(row, cid, focusEl) {
     if (!removeBackdrop || !removeConfirm) return;
     const labelInput = row.querySelector('input[name="library_conn_label"]');
-    const typeEl = row.querySelector('.library-conn-type-input');
-    const ctype = ((typeEl && typeEl.value) || 'path').toLowerCase();
     const label = (labelInput && labelInput.value) || cid || 'connection';
     if (removeLabelEl) removeLabelEl.textContent = label;
-    if (removeGitOpts) removeGitOpts.hidden = ctype !== 'git';
-    if (removeGitCache) {
-      removeGitCache.checked = true;
-      removeGitCache.disabled = ctype !== 'git';
-    }
     if (removeAttrCache) removeAttrCache.checked = false;
-    removePending = { row: row, cid: cid, ctype: ctype, focusEl: focusEl };
+    removePending = { row: row, cid: cid, focusEl: focusEl };
     removeBackdrop.hidden = false;
     removeConfirm.focus();
   }
@@ -1131,8 +1111,6 @@
       if (!removePending) return;
       const row = removePending.row;
       const cid = removePending.cid;
-      const ctype = removePending.ctype;
-      const deleteGit = ctype === 'git' && removeGitCache && removeGitCache.checked;
       const deleteAttr = removeAttrCache && removeAttrCache.checked;
       removeConfirm.disabled = true;
       const delUrl = {{ url_for('api_library_connection_delete', conn_id='CONN_ID') | tojson }}
@@ -1141,7 +1119,6 @@
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          delete_git_cache: !!deleteGit,
           delete_attributed_cache: !!deleteAttr,
         }),
       })
@@ -1182,9 +1159,10 @@
           if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
             hatchery.refreshStatusSurfaces();
           }
-          if (res.data && res.data.git_cache_warning && window.hatchery && hatchery.showToast) {
+          if (res.data && res.data.legacy_git_cache_warning && window.hatchery && hatchery.showToast) {
             hatchery.showToast(
-              'Connection removed, but git clone cache was not deleted: ' + res.data.git_cache_warning,
+              'Connection removed, but leftover git clone cache was not deleted: '
+                + res.data.legacy_git_cache_warning,
               'warning',
               6000
             );
@@ -1218,9 +1196,9 @@
 
   function typeLabel(value) {
     if (value === 'https') return 'https';
-    if (value === 'git') return 'git';
     if (value === 'api') return 'api';
     if (value === 'forge') return 'forge';
+    if (value === 'git') return 'git (removed)';
     return 'path';
   }
 

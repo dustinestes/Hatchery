@@ -1,8 +1,5 @@
-"""Unit tests for lib.library — path connections, list, pull, identity."""
+"""Unit tests for lib.library - path connections, list, pull, identity."""
 
-import os
-import shutil
-import subprocess
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -354,151 +351,51 @@ class TestClutchLibrary:
         assert "prod.yaml" in names
 
 
-class TestGitLibrary:
-    @pytest.fixture
-    def git_remote(self, tmp_path: Path) -> Path:
-        if not shutil.which("git"):
-            pytest.skip("git not installed")
-        repo = tmp_path / "remote.git-work"
-        (repo / "nested").mkdir(parents=True)
-        (repo / "hello.ps1").write_text("Write-Host hi\n", encoding="utf-8")
-        (repo / "nested" / "setup.sh").write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
-        (repo / "lab.yaml").write_text("name: lab\n", encoding="utf-8")
-        (repo / "readme.txt").write_text("ignore\n", encoding="utf-8")
-        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "config", "core.autocrlf", "false"],
-            cwd=repo,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=repo,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"],
-            cwd=repo,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True, env=env)
-        subprocess.run(
-            ["git", "commit", "-m", "init"],
-            cwd=repo,
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        return repo
+class TestLegacyGitRemoved:
+    """Classic type: git is refused; leftover clone dirs can still be purged (#406)."""
 
-    def _git_conn(self, root: Path, *, conn_id: str = "g1") -> dict:
+    def _legacy_git_conn(self) -> dict:
         return {
-            "id": conn_id,
+            "id": "g1",
             "label": "Ops git",
             "type": "git",
-            "base_uri": str(root),
+            "base_uri": "https://example.com/org/repo.git",
             "token": "",
             "expires_at": None,
             "kinds": ["scripts", "clutches"],
         }
 
-    def test_remote_url_embeds_token_for_https(self):
-        url = library.git_remote_url("https://github.com/org/repo.git", "sekret")
-        assert url.startswith("https://x-access-token:")
-        assert "sekret" in url
-        assert "@github.com/org/repo.git" in url
-        gitlab = library.git_remote_url("https://gitlab.example/g/r.git", "tok")
-        assert gitlab.startswith("https://oauth2:")
+    def test_parse_connections_rejects_git(self):
+        with pytest.raises(ValueError, match="unsupported connection type"):
+            library.parse_connections([self._legacy_git_conn()])
 
-    def test_remote_url_ignores_token_for_ssh_and_path(self, tmp_path):
-        assert library.git_remote_url("git@github.com:org/repo.git", "tok") == (
-            "git@github.com:org/repo.git"
-        )
-        local = str(tmp_path / "repo")
-        assert library.git_remote_url(local, "tok") == local
-
-    def test_connection_ok(self, git_remote):
-        result = library.test_connection(self._git_conn(git_remote))
-        assert result["ok"] is True
-        assert "Git remote OK" in result["message"]
-
-    def test_connection_missing(self, tmp_path):
-        if not shutil.which("git"):
-            pytest.skip("git not installed")
-        result = library.test_connection(self._git_conn(tmp_path / "missing-repo"))
+    def test_test_list_pull_tip_refuse(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        conn = self._legacy_git_conn()
+        result = library.test_connection(conn)
         assert result["ok"] is False
-
-    def test_list_filter_and_pull(self, git_remote, tmp_path, monkeypatch):
-        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
-        (tmp_path / "data" / "automation" / "scripts").mkdir(parents=True)
-        conn = self._git_conn(git_remote)
-        hits = library.list_script_hits(conn, "*", limit=None)
-        names = {h["name"] for h in hits}
-        assert names == {"hello.ps1", "setup.sh"}
-        assert all(h["source_type"] == "git" for h in hits)
-        assert all(h["sha256"] for h in hits)
-
-        sample = library.test_filter(conn, "*.ps1")
-        assert sample["ok"] is True
-        assert len(sample["hits"]) == 1
-
-        pulled = library.pull_script(conn, "hello.ps1")
-        assert pulled["name"] == "hello.ps1"
-        dest = tmp_path / "data" / "automation" / "scripts" / "hello.ps1"
-        assert dest.is_file()
-        assert pulled["sha256"] == library.sha256_file(dest)
-        tip = library.resolve_source_digest(conn, "hello.ps1")
-        assert tip is not None
-        assert tip[0] == "git_blob"
-        assert library.git_blob_sha_file(dest) == tip[1]
-
-        with pytest.raises(FileExistsError):
+        assert "removed" in result["message"].lower()
+        with pytest.raises(ValueError, match="removed"):
+            library.list_script_hits(conn, "*")
+        with pytest.raises(ValueError, match="removed"):
             library.pull_script(conn, "hello.ps1")
+        tip = library.resolve_source_tip(conn, "hello.ps1")
+        assert tip.status == "unreachable"
+        assert tip.detail and "removed" in tip.detail.lower()
 
-        clutch_hits = library.list_clutch_hits(conn, "*")
-        assert {h["name"] for h in clutch_hits} == {"lab.yaml"}
-
-    def test_git_checkout_disables_autocrlf(self, git_remote, tmp_path, monkeypatch):
-        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
-        conn = self._git_conn(git_remote)
-        cache = library.ensure_git_checkout(conn)
-        cfg = subprocess.run(
-            ["git", "config", "--get", "core.autocrlf"],
-            cwd=cache,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        assert cfg.stdout.strip().lower() == "false"
-        # Simulate a Windows CRLF working tree, then refresh — tip must match again.
-        hello = cache / "hello.ps1"
-        hello.write_bytes(hello.read_bytes().replace(b"\n", b"\r\n"))
-        assert b"\r\n" in hello.read_bytes()
-        library.ensure_git_checkout(conn)
-        tip = library.resolve_source_digest(conn, "hello.ps1")
-        assert tip is not None
-        assert library.git_blob_sha_file(cache / "hello.ps1") == tip[1]
-
-    def test_delete_git_cache_removes_dir(self, tmp_path, monkeypatch):
+    def test_purge_legacy_git_cache(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
         cache = tmp_path / "library" / "git" / "g1"
         cache.mkdir(parents=True)
         (cache / "hello.txt").write_text("hi", encoding="utf-8")
-        assert library.delete_git_cache("g1") is True
+        assert library.purge_legacy_git_cache("g1") is True
         assert not cache.exists()
-        assert library.delete_git_cache("g1") is False
+        assert library.purge_legacy_git_cache("g1") is False
 
-    def test_delete_git_cache_rejects_bad_id(self, tmp_path, monkeypatch):
+    def test_purge_legacy_git_cache_rejects_bad_id(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
         with pytest.raises(ValueError, match="invalid connection id"):
-            library.delete_git_cache("../escape")
+            library.purge_legacy_git_cache("../escape")
 
 
 class TestMediaLibrary:
