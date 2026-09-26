@@ -109,15 +109,14 @@ Architecture: [ADR-0019](adr/0019-library-disable-excise.md).
 | **Enabled** | `library_enabled` on - Library nav, Connections, From library… |
 | **Disabled** | Flag off - includes never enabled and soft disable after enable |
 
-Turning **Enable Library** off under Settings → General opens a confirm modal (implementation [#407](https://github.com/dustinestes/Hatchery/issues/407)). All teardown toggles default **off** (soft disable):
+Turning **Enable Library** off under Settings → General opens a confirm modal ([#407](https://github.com/dustinestes/Hatchery/issues/407)):
 
-| Toggle | Helper | Effect |
+| Control | Default | Effect |
 |---|---|---|
-| **Clear Connections** | Includes all bindings | Remove all Library connections and bindings |
-| **Clear Content** | Deletes Cached files that came from Library | Delete linked cache files (not local-only files) |
-| **Clear Links** | Leaves files as local inventory | Drop Library links; keep files |
+| **Clear Connections** (checkbox) | off | Remove all Library connections and bindings |
+| **Linked Cached files** (radio) | Leave as-is | Soft: keep links. **Clear Content** deletes linked files. **Clear Links** keeps files as local inventory |
 
-**Clear Content** and **Clear Links** cannot both be on (one deletes files, the other keeps them). Soft disable keeps link rows so re-enable can restore linked UX; Sync chrome is suppressed while Disabled ([#408](https://github.com/dustinestes/Hatchery/issues/408)).
+Soft disable = Clear Connections off + Leave as-is. Sync chrome is suppressed while Disabled ([#408](https://github.com/dustinestes/Hatchery/issues/408)).
 
 Classic **`type: git`** and `{data_dir}/library/git/` are removed ([ADR-0020](adr/0020-library-forge-path-only.md) / [#406](https://github.com/dustinestes/Hatchery/issues/406)). Recreate remote SCM as **forge**; local trees as **path**. Leftover clone dirs are deleted when the connection is removed.
 

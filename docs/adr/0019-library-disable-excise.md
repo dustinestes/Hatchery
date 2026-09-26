@@ -25,7 +25,7 @@ UI copy uses **linked** / **Clear Links**, not internal “provenance.” Implem
 
 ### Soft disable
 
-When Library is turned **off** and all teardown toggles are **off**:
+When Library is turned **off** with Clear Connections **off** and Linked Cached files = **Leave as-is**:
 
 - Library nav / Connections / From library… hidden
 - Library validators no-op; Library-scoped Alerts resolved (as today)
@@ -37,15 +37,16 @@ Soft disable removes the **source-link mechanism from the UI**, not the files or
 
 ### Disable / excise modal
 
-On Settings → General, when turning **Enable Library** from on to off, show a modal (same toggle grammar as connection remove) before committing. Defaults all **off**. Cancel leaves Library **Enabled**.
+On Settings → General, when turning **Enable Library** from on to off, show a modal (same toggle grammar as connection remove) before committing. Cancel leaves Library **Enabled**.
 
-| Toggle (UI) | Helper | Effect |
+| Control | Default | Effect |
 |---|---|---|
-| **Clear Connections** | Includes all bindings | Delete all connections, kinds, and bindings. Does not delete domain cache files by itself |
-| **Clear Content** | Deletes Cached files that came from Library | Delete Library-linked operator-cache files and their link rows. Never deletes unlinked local-only files |
-| **Clear Links** | Leaves files as local inventory (no Library link) | Drop link rows / linked indicators; **keep** the files |
+| **Clear Connections** (checkbox) | off | Delete all connections, kinds, and bindings. Does not delete domain cache files by itself |
+| **Linked Cached files** (radio) | **Leave as-is** | Soft: keep link rows for re-enable |
+| | **Clear Content** | Delete Library-linked operator-cache files and their link rows. Never deletes unlinked local-only files |
+| | **Clear Links** | Drop link rows / linked indicators; **keep** the files |
 
-**Clear Content** and **Clear Links** are **mutually exclusive** (UI mutex): one deletes bytes, the other keeps them. Clear Connections is independent of that pair.
+Clear Connections is independent of the linked-files radio. UI: one help tip on the radio **group**, not per option.
 
 **Single registry clear:** do **not** offer bindings-only or connections-without-bindings on this modal. That half-state has no operator value on a full Library disable. Surgical remove while Library stays Enabled remains on Connections.
 
@@ -84,6 +85,7 @@ On Settings → General, when turning **Enable Library** from on to off, show a 
 |---|---|
 | Dual `data-dir/library/{domain}` inventory | Dual roots across list/import/hatch/Nest/drift |
 | Separate Clear Connections vs Clear Bindings on this modal | Half-removal; bindings without connections (or the reverse) is useless on full disable |
-| Allow Clear Content and Clear Links both on | Conflicting outcomes for the same linked set |
+| Allow Clear Content and Clear Links both on | Conflicting outcomes; use a radio (Leave / Content / Links) instead |
+| Two checkboxes with JS mutex for Content vs Links | Checkboxes imply independent opts; radio group matches exclusive choice |
 | Fold Clear Links into Clear Content | Different operator intents (delete vs keep-as-local) |
 | Keep Sync while Disabled | Source mechanism is off; Sync would fail or confuse |

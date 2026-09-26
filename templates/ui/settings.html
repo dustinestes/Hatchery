@@ -307,7 +307,8 @@
         </div>
         <label class="form-toggle">
           <input type="checkbox" id="library-enabled" name="library_enabled"
-                 {% if cfg.library_enabled %}checked{% endif %}>
+                 {% if cfg.library_enabled %}checked{% endif %}
+                 data-disable-url="{{ url_for('api_library_disable') }}">
           <span class="form-toggle-label">Show Library in the sidebar and allow Import from library</span>
         </label>
       </div>
@@ -429,6 +430,61 @@
     </div>
   </div>
 </div>
+
+<div id="library-disable-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-disable-title">
+    <h2 class="modal-title" id="library-disable-title">Disable Library</h2>
+    <div class="modal-body">
+      <p>Turn off Library on this Controller? Optional teardown below. Soft disable leaves linked files alone.</p>
+      <div class="library-conn-remove-cache-opts" style="margin-top:12px">
+        <div class="library-conn-remove-opt-row">
+          <label class="form-toggle" for="library-disable-clear-connections">
+            <input type="checkbox" id="library-disable-clear-connections"
+                   aria-label="Clear Connections: delete all Library connections and bindings">
+            <span class="form-toggle-label">Clear Connections</span>
+          </label>
+          <span class="form-help-icon"
+                data-tip="Deletes all Library connections, kinds, and bindings. Does not delete domain cache files by itself. Off by default."
+                tabindex="0"
+                role="img"
+                aria-label="Clear Connections includes all bindings. Off by default.">i</span>
+        </div>
+        <div style="margin-top:14px">
+          <div class="form-label-row" style="margin-bottom:8px">
+            <span class="form-label" id="library-disable-linked-label">Linked Cached files</span>
+            <span class="form-help-icon"
+                  data-tip="Leave as-is keeps Library links for re-enable. Clear Content deletes linked Cached files. Clear Links drops the link and keeps files as local inventory. Never touches unlinked local-only files."
+                  tabindex="0"
+                  role="img"
+                  aria-label="Choose what to do with Cached files that were linked from Library.">i</span>
+          </div>
+          <div class="form-radio-group" role="radiogroup"
+               aria-labelledby="library-disable-linked-label">
+            <label class="form-radio">
+              <input type="radio" name="library-disable-linked" value="leave"
+                     id="library-disable-linked-leave" checked>
+              <span class="form-radio-label">Leave as-is</span>
+            </label>
+            <label class="form-radio">
+              <input type="radio" name="library-disable-linked" value="content"
+                     id="library-disable-linked-content">
+              <span class="form-radio-label">Clear Content</span>
+            </label>
+            <label class="form-radio">
+              <input type="radio" name="library-disable-linked" value="links"
+                     id="library-disable-linked-links">
+              <span class="form-radio-label">Clear Links</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="library-disable-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="library-disable-confirm">Disable Library</button>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% if section == 'security' %}
@@ -497,6 +553,7 @@
     }
   });
 
+
   confirmBtn.addEventListener('click', function () {
     closeModal();
     importInput.click();
@@ -535,6 +592,117 @@
         window.setTimeout(function () { window.location.reload(); }, 600);
       })
       .catch(function () {
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast('Network or server error', 'error', 5000);
+        }
+      });
+  });
+})();
+
+(function () {
+  const enabledEl = document.getElementById('library-enabled');
+  const backdrop = document.getElementById('library-disable-backdrop');
+  const cancelBtn = document.getElementById('library-disable-cancel');
+  const confirmBtn = document.getElementById('library-disable-confirm');
+  const clearConnections = document.getElementById('library-disable-clear-connections');
+  const linkedLeave = document.getElementById('library-disable-linked-leave');
+  const linkedContent = document.getElementById('library-disable-linked-content');
+  const linkedLinks = document.getElementById('library-disable-linked-links');
+  if (!enabledEl || !backdrop || !cancelBtn || !confirmBtn) return;
+  if (!clearConnections || !linkedLeave || !linkedContent || !linkedLinks) return;
+
+  const disableUrl = enabledEl.getAttribute('data-disable-url') || '';
+
+  function resetTeardown() {
+    clearConnections.checked = false;
+    linkedLeave.checked = true;
+  }
+
+  function linkedChoice() {
+    if (linkedContent.checked) return 'content';
+    if (linkedLinks.checked) return 'links';
+    return 'leave';
+  }
+
+  function openDisableModal() {
+    resetTeardown();
+    backdrop.hidden = false;
+    confirmBtn.focus();
+  }
+
+  function closeDisableModal(recheck) {
+    backdrop.hidden = true;
+    if (recheck) {
+      enabledEl.checked = true;
+    }
+    enabledEl.focus();
+  }
+
+  enabledEl.addEventListener('change', function () {
+    if (enabledEl.checked) return;
+    // Keep Library enabled until Confirm; Cancel restores checked.
+    enabledEl.checked = true;
+    openDisableModal();
+  });
+
+  cancelBtn.addEventListener('click', function () {
+    closeDisableModal(true);
+  });
+
+  backdrop.addEventListener('click', function (e) {
+    if (e.target === backdrop) closeDisableModal(true);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !backdrop.hidden) {
+      e.preventDefault();
+      closeDisableModal(true);
+    }
+  });
+
+  confirmBtn.addEventListener('click', function () {
+    if (!disableUrl) {
+      if (window.hatchery && hatchery.showToast) {
+        hatchery.showToast('Disable URL missing', 'error', 5000);
+      }
+      return;
+    }
+    var linked = linkedChoice();
+    confirmBtn.disabled = true;
+    fetch(disableUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clear_connections: !!clearConnections.checked,
+        clear_content: linked === 'content',
+        clear_links: linked === 'links',
+      }),
+    })
+      .then(function (r) {
+        return r.json().then(function (data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function (res) {
+        confirmBtn.disabled = false;
+        var data = res.data || {};
+        if (!res.ok) {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast(data.error || 'Could not disable Library', 'error', 5000);
+          }
+          return;
+        }
+        backdrop.hidden = true;
+        enabledEl.checked = false;
+        if (window.hatchery && hatchery.showToast) {
+          hatchery.showToast('Library disabled', 'success', 3000);
+        }
+        if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+          hatchery.refreshStatusSurfaces();
+        }
+      })
+      .catch(function () {
+        confirmBtn.disabled = false;
         if (window.hatchery && hatchery.showToast) {
           hatchery.showToast('Network or server error', 'error', 5000);
         }
