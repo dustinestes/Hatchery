@@ -120,7 +120,9 @@ class TestActivePane:
         assert 'href="/settings/general"' in html
         assert 'href="/settings/security"' in html
         assert 'href="/settings/display"' in html
-        assert 'href="/library/connections"' not in html
+        # Library nav stays in the DOM (hidden) so plane-status can unhide without reload (#439).
+        open_tag = html.split('id="sidebar-nav-library"', 1)[1].split(">", 1)[0]
+        assert "hidden" in open_tag
 
     def test_library_nav_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
@@ -131,6 +133,8 @@ class TestActivePane:
         assert ">Library</span>" in html or 'sidebar-label">Library' in html
         assert ">Connections</span>" in html or 'sidebar-label">Connections' in html
         assert ">Content</span>" in html or 'sidebar-label">Content' in html
+        open_tag = html.split('id="sidebar-nav-library"', 1)[1].split(">", 1)[0]
+        assert "hidden" not in open_tag
 
     def test_settings_nests_nav_always_present(self, client):
         html = client.get("/settings/general").data.decode()
@@ -3455,6 +3459,10 @@ class TestPlaneStatus:
             html = client.get("/").data.decode()
         open_tag = html.split('id="footer-libraries"', 1)[1].split(">", 1)[0]
         assert "hidden" in open_tag
+
+    def test_library_sidebar_always_in_dom(self, client):
+        html = client.get("/").data.decode()
+        assert 'id="sidebar-nav-library"' in html
 
     def test_api_plane_status(self, client):
         resp = client.get("/api/plane-status")

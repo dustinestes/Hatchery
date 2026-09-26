@@ -67,6 +67,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0020](0020-library-forge-path-only.md) | Library connections without classic git clone | Accepted |
 | [0021](0021-controller-embeddable-operator-plane.md) | Controller as embeddable operator plane | Accepted |
 | [0022](0022-dual-surface-operator-discipline.md) | Dual-surface operator discipline (UI + CLI) | Accepted |
+| [0023](0023-settings-sqlite-revision-reload.md) | Settings SQLite revision reload across processes | Accepted |
 
 <br>
 

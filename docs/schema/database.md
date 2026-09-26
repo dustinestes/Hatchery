@@ -178,16 +178,16 @@ Domain locators under a connection (Scripts / Clutches / Media filters).
 
 ### app_settings
 
-Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` - see [Settings storage](../settings.md).
+Key/value store for operational Settings (JSON-encoded values). The external bootstrap YAML keeps only `data_dir` - see [Settings storage](../settings.md). Meta key `_settings_rev` (integer) is bumped on every Settings UPSERT for cross-process reload ([ADR-0023](../adr/0023-settings-sqlite-revision-reload.md)); it is not Settings-exportable.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `key` | `TEXT` | `PRIMARY KEY` | Setting name (e.g. `bg_interval`, `show_passwords`) |
+| `key` | `TEXT` | `PRIMARY KEY` | Setting name (e.g. `bg_interval`, `show_passwords`) or meta `_settings_rev` |
 | `value` | `TEXT` | `NOT NULL` | JSON text (number, bool, string, array, or object) |
 
 #### Managed by
 
-`lib/config.py` - `bind_db()`, `save()`
+`lib/config.py` - `bind_db()`, `save()`, `update_settings()`, `ensure_settings_fresh()`
 
 <br>
 
