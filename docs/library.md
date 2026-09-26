@@ -323,7 +323,7 @@ Pull copies selected items into the normal data-dir paths (`automation/scripts/`
 
 Domain inventory panes (Scripts, Media, Clutches) list the **operator cache only** ([#397](https://github.com/dustinestes/Hatchery/issues/397)). In-pane Library catalog tabs are removed; ADR-0002’s browser UX lives on Content Available.
 
-**Shared inventory chrome (#321 / #391):** Scripts, Media, Clutches, and Library → Content **Linked** use the same inventory grammar - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Filter bars sit full-width above the rail and detail pane. Shared Jinja macros live in `_inventory_toolbar.html`, `_inventory_cached_filters.html`, and `_inventory_split_layout.html` (plus `_library_content_tabs.html` for Linked | Available).
+**Shared inventory chrome (#321 / #391 / #404):** Scripts, Media, Clutches, and Library → Content **Linked** use the same inventory grammar - left rail + detail, non-button rail warn for out of sync / orphan, header Sync / orphan re-attach control, icon deep-link to Library Content when attributed, and live rail refresh on the status-surfaces tick. Media keeps Path-only copy (binary, icon dropdown); Scripts and Clutches offer Path / Contents. Clutches detail includes Language (between Path and Modified) and a Content section. Filter bars sit full-width above the rail and detail pane. Shared Jinja macros live in `_inventory_toolbar.html`, `_inventory_cached_filters.html`, and `_inventory_split_layout.html` (plus `_library_content_tabs.html` for Linked | Available).
 
 An optional overlay of Library hits inside the Cached list was considered ([#250](https://github.com/dustinestes/Hatchery/issues/250)) and **closed as superseded**.
 
@@ -331,7 +331,7 @@ An optional overlay of Library hits inside the Cached list was considered ([#250
 
 ## Inventory: Cache vs Catalog
 
-**Default (cache-first):** domain panes list the operator cache. **From library…** opens Library → Content **Available** (domain filter when useful). Linked-item Sync / re-attach / Remove live on Content **Linked** (deep-link from domain cache when an item is attributed).
+**Default (cache-first):** domain panes list the operator cache. **From library…** opens Library → Content **Available** (domain filter when useful). Linked-item Sync / re-attach / Remove live on Content **Linked**. Domain Cached headers deep-link attributed items to Content via an icon control (Open in Library Content) - inventory keeps lightweight linked/synced cues only.
 
 Visibility in Content Available is not the same as Nest-ready: hatch still requires Nest cache (unless [allow remote content](#future-allow-remote-content) later).
 

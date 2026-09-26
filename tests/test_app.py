@@ -294,6 +294,10 @@ class TestPageTitles:
         assert "From library…" in html
         assert "/library/content?tab=available&domain=scripts" in html
         assert "inventory-tabs" not in html
+        assert 'id="scripts-open-in-content"' in html
+        assert 'aria-label="Open in Library Content"' in html
+        assert "scripts-open-in-library" in html
+        assert ">Content</a>" not in html
 
     def test_automation_scripts_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -352,6 +356,10 @@ class TestPageTitles:
         assert "From library…" in html
         assert "library-import-backdrop" not in html
         assert "/library/content?tab=available&domain=media" in html
+        assert 'id="media-open-in-content"' in html
+        assert 'aria-label="Open in Library Content"' in html
+        assert "scripts-open-in-library" in html
+        assert ">Content</a>" not in html
 
     def test_media_iso_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -371,6 +379,10 @@ class TestPageTitles:
         assert "From library…" in html
         assert "library-import-backdrop" not in html
         assert "/library/content?tab=available&domain=clutches" in html
+        assert 'id="clutches-open-in-content"' in html
+        assert 'aria-label="Open in Library Content"' in html
+        assert "scripts-open-in-library" in html
+        assert ">Content</a>" not in html
 
     def test_clutches_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
