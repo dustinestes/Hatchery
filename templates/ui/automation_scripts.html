@@ -68,7 +68,7 @@
         </span>
         <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--warn"
               data-library-cue-icon="warn"
-              {% if not s.library_show_rail_icon or s.library_cue == 'synced' %}hidden{% endif %}
+              {% if not s.library_show_rail_icon or s.library_cue in ('synced', 'linked') %}hidden{% endif %}
               title="{{ s.source_status_message or s.library_cue_short or 'Library status' }}"
               aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -77,11 +77,11 @@
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
         </span>
-        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--ok"
+        <span class="scripts-nav-drift-icon library-status-cue-icon {% if s.library_cue == 'linked' %}library-status-cue-icon--linked{% else %}library-status-cue-icon--ok{% endif %}"
               data-library-cue-icon="ok"
-              {% if s.library_cue != 'synced' %}hidden{% endif %}
-              title="Synced with Library"
-              aria-label="Synced with Library"
+              {% if s.library_cue not in ('synced', 'linked') %}hidden{% endif %}
+              title="{% if s.library_cue == 'linked' %}Linked from Library{% else %}Synced with Library{% endif %}"
+              aria-label="{% if s.library_cue == 'linked' %}Linked from Library{% else %}Synced with Library{% endif %}"
               role="img">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -287,6 +287,9 @@
   const libraryStatusLabel = document.getElementById('scripts-library-status-label');
   const openInContent = document.getElementById('scripts-open-in-content');
   const libStatus = window.HatcheryLibraryStatus;
+  if (libStatus && typeof libStatus.setLibraryEnabled === 'function') {
+    libStatus.setLibraryEnabled(libraryEnabled);
+  }
   const deleteBackdrop = document.getElementById('delete-modal-backdrop');
   const deleteFilenameEl = document.getElementById('delete-modal-filename');
   const deleteCancel = document.getElementById('delete-modal-cancel');
@@ -366,13 +369,14 @@
     libraryStatusBtn.classList.remove(
       'scripts-library-status-btn--warn',
       'scripts-library-status-btn--action',
-      'scripts-library-status-btn--ok'
+      'scripts-library-status-btn--ok',
+      'scripts-library-status-btn--linked'
     );
     libraryMode = 'hidden';
 
     function syncOpenInContent(linked) {
       if (!openInContent) return;
-      if (!linked || !btn) {
+      if (!linked || !btn || !libraryEnabled) {
         openInContent.hidden = true;
         return;
       }
@@ -400,11 +404,26 @@
     }
 
     libraryStatusBtn.hidden = false;
-    syncOpenInContent(true);
     if (libraryStatusLabel) {
       libraryStatusLabel.hidden = false;
       libraryStatusLabel.textContent = cue.header_label || cue.short || '';
     }
+
+    if (cue.cue === 'linked') {
+      libraryMode = 'linked';
+      libraryStatusBtn.disabled = true;
+      libraryStatusBtn.setAttribute('aria-disabled', 'true');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--linked');
+      libraryStatusBtn.title = cue.message || cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = false;
+      syncOpenInContent(false);
+      return;
+    }
+
+    syncOpenInContent(true);
 
     if (cue.can_reattach) {
       libraryMode = 'orphan';
@@ -477,12 +496,17 @@
     var warnIcon = btn.querySelector('[data-library-cue-icon="warn"]');
     var okIcon = btn.querySelector('[data-library-cue-icon="ok"]');
     if (warnIcon) {
-      var showWarn = cue.show_rail_icon && cue.cue !== 'synced';
+      var showWarn = cue.show_rail_icon && cue.cue !== 'synced' && cue.cue !== 'linked';
       warnIcon.hidden = !showWarn;
       warnIcon.title = cue.message || cue.short || 'Library status';
     }
     if (okIcon) {
-      okIcon.hidden = cue.cue !== 'synced';
+      var showLink = cue.cue === 'synced' || cue.cue === 'linked';
+      okIcon.hidden = !showLink;
+      okIcon.classList.toggle('library-status-cue-icon--linked', cue.cue === 'linked');
+      okIcon.classList.toggle('library-status-cue-icon--ok', cue.cue === 'synced');
+      okIcon.title = cue.cue === 'linked' ? 'Linked from Library' : 'Synced with Library';
+      okIcon.setAttribute('aria-label', okIcon.title);
     }
   }
 
@@ -844,6 +868,7 @@
 
   if (libraryStatusBtn) {
     libraryStatusBtn.addEventListener('click', function () {
+      if (!libraryEnabled) return;
       if (libraryMode === 'orphan') {
         if (libraryReattach) libraryReattach.open();
         return;

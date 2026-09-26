@@ -1,6 +1,7 @@
 /**
  * Shared Library status cue vocabulary (#387 / ADR-0018).
  * Keep in sync with lib/library_status_cues.py for Cached ↔ Content 1:1.
+ * Soft-disable linked cue: #408.
  */
 (function (global) {
   'use strict';
@@ -21,6 +22,16 @@
     unevaluated: '',
   };
 
+  var _libraryEnabled = true;
+
+  function setLibraryEnabled(enabled) {
+    _libraryEnabled = !!enabled;
+  }
+
+  function libraryEnabled() {
+    return _libraryEnabled;
+  }
+
   function resolve(opts) {
     opts = opts || {};
     var drift = String(opts.drift_state || '').trim().toLowerCase();
@@ -30,6 +41,12 @@
     var sync = String(opts.sync_state || '').trim().toLowerCase();
     var message = String(opts.source_status_message || orphanReason || '').trim();
     var name = String(opts.cache_name || '').trim();
+    var enabled = opts.library_enabled;
+    if (enabled === undefined || enabled === null) {
+      enabled = _libraryEnabled;
+    } else {
+      enabled = !!enabled;
+    }
 
     if (drift === 'local' || (!status && !orphan && (!drift || drift === 'local'))) {
       return {
@@ -74,6 +91,23 @@
       status = 'orphan';
       sync = 'unevaluated';
       message = message || orphanReason || 'Library connection or binding missing';
+    }
+
+    if (!enabled) {
+      return {
+        cue: 'linked',
+        short: 'linked',
+        severity: 'muted',
+        show_rail_icon: true,
+        can_sync: false,
+        can_reattach: false,
+        header_label: 'Linked',
+        header_aria: 'Linked from Library (Library is disabled)',
+        message: 'Library is disabled. Sync and re-attach are unavailable.',
+        source_status: status,
+        sync_state: sync,
+        filter_keys: ['linked'],
+      };
     }
 
     var short = '';
@@ -166,6 +200,7 @@
       orphan: item.orphan,
       orphan_reason: item.orphan_reason,
       cache_name: item.name,
+      library_enabled: item.library_enabled,
     });
   }
 
@@ -191,6 +226,8 @@
   global.HatcheryLibraryStatus = {
     SOURCE_SHORT: SOURCE_SHORT,
     SYNC_SHORT: SYNC_SHORT,
+    setLibraryEnabled: setLibraryEnabled,
+    libraryEnabled: libraryEnabled,
     resolve: resolve,
     resolveFromItem: resolveFromItem,
     resolveFromButton: resolveFromButton,

@@ -659,13 +659,8 @@ def _enrich_library_inventory(
     domain: str,
     media_target: str | None = None,
 ) -> list[dict]:
-    """Attach Library provenance / drift fields when Library is enabled."""
-    if not config.library_enabled() or not items:
-        for item in items:
-            item.setdefault("drift_state", "local")
-            item.setdefault("orphan", False)
-            item.setdefault("orphan_reason", "")
-            item.setdefault("library_provenance", None)
+    """Attach Library provenance / drift fields (including soft-disable linked cues)."""
+    if not items:
         return items
     try:
         from lib import library_drift as drift
@@ -678,6 +673,7 @@ def _enrich_library_inventory(
             connection_ids=cids,
             binding_ids=bids,
             media_target=media_target,
+            library_enabled=bool(config.library_enabled()),
         )
     except Exception:
         for item in items:

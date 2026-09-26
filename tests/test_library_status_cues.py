@@ -27,6 +27,35 @@ class TestLibraryStatusCues:
         assert r["can_reattach"] is False
         assert "Sync" in r["header_aria"]
 
+    def test_soft_disable_linked_suppresses_sync(self):
+        r = cues.resolve(
+            source_status="ok",
+            sync_state="out_of_sync",
+            cache_name="a.ps1",
+            library_enabled=False,
+        )
+        assert r["cue"] == "linked"
+        assert r["short"] == "linked"
+        assert r["can_sync"] is False
+        assert r["can_reattach"] is False
+        assert r["show_rail_icon"] is True
+        assert "linked" in r["filter_keys"]
+        assert "disabled" in r["header_aria"].lower()
+
+    def test_soft_disable_linked_suppresses_reattach(self):
+        r = cues.resolve(
+            source_status="orphan",
+            sync_state="unevaluated",
+            library_enabled=False,
+        )
+        assert r["cue"] == "linked"
+        assert r["can_reattach"] is False
+
+    def test_soft_disable_local_unchanged(self):
+        r = cues.resolve(drift_state="local", library_enabled=False)
+        assert r["cue"] == "local"
+        assert r["show_rail_icon"] is False
+
     def test_missing(self):
         r = cues.resolve(source_status="missing", sync_state="unevaluated")
         assert r["cue"] == "missing"
@@ -60,3 +89,17 @@ class TestLibraryStatusCues:
         assert item["library_cue"] == "synced"
         assert item["library_cue_short"] == "synced"
         assert item["library_can_sync"] is False
+
+    def test_attach_soft_disable(self):
+        item = {
+            "name": "x.ps1",
+            "drift_state": "out_of_sync",
+            "source_status": "ok",
+            "sync_state": "out_of_sync",
+            "source_status_message": "",
+            "orphan": False,
+        }
+        cues.attach_to_inventory_item(item, library_enabled=False)
+        assert item["library_cue"] == "linked"
+        assert item["library_can_sync"] is False
+        assert item["library_can_reattach"] is False

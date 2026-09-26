@@ -36,6 +36,7 @@ CUE_COMMUNICATION = "communication"
 CUE_DISABLED = "disabled"
 CUE_UNCONFIRMABLE = "unconfirmable"
 CUE_LOCAL = "local"
+CUE_LINKED = "linked"  # soft-disable residue (#408): was linked; Sync/re-attach off
 
 SEVERITY_OK = "ok"
 SEVERITY_ACTION = "action"
@@ -52,10 +53,13 @@ def resolve(
     orphan: bool = False,
     orphan_reason: str = "",
     cache_name: str = "",
+    library_enabled: bool = True,
 ) -> dict[str, Any]:
     """Return cue dict for one inventory / provenance row.
 
     Local (no Library link): pass ``drift_state='local'`` or omit statuses.
+    When ``library_enabled`` is false and a link remains, return the soft-disable
+    ``linked`` cue (no Sync / re-attach) instead of live sync chrome (#408).
     """
     drift = (drift_state or "").strip().lower()
     if drift == "local" or (not source_status and not orphan and drift in ("", "local")):
@@ -104,6 +108,23 @@ def resolve(
         status = "orphan"
         sync = "unevaluated"
         message = message or orphan_reason or "Library connection or binding missing"
+
+    # Soft disable: keep a quiet linked cue; suppress Sync / re-attach (#408).
+    if not library_enabled:
+        return {
+            "cue": CUE_LINKED,
+            "short": "linked",
+            "severity": SEVERITY_MUTED,
+            "show_rail_icon": True,
+            "can_sync": False,
+            "can_reattach": False,
+            "header_label": "Linked",
+            "header_aria": "Linked from Library (Library is disabled)",
+            "message": "Library is disabled. Sync and re-attach are unavailable.",
+            "source_status": status,
+            "sync_state": sync,
+            "filter_keys": ["linked"],
+        }
 
     short = ""
     cue = CUE_UNCONFIRMABLE
@@ -183,7 +204,11 @@ def resolve(
     }
 
 
-def attach_to_inventory_item(item: dict[str, Any]) -> dict[str, Any]:
+def attach_to_inventory_item(
+    item: dict[str, Any],
+    *,
+    library_enabled: bool = True,
+) -> dict[str, Any]:
     """Mutate/enrich a filesystem inventory dict with ``library_cue_*`` fields."""
     cue = resolve(
         source_status=item.get("source_status"),
@@ -193,6 +218,7 @@ def attach_to_inventory_item(item: dict[str, Any]) -> dict[str, Any]:
         orphan=bool(item.get("orphan")),
         orphan_reason=item.get("orphan_reason") or "",
         cache_name=item.get("name") or "",
+        library_enabled=library_enabled,
     )
     item["library_cue"] = cue["cue"]
     item["library_cue_short"] = cue["short"]

@@ -116,7 +116,7 @@ Turning **Enable Library** off under Settings → General opens a confirm modal 
 | **Clear Connections** (checkbox) | off | Remove all Library connections and bindings |
 | **Linked Cached files** (radio) | Leave as-is | Soft: keep links. **Clear Content** deletes linked files. **Clear Links** keeps files as local inventory |
 
-Soft disable = Clear Connections off + Leave as-is. Sync chrome is suppressed while Disabled ([#408](https://github.com/dustinestes/Hatchery/issues/408)).
+Soft disable = Clear Connections off + Leave as-is. While Disabled, linked Cached items keep a quiet **Linked** cue (no Sync / re-attach); files stay hatchable ([#408](https://github.com/dustinestes/Hatchery/issues/408)). Re-enable restores normal linked/synced chrome after evaluate.
 
 Classic **`type: git`** and `{data_dir}/library/git/` are removed ([ADR-0020](adr/0020-library-forge-path-only.md) / [#406](https://github.com/dustinestes/Hatchery/issues/406)). Recreate remote SCM as **forge**; local trees as **path**. Leftover clone dirs are deleted when the connection is removed.
 
