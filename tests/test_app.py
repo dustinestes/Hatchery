@@ -340,7 +340,9 @@ class TestPageTitles:
         assert 'id="library-content-filter-domain"' in content
         assert 'id="library-content-filter-state"' in content
         assert "scripts-layout" in content
-        state_opts = content.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
+        state_opts = content.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[
+            0
+        ]
         assert 'value="local"' not in state_opts
 
     def test_media_iso_library_tabs_when_enabled(self, client, monkeypatch):
@@ -938,7 +940,10 @@ class TestLibraryContentPane:
         assert 'id="library-content-filter-q"' in html
         assert 'id="library-content-filter-domain"' in html
         assert 'id="library-content-filter-state"' in html
-        assert 'value="local"' not in html.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
+        assert (
+            'value="local"'
+            not in html.split('id="library-content-filter-state"', 1)[1].split("</select>", 1)[0]
+        )
 
     def test_library_content_api_json(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
