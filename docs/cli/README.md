@@ -107,6 +107,7 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `library connection test` | `{connection_id, ok, message}` |
 | `library content list` | `{domain, items: […]}` |
 | `library content pull` | `{domain, imported, sha256, dest}` |
+| `library content remove` | `{ok, domain, name, deleted}` |
 
 Schema may evolve; treat field names as the contract for automation, not pretty-print layout.
 
@@ -139,7 +140,7 @@ CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smok
 | [scripts.md](scripts.md) | [`lib/cli/scripts.py`](../../lib/cli/scripts.py) | **Shipped** (#425) | List local automation scripts |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | [`lib/cli/settings.py`](../../lib/cli/settings.py) | **Shipped** (#344) | Persist Settings (`get` / `set`) |
-| [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434, #440) | Library enable + connections/bindings + content list/test/pull |
+| [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434, #440) | Library enable + connections/bindings + content list/test/pull/remove |
 | (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
 
 Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library CLI ships under [#434](https://github.com/dustinestes/Hatchery/issues/434) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)).

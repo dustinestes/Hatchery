@@ -1112,6 +1112,30 @@ class TestLibraryCli:
         assert library_cmd.run(pull) == 1
         assert capsys.readouterr().err
 
+        rem = cli.build_parser().parse_args(
+            [
+                "--json",
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "content",
+                "remove",
+                "--domain",
+                "scripts",
+                "--name",
+                "hello.ps1",
+            ]
+        )
+        assert library_cmd.run(rem) == 0
+        rem_payload = json.loads(capsys.readouterr().out)
+        assert rem_payload["ok"] is True
+        assert rem_payload["deleted"] == ["hello.ps1"]
+        assert not dest.is_file()
+
+        # No provenance left
+        assert library_cmd.run(rem) == 1
+        assert "provenance" in capsys.readouterr().err.lower()
+
     def test_main_dispatches_library(self):
         with patch("lib.cli.library.run", return_value=0) as run:
             assert cli.main(["library", "enable"]) == 0

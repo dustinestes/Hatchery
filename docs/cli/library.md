@@ -24,7 +24,7 @@ Consume-only: no forge push or Clutch round-trip ([ADR-0011](../adr/0011-library
 uv run hatchery library [--data-dir PATH] enable|disable
 uv run hatchery library [--data-dir PATH] connection list|show|add|remove|test …
 uv run hatchery library [--data-dir PATH] binding list|show|add|remove …
-uv run hatchery library [--data-dir PATH] content list|pull …
+uv run hatchery library [--data-dir PATH] content list|pull|remove …
 uv run hatchery --json library connection list
 uv run hatchery library connection add --help
 ```
@@ -37,6 +37,7 @@ uv run hatchery library connection add --help
 | `binding *` | Same enable gate on mutate; `--domain` filter on list |
 | `content list` | Available Content catalog from bindings (`--domain` required); optional `--connection`, media `--target` |
 | `content pull` | Create-only pull into operator cache; requires `--connection` + `--path`; media needs `--target` |
+| `content remove` | Delete one Library-linked cache file + provenance (same as Content trash); `--name` is the **cached basename**, media needs `--target` |
 
 Deeper disable/excise teardown (clear links/content/registry) remains UI / follow-on ([ADR-0019](../adr/0019-library-disable-excise.md)).
 
@@ -117,17 +118,18 @@ uv run hatchery library binding add \
 
 <br>
 
-## Content `list` / `pull`
+## Content `list` / `pull` / `remove`
 
-Same shared Library lib as the UI (`catalog_*`, `pull_*`). Pull is **create-only** (second pull of the same basename fails until cache sync/overwrite lands elsewhere).
+Same shared Library lib as the UI (`catalog_*`, `pull_*`, `library_provenance.delete_attributed_cache_files`). Pull is **create-only** (second pull of the same basename fails until cache sync/overwrite lands elsewhere). Remove matches Library → Content trash: deletes the operator-cache file and clears provenance; it does not change the upstream source.
 
 | Flag | Commands | Required | Accepted values |
 |---|---|---|---|
-| `--domain` | list, pull | yes | `scripts` · `clutches` · `media` |
+| `--domain` | list, pull, remove | yes | `scripts` · `clutches` · `media` |
 | `--connection` | list (optional), pull (required) | pull | Connection id |
-| `--path` | pull | yes | Relative path from catalog (`relative_path`) |
+| `--path` | pull | yes | Relative path from catalog (`relative_path`, e.g. `scripts/windows/foo.ps1`) |
+| `--name` | remove | yes | Cached basename in the operator cache (e.g. `foo.ps1`), not the forge relative path |
 | `--binding-id` | pull | no | Provenance attribution |
-| `--target` | list (optional), pull (media required) | media pull | `iso` · `virtio` |
+| `--target` | list (optional); pull/remove media required | media pull/remove | `iso` · `virtio` |
 
 ### Examples
 
@@ -138,7 +140,7 @@ uv run hatchery --json library content list --domain scripts --connection local-
 uv run hatchery library content pull \
   --domain scripts \
   --connection local-share \
-  --path hello.ps1 \
+  --path scripts/windows/hello.ps1 \
   --binding-id scripts-all
 
 # Media
@@ -147,9 +149,14 @@ uv run hatchery library content pull \
   --connection local-share \
   --path images/guest.iso \
   --target iso
+
+# Remove linked cache (UI trash) - use cached basename, not --path
+uv run hatchery library content remove \
+  --domain scripts \
+  --name hello.ps1
 ```
 
-`--json` shapes: connection test `{connection_id, ok, message}`; content list `{domain, items: […]}`; content pull `{domain, imported, sha256, dest}`.
+`--json` shapes: connection test `{connection_id, ok, message}`; content list `{domain, items: […]}`; content pull `{domain, imported, sha256, dest}`; content remove `{ok, domain, name, deleted}`.
 
 <br>
 

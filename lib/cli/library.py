@@ -182,6 +182,29 @@ def register(sub: argparse._SubParsersAction) -> None:
         metavar="TARGET",
         help="Required when --domain media: iso | virtio",
     )
+    rem_ct = content_sub.add_parser(
+        "remove",
+        help="Remove one Library-linked cache file and its provenance (UI trash)",
+    )
+    rem_ct.add_argument(
+        "--domain",
+        required=True,
+        choices=("scripts", "clutches", "media"),
+        metavar="DOMAIN",
+    )
+    rem_ct.add_argument(
+        "--name",
+        required=True,
+        metavar="NAME",
+        help="Cached basename (operator cache filename, not forge relative_path)",
+    )
+    rem_ct.add_argument(
+        "--target",
+        choices=("iso", "virtio"),
+        default=None,
+        metavar="TARGET",
+        help="Required when --domain media: iso | virtio",
+    )
 
 
 def run(args: argparse.Namespace) -> int:
@@ -191,7 +214,7 @@ def run(args: argparse.Namespace) -> int:
         cmd in ("connection", "binding")
         and getattr(args, f"{cmd}_command", None) in ("add", "remove")
     )
-    if cmd == "content" and getattr(args, "content_command", None) == "pull":
+    if cmd == "content" and getattr(args, "content_command", None) in ("pull", "remove"):
         mutate = True
     try:
         bootstrap.bootstrap(args, create=mutate)
@@ -575,6 +598,37 @@ def _content(args: argparse.Namespace, *, as_json: bool) -> int:
             cli_out.emit_json(payload)
             return 0
         print(f"Pulled '{result['name']}' -> {result.get('dest')}")
+        return 0
+
+    if sub == "remove":
+        from lib import config as cfg
+        from lib import library_provenance as prov
+
+        if args.domain == "media" and args.target not in ("iso", "virtio"):
+            bootstrap.print_err("content remove --domain media requires --target iso|virtio")
+            return 1
+        name = str(args.name or "").strip()
+        if not name:
+            bootstrap.print_err("name is required")
+            return 1
+        row = prov.get_for_cache(args.domain, name, media_target=args.target)
+        if row is None:
+            bootstrap.print_err(f"No Library provenance for cached file: {name}")
+            return 1
+        deleted = prov.delete_attributed_cache_files([row], data_dir=cfg.data_dir())
+        payload = {
+            "ok": True,
+            "domain": args.domain,
+            "name": name,
+            "deleted": deleted,
+        }
+        if as_json:
+            cli_out.emit_json(payload)
+            return 0
+        if deleted:
+            print(f"Removed '{name}' from operator cache and cleared Library provenance.")
+        else:
+            print(f"Cleared Library provenance for '{name}' (cache file was already missing).")
         return 0
 
     bootstrap.print_err(f"unknown content command: {sub}")
