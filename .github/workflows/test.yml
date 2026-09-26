@@ -19,13 +19,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Merge confidence: ubuntu + macos (+ Lint). See #400.
   test:
     name: pytest (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v7
@@ -45,5 +46,31 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.os }}
+          path: coverage.xml
+          retention-days: 14
+
+  # Same portable suite on Windows. Runs on PRs and on push to main so you still
+  # see the check and get failure alerts. Not a required status check - merge when
+  # lint + ubuntu + macos are green even if this job is still running (#400).
+  test-windows:
+    name: pytest (windows-latest)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest -m "not hypervisor" --cov-report=xml --cov-report=term
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-windows-latest
           path: coverage.xml
           retention-days: 14
