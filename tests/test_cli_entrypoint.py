@@ -84,7 +84,17 @@ class TestCliEntrypointSmoke:
         assert result.returncode == 0, result.stderr
         out = result.stdout
         assert "--json" in out
-        for name in ("serve", "nest", "clutch", "vm", "hatch", "session", "media", "scripts"):
+        for name in (
+            "serve",
+            "nest",
+            "clutch",
+            "vm",
+            "hatch",
+            "session",
+            "media",
+            "scripts",
+            "settings",
+        ):
             assert name in out
 
     def test_json_nest_list_via_console_script(self, isolated_config, tmp_path):
