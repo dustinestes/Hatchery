@@ -3,9 +3,11 @@
 {% block title %}Clutches - Hatchery{% endblock %}
 
 {% block content %}
-<div class="section-header inventory-toolbar">
-  <h2 class="section-title">Clutch Files</h2>
-  <div class="section-header-actions">
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{% call inventory_toolbar("Clutch Files") %}
     <input type="file"
            id="clutch-import-input"
            accept=".yaml,application/x-yaml,text/yaml"
@@ -28,47 +30,22 @@
     <button type="button" class="btn btn-primary btn-sm" id="clutch-import-btn">Import</button>
     {% endif %}
     <a href="{{ url_for('build') }}" class="btn btn-primary btn-sm">+ New Clutch</a>
-  </div>
-</div>
+{% endcall %}
 
 {% with tab_prefix='clutches', tablist_label='Clutches inventory source' %}
   {% include "_inventory_source_tabs.html" %}
 {% endwith %}
 
 <div class="scripts-panel" id="clutches-panel-cache" role="tabpanel" aria-labelledby="clutches-tab-cache">
-  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached Clutches">
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="clutches-filter-q">Search</label>
-      <input type="search"
-             id="clutches-filter-q"
-             class="form-input"
-             placeholder="Name"
-             autocomplete="off"
-             aria-controls="clutches-nav">
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="clutches-filter-language">Language</label>
-      <select id="clutches-filter-language" class="form-select" aria-controls="clutches-nav">
-        <option value="">All</option>
-      </select>
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="clutches-filter-state">Library state</label>
-      <select id="clutches-filter-state" class="form-select" aria-controls="clutches-nav">
-        <option value="">All</option>
-        <option value="local">Local</option>
-        <option value="in_sync">Synced</option>
-        <option value="out_of_sync">Out of sync</option>
-        <option value="orphan">Orphaned</option>
-        <option value="missing">Source missing</option>
-        <option value="communication">Communication</option>
-        <option value="disabled">Connection disabled</option>
-        <option value="unconfirmable">Tip unconfirmable</option>
-      </select>
-    </div>
-  </div>
+  {{ inventory_cached_filters(
+       "clutches",
+       "Filter Cached Clutches",
+       "clutches-nav",
+       extras=["language"],
+       filter_class="inventory-cached-filters"
+     ) }}
 
-<div class="scripts-layout">
+{% call inventory_split() %}
 
   <nav class="scripts-nav" aria-label="Clutch files" id="clutches-nav">
     {% if clutch_inventory %}
@@ -245,7 +222,7 @@
     <div class="stub" id="clutches-stub">Select a Clutch to inspect</div>
   </div>
 
-</div>
+{% endcall %}
 </div>
 
 {% with id_prefix='clutches', filter_aria='Filter Library Clutches', empty_message='No Clutch hits from your Library bindings. Configure connections under Settings → Library.' %}

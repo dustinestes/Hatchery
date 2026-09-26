@@ -3,9 +3,11 @@
 {% block title %}Scripts - Automations - Hatchery{% endblock %}
 
 {% block content %}
-<div class="section-header inventory-toolbar">
-  <h2 class="section-title">Script files</h2>
-    <div class="section-header-actions">
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{% call inventory_toolbar("Script files") %}
     <input type="file"
            id="scripts-import-input"
            accept=".ps1,.sh,.bash,.py,.bat,.cmd"
@@ -27,54 +29,22 @@
     {% else %}
     <button type="button" class="btn btn-primary btn-sm" id="scripts-import-btn">Import</button>
     {% endif %}
-  </div>
-</div>
+{% endcall %}
 
-<div class="inventory-tabs" role="tablist" aria-label="Scripts inventory source">
-  <button type="button" class="inventory-tab" role="tab" id="scripts-tab-cache"
-          aria-selected="true" aria-controls="scripts-panel-cache" tabindex="0">Cached</button>
-  <button type="button" class="inventory-tab{% if not library_enabled %} inventory-tab--disabled{% endif %}"
-          role="tab" id="scripts-tab-library"
-          aria-selected="false"
-          aria-controls="scripts-panel-library"
-          tabindex="-1"
-          {% if not library_enabled %}disabled aria-disabled="true" title="Enable Library in Settings → General"{% endif %}>Library</button>
-</div>
+{% with tab_prefix='scripts', tablist_label='Scripts inventory source' %}
+  {% include "_inventory_source_tabs.html" %}
+{% endwith %}
 
 <div class="scripts-panel" id="scripts-panel-cache" role="tabpanel" aria-labelledby="scripts-tab-cache">
-  <div class="notif-filters scripts-cached-filters" role="search" aria-label="Filter Cached scripts">
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="scripts-filter-q">Search</label>
-      <input type="search"
-             id="scripts-filter-q"
-             class="form-input"
-             placeholder="Name"
-             autocomplete="off"
-             aria-controls="scripts-nav">
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="scripts-filter-language">Language</label>
-      <select id="scripts-filter-language" class="form-select" aria-controls="scripts-nav">
-        <option value="">All</option>
-      </select>
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="scripts-filter-state">Library state</label>
-      <select id="scripts-filter-state" class="form-select" aria-controls="scripts-nav">
-        <option value="">All</option>
-        <option value="local">Local</option>
-        <option value="in_sync">Synced</option>
-        <option value="out_of_sync">Out of sync</option>
-        <option value="orphan">Orphaned</option>
-        <option value="missing">Source missing</option>
-        <option value="communication">Communication</option>
-        <option value="disabled">Connection disabled</option>
-        <option value="unconfirmable">Tip unconfirmable</option>
-      </select>
-    </div>
-  </div>
+  {{ inventory_cached_filters(
+       "scripts",
+       "Filter Cached scripts",
+       "scripts-nav",
+       extras=["language"],
+       filter_class="scripts-cached-filters"
+     ) }}
 
-<div class="scripts-layout">
+{% call inventory_split() %}
 
   <nav class="scripts-nav" aria-label="Automation scripts" id="scripts-nav">
     {% if scripts %}
@@ -242,7 +212,7 @@
     <div class="stub" id="scripts-stub">Select a script to inspect</div>
   </div>
 
-</div>
+{% endcall %}
 </div>
 
 {% if library_enabled %}

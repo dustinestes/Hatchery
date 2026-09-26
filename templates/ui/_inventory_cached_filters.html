@@ -1,0 +1,62 @@
+{# Cached-inventory filter bar (#391).
+   {% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+   {{ inventory_cached_filters("scripts", "Filter Cached scripts", "scripts-nav",
+        extras=["language"], filter_class="scripts-cached-filters") }}
+#}
+{% macro inventory_cached_filters(
+  prefix,
+  aria_label,
+  nav_id,
+  extras=None,
+  include_local=True,
+  filter_class="inventory-cached-filters",
+  q_placeholder="Name"
+) -%}
+{% set _extras = extras if extras is not none else [] %}
+<div class="notif-filters {{ filter_class }}" role="search" aria-label="{{ aria_label }}">
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="{{ prefix }}-filter-q">Search</label>
+    <input type="search"
+           id="{{ prefix }}-filter-q"
+           class="form-input"
+           placeholder="{{ q_placeholder }}"
+           autocomplete="off"
+           aria-controls="{{ nav_id }}">
+  </div>
+  {% if "language" in _extras %}
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="{{ prefix }}-filter-language">Language</label>
+    <select id="{{ prefix }}-filter-language" class="form-select" aria-controls="{{ nav_id }}">
+      <option value="">All</option>
+    </select>
+  </div>
+  {% endif %}
+  {% if "domain" in _extras %}
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="{{ prefix }}-filter-domain">Domain</label>
+    <select id="{{ prefix }}-filter-domain" class="form-select" aria-controls="{{ nav_id }}">
+      <option value="">All</option>
+      <option value="scripts">Scripts</option>
+      <option value="clutches">Clutches</option>
+      <option value="media">Media</option>
+    </select>
+  </div>
+  {% endif %}
+  <div class="form-group notif-filter-field">
+    <label class="form-label" for="{{ prefix }}-filter-state">Library state</label>
+    <select id="{{ prefix }}-filter-state" class="form-select" aria-controls="{{ nav_id }}">
+      <option value="">All</option>
+      {% if include_local %}
+      <option value="local">Local</option>
+      {% endif %}
+      <option value="in_sync">Synced</option>
+      <option value="out_of_sync">Out of sync</option>
+      <option value="orphan">Orphaned</option>
+      <option value="missing">Source missing</option>
+      <option value="communication">Communication</option>
+      <option value="disabled">Connection disabled</option>
+      <option value="unconfirmable">Tip unconfirmable</option>
+    </select>
+  </div>
+</div>
+{%- endmacro %}

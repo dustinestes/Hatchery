@@ -3,9 +3,11 @@
 {% block title %}{{ pane_title }} - Media - Hatchery{% endblock %}
 
 {% block content %}
-<div class="section-header inventory-toolbar">
-  <h2 class="section-title">{{ pane_title }} files</h2>
-  <div class="section-header-actions">
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{% call inventory_toolbar(pane_title ~ " files") %}
     <input type="file"
            id="media-import-input"
            accept="{{ import_accept }}"
@@ -27,41 +29,21 @@
     {% else %}
     <button type="button" class="btn btn-primary btn-sm" id="media-import-btn">Import</button>
     {% endif %}
-  </div>
-</div>
+{% endcall %}
 
 {% with tab_prefix='media', tablist_label=(pane_title ~ ' inventory source') %}
   {% include "_inventory_source_tabs.html" %}
 {% endwith %}
 
 <div class="scripts-panel" id="media-panel-cache" role="tabpanel" aria-labelledby="media-tab-cache">
-  <div class="notif-filters inventory-cached-filters" role="search" aria-label="Filter Cached {{ pane_title }}">
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="media-filter-q">Search</label>
-      <input type="search"
-             id="media-filter-q"
-             class="form-input"
-             placeholder="Name"
-             autocomplete="off"
-             aria-controls="media-nav">
-    </div>
-    <div class="form-group notif-filter-field">
-      <label class="form-label" for="media-filter-state">Library state</label>
-      <select id="media-filter-state" class="form-select" aria-controls="media-nav">
-        <option value="">All</option>
-        <option value="local">Local</option>
-        <option value="in_sync">Synced</option>
-        <option value="out_of_sync">Out of sync</option>
-        <option value="orphan">Orphaned</option>
-        <option value="missing">Source missing</option>
-        <option value="communication">Communication</option>
-        <option value="disabled">Connection disabled</option>
-        <option value="unconfirmable">Tip unconfirmable</option>
-      </select>
-    </div>
-  </div>
+  {{ inventory_cached_filters(
+       "media",
+       "Filter Cached " ~ pane_title,
+       "media-nav",
+       filter_class="inventory-cached-filters"
+     ) }}
 
-<div class="media-layout">
+{% call inventory_split("media-layout") %}
 
   <nav class="media-nav" aria-label="{{ nav_label }}" id="media-nav">
     {% if items %}
@@ -243,7 +225,7 @@
     <div class="stub" id="media-stub">{{ stub_text }}</div>
   </div>
 
-</div>
+{% endcall %}
 </div>
 
 {% with id_prefix='media', filter_aria=('Filter Library ' ~ pane_title), empty_message=('No media hits from your Library bindings for this target. Configure connections under Settings → Library.') %}
