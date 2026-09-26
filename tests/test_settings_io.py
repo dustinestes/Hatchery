@@ -133,3 +133,13 @@ class TestExportImport:
         assert loaded["version"] == 1
         assert "library_enabled" in loaded["settings"]
         assert "library_connections" not in loaded["settings"]
+
+    def test_set_exportable_setting_partial_write(self, live_cfg):
+        assert settings_io.set_exportable_setting("library_enabled", False) is False
+        assert live_cfg.get()["library_enabled"] is False
+        assert settings_io.set_exportable_setting("bg_interval", 120) == 120
+        assert live_cfg.get()["bg_interval"] == 120
+        with pytest.raises(settings_io.SettingError, match="bootstrap"):
+            settings_io.set_exportable_setting("data_dir", "/tmp/x")
+        with pytest.raises(settings_io.SettingError, match="true or false"):
+            settings_io.parse_cli_value("library_enabled", "maybe")

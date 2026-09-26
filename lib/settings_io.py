@@ -11,6 +11,7 @@ a warning (registry is not wiped).
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
@@ -216,3 +217,69 @@ def _normalize_setting(key: str, value: Any) -> Any:
         nest_key_expiry_lib.parse_identities(value)
         return deepcopy(value)
     raise ValueError(f"Unsupported settings key: {key}")
+
+
+class SettingError(ValueError):
+    """Invalid Settings key or value for CLI / shared writers."""
+
+
+def assert_exportable_key(key: str) -> None:
+    """Raise :class:`SettingError` when ``key`` cannot be set via Settings CLI."""
+    if key == "data_dir":
+        raise SettingError(
+            "data_dir is bootstrap-only; use hatchery serve --data-dir for a session "
+            "override, or edit the bootstrap config file"
+        )
+    if key not in config_lib.exportable_setting_keys():
+        raise SettingError(
+            f"Unknown or non-exportable settings key: {key}\n"
+            f"Exportable keys: {', '.join(sorted(config_lib.exportable_setting_keys()))}"
+        )
+
+
+def parse_cli_value(key: str, raw: str) -> Any:
+    """Parse a CLI string into a value for ``key`` (JSON for objects/lists)."""
+    text = raw.strip()
+    if key in ("show_passwords", "library_enabled"):
+        low = text.lower()
+        if low in ("1", "true", "yes", "on"):
+            return True
+        if low in ("0", "false", "no", "off"):
+            return False
+        raise SettingError(f"{key} must be true or false")
+    if key in ("bg_interval", "validators_run_retention"):
+        try:
+            return int(text)
+        except ValueError as exc:
+            raise SettingError(f"{key} must be an integer") from exc
+    if key == "display_timezone":
+        return text
+    if key in ("validators", "nest_key_alert_tiers", "nest_ssh_identities"):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise SettingError(f"{key} must be JSON") from exc
+        return parsed
+    raise SettingError(f"Unsupported settings key: {key}")
+
+
+def set_exportable_setting(key: str, value: Any) -> Any:
+    """Normalize and persist one exportable Settings key via partial write.
+
+    Shared by ``hatchery settings set`` and product convenience verbs (e.g.
+    ``library enable``). Refuses bootstrap ``data_dir`` and non-exportable keys.
+    """
+    assert_exportable_key(key)
+    normalized = _normalize_setting(key, value)
+    config_lib.update_settings({key: normalized})
+    if key == "library_enabled":
+        from lib import library_health as library_health_lib
+        from lib import library_registry as library_registry_lib
+
+        if not normalized:
+            library_health_lib.resolve_all_library_alerts()
+        else:
+            library_health_lib.prune_alerts_for_removed_connections(
+                {c["id"] for c in library_registry_lib.list_connections()}
+            )
+    return normalized

@@ -801,3 +801,68 @@ class TestMediaAndScriptsList:
         with patch("lib.cli.scripts.run", return_value=0) as run:
             assert cli.main(["scripts", "list"]) == 0
         run.assert_called_once()
+
+
+class TestSettingsCli:
+    def _seed(self, sandbox: Path) -> None:
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime(create=True)
+
+    def test_settings_get_and_set(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.settings as settings_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+
+        set_off = cli.build_parser().parse_args(
+            ["settings", "--data-dir", str(sandbox), "set", "library_enabled", "false"]
+        )
+        assert settings_cmd.run(set_off) == 0
+        capsys.readouterr()
+
+        get_args = cli.build_parser().parse_args(
+            ["settings", "--data-dir", str(sandbox), "get", "library_enabled"]
+        )
+        assert settings_cmd.run(get_args) == 0
+        assert "false" in capsys.readouterr().out.lower()
+
+        set_args = cli.build_parser().parse_args(
+            ["settings", "--data-dir", str(sandbox), "set", "library_enabled", "true"]
+        )
+        assert settings_cmd.run(set_args) == 0
+        assert "library_enabled=true" in capsys.readouterr().out.replace(" ", "")
+
+        json_args = cli.build_parser().parse_args(
+            ["--json", "settings", "--data-dir", str(sandbox), "get", "library_enabled"]
+        )
+        assert settings_cmd.run(json_args) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["library_enabled"] is True
+        assert cfg.library_enabled() is True
+
+    def test_settings_set_rejects_data_dir(self, isolated_config, tmp_path, capsys):
+        import lib.cli.settings as settings_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        args = cli.build_parser().parse_args(
+            ["settings", "--data-dir", str(sandbox), "set", "data_dir", "/tmp/nope"]
+        )
+        assert settings_cmd.run(args) == 1
+        assert "bootstrap" in capsys.readouterr().err.lower()
+
+    def test_settings_get_missing_data_dir(self, isolated_config, tmp_path, capsys):
+        import lib.cli.settings as settings_cmd
+
+        missing = tmp_path / "missing"
+        args = cli.build_parser().parse_args(["settings", "--data-dir", str(missing), "get"])
+        assert settings_cmd.run(args) == 1
+        assert "does not exist" in capsys.readouterr().err
+
+    def test_main_dispatches_settings(self):
+        with patch("lib.cli.settings.run", return_value=0) as run:
+            assert cli.main(["settings", "get"]) == 0
+        run.assert_called_once()
