@@ -23,11 +23,6 @@
 </a>
 {%- endmacro %}
 
-<div class="pane-header">
-  <h1 class="pane-title">Dashboard</h1>
-  <p class="pane-subtitle">At-a-glance status across Hatchery, connections, and observability.</p>
-</div>
-
 <div id="dashboard-empty-nests" class="empty-state" role="status"{% if nest_total %} hidden{% endif %}>
   No Nests registered.
   <a class="link" href="{{ url_for('settings_section', section='nests') }}">Add a Nest in Settings</a>

@@ -129,6 +129,7 @@ Inclusive UI is a **standing expectation**, not a follow-up cleanup pass. A broa
 - **Don’t rely on color alone** - hatch/script status and alerts need text (or another non-color cue), not only badge color.
 - **Dynamic UI** - toasts, trays, and live regions should remain understandable to assistive tech (sensible roles, labels, and updates - don’t invent a parallel design system).
 - **Motion** - prefer respecting `prefers-reduced-motion` when adding transitions.
+- **Page title** - the current pane name lives in the topbar (`#topbar-page-title`), driven by `active_pane` via [`lib/ui_chrome.py`](lib/ui_chrome.py). Do not reintroduce per-pane h1 + subtitle chrome. New panes: set `active_pane` and add a label to `PANE_TITLES` (or rely on the humanize fallback); use optional `page_title` only when the sidebar id must stay a parent group (e.g. Build/Edit under Clutches).
 
 When in doubt, favor the labeled, keyboard-reachable control over a mouse-only shortcut.
 

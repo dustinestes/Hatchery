@@ -3,24 +3,19 @@
 {% block title %}{{ pane_title }} - Settings - Hatchery{% endblock %}
 
 {% block content %}
-<div class="pane-header">
-  <div class="pane-header-row">
-    <div class="pane-header-text">
-      <h1 class="pane-title">{{ pane_title }}</h1>
-      <p class="pane-subtitle">{{ pane_subtitle }}</p>
-    </div>
-    {% if section == 'general' %}
-    <div class="pane-header-actions">
-      <a class="btn btn-primary btn-sm" id="settings-export-btn"
-         href="{{ url_for('api_settings_export') }}"
-         download="hatchery-settings.yaml">Export</a>
-      <input type="file" id="settings-import-input"
-             accept=".yaml,.yml,text/yaml,application/x-yaml" hidden>
-      <button type="button" class="btn btn-primary btn-sm" id="settings-import-btn">Import</button>
-    </div>
-    {% endif %}
+{% if section == 'general' %}
+<div class="section-header inventory-toolbar settings-toolbar">
+  <h2 class="section-title visually-hidden">Settings actions</h2>
+  <div class="section-header-actions">
+    <a class="btn btn-primary btn-sm" id="settings-export-btn"
+       href="{{ url_for('api_settings_export') }}"
+       download="hatchery-settings.yaml">Export</a>
+    <input type="file" id="settings-import-input"
+           accept=".yaml,.yml,text/yaml,application/x-yaml" hidden>
+    <button type="button" class="btn btn-primary btn-sm" id="settings-import-btn">Import</button>
   </div>
 </div>
+{% endif %}
 
 {% if form_saved %}
   <div class="alert alert-success" role="status">Settings saved.</div>
