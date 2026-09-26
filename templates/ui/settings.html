@@ -694,6 +694,10 @@
         }
         backdrop.hidden = true;
         enabledEl.checked = false;
+        var libraryNav = document.getElementById('sidebar-nav-library');
+        if (libraryNav) libraryNav.hidden = true;
+        var footerLibs = document.getElementById('footer-libraries');
+        if (footerLibs) footerLibs.hidden = true;
         if (window.hatchery && hatchery.showToast) {
           hatchery.showToast('Library disabled', 'success', 3000);
         }
