@@ -530,3 +530,80 @@ def migrate_from_app_settings(conn: sqlite3.Connection) -> bool:
     ):
         conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
     return True
+
+
+# Well-known demo catalog (#315). Seeded only when the registry is empty
+# (fresh Controller). No token - public GitHub repo.
+HATCHERY_LIBRARY_CONNECTION_ID = "hatchery-library"
+HATCHERY_LIBRARY_BASE_URI = "https://github.com/dustinestes/Hatchery-Library"
+
+
+def ensure_hatchery_library() -> bool:
+    """Seed the public Hatchery Library forge connection + bindings if empty.
+
+    First-run / empty-registry only: never re-inserts after the operator has
+    any connection (including after they delete this one and keep others).
+    Enables ``library_enabled`` when seeding so the Connection is visible.
+    Idempotent no-op when connections already exist. Returns True if seeded.
+    """
+    if not db_module.is_initialized():
+        return False
+    if list_connections():
+        return False
+
+    upsert_connection(
+        {
+            "id": HATCHERY_LIBRARY_CONNECTION_ID,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": HATCHERY_LIBRARY_BASE_URI,
+            "token": "",
+            "expires_at": None,
+            "kinds": ["scripts", "clutches", "media", "packages"],
+            "enabled": True,
+        }
+    )
+    cid = HATCHERY_LIBRARY_CONNECTION_ID
+    for item in (
+        {
+            "id": "hatchery-library-scripts",
+            "connection_id": cid,
+            "domain": "scripts",
+            "label": "All Scripts",
+            "filter": "*",
+            "enabled": True,
+        },
+        {
+            "id": "hatchery-library-clutches",
+            "connection_id": cid,
+            "domain": "clutches",
+            "label": "All Clutches",
+            "filter": "*",
+            "enabled": True,
+        },
+        {
+            "id": "hatchery-library-media-iso",
+            "connection_id": cid,
+            "domain": "media",
+            "target": "iso",
+            "label": "All ISOs",
+            "filter": "*",
+            "enabled": True,
+        },
+        {
+            "id": "hatchery-library-media-virtio",
+            "connection_id": cid,
+            "domain": "media",
+            "target": "virtio",
+            "label": "All VirtIO",
+            "filter": "*",
+            "enabled": True,
+        },
+    ):
+        upsert_binding(item)
+
+    from lib import config as config_lib
+
+    config_lib.update_settings({"library_enabled": True})
+    return True

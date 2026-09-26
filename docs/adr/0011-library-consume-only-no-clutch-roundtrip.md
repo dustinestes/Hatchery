@@ -27,7 +27,7 @@ Forces against building that now:
 1. Library remains **consume-only**: test / list / pull (create-only into operator cache). No forge or git **push**, no “export to binding” authoring flow, no Clutch round-trip that invents remote paths from local YAML.
 2. Operators author and version Clutches/scripts in their own repos or shares; Hatchery pulls and runs from the operator cache (planes in [ADR-0007](0007-library-nest-content-planes.md)).
 3. [#308](https://github.com/dustinestes/Hatchery/issues/308) may store **pull provenance** (who we pulled from) - that does **not** authorize write-back or auto-publish.
-4. Demo seeding uses a separate sample catalog repo ([#315](https://github.com/dustinestes/Hatchery/issues/315) [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)) that operators **add as a Forge connection** - still consume-only.
+4. Demo seeding uses a separate sample catalog repo ([#315](https://github.com/dustinestes/Hatchery/issues/315) [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)) that operators **add as a Forge connection** - still consume-only. Fresh Controllers with an empty Library registry seed that connection and bindings on first run (`ensure_hatchery_library`); existing registries are never overwritten.
 
 ## Consequences
 

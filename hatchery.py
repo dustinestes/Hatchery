@@ -19,6 +19,7 @@ from lib import import_files as import_files_lib
 from lib import provision as provision_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
+from lib import library_registry as library_registry_lib
 from lib import nest_cache as nest_cache_lib
 from lib import nests as nests_lib
 from lib import settings_io as settings_io_lib
@@ -448,6 +449,7 @@ config.bind_db()
 if config.nest_local_enabled():
     nests_lib.ensure_local_nest()
 nests_lib.migrate_legacy_ssh_identities()
+library_registry_lib.ensure_hatchery_library()
 
 register_builtins()
 migrate_bg_interval()

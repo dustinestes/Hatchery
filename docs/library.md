@@ -170,16 +170,19 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, and **All VirtIO** (`filter: *`). Existing Controllers with any connection are left unchanged.
+
 | | |
 |---|---|
-| **Base URI** | `https://github.com/dustinestes/Hatchery-Library` or `dustinestes/Hatchery-Library` |
+| **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
 | **Provider** | `github` |
-| **Scripts** | `scripts/windows/**/*.ps1`, `scripts/linux/**/*.sh`, `scripts/macos/**/*.sh` |
-| **Clutches** | `clutches/**/*.yaml` |
-| **Media ISO** | `media/iso/**/*.iso` (target `iso`) |
-| **Media VirtIO** | `media/virtio/**/*.iso` (target `virtio`) |
+| **Kinds** | scripts, clutches, media, packages |
+| **Scripts** | label `All Scripts` · filter `*` |
+| **Clutches** | label `All Clutches` · filter `*` |
+| **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
+| **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
 
-Token optional for this public repo. Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only).
+Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 
 ### API connections (#255)
 

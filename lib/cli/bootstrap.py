@@ -45,12 +45,15 @@ def init_controller_runtime(*, create: bool = True) -> None:
     data directory and open ``hatchery.db`` only if it already exists — never
     mkdir or create a new database.
     """
+    from lib import library_registry as library_registry_lib
+
     cfg.load()
     root = cfg.data_dir()
     if create:
         cfg.init_data_dir()
         db_module.init_db(root / "hatchery.db")
         cfg.bind_db()
+        library_registry_lib.ensure_hatchery_library()
         return
 
     if not root.is_dir():
@@ -63,6 +66,7 @@ def init_controller_runtime(*, create: bool = True) -> None:
     if db_path.is_file():
         db_module.init_db(db_path)
         cfg.bind_db()
+        library_registry_lib.ensure_hatchery_library()
 
 
 def bootstrap(args: argparse.Namespace, *, create: bool = True) -> None:
