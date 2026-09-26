@@ -35,6 +35,8 @@ uv run hatchery settings set library_enabled true
 
 Shared writer: `lib.settings_io.set_exportable_setting` (also used by product convenience verbs such as `library enable`).
 
+A running `hatchery serve` against the **same** data dir reloads Settings from SQLite when the `_settings_rev` meta row advances ([ADR-0023](../adr/0023-settings-sqlite-revision-reload.md); [#439](https://github.com/dustinestes/Hatchery/issues/439)). No serve restart required for `settings set` / `library enable|disable` to show in the UI on the next request or status poll. This is not external YAML/git watch ([#253](https://github.com/dustinestes/Hatchery/issues/253)).
+
 <br>
 
 ---

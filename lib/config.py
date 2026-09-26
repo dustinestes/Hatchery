@@ -85,6 +85,10 @@ _runtime_data_dir: str | None = None
 _runtime_nest_local: bool = False
 # Last bootstrap data_dir from disk (or default); used when writing bootstrap under an override.
 _bootstrap_data_dir: str | None = None
+# Meta key in app_settings (not a product Setting). Bumped on every Settings UPSERT (ADR-0023).
+_SETTINGS_REV_KEY = "_settings_rev"
+# Revision last applied into this process's _config (None until bound / reloaded).
+_local_settings_rev: int | None = None
 
 
 def set_runtime_data_dir(path: str | Path | None) -> None:
@@ -165,7 +169,7 @@ def load() -> dict:
 
 def bind_db() -> dict:
     """Load or migrate Settings from SQLite into memory. Requires ``db.init_db``."""
-    global _config, _pending_yaml_settings, _db_bound
+    global _config, _pending_yaml_settings, _db_bound, _local_settings_rev
     if not _config:
         load()
 
@@ -191,6 +195,7 @@ def bind_db() -> dict:
     }
     _pending_yaml_settings = {}
     _db_bound = True
+    _local_settings_rev = _read_settings_rev()
     if runtime_data_dir() is None and not os.environ.get("HATCHERY_DATA_DIR", "").strip():
         _write_bootstrap({"data_dir": _bootstrap_data_dir or _config["data_dir"]})
     # ADR-0017: copy any leftover Settings JSON into tables (idempotent).
@@ -254,10 +259,36 @@ def update_settings(updates: dict) -> None:
         _db_bound = True
 
 
+def ensure_settings_fresh() -> None:
+    """Reload ``app_settings`` into memory when another process advanced the revision.
+
+    Preserves ``get()`` object identity and leaves ``data_dir`` / runtime overrides
+    untouched. No-op when the DB is not bound or the revision matches locally.
+    """
+    global _local_settings_rev
+    if not _db_bound or not _config or not _db_path_ready():
+        return
+    db_rev = _read_settings_rev()
+    if _local_settings_rev is not None and db_rev == _local_settings_rev:
+        return
+    existing = _read_db_settings()
+    for key in _DB_SETTING_KEYS:
+        if key in existing:
+            _config[key] = deepcopy(existing[key])
+        elif key in _DEFAULTS:
+            _config[key] = deepcopy(_DEFAULTS[key])
+    _local_settings_rev = db_rev
+
+
 def get() -> dict:
-    """Return in-memory config, loading the bootstrap file on first call."""
+    """Return in-memory config, loading the bootstrap file on first call.
+
+    When SQLite is bound, refreshes exportable Settings if another process wrote
+    since this process last applied ``_settings_rev`` (ADR-0023 / #439).
+    """
     if not _config:
         load()
+    ensure_settings_fresh()
     return _config
 
 
@@ -383,7 +414,29 @@ def _read_db_settings() -> dict:
     return out
 
 
+def _read_settings_rev() -> int:
+    """Return the Settings revision from SQLite (0 if missing / unreadable)."""
+    if not _db_path_ready():
+        return 0
+    conn = db_module.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (_SETTINGS_REV_KEY,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return 0
+    try:
+        return int(json.loads(row["value"]))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return 0
+
+
 def _write_db_settings(settings: dict) -> None:
+    """UPSERT named DB setting keys and bump ``_settings_rev`` in the same transaction."""
+    global _local_settings_rev
     if not _db_path_ready():
         raise RuntimeError("db not initialized - call init_db() before saving settings")
     conn = db_module.get_connection()
@@ -396,6 +449,23 @@ def _write_db_settings(settings: dict) -> None:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, json.dumps(settings[key])),
             )
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (_SETTINGS_REV_KEY,),
+        ).fetchone()
+        current = 0
+        if row:
+            try:
+                current = int(json.loads(row["value"]))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                current = 0
+        next_rev = current + 1
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (_SETTINGS_REV_KEY, json.dumps(next_rev)),
+        )
         conn.commit()
+        _local_settings_rev = next_rev
     finally:
         conn.close()

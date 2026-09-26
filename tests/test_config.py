@@ -39,6 +39,7 @@ def isolated_config(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "_config", {})
     monkeypatch.setattr(cfg, "_pending_yaml_settings", {})
     monkeypatch.setattr(cfg, "_db_bound", False)
+    monkeypatch.setattr(cfg, "_local_settings_rev", None)
     monkeypatch.setattr(cfg, "_runtime_data_dir", None)
     monkeypatch.setattr(cfg, "_runtime_nest_local", False)
     monkeypatch.setattr(cfg, "_bootstrap_data_dir", None)
@@ -255,6 +256,44 @@ class TestUpdateSettings:
         )
         assert cfg.library_connections()[0]["label"] == "Hatchery_Test"
         assert library_registry.list_connections()[0]["label"] == "Hatchery_Test"
+
+
+class TestSettingsReload:
+    """Cross-process Settings freshness (#439 / ADR-0023)."""
+
+    def test_get_reloads_when_sqlite_revision_advances(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        assert cfg.library_enabled() is False
+
+        # Other process: UPSERT Settings + bump rev without updating our memory.
+        cfg._write_db_settings({"library_enabled": True})
+        cfg._config["library_enabled"] = False
+        cfg._local_settings_rev = 0
+
+        assert cfg.library_enabled() is True
+        assert cfg.get()["library_enabled"] is True
+
+    def test_reload_preserves_get_object_identity(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        first = cfg.get()
+        cfg._write_db_settings({"bg_interval": 99})
+        cfg._config["bg_interval"] = 60
+        cfg._local_settings_rev = 0
+        second = cfg.get()
+        assert first is second
+        assert second["bg_interval"] == 99
+
+    def test_local_writer_does_not_needlessly_reload(self, isolated_config):
+        cfg.load()
+        cfg.bind_db()
+        before = cfg._local_settings_rev
+        cfg.update_settings({"library_enabled": True})
+        assert cfg._local_settings_rev == before + 1
+        snap = dict(cfg._config)
+        cfg.ensure_settings_fresh()
+        assert cfg._config["library_enabled"] == snap["library_enabled"]
 
 
 class TestGet:

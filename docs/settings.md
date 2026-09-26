@@ -73,12 +73,13 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |
 | `display_timezone` | Display | `UTC` or `local` for Events |
 | `library_enabled` | General | Feature flag for Library sidebar + Import from library |
+| `_settings_rev` | (meta) | Integer revision bumped on every Settings UPSERT; not exportable ([ADR-0023](adr/0023-settings-sqlite-revision-reload.md)) |
 
 Library **connections**, **kinds**, and **bindings** live in first-class tables (`library_connections`, `library_connection_kinds`, `library_bindings`) - see [ADR-0017](adr/0017-library-connections-bindings-tables.md) and [schema/database.md](schema/database.md). They are not Settings keys and are not included in Settings YAML export/import.
 
 Nest **connections** (including SSH identity file path, optional cert path, and optional identity expiry) live in the `nests` table - see [schema/database.md - nests](schema/database.md#nests). Security keeps Nest SSH **alert tiers** only.
 
-Managed by `lib/config.py` after `db.init_db` via `bind_db()` / `save()`.
+Managed by `lib/config.py` after `db.init_db` via `bind_db()` / `save()` / `update_settings()`. Long-lived processes call `ensure_settings_fresh()` from `get()` so another process’s Settings write (same data dir) is visible without restart ([ADR-0023](adr/0023-settings-sqlite-revision-reload.md); [#439](https://github.com/dustinestes/Hatchery/issues/439)).
 
 <br>
 
