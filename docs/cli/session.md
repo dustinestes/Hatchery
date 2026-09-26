@@ -22,7 +22,11 @@ Inspect hatch **sessions** stored in the Controller database (distinct from live
 uv run hatchery session [--data-dir PATH] list [--nest <id>]
 uv run hatchery session [--data-dir PATH] show <session-id>
 uv run hatchery session [--data-dir PATH] retry <session-id> <vm-name>
+uv run hatchery --json session list
+uv run hatchery --json session show <session-id>
 ```
+
+`list` / `show` honor global `--json` (field names in [CLI index](README.md#machine-readable-output---json)). `retry` stays text-only.
 
 | Command | Notes |
 |---|---|

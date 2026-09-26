@@ -656,3 +656,70 @@ class TestOperatorInspect:
         ):
             assert session_cmd.run(args) == 1
         assert "failed state" in capsys.readouterr().err
+
+
+class TestJsonOutput:
+    """Global ``--json`` on inspect/list/show (#423)."""
+
+    def _seed(self, sandbox: Path) -> None:
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime()
+        nests_lib.ensure_local_nest()
+
+    def test_nest_list_json(self, isolated_config, tmp_path, capsys):
+        import json
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        args = cli.build_parser().parse_args(["--json", "nest", "--data-dir", str(sandbox), "list"])
+        assert nest_cmd.run(args) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert isinstance(payload, list)
+        assert payload[0]["id"] == "local"
+        assert payload[0]["provider_type"] == "libvirt"
+
+    def test_clutch_show_json(self, isolated_config, tmp_path, capsys):
+        import json
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        clutches = cfg.data_dir() / "clutches"
+        clutches.mkdir(parents=True, exist_ok=True)
+        (clutches / "lab.yaml").write_text(
+            "name: Lab\n"
+            "description: Demo\n"
+            "vms:\n"
+            "  - name: dc01\n"
+            "    os: win11\n"
+            "    vcpus: 2\n"
+            "    ram_gb: 4\n"
+            "    disk_gb: 60\n"
+            "    os_media: win11.iso\n"
+        )
+        args = cli.build_parser().parse_args(
+            ["--json", "clutch", "--data-dir", str(sandbox), "show", "lab.yaml"]
+        )
+        assert clutch_cmd.run(args) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["name"] == "Lab"
+        assert payload["file"] == "lab.yaml"
+        assert payload["vms"][0]["name"] == "dc01"
+
+    def test_session_list_json(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.session as session_cmd
+        import lib.hatch as hatch_lib
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        sid = hatch_lib.create_session("lab.yaml", "Lab", nest="local")
+        args = cli.build_parser().parse_args(
+            ["--json", "session", "--data-dir", str(sandbox), "list", "--nest", "local"]
+        )
+        assert session_cmd.run(args) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert isinstance(payload, list)
+        assert payload[0]["id"] == sid
+        assert payload[0]["clutch_file"] == "lab.yaml"

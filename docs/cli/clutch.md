@@ -21,7 +21,11 @@ List and show Clutch files under the effective Controller `data_dir` (operator i
 ```bash
 uv run hatchery clutch [--data-dir PATH] list
 uv run hatchery clutch [--data-dir PATH] show <file>
+uv run hatchery --json clutch list
+uv run hatchery --json clutch show <file>
 ```
+
+With `--json`, stdout is machine-readable (field names in [CLI index](README.md#machine-readable-output---json)).
 
 Reads `data_dir/clutches/*.yaml` on the Controller. Does not reach Nest transport.
 

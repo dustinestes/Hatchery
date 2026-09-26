@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from lib.cli import bootstrap
+from lib.cli import output as cli_out
 
 
 def register(sub: argparse._SubParsersAction) -> None:
@@ -29,11 +30,12 @@ def run(args: argparse.Namespace) -> int:
     except bootstrap.DataDirMissingError as exc:
         bootstrap.print_err(str(exc))
         return 1
+    as_json = cli_out.use_json(args)
     cmd = args.clutch_command
     if cmd == "list":
-        return _list_clutches()
+        return _list_clutches(as_json=as_json)
     if cmd == "show":
-        return _show_clutch(args.file)
+        return _show_clutch(args.file, as_json=as_json)
     bootstrap.print_err(f"unknown clutch command: {cmd}")
     return 2
 
@@ -44,12 +46,14 @@ def _clutches_dir() -> Path:
     return cfg.data_dir() / "clutches"
 
 
-def _list_clutches() -> int:
+def _list_clutches(*, as_json: bool) -> int:
     root = _clutches_dir()
-    if not root.is_dir():
-        print("No Clutch files.")
+    files: list[str] = []
+    if root.is_dir():
+        files = sorted(p.name for p in root.glob("*.yaml") if p.is_file())
+    if as_json:
+        cli_out.emit_json({"clutches": files})
         return 0
-    files = sorted(p.name for p in root.glob("*.yaml") if p.is_file())
     if not files:
         print("No Clutch files.")
         return 0
@@ -58,7 +62,7 @@ def _list_clutches() -> int:
     return 0
 
 
-def _show_clutch(filename: str) -> int:
+def _show_clutch(filename: str, *, as_json: bool) -> int:
     from lib import clutch as clutch_lib
 
     safe = Path(filename).name
@@ -71,6 +75,24 @@ def _show_clutch(filename: str) -> int:
     except ValueError as exc:
         bootstrap.print_err(str(exc))
         return 1
+
+    payload = {
+        "name": clutch.name,
+        "description": clutch.description,
+        "file": safe,
+        "vms": [
+            {
+                "name": vm.name,
+                "os": vm.os,
+                "vcpus": vm.vcpus,
+                "ram_gb": vm.ram_gb,
+            }
+            for vm in clutch.vms
+        ],
+    }
+    if as_json:
+        cli_out.emit_json(payload)
+        return 0
 
     print(f"name: {clutch.name}")
     if clutch.description:

@@ -26,7 +26,12 @@ uv run hatchery vm [--data-dir PATH] snap take [--nest <id>] <vm-name> --label <
 uv run hatchery vm [--data-dir PATH] snap list [--nest <id>] <vm-name>
 uv run hatchery vm [--data-dir PATH] snap apply [--nest <id>] <vm-name> <label>
 uv run hatchery vm [--data-dir PATH] snap delete [--nest <id>] <vm-name> <label>
+uv run hatchery --json vm list [--nest <id>]
+uv run hatchery --json vm health [--nest <id>] <vm-name>
+uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 ```
+
+`list`, `health`, and `snap list` honor global `--json` (field names in [CLI index](README.md#machine-readable-output---json)). Mutate verbs stay text-only.
 
 | Flag / verb | Notes |
 |---|---|

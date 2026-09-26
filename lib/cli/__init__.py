@@ -18,6 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="hatchery",
         description="Hatchery Controller CLI - launch and Nest-scoped operator commands.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Machine-readable JSON on stdout for inspect/list/show commands",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     serve_cmd.register(sub)
     nest_cmd.register(sub)

@@ -62,6 +62,7 @@ uv run hatchery serve --host 127.0.0.1 --port 5000
 uv run hatchery serve --data-dir /path/to/sandbox --host 127.0.0.1 --port 5000
 uv run hatchery serve --data-dir /path/to/sandbox-local --nest-local --host 127.0.0.1 --port 5000
 uv run hatchery nest list
+uv run hatchery --json nest list
 uv run hatchery clutch list
 uv run hatchery vm list --nest local
 uv run hatchery vm start test26
@@ -71,6 +72,26 @@ uv run hatchery session list
 uv run hatchery --help
 uv run hatchery serve --help
 ```
+
+<br>
+
+## Machine-readable output (`--json`)
+
+Global flag on the root parser: `hatchery --json <command> …` ([#423](https://github.com/dustinestes/Hatchery/issues/423)). Default remains human tables / text. Exit codes are unchanged. Mutate verbs (`vm start`, `hatch`, `session retry`, …) stay text-only in this pass.
+
+| Command | JSON shape (field names) |
+|---|---|
+| `nest list` | Array of `{id, name, provider_type, location, host}` |
+| `nest test` | `{ok, message, nest_id}` |
+| `clutch list` | `{clutches: [filename, …]}` |
+| `clutch show` | `{name, description, file, vms: [{name, os, vcpus, ram_gb}, …]}` |
+| `vm list` | `{nest, vms: [{name, status}, …]}` |
+| `vm health` | `{nest, name, ip, winrm, reachable}` |
+| `vm snap list` | `{nest, name, snapshots: [label, …]}` |
+| `session list` | Array of `{id, nest, status, clutch_file, clutch_name, hatched_at}` |
+| `session show` | `{id, nest, clutch_file, clutch_name, status, hatched_at, archived_at, vms: [{vm_name, status, error, events}, …]}` |
+
+Schema may evolve; treat field names as the contract for automation, not pretty-print layout.
 
 Equivalent contributor paths:
 
@@ -97,8 +118,9 @@ Open `http://127.0.0.1:5000` (or your bind). Full host setup: [getting-started.m
 | [session.md](session.md) | [`lib/cli/session.py`](../../lib/cli/session.py) | **Shipped** (#421 list/show, #422 retry) | Hatch sessions inspect + retry |
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | `lib/cli/settings.py` | Planned (#344) | Persist Settings (`get` / `set`) |
+| (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` on inspect/list/show |
 
-Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421).
+Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423).
 
 
 <br>
