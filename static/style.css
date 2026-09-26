@@ -104,21 +104,52 @@ body {
   overflow: hidden;
 }
 
-/* ── Top bar ── */
+/* ── Top bar ──
+   Two columns match sidebar + .content so the page title aligns with the pane. */
 .topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  align-items: stretch;
+  padding: 0;
   background: var(--color-topbar-bg);
   border-bottom: 1px solid var(--color-topbar-border);
   z-index: 10;
+  min-height: var(--topbar-height);
+  transition: grid-template-columns 200ms ease;
+}
+
+body:has(#sidebar.collapsed) .topbar,
+html.sidebar-collapsed-init .topbar {
+  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+html.sidebar-collapsed-init .topbar {
+  transition: none;
+}
+
+.topbar-brand-slot {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  min-width: 0;
+}
+
+body:has(#sidebar.collapsed) .topbar-brand-slot,
+html.sidebar-collapsed-init .topbar-brand-slot {
+  justify-content: center;
+  padding: 0;
+}
+
+body:has(#sidebar.collapsed) .topbar-name,
+html.sidebar-collapsed-init .topbar-name {
+  display: none;
 }
 
 .topbar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .topbar-icon {
@@ -135,12 +166,35 @@ body {
   font-size: 15px;
   letter-spacing: 0.01em;
   color: var(--color-text);
+  white-space: nowrap;
+}
+
+.topbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 32px; /* match .content horizontal padding */
+  min-width: 0;
+}
+
+.topbar-page-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .topbar-divider {
@@ -1915,6 +1969,11 @@ body {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
+}
+
+.settings-toolbar {
+  margin-bottom: 16px;
 }
 
 .inventory-toolbar {

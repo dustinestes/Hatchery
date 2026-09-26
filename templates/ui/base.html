@@ -20,19 +20,23 @@
 </head>
 <body>
 
-  <!-- Top bar -->
+  <!-- Top bar: brand over sidebar column; page title aligns with .content -->
   <header class="topbar">
-    <div class="topbar-brand">
-      <img class="topbar-icon"
-           id="topbar-brand-icon"
-           src="{{ url_for('static', filename='branding/hatchery-icon-current.svg') }}"
-           width="24"
-           height="24"
-           alt=""
-           aria-hidden="true">
-      <span class="topbar-name">Hatchery</span>
+    <div class="topbar-brand-slot">
+      <div class="topbar-brand">
+        <img class="topbar-icon"
+             id="topbar-brand-icon"
+             src="{{ url_for('static', filename='branding/hatchery-icon-current.svg') }}"
+             width="24"
+             height="24"
+             alt=""
+             aria-hidden="true">
+        <span class="topbar-name">Hatchery</span>
+      </div>
     </div>
-    <div class="topbar-actions">
+    <div class="topbar-main">
+      <h1 class="topbar-page-title" id="topbar-page-title">{{ resolve_topbar_title(active_pane|default(''), page_title|default(none)) }}</h1>
+      <div class="topbar-actions">
 
       <!-- Quick VM actions -->
       <a href="{{ url_for('hatch_clutch') }}" class="btn btn-primary btn-sm">Hatch</a>
@@ -69,6 +73,7 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
+    </div>
     </div>
   </header>
 

@@ -200,7 +200,10 @@ class TestActivePane:
 class TestPageTitles:
     def test_dashboard_title(self, client):
         html = client.get("/").data.decode()
-        assert "Dashboard" in html
+        assert 'id="topbar-page-title"' in html
+        assert ">Dashboard</h1>" in html
+        assert "pane-header" not in html
+        assert 'class="pane-title"' not in html
         assert "Dashboard content coming soon" not in html
         assert 'id="dashboard-sections"' in html
         assert 'id="dashboard-section-hatchery-title"' in html
@@ -267,7 +270,9 @@ class TestPageTitles:
 
     def test_automation_scripts_title(self, client):
         html = client.get("/automation/scripts").data.decode()
-        assert "Scripts" in html
+        assert ">Scripts</h1>" in html
+        assert 'id="topbar-page-title"' in html
+        assert "pane-header" not in html
         assert "Select a script to inspect" in html
         assert 'class="stub"' in html
         assert "sidebar-item--group" in html

@@ -499,6 +499,7 @@ def _ensure_runtime_services() -> None:
 @app.context_processor
 def inject_plane_status():
     from lib import plane_status as plane_status_lib
+    from lib import ui_chrome
 
     status = plane_status_lib.footer_status()
     return {
@@ -514,6 +515,8 @@ def inject_plane_status():
         "libraries_ok": status["libraries_ok"],
         "libraries_title": status["libraries_title"],
         "libraries_dot": status["libraries_dot"],
+        "pane_titles": ui_chrome.PANE_TITLES,
+        "resolve_topbar_title": ui_chrome.resolve_topbar_title,
     }
 
 
@@ -2228,7 +2231,7 @@ def _render_hatch_clutch_form(
     nest_id = selected_nest_id or nests_lib.default_nest_id() or ""
     return render_template(
         "hatch_clutch.html",
-        active_pane="dashboard",
+        active_pane="hatch_clutch",
         clutch_files=clutch_files,
         preselected=preselected,
         clutch_obj=clutch_obj,
@@ -2489,8 +2492,8 @@ def _missing_passwords(vms, passwords: dict) -> list[str]:
     return [vm.name for vm in vms if vm.admin_username and not passwords.get(vm.name)]
 
 
-def _build_template_ctx():
-    return dict(
+def _build_template_ctx(*, page_title: str | None = None):
+    ctx = dict(
         active_pane="clutches",
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media/iso"),
@@ -2498,16 +2501,21 @@ def _build_template_ctx():
         os_config_files=_scan_dir("automation/os_config"),
         scripts_files=_scan_dir("automation/scripts"),
     )
+    if page_title:
+        ctx["page_title"] = page_title
+    return ctx
 
 
 @app.route("/build", methods=["GET"])
 def build():
-    return render_template("build.html", form_error=None, **_build_template_ctx())
+    return render_template(
+        "build.html", form_error=None, **_build_template_ctx(page_title="New Clutch")
+    )
 
 
 @app.route("/build", methods=["POST"])
 def build_post():
-    ctx = _build_template_ctx()
+    ctx = _build_template_ctx(page_title="New Clutch")
     clutch_name = request.form.get("clutch_name", "").strip()
     filename = request.form.get("clutch_filename", "").strip()
     action = request.form.get("action", "save")
@@ -2590,7 +2598,7 @@ def edit():
         form_storage_path=form_storage_path,
         form_filename=current_stem,
         current_filename=filename,
-        **_build_template_ctx(),
+        **_build_template_ctx(page_title="Edit Clutch"),
     )
 
 
@@ -2598,7 +2606,7 @@ def edit():
 def edit_post():
     from pathlib import Path as _Path
 
-    ctx = _build_template_ctx()
+    ctx = _build_template_ctx(page_title="Edit Clutch")
     old_filename = _Path(request.form.get("existing_filename", "").strip()).name
     new_name = request.form.get("clutch_name", "").strip()
     new_filename_raw = request.form.get("clutch_filename", "").strip()
