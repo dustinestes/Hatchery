@@ -552,3 +552,57 @@ def create_and_start_hatch(
 def missing_passwords(vms, passwords: dict) -> list[str]:
     """Return names of VMs that have admin_username set but no password supplied."""
     return [vm.name for vm in vms if vm.admin_username and not passwords.get(vm.name)]
+
+
+class RetryError(Exception):
+    """Raised when a provisioning retry cannot start."""
+
+    def __init__(self, message: str, *, code: str = "error") -> None:
+        super().__init__(message)
+        self.code = code  # not_found | not_failed | provider
+
+
+def retry_failed_vm(session_id: str, vm_name: str) -> dict:
+    """Reset failed scripts and queue provision if the guest WinRM port is up.
+
+    Returns ``{"queued": bool, "message": str | None}``.
+    Raises ``RetryError`` when the VM/session cannot be retried.
+    """
+    db_record = hatch_lib.get_vm_record(session_id, vm_name)
+    if db_record is None:
+        raise RetryError("VM not found", code="not_found")
+    if db_record["status"] != "failed":
+        raise RetryError("VM is not in a failed state", code="not_failed")
+
+    hatch_lib.reset_scripts_for_retry(session_id, vm_name)
+    hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
+    hatch_lib.add_event(session_id, vm_name, "hatchery", "INFO", "Retry initiated")
+
+    session = hatch_lib.get_session(session_id)
+    nest_id = (session or {}).get("nest") or nests_lib.default_nest_id()
+    try:
+        if not nest_id:
+            raise NoNestSelectedError()
+        provider = get_provider(nest_id)
+    except (NoNestSelectedError, UnknownNestError, UnsupportedProviderError) as exc:
+        raise RetryError(str(exc), code="provider") from exc
+
+    try:
+        ip = provider.get_vm_ip(vm_name)
+    except Exception:
+        ip = None
+
+    if ip and check_winrm(ip):
+        spawn_provision_thread(
+            session_id,
+            vm_name,
+            ip,
+            db_record.get("admin_username") or "",
+            db_record.get("admin_password") or "",
+        )
+        return {"queued": True, "message": None}
+
+    return {
+        "queued": False,
+        "message": "VM unreachable - will retry on next sync",
+    }

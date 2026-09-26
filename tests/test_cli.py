@@ -620,3 +620,39 @@ class TestOperatorInspect:
         with patch("lib.cli.session.run", return_value=0) as run:
             assert cli.main(["session", "list"]) == 0
         run.assert_called_once()
+
+    def test_session_retry_queued(self, isolated_config, tmp_path, capsys):
+        import lib.cli.session as session_cmd
+        import lib.hatch as hatch_lib
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        sid = hatch_lib.create_session("lab.yaml", "Lab", nest="local")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "failed", error="boom")
+        args = cli.build_parser().parse_args(
+            ["session", "--data-dir", str(sandbox), "retry", sid, "dc01"]
+        )
+        with patch(
+            "lib.hatch_lifecycle.retry_failed_vm",
+            return_value={"queued": True, "message": None},
+        ) as retry:
+            assert session_cmd.run(args) == 0
+        retry.assert_called_once_with(sid, "dc01")
+        assert "queued" in capsys.readouterr().out.lower()
+
+    def test_session_retry_not_failed(self, isolated_config, tmp_path, capsys):
+        import lib.cli.session as session_cmd
+        from lib.hatch_lifecycle import RetryError
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        args = cli.build_parser().parse_args(
+            ["session", "--data-dir", str(sandbox), "retry", "sid", "dc01"]
+        )
+        with patch(
+            "lib.hatch_lifecycle.retry_failed_vm",
+            side_effect=RetryError("VM is not in a failed state", code="not_failed"),
+        ):
+            assert session_cmd.run(args) == 1
+        assert "failed state" in capsys.readouterr().err

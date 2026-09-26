@@ -21,14 +21,16 @@ Inspect hatch **sessions** stored in the Controller database (distinct from live
 ```bash
 uv run hatchery session [--data-dir PATH] list [--nest <id>]
 uv run hatchery session [--data-dir PATH] show <session-id>
+uv run hatchery session [--data-dir PATH] retry <session-id> <vm-name>
 ```
 
 | Command | Notes |
 |---|---|
 | `list` | Active (non-archived) sessions; all registered Nests unless `--nest` is set |
 | `show` | Clutch/nest metadata, per-VM status, last ~10 events per VM |
+| `retry` | Re-run failed provisioning for one VM (same path as the UI retry API) |
 
-Inspect is read-only: the data directory must already exist.
+Inspect (`list` / `show`) is read-only: the data directory must already exist. `retry` may create Controller state via mutate bootstrap when needed - it uses the same inspect bootstrap today (existing data dir).
 
 <br>
 
