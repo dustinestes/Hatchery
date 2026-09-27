@@ -226,6 +226,7 @@
 
       <section class="scripts-body-section" aria-labelledby="software-body-heading">
         <h2 class="scripts-section-title" id="software-body-heading">software.yaml</h2>
+        <p class="form-help-text" id="software-definition-status" role="status" hidden></p>
         <pre class="scripts-body" id="software-body" tabindex="0" aria-label="software.yaml content"></pre>
       </section>
     </div>
@@ -291,6 +292,7 @@
   const usedByList = document.getElementById('software-used-by-list');
   const usedByEmpty = document.getElementById('software-used-by-empty');
   const bodyEl = document.getElementById('software-body');
+  const definitionStatusEl = document.getElementById('software-definition-status');
   const copyDropdown = document.getElementById('software-copy-dropdown');
   const copyMenuBtn = document.getElementById('software-copy-menu-btn');
   const copyMenu = document.getElementById('software-copy-menu');
@@ -695,6 +697,11 @@
     modifiedEl.textContent = formatModified(modified);
     renderUsedBy(name);
     bodyEl.textContent = 'Loading…';
+    if (definitionStatusEl) {
+      definitionStatusEl.hidden = true;
+      definitionStatusEl.textContent = '';
+      definitionStatusEl.className = 'form-help-text';
+    }
 
     fetch('/api/automation/software/' + encodeURIComponent(name) + '/content')
       .then(function (resp) {
@@ -712,12 +719,50 @@
         selectedContent = data.content != null ? data.content : '';
         bodyEl.textContent = selectedContent;
         if (copyContentItem) copyContentItem.disabled = false;
+        if (data.meta) {
+          if (publisherEl) publisherEl.textContent = data.meta.publisher || publisher || '-';
+          if (productEl) productEl.textContent = data.meta.product || product || '-';
+          if (versionEl) versionEl.textContent = data.meta.version || version || '-';
+          if (architectureEl) {
+            architectureEl.textContent = data.meta.architecture || architecture || '-';
+          }
+        }
+        if (definitionStatusEl) {
+          if (data.definition_valid === false && data.definition_error) {
+            definitionStatusEl.hidden = false;
+            definitionStatusEl.className = 'alert alert-error';
+            definitionStatusEl.textContent = data.definition_error;
+          } else if (data.definition_valid === true) {
+            definitionStatusEl.hidden = false;
+            definitionStatusEl.className = 'form-help-text';
+            let platLabel = '';
+            if (data.platforms && typeof data.platforms === 'object') {
+              platLabel = Object.keys(data.platforms).map(function (osKey) {
+                const arches = data.platforms[osKey];
+                const archPart = Array.isArray(arches) ? arches.join('/') : '';
+                return archPart ? (osKey + '/' + archPart) : osKey;
+              }).join(', ');
+            }
+            definitionStatusEl.textContent = platLabel
+              ? ('Definition valid (' + platLabel + ')')
+              : 'Definition valid';
+          } else {
+            definitionStatusEl.hidden = true;
+            definitionStatusEl.textContent = '';
+            definitionStatusEl.className = 'form-help-text';
+          }
+        }
       })
       .catch(function (err) {
         if (selectedName !== name) return;
         selectedContent = null;
         bodyEl.textContent = 'Unable to load software package: ' + (err.message || 'unknown error');
         if (copyContentItem) copyContentItem.disabled = true;
+        if (definitionStatusEl) {
+          definitionStatusEl.hidden = true;
+          definitionStatusEl.textContent = '';
+          definitionStatusEl.className = 'form-help-text';
+        }
       });
   }
 

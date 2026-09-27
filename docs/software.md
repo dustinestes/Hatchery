@@ -99,7 +99,7 @@ Operators may also place package dirs under `automation/software/` without Impor
 
 ## Definition file
 
-Each package directory has a `software.yaml`. Illustrative shape (exact keys in the schema child / ADR):
+Each package directory has a `software.yaml`. Locked shape ([#471](https://github.com/dustinestes/Hatchery/issues/471) / [ADR-0025](adr/0025-software-product-model.md)):
 
 ```yaml
 hatchery:
@@ -107,29 +107,38 @@ hatchery:
   publisher: Microsoft
   product: VisualStudioCode
   version: "1.96.0"
-  architecture: x64
 platforms:
-  windows:
-    pre_install: []          # optional; command and/or script hooks
-    install:
-      command: '.\VSCodeSetup-x64.exe /VERYSILENT /NORESTART'
-      success_exit_codes: [0]
-      reboot_after: false
-    post_install: []
-    uninstall:
-      command: '...'
-      success_exit_codes: [0]
-    detect:
-      command: 'powershell -NoProfile -Command "..."'   # exit 0 = present
+  windows:                   # windows | linux | macos (at least one OS required)
+    x64:                     # x86 | x64 | arm64 | any (at least one arch per OS)
+      pre_install: []        # optional; omit or [] = skip
+      install:
+        command: '.\VSCodeSetup-x64.exe /VERYSILENT /NORESTART'
+        success_exit_codes: [0]   # optional; default [0]
+        reboot_after: false       # optional; default false
+      post_install: []
+      uninstall:
+        command: '...'
+        success_exit_codes: [0]
+      detect:
+        command: 'powershell -NoProfile -Command "..."'   # exit 0 = present
 ```
 
 | Key | Meaning |
 |---|---|
+| `hatchery.kind` | Must be `software` |
+| `hatchery.publisher` / `product` / `version` | Required non-empty display fields |
+| `platforms` | Mapping of OS → arch → unit; at least one OS required |
+| Arch keys | `x86`, `x64`, `arm64`, or `any` only. Single-arch packages list one key |
+| `any` | Arch-agnostic / multi-arch installer unit. **If `any` is present under an OS, no other arch keys are allowed under that OS** (rejected at load time) |
 | `pre_install` / `post_install` | Optional arrays; omit or `[]` = skip |
 | Each hook item | Exactly one of `command` (inline) or `script` (relative path under staged payload) |
-| Order | Array index order; stop the software step on first non-success exit |
-| `success_exit_codes` | Same shape as install (default `[0]` if omitted) |
+| `install` / `uninstall` / `detect` | Required per arch unit; `command` required and non-empty |
+| `success_exit_codes` | Default `[0]` when omitted; must not be empty when present |
+| `install.reboot_after` | Optional bool; default `false` |
+| Order | Hook array index order; stop the software step on first non-success exit |
 | cwd | `software_package(id)` (same as install) |
+
+There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch keys are rejected. Inventory and the package content API surface load-time validation errors without failing the rail list (missing/invalid YAML still appears as a package).
 
 <br>
 
@@ -139,9 +148,20 @@ platforms:
 
 ## Offline payloads
 
-Controller/Nest stores optional `windows/`, `linux/`, `macos/` trees under the package id (may contain multiple files and subdirs). On hatch, Hatchery copies **the entire contents** of the guest’s OS folder (recursive) into the resolved `software_package(id)` path on the guest. It does not create a nested `windows/` on the guest and does not stage sibling OS trees.
+Controller/Nest stores optional `{os}/{arch}/` trees under the package id (mirrors `platforms` in `software.yaml`). Example:
 
-Install and hook commands are relative to that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\…`.
+```text
+automation/software/Microsoft.VisualStudioCode.1.96.0/
+  software.yaml
+  windows/
+    x64/
+      VSCodeSetup-x64.exe
+      hooks/
+```
+
+On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest arch, or `any` when that unit exists) into the resolved `software_package(id)` path. It does not create nested `windows/` or `x64/` on the guest and does not stage sibling OS or arch trees.
+
+Install and hook commands are relative to that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`.
 
 <br>
 
