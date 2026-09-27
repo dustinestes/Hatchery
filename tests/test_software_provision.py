@@ -153,6 +153,29 @@ def test_upload_file_chunks(tmp_path, monkeypatch):
     # prep + 3 chunks (4+4+2)
     assert len(codes) == 4
     assert "FromBase64String" in codes[1]
+    # Parent dir must stay a Windows path on a Linux Controller (not '.').
+    assert r"C:\Program Files\Hatchery\software\Pkg" in codes[0]
+
+
+def test_upload_chunk_keeps_encoded_command_under_windows_limit():
+    """WinRM EncodedCommand must stay under CreateProcess ~8191 char limit."""
+    import base64
+
+    remote = (
+        r"C:\Program Files\Hatchery\software\Hatchery.SoftwareExample.1.0.0"
+        r"\Hatchery.SoftwareExample.1.0.0-x64.msi"
+    )
+    b64 = base64.b64encode(b"x" * soft_prov._UPLOAD_CHUNK).decode("ascii")
+    script = (
+        f"$path = '{remote}'\n"
+        f"$b64 = '{b64}'\n"
+        "$bytes = [Convert]::FromBase64String($b64)\n"
+        "$fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Append, "
+        "[System.IO.FileAccess]::Write)\n"
+        "try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }\n"
+    )
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    assert len(encoded) < 8191, f"EncodedCommand length {len(encoded)} exceeds Windows limit"
 
 
 def test_remove_guest_package_runs_ps(monkeypatch):

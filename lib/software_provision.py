@@ -11,7 +11,7 @@ import base64
 import logging
 import time
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from lib import provision as provision_lib
 from lib import software as software_lib
@@ -21,8 +21,11 @@ from lib.guest_paths import GuestPaths, clutch_os_to_platform_key, guest_paths_f
 
 log = logging.getLogger(__name__)
 
-# WinRM-friendly chunk size for base64 payload bytes (~24 KiB raw).
-_UPLOAD_CHUNK = 24 * 1024
+# Raw bytes per WinRM upload call. pywinrm sends PowerShell as -EncodedCommand
+# (UTF-16LE → base64); Windows caps that command line at ~8191 chars. ~1 KiB raw
+# keeps the encoded script comfortably under the limit (24 KiB chunks caused
+# ERROR_FILENAME_EXCED_RANGE / "filename or extension is too long" on guests).
+_UPLOAD_CHUNK = 1024
 
 _ARCH_MAP = {
     "amd64": "x64",
@@ -88,7 +91,8 @@ def _upload_file(
 ) -> None:
     """Write a local file to the guest via chunked base64 WinRM."""
     data = local_path.read_bytes()
-    parent = str(Path(remote_path).parent).replace("/", "\\")
+    # Controller may be Linux/macOS: use PureWindowsPath so backslash guests parse.
+    parent = str(PureWindowsPath(remote_path).parent)
     # Ensure parent exists; truncate/create empty target.
     prep = (
         f"$parent = {_ps_quote(parent)}\n"
@@ -148,7 +152,7 @@ def stage_payload(
         if not path.is_file():
             continue
         rel = path.relative_to(src).as_posix()
-        remote = guest_package_dir.rstrip("\\/") + "\\" + rel.replace("/", "\\")
+        remote = str(PureWindowsPath(guest_package_dir).joinpath(*rel.split("/")))
         _upload_file(ip, admin_username, admin_password, path, remote)
         uploaded.append(rel)
     return uploaded
