@@ -1214,6 +1214,8 @@ class TestLibraryCli:
                 "list",
                 "--domain",
                 "answerfiles",
+                "--connection",
+                "af-share",
             ]
         )
         assert library_cmd.run(listing) == 0

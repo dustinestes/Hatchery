@@ -421,9 +421,7 @@ class TestLibraryAnswerfilesDomain:
                 """
             )
             conn.commit()
-            row = conn.execute(
-                "SELECT domain FROM library_bindings WHERE id = 'b-af'"
-            ).fetchone()
+            row = conn.execute("SELECT domain FROM library_bindings WHERE id = 'b-af'").fetchone()
             assert row["domain"] == "answerfiles"
         finally:
             conn.close()
