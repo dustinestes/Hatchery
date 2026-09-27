@@ -47,9 +47,10 @@ vms:
     # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
     virtio_drivers: virtio-win.iso
 
-    # admin_username (optional): administrator account for unattended install / hatch→fledged
-    # Injected as reserved system tokens into the selected Answer File (ADR-0024).
-    # Password is supplied at hatch time - not stored as a long-lived manage credential.
+    # admin_username (required for Windows guests): administrator account for unattended
+    # install / hatch→fledged. Injected as reserved system tokens into the selected Answer File
+    # (ADR-0024 / #465). Password is supplied at hatch time - not stored as a long-lived
+    # manage credential. Hidden / not required for non-Windows Guest OS (#453).
     admin_username: admin
 
     # answer_file (required for Windows guests): Answer File under automation/answerfiles/
