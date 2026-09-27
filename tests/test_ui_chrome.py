@@ -9,6 +9,7 @@ def test_known_panes():
     assert resolve_topbar_title("dashboard") == "Dashboard"
     assert resolve_topbar_title("library_content") == "Content"
     assert resolve_topbar_title("automation_scripts") == "Scripts"
+    assert resolve_topbar_title("automation_software") == "Software"
     assert resolve_topbar_title("automation_answerfiles") == "Answer Files"
     assert resolve_topbar_title("settings_general") == "General"
     assert resolve_topbar_title("hatch_clutch") == "Hatch Clutch"
@@ -33,6 +34,7 @@ def test_pane_titles_cover_sidebar_leaves():
         "clutches",
         "vms",
         "automation_scripts",
+        "automation_software",
         "automation_answerfiles",
         "media_iso",
         "media_virtio",

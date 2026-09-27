@@ -77,6 +77,20 @@ automation/software/
 - **Display:** UI and docs show publisher / product / version from **`software.yaml`**, not by relying on folder parsing
 - **Dots in product names:** omit `.` from the product **segment** of the folder id (e.g. folder `Acme.FooBar.1.0.0`, YAML `product: Foo.Bar` as preferred for display)
 
+### Inventory (Controller UI)
+
+**Automations → Software** lists package directories under `automation/software/`. Operators can:
+
+- **Import** via a **directory picker** (same layout as Library / disk):
+  - Select a **package folder** that contains `software.yaml` at its root, or
+  - Select a **parent folder** of one or more such packages (batch import)
+  - Do **not** select `windows/`, `linux/`, or `macos/` alone
+  - Package id = folder name (`Publisher.Product.Version`); create-only (refuse overwrite)
+- **Delete** a package tree
+- Inspect `software.yaml` in the detail pane (metadata from YAML when present)
+
+Operators may also place package dirs under `automation/software/` without Import. Library pull for domain `software` (forge/path package trees) lands in [#470](https://github.com/dustinestes/Hatchery/issues/470). Artifactory archive/dir normalize into the same cache dirs is post-v1 [#487](https://github.com/dustinestes/Hatchery/issues/487). **No zip Import.**
+
 <br>
 
 ---
@@ -206,7 +220,7 @@ Hatch lifecycle: `script` → today’s script runner; `software` → stage payl
 
 ## Library
 
-Library domain **`software`** (migrated from reserved `packages`). Fresh Controllers seed an **All Software** binding (`filter: *software/*`). Hatchery-Library remains a content source only; pull is operator-driven. Sample packages under `software/` land in a child issue (Windows first).
+Library domain **`software`** (migrated from reserved `packages`). Fresh Controllers seed an **All Software** binding (`filter: *software/*`). Hatchery-Library remains a content source only; pull is operator-driven. Samples are **expanded directories** under `software/` (not zip). Catalog/pull treat each package dir as one unit (see [#470](https://github.com/dustinestes/Hatchery/issues/470)). Artifactory may later deliver trees or archives but still lands cache dirs ([#487](https://github.com/dustinestes/Hatchery/issues/487)).
 
 <br>
 

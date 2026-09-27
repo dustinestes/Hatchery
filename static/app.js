@@ -985,7 +985,12 @@ hatchery.bindUnsavedLeave = function (opts) {
 
       var form = new FormData();
       for (var i = 0; i < input.files.length; i++) {
-        form.append('files', input.files[i]);
+        var file = input.files[i];
+        if (opts.useRelativePaths && file.webkitRelativePath) {
+          form.append('files', file, file.webkitRelativePath);
+        } else {
+          form.append('files', file);
+        }
       }
 
       button.disabled = true;

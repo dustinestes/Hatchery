@@ -17,6 +17,7 @@ PANE_TITLES: dict[str, str] = {
     "edit": "Edit Clutch",
     "hatch_clutch": "Hatch Clutch",
     "automation_scripts": "Scripts",
+    "automation_software": "Software",
     "automation_answerfiles": "Answer Files",
     "media_iso": "ISO",
     "media_virtio": "VirtIO",

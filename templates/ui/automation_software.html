@@ -1,0 +1,941 @@
+{% extends "base.html" %}
+
+{% block title %}Software - Automations - Hatchery{% endblock %}
+
+{% block content %}
+{% from "_inventory_toolbar.html" import inventory_toolbar %}
+{% from "_inventory_cached_filters.html" import inventory_cached_filters %}
+{% from "_inventory_split_layout.html" import inventory_split %}
+
+{% call inventory_toolbar("Software") %}
+    <input type="file"
+           id="software-import-input"
+           webkitdirectory
+           directory
+           multiple
+           hidden>
+    {% if library_enabled %}
+    <div class="import-dropdown" id="software-import-dropdown">
+      <button type="button"
+              class="btn btn-primary btn-sm"
+              id="software-import-btn"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="software-import-menu">Import</button>
+      <div class="dropdown-menu import-dropdown-menu" id="software-import-menu" hidden role="menu">
+        <button type="button" class="dropdown-item" role="menuitem" id="software-import-from-file">From file…</button>
+        <button type="button" class="dropdown-item" role="menuitem" id="software-import-from-library">From library…</button>
+      </div>
+    </div>
+    {% else %}
+    <button type="button" class="btn btn-primary btn-sm" id="software-import-btn">Import</button>
+    {% endif %}
+{% endcall %}
+
+<div class="scripts-panel" id="software-panel-cache">
+  {{ inventory_cached_filters(
+       "software",
+       "Filter software packages",
+       "software-nav",
+       extras=[],
+       filter_class="scripts-cached-filters"
+     ) }}
+
+{% call inventory_split() %}
+
+  <nav class="scripts-nav" aria-label="Software" id="software-nav">
+    {% if packages %}
+      {% for s in packages %}
+      <button type="button"
+              class="scripts-nav-item"
+              data-name="{{ s.name }}"
+              data-relative-path="{{ s.relative_path }}"
+              data-absolute-path="{{ s.absolute_path }}"
+              data-publisher="{{ s.publisher }}"
+              data-product="{{ s.product }}"
+              data-version="{{ s.version }}"
+              data-architecture="{{ s.architecture }}"
+              data-subtitle="{{ s.subtitle }}"
+              data-modified-at="{{ s.modified_at }}"
+              data-drift-state="{{ s.drift_state or 'local' }}"
+              data-source-status="{{ s.source_status or '' }}"
+              data-sync-state="{{ s.sync_state or '' }}"
+              data-source-status-message="{{ s.source_status_message or '' }}"
+              data-library-cue="{{ s.library_cue or 'local' }}"
+              data-orphan="{{ '1' if s.orphan else '0' }}"
+              data-orphan-reason="{{ s.orphan_reason or '' }}"
+              data-lib-rel="{{ (s.library_provenance.relative_path if s.library_provenance else '') }}"
+              data-lib-conn="{{ (s.library_provenance.connection_id if s.library_provenance else '') }}"
+              aria-pressed="false">
+        <span class="scripts-nav-main">
+          <span class="scripts-nav-label">{{ s.name }}</span>
+          <span class="scripts-nav-sub">{{ s.subtitle }}{% if s.library_cue_short %} · {{ s.library_cue_short }}{% endif %}</span>
+        </span>
+        <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--warn"
+              data-library-cue-icon="warn"
+              {% if not s.library_show_rail_icon or s.library_cue in ('synced', 'linked') %}hidden{% endif %}
+              title="{{ s.source_status_message or s.library_cue_short or 'Library status' }}"
+              aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <span class="scripts-nav-drift-icon library-status-cue-icon {% if s.library_cue == 'linked' %}library-status-cue-icon--linked{% else %}library-status-cue-icon--ok{% endif %}"
+              data-library-cue-icon="ok"
+              {% if s.library_cue not in ('synced', 'linked') %}hidden{% endif %}
+              title="{% if s.library_cue == 'linked' %}Linked from Library{% else %}Synced with Library{% endif %}"
+              aria-label="{% if s.library_cue == 'linked' %}Linked from Library{% else %}Synced with Library{% endif %}"
+              role="img">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </span>
+      </button>
+      {% endfor %}
+    {% else %}
+      <div class="scripts-nav-empty" id="software-nav-empty">
+        No software packages found. Use <strong>Import</strong> to select a package
+        folder (or a parent of packages), or place package dirs in
+        <code>automation/software/</code>
+        under your Hatchery data directory.
+      </div>
+    {% endif %}
+    <div class="scripts-nav-empty" id="software-nav-filtered-empty" role="status" hidden>
+      No software packages match these filters.
+    </div>
+  </nav>
+
+  <div class="scripts-content" id="software-content">
+    <div class="scripts-content-header" id="software-content-header" hidden>
+      <div class="scripts-content-heading">
+        <span class="scripts-content-title" id="software-content-title"></span>
+        <span class="scripts-content-meta" id="software-content-meta"></span>
+      </div>
+      <div class="scripts-content-actions">
+        <button type="button"
+                class="scripts-copy-btn scripts-library-status-btn"
+                id="software-library-status-btn"
+                hidden
+                disabled
+                aria-disabled="true"
+                title=""
+                aria-label="">
+          <svg class="scripts-library-icon scripts-library-icon--sync" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 16h5v5"/>
+          </svg>
+          <svg class="scripts-library-icon scripts-library-icon--warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <svg class="scripts-library-icon scripts-library-icon--ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <span class="scripts-library-status-label" id="software-library-status-label" hidden></span>
+        </button>
+        {% if library_enabled %}
+        <a href="{{ url_for('library_content_pane') }}"
+           class="scripts-copy-btn scripts-open-in-library"
+           id="software-open-in-content"
+           hidden
+           title="Open in Library Content"
+           aria-label="Open in Library Content">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </a>
+        {% endif %}
+        <div class="import-dropdown scripts-copy-dropdown" id="software-copy-dropdown" hidden>
+          <button type="button"
+                  class="scripts-copy-btn"
+                  id="software-copy-menu-btn"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="software-copy-menu"
+                  title="Copy"
+                  aria-label="Copy">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu import-dropdown-menu" id="software-copy-menu" hidden role="menu" aria-label="Copy options">
+            <button type="button" class="dropdown-item" role="menuitem" id="software-copy-path-item">Path</button>
+            <button type="button" class="dropdown-item" role="menuitem" id="software-copy-content-item" disabled>Contents</button>
+          </div>
+        </div>
+        <button type="button"
+                class="scripts-copy-btn"
+                id="software-delete-btn"
+                title="Delete"
+                aria-label="Delete"
+                hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="scripts-detail" id="software-detail" hidden>
+      <dl class="scripts-meta-list" id="software-meta-list">
+        <div class="scripts-meta-row">
+          <dt>Path</dt>
+          <dd id="software-meta-path"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Publisher</dt>
+          <dd id="software-meta-publisher"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Product</dt>
+          <dd id="software-meta-product"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Version</dt>
+          <dd id="software-meta-version"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Architecture</dt>
+          <dd id="software-meta-architecture"></dd>
+        </div>
+        <div class="scripts-meta-row">
+          <dt>Modified</dt>
+          <dd id="software-meta-modified"></dd>
+        </div>
+      </dl>
+
+      <section class="scripts-used-by" aria-labelledby="software-used-by-heading">
+        <h2 class="scripts-section-title" id="software-used-by-heading">Used by</h2>
+        <ul class="scripts-used-by-list" id="software-used-by-list"></ul>
+        <p class="scripts-used-by-empty" id="software-used-by-empty" hidden>Not referenced by any Clutch.</p>
+      </section>
+
+      <section class="scripts-body-section" aria-labelledby="software-body-heading">
+        <h2 class="scripts-section-title" id="software-body-heading">software.yaml</h2>
+        <pre class="scripts-body" id="software-body" tabindex="0" aria-label="software.yaml content"></pre>
+      </section>
+    </div>
+
+    <div class="stub" id="software-stub">Select a software package to inspect</div>
+  </div>
+
+{% endcall %}
+</div>
+
+<div id="delete-modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <h2 class="modal-title" id="delete-modal-title">Delete Software package</h2>
+    <div class="modal-body">
+      <p>Delete <strong id="delete-modal-filename"></strong>?</p>
+      <p class="modal-warning">This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="delete-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="delete-modal-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+{% include '_library_reattach_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const USED_BY = {{ used_by | tojson }};
+  /* Software inventory (#469); reuses scripts-* CSS. */
+  const libraryEnabled = {{ library_enabled | tojson }};
+
+  if (window.hatchery && typeof hatchery.bindImportControl === 'function') {
+    hatchery.bindImportControl({
+      button: document.getElementById('software-import-btn'),
+      input: document.getElementById('software-import-input'),
+      url: {{ url_for('api_import_automation_software') | tojson }},
+      useRelativePaths: true,
+      libraryEnabled: libraryEnabled,
+      menu: document.getElementById('software-import-menu'),
+      fromFile: document.getElementById('software-import-from-file'),
+      fromLibrary: document.getElementById('software-import-from-library'),
+      onFromLibrary: libraryEnabled
+        ? function () { window.location = '/library/content?tab=available&domain=software'; }
+        : null,
+    });
+  }
+
+  const nav = document.getElementById('software-nav');
+  const header = document.getElementById('software-content-header');
+  const titleEl = document.getElementById('software-content-title');
+  const metaEl = document.getElementById('software-content-meta');
+  const detail = document.getElementById('software-detail');
+  const stub = document.getElementById('software-stub');
+  const pathEl = document.getElementById('software-meta-path');
+  const publisherEl = document.getElementById('software-meta-publisher');
+  const productEl = document.getElementById('software-meta-product');
+  const versionEl = document.getElementById('software-meta-version');
+  const architectureEl = document.getElementById('software-meta-architecture');
+  const modifiedEl = document.getElementById('software-meta-modified');
+  const usedByList = document.getElementById('software-used-by-list');
+  const usedByEmpty = document.getElementById('software-used-by-empty');
+  const bodyEl = document.getElementById('software-body');
+  const copyDropdown = document.getElementById('software-copy-dropdown');
+  const copyMenuBtn = document.getElementById('software-copy-menu-btn');
+  const copyMenu = document.getElementById('software-copy-menu');
+  const copyPathItem = document.getElementById('software-copy-path-item');
+  const copyContentItem = document.getElementById('software-copy-content-item');
+  const deleteBtn = document.getElementById('software-delete-btn');
+  const libraryStatusBtn = document.getElementById('software-library-status-btn');
+  const librarySyncIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--sync')
+    : null;
+  const libraryWarnIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--warn')
+    : null;
+  const libraryOkIcon = libraryStatusBtn
+    ? libraryStatusBtn.querySelector('.scripts-library-icon--ok')
+    : null;
+  const libraryStatusLabel = document.getElementById('software-library-status-label');
+  const openInContent = document.getElementById('software-open-in-content');
+  const libStatus = window.HatcheryLibraryStatus;
+  if (libStatus && typeof libStatus.setLibraryEnabled === 'function') {
+    libStatus.setLibraryEnabled(libraryEnabled);
+  }
+  const deleteBackdrop = document.getElementById('delete-modal-backdrop');
+  const deleteFilenameEl = document.getElementById('delete-modal-filename');
+  const deleteCancel = document.getElementById('delete-modal-cancel');
+  const deleteConfirm = document.getElementById('delete-modal-confirm');
+  const filterQ = document.getElementById('software-filter-q');
+  const filterState = document.getElementById('software-filter-state');
+  const navFilteredEmpty = document.getElementById('software-nav-filtered-empty');
+  const navEmpty = document.getElementById('software-nav-empty');
+  const cacheSyncUrl = {{ library_cache_sync_url | default('') | tojson }};
+  const cacheReattachUrl = {{ library_cache_reattach_url | default('') | tojson }};
+  const libraryConnections = {{ library_connections | default([]) | tojson }};
+  const libraryBindings = {{ library_bindings | default([]) | tojson }};
+
+  let selectedName = null;
+  let selectedAbsPath = null;
+  let selectedContent = null;
+  let libraryMode = 'hidden'; /* hidden | sync | orphan */
+
+  function escHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function formatModified(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  function notifyCopy(ok, kind) {
+    const noun = kind === 'content' ? 'Contents' : 'Path';
+    const msg = ok ? (noun + ' copied') : ('Could not copy ' + noun.toLowerCase());
+    if (window.hatchery && typeof hatchery.showToast === 'function') {
+      hatchery.showToast(msg, 'info', 2200);
+    }
+  }
+
+  function copyText(text, kind) {
+    if (text == null) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        notifyCopy(true, kind);
+      }).catch(function () {
+        notifyCopy(false, kind);
+      });
+    } else {
+      notifyCopy(false, kind);
+    }
+  }
+
+  function closeCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = true;
+    copyMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openCopyMenu() {
+    if (!copyMenu || !copyMenuBtn) return;
+    copyMenu.hidden = false;
+    copyMenuBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function setLibraryStatus(btn) {
+    if (!libraryStatusBtn || !libStatus) return;
+    const cue = libStatus.resolveFromButton(btn);
+
+    libraryStatusBtn.classList.remove(
+      'scripts-library-status-btn--warn',
+      'scripts-library-status-btn--action',
+      'scripts-library-status-btn--ok',
+      'scripts-library-status-btn--linked'
+    );
+    libraryMode = 'hidden';
+
+    function syncOpenInContent(linked) {
+      if (!openInContent) return;
+      if (!linked || !btn || !libraryEnabled) {
+        openInContent.hidden = true;
+        return;
+      }
+      var name = btn.getAttribute('data-name') || '';
+      openInContent.href = {{ url_for('library_content_pane') | tojson }}
+        + '?domain=software&name=' + encodeURIComponent(name);
+      openInContent.hidden = false;
+    }
+
+    if (cue.cue === 'local') {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+      libraryStatusBtn.setAttribute('aria-disabled', 'true');
+      libraryStatusBtn.title = '';
+      libraryStatusBtn.setAttribute('aria-label', '');
+      if (librarySyncIcon) librarySyncIcon.hidden = false;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+      if (libraryStatusLabel) {
+        libraryStatusLabel.hidden = true;
+        libraryStatusLabel.textContent = '';
+      }
+      syncOpenInContent(false);
+      return;
+    }
+
+    libraryStatusBtn.hidden = false;
+    if (libraryStatusLabel) {
+      libraryStatusLabel.hidden = false;
+      libraryStatusLabel.textContent = cue.header_label || cue.short || '';
+    }
+
+    if (cue.cue === 'linked') {
+      libraryMode = 'linked';
+      libraryStatusBtn.disabled = true;
+      libraryStatusBtn.setAttribute('aria-disabled', 'true');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--linked');
+      libraryStatusBtn.title = cue.message || cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = false;
+      syncOpenInContent(false);
+      return;
+    }
+
+    syncOpenInContent(true);
+
+    if (cue.can_reattach) {
+      libraryMode = 'orphan';
+      libraryStatusBtn.disabled = false;
+      libraryStatusBtn.setAttribute('aria-disabled', 'false');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
+      libraryStatusBtn.title = cue.message || cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+      return;
+    }
+
+    if (cue.can_sync) {
+      libraryMode = 'sync';
+      libraryStatusBtn.disabled = false;
+      libraryStatusBtn.setAttribute('aria-disabled', 'false');
+      libraryStatusBtn.classList.add('scripts-library-status-btn--action');
+      libraryStatusBtn.title = cue.header_label;
+      libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+      if (librarySyncIcon) librarySyncIcon.hidden = false;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+      return;
+    }
+
+    libraryMode = 'sync';
+    libraryStatusBtn.disabled = true;
+    libraryStatusBtn.setAttribute('aria-disabled', 'true');
+    libraryStatusBtn.title = cue.message || cue.header_label;
+    libraryStatusBtn.setAttribute('aria-label', cue.header_aria);
+    if (cue.cue === 'synced') {
+      libraryStatusBtn.classList.add('scripts-library-status-btn--ok');
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = true;
+      if (libraryOkIcon) libraryOkIcon.hidden = false;
+    } else {
+      libraryStatusBtn.classList.add('scripts-library-status-btn--warn');
+      if (librarySyncIcon) librarySyncIcon.hidden = true;
+      if (libraryWarnIcon) libraryWarnIcon.hidden = false;
+      if (libraryOkIcon) libraryOkIcon.hidden = true;
+    }
+  }
+
+  function subtitleLabel(item, btn) {
+    if (item && item.subtitle) return item.subtitle;
+    if (btn) return btn.getAttribute('data-subtitle') || '';
+    return '';
+  }
+
+  function applyDriftChrome(btn, item) {
+    if (!btn || !item || !libStatus) return;
+    var cue = libStatus.resolveFromItem(item);
+    var subLabel = subtitleLabel(item, btn);
+    btn.setAttribute('data-drift-state', item.drift_state || 'local');
+    btn.setAttribute('data-source-status', item.source_status || '');
+    btn.setAttribute('data-sync-state', item.sync_state || '');
+    btn.setAttribute('data-source-status-message', item.source_status_message || '');
+    btn.setAttribute('data-library-cue', cue.cue);
+    btn.setAttribute('data-orphan', item.orphan ? '1' : '0');
+    btn.setAttribute('data-orphan-reason', (item.orphan_reason || '').trim());
+    if (item.publisher != null) btn.setAttribute('data-publisher', item.publisher || '');
+    if (item.product != null) btn.setAttribute('data-product', item.product || '');
+    if (item.version != null) btn.setAttribute('data-version', item.version || '');
+    if (item.architecture != null) btn.setAttribute('data-architecture', item.architecture || '');
+    if (item.subtitle != null) btn.setAttribute('data-subtitle', item.subtitle || '');
+    if (item.library_provenance) {
+      btn.setAttribute('data-lib-rel', item.library_provenance.relative_path || '');
+      btn.setAttribute('data-lib-conn', item.library_provenance.connection_id || '');
+    }
+    var sub = btn.querySelector('.scripts-nav-sub');
+    if (sub) {
+      var suffix = cue.short ? (' · ' + cue.short) : '';
+      sub.textContent = subLabel + suffix;
+    }
+    var warnIcon = btn.querySelector('[data-library-cue-icon="warn"]');
+    var okIcon = btn.querySelector('[data-library-cue-icon="ok"]');
+    if (warnIcon) {
+      var showWarn = cue.show_rail_icon && cue.cue !== 'synced' && cue.cue !== 'linked';
+      warnIcon.hidden = !showWarn;
+      warnIcon.title = cue.message || cue.short || 'Library status';
+    }
+    if (okIcon) {
+      var showLink = cue.cue === 'synced' || cue.cue === 'linked';
+      okIcon.hidden = !showLink;
+      okIcon.classList.toggle('library-status-cue-icon--linked', cue.cue === 'linked');
+      okIcon.classList.toggle('library-status-cue-icon--ok', cue.cue === 'synced');
+      okIcon.title = cue.cue === 'linked' ? 'Linked from Library' : 'Synced with Library';
+      okIcon.setAttribute('aria-label', okIcon.title);
+    }
+  }
+
+  function softwareLibraryState(btn) {
+    if (!btn || !libStatus) return 'local';
+    var cue = libStatus.resolveFromButton(btn);
+    if (cue.cue === 'local') return 'local';
+    if (cue.filter_keys && cue.filter_keys.length) return cue.filter_keys[0];
+    return cue.cue;
+  }
+
+  function currentSoftwareFilters() {
+    return {
+      q: filterQ ? (filterQ.value || '').trim().toLowerCase() : '',
+      state: filterState ? (filterState.value || '') : '',
+    };
+  }
+
+  function itemMatchesSoftwareFilters(btn, filters) {
+    if (!btn) return false;
+    var name = (btn.getAttribute('data-name') || '').toLowerCase();
+    var subtitle = (btn.getAttribute('data-subtitle') || '').toLowerCase();
+    var publisher = (btn.getAttribute('data-publisher') || '').toLowerCase();
+    var product = (btn.getAttribute('data-product') || '').toLowerCase();
+    if (filters.q
+        && name.indexOf(filters.q) === -1
+        && subtitle.indexOf(filters.q) === -1
+        && publisher.indexOf(filters.q) === -1
+        && product.indexOf(filters.q) === -1) {
+      return false;
+    }
+    if (filters.state && softwareLibraryState(btn) !== filters.state) return false;
+    return true;
+  }
+
+  function clearSoftwareDetail() {
+    selectedName = null;
+    selectedAbsPath = null;
+    selectedContent = null;
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    if (header) header.hidden = true;
+    if (detail) detail.hidden = true;
+    if (stub) stub.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = true;
+    if (deleteBtn) deleteBtn.hidden = true;
+    if (libraryStatusBtn) {
+      libraryStatusBtn.hidden = true;
+      libraryStatusBtn.disabled = true;
+    }
+    if (openInContent) openInContent.hidden = true;
+    libraryMode = 'hidden';
+  }
+
+  function applySoftwareFilters() {
+    if (!nav) return;
+    var filters = currentSoftwareFilters();
+    var items = nav.querySelectorAll('.scripts-nav-item');
+    var visible = [];
+    items.forEach(function (btn) {
+      var match = itemMatchesSoftwareFilters(btn, filters);
+      btn.hidden = !match;
+      if (match) visible.push(btn);
+    });
+    var hasItems = items.length > 0;
+    if (navEmpty) navEmpty.hidden = hasItems;
+    if (navFilteredEmpty) {
+      navFilteredEmpty.hidden = !hasItems || visible.length > 0;
+    }
+    var active = nav.querySelector('.scripts-nav-item.active');
+    if (active && active.hidden) {
+      if (visible.length) selectItem(visible[0]);
+      else clearSoftwareDetail();
+    }
+  }
+
+  function refreshDriftInventory() {
+    return fetch('/api/automation/software')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (items) {
+        if (!Array.isArray(items)) return;
+        var byName = {};
+        items.forEach(function (it) {
+          if (it && it.name) byName[it.name] = it;
+        });
+        nav.querySelectorAll('.scripts-nav-item').forEach(function (btn) {
+          var name = btn.getAttribute('data-name');
+          if (name && byName[name]) applyDriftChrome(btn, byName[name]);
+        });
+        applySoftwareFilters();
+        var active = nav.querySelector('.scripts-nav-item.active');
+        if (active && !active.hidden) setLibraryStatus(active);
+      })
+      .catch(function () { /* status tick must not break the page */ });
+  }
+
+  function renderUsedBy(name) {
+    const refs = USED_BY[name] || [];
+    usedByList.innerHTML = '';
+    if (!refs.length) {
+      usedByEmpty.hidden = false;
+      return;
+    }
+    usedByEmpty.hidden = true;
+    refs.forEach(function (ref) {
+      const li = document.createElement('li');
+      li.className = 'scripts-used-by-item';
+      li.innerHTML =
+        '<span class="scripts-used-by-clutch">' + escHtml(ref.clutch_name || ref.clutch) + '</span>' +
+        '<span class="scripts-used-by-sep"> · </span>' +
+        '<span class="scripts-used-by-vm">' + escHtml(ref.vm) + '</span>' +
+        '<span class="scripts-used-by-file">(' + escHtml(ref.clutch) + ')</span>';
+      usedByList.appendChild(li);
+    });
+  }
+
+  function selectItem(btn) {
+    if (!btn) return;
+    const name = btn.getAttribute('data-name');
+    const rel = btn.getAttribute('data-relative-path') || '';
+    const abs = btn.getAttribute('data-absolute-path') || '';
+    const publisher = btn.getAttribute('data-publisher') || '';
+    const product = btn.getAttribute('data-product') || '';
+    const version = btn.getAttribute('data-version') || '';
+    const architecture = btn.getAttribute('data-architecture') || '';
+    const subtitle = btn.getAttribute('data-subtitle') || '';
+    const modified = btn.getAttribute('data-modified-at') || '';
+
+    nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
+      el.classList.toggle('active', el === btn);
+      el.setAttribute('aria-pressed', el === btn ? 'true' : 'false');
+    });
+
+    selectedName = name;
+    selectedAbsPath = abs;
+    selectedContent = null;
+    stub.hidden = true;
+    header.hidden = false;
+    detail.hidden = false;
+    if (copyDropdown) copyDropdown.hidden = false;
+    closeCopyMenu();
+    if (copyContentItem) copyContentItem.disabled = true;
+    deleteBtn.hidden = false;
+    deleteBtn.title = 'Delete ' + name;
+    deleteBtn.setAttribute('aria-label', 'Delete ' + name);
+    setLibraryStatus(btn);
+
+    titleEl.textContent = name;
+    metaEl.textContent = subtitle;
+    pathEl.textContent = rel;
+    publisherEl.textContent = publisher || '-';
+    productEl.textContent = product || '-';
+    versionEl.textContent = version || '-';
+    architectureEl.textContent = architecture || '-';
+    modifiedEl.textContent = formatModified(modified);
+    renderUsedBy(name);
+    bodyEl.textContent = 'Loading…';
+
+    fetch('/api/automation/software/' + encodeURIComponent(name) + '/content')
+      .then(function (resp) {
+        if (!resp.ok) {
+          return resp.json().then(function (data) {
+            throw new Error((data && data.error) || ('HTTP ' + resp.status));
+          }, function () {
+            throw new Error('HTTP ' + resp.status);
+          });
+        }
+        return resp.json();
+      })
+      .then(function (data) {
+        if (selectedName !== name) return;
+        selectedContent = data.content != null ? data.content : '';
+        bodyEl.textContent = selectedContent;
+        if (copyContentItem) copyContentItem.disabled = false;
+      })
+      .catch(function (err) {
+        if (selectedName !== name) return;
+        selectedContent = null;
+        bodyEl.textContent = 'Unable to load software package: ' + (err.message || 'unknown error');
+        if (copyContentItem) copyContentItem.disabled = true;
+      });
+  }
+
+  nav.addEventListener('click', function (e) {
+    const btn = e.target.closest('.scripts-nav-item');
+    if (!btn || !nav.contains(btn)) return;
+    selectItem(btn);
+  });
+
+  nav.addEventListener('keydown', function (e) {
+    const items = Array.from(nav.querySelectorAll('.scripts-nav-item'));
+    if (!items.length) return;
+    const current = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest('.scripts-nav-item')
+      : null;
+    const idx = current ? items.indexOf(current) : -1;
+    let next = -1;
+    if (e.key === 'ArrowDown') next = Math.min(items.length - 1, Math.max(0, idx) + 1);
+    else if (e.key === 'ArrowUp') next = Math.max(0, idx < 0 ? 0 : idx - 1);
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = items.length - 1;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      if (current) {
+        e.preventDefault();
+        selectItem(current);
+      }
+      return;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    items[next].focus();
+  });
+
+  /* Ctrl/Cmd+A inside the content pane selects script text only, not the page. */
+  bodyEl.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
+    e.preventDefault();
+    const range = document.createRange();
+    range.selectNodeContents(bodyEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  });
+
+  if (copyMenuBtn && copyMenu) {
+    copyMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (copyMenu.hidden) openCopyMenu();
+      else closeCopyMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (!copyDropdown || copyMenu.hidden) return;
+      if (copyDropdown.contains(e.target)) return;
+      closeCopyMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && copyMenu && !copyMenu.hidden) {
+        e.preventDefault();
+        closeCopyMenu();
+        copyMenuBtn.focus();
+      }
+    });
+  }
+
+  if (copyPathItem) {
+    copyPathItem.addEventListener('click', function () {
+      closeCopyMenu();
+      if (!selectedAbsPath) return;
+      copyText(selectedAbsPath, 'path');
+    });
+  }
+
+  if (copyContentItem) {
+    copyContentItem.addEventListener('click', function () {
+      if (copyContentItem.disabled) return;
+      closeCopyMenu();
+      if (selectedContent == null) return;
+      copyText(selectedContent, 'content');
+    });
+  }
+
+  function openDeleteModal(name) {
+    deleteFilenameEl.textContent = name;
+    deleteBackdrop.hidden = false;
+    deleteConfirm.focus();
+  }
+
+  function closeDeleteModal() {
+    deleteBackdrop.hidden = true;
+  }
+
+  deleteBtn.addEventListener('click', function () {
+    if (!selectedName) return;
+    openDeleteModal(selectedName);
+  });
+
+  deleteCancel.addEventListener('click', closeDeleteModal);
+  deleteBackdrop.addEventListener('click', function (e) {
+    if (e.target === deleteBackdrop) closeDeleteModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !deleteBackdrop.hidden) closeDeleteModal();
+  });
+
+  deleteConfirm.addEventListener('click', function () {
+    if (!selectedName) return;
+    const name = selectedName;
+    deleteConfirm.disabled = true;
+    fetch('/api/automation/software/' + encodeURIComponent(name) + '/delete', { method: 'POST' })
+      .then(function (resp) {
+        return resp.json().then(function (data) {
+          return { ok: resp.ok, data: data };
+        }, function () {
+          return { ok: resp.ok, data: {} };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = (res.data && res.data.error) || 'Delete failed';
+          if (window.hatchery && typeof hatchery.showToast === 'function') {
+            hatchery.showToast(msg, 'warning', 5000);
+          }
+          return;
+        }
+        if (window.hatchery && typeof hatchery.showToast === 'function') {
+          hatchery.showToast('Deleted ' + name, 'info', 2200);
+        }
+        window.location.reload();
+      })
+      .catch(function () {
+        if (window.hatchery && typeof hatchery.showToast === 'function') {
+          hatchery.showToast('Delete failed: network or server error.', 'alert', 5000);
+        }
+      })
+      .finally(function () {
+        deleteConfirm.disabled = false;
+        closeDeleteModal();
+      });
+  });
+
+  var libraryReattach = null;
+  if (cacheReattachUrl && typeof hatchery.bindLibraryReattach === 'function') {
+    libraryReattach = hatchery.bindLibraryReattach({
+      reattachUrl: cacheReattachUrl,
+      connections: libraryConnections || [],
+      bindings: libraryBindings || [],
+      domain: 'software',
+      bindingNoun: 'Software packages',
+      getActiveItem: function () {
+        var active = nav.querySelector('.scripts-nav-item.active');
+        if (!active) return null;
+        var name = active.getAttribute('data-name');
+        if (!name) return null;
+        return {
+          name: name,
+          relativePath: active.getAttribute('data-lib-rel') || name,
+        };
+      },
+    });
+  }
+
+  if (libraryStatusBtn) {
+    libraryStatusBtn.addEventListener('click', function () {
+      if (!libraryEnabled) return;
+      if (libraryMode === 'orphan') {
+        if (libraryReattach) libraryReattach.open();
+        return;
+      }
+      if (libraryMode !== 'sync' || libraryStatusBtn.disabled || !selectedName || !cacheSyncUrl) {
+        return;
+      }
+      libraryStatusBtn.disabled = true;
+      fetch(cacheSyncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: 'software', name: selectedName }),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            if (window.hatchery && hatchery.showToast) {
+              hatchery.showToast((res.data && res.data.error) || 'Sync failed', 'warning', 5000);
+            }
+            return;
+          }
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Synced ' + selectedName, 'info', 2200);
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          if (window.hatchery && hatchery.showToast) {
+            hatchery.showToast('Sync failed: network or server error.', 'alert', 5000);
+          }
+        })
+        .finally(function () {
+          if (libraryMode === 'sync') {
+            var active = nav.querySelector('.scripts-nav-item.active');
+            if (active) setLibraryStatus(active);
+            else libraryStatusBtn.disabled = false;
+          }
+        });
+    });
+  }
+
+  function onSoftwareFilterChange() {
+    applySoftwareFilters();
+  }
+  if (filterQ) filterQ.addEventListener('input', onSoftwareFilterChange);
+  if (filterState) filterState.addEventListener('change', onSoftwareFilterChange);
+  applySoftwareFilters();
+
+  if (window.hatchery && typeof hatchery.onStatusTick === 'function') {
+    hatchery.onStatusTick(function () {
+      refreshDriftInventory();
+    });
+  }
+})();
+</script>
+{% endblock %}

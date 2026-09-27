@@ -25,6 +25,7 @@ _DATA_SUBDIRS = [
     "media/qemu",
     "automation/answerfiles",
     "automation/scripts",
+    "automation/software",
 ]
 
 # Keys that may live in the external bootstrap YAML (only data_dir for now).

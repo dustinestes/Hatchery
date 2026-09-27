@@ -14,6 +14,7 @@ from lib import alerts as alerts_lib
 from lib import answerfile as answerfile_lib
 from lib import media_inspect as media_inspect_lib
 from lib import import_files as import_files_lib
+from lib import software as software_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
 from lib import library_registry as library_registry_lib
@@ -577,6 +578,22 @@ def automation_answerfiles():
             else []
         ),
         library_bindings=_library_reattach_bindings("answerfiles"),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
+    )
+
+
+@app.route("/automation/software")
+def automation_software():
+    """Automations → Software inventory (#469). Library domain lands in #470."""
+    return render_template(
+        "automation_software.html",
+        active_pane="automation_software",
+        packages=software_lib.scan_inventory(),
+        used_by={},
+        library_enabled=False,
+        library_connections=[],
+        library_bindings=[],
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
@@ -2563,6 +2580,11 @@ def api_import_automation_answerfiles():
     return _api_import("automation/answerfiles")
 
 
+@app.route("/api/import/automation/software", methods=["POST"])
+def api_import_automation_software():
+    return _api_import("automation/software")
+
+
 def _api_import(kind: str):
     uploads = request.files.getlist("files")
     if not uploads or all(not f.filename for f in uploads):
@@ -2653,6 +2675,22 @@ def api_automation_answerfile_delete(name):
     return _api_unlink_inventory_file(_resolve_answerfile_path(name))
 
 
+@app.route("/api/automation/software/<path:name>/delete", methods=["POST"])
+def api_automation_software_delete(name):
+    from pathlib import Path
+
+    ok, err = software_lib.delete_package(name)
+    if not ok:
+        status = 404 if err == "not found" else 500
+        return jsonify({"error": err}), status
+    return jsonify({"ok": True, "name": Path(name).name}), 200
+
+
+@app.route("/api/automation/software")
+def api_automation_software():
+    return jsonify(software_lib.scan_inventory())
+
+
 @app.route("/api/automation/answerfiles")
 def api_automation_answerfiles():
     return jsonify(_scan_answerfile_inventory())
@@ -2728,6 +2766,25 @@ def api_automation_answerfile_content(name):
     except OSError:
         return jsonify({"error": "unreadable"}), 500
     return jsonify({"name": answerfile_path.name, "content": text})
+
+
+@app.route("/api/automation/software/<path:name>/content")
+def api_automation_software_content(name):
+    """Return read-only text of ``software.yaml`` for a package id."""
+    definition = software_lib.resolve_definition_path(name)
+    if definition is None or not definition.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        size = definition.stat().st_size
+    except OSError:
+        return jsonify({"error": "not found"}), 404
+    if size > _SCRIPT_CONTENT_MAX_BYTES:
+        return jsonify({"error": "file too large", "max_bytes": _SCRIPT_CONTENT_MAX_BYTES}), 413
+    try:
+        text = definition.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return jsonify({"error": "unreadable"}), 500
+    return jsonify({"name": definition.parent.name, "content": text})
 
 
 @app.route("/api/automation/scripts/<path:name>/params")

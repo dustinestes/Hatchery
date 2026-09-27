@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Issues:** [#199](https://github.com/dustinestes/Hatchery/issues/199) (this ADR + operator docs); Library consume-only [ADR-0011](0011-library-consume-only-no-clutch-roundtrip.md); Nest factory [ADR-0003](0003-nest-registry-provider-factory.md); Controller package distribution [ADR-0005](0005-controller-only-package-distribution.md) (orthogonal)
+- **Issues:** [#199](https://github.com/dustinestes/Hatchery/issues/199) (this ADR + operator docs); inventory Import [#469](https://github.com/dustinestes/Hatchery/issues/469); Library domain [#470](https://github.com/dustinestes/Hatchery/issues/470); Artifactory Software ingest (post-v1) [#487](https://github.com/dustinestes/Hatchery/issues/487); Library consume-only [ADR-0011](0011-library-consume-only-no-clutch-roundtrip.md); Nest factory [ADR-0003](0003-nest-registry-provider-factory.md); Controller package distribution [ADR-0005](0005-controller-only-package-distribution.md) (orthogonal)
 
 ## Context
 
@@ -41,6 +41,9 @@ A reserved Library connection kind `packages` exists but is empty and ambiguous 
 Today’s strings in [`lib/provision.py`](../../lib/provision.py) (`HATCHERY_GUEST_DIR`, setup flag/log paths) are the **Windows** row. Linux/macOS raise a clear unsupported error until values are filled. New provision/software code must use the role map, not hard-coded Windows paths.
 
 10. **Hatch walk:** For `type: software`: load definition → stage OS payload → run `pre_install[]` → `install` → `post_install[]` → honor reboot/exit → optionally remove `software_package(id)` when `clean_payload_on_success`. Nest cache gains an `automation/software` artifact kind. Transfer/pre-stage details track with offline staging / [#131](https://github.com/dustinestes/Hatchery/issues/131).
+11. **One content shape:** Library forge/path sources, Hatchery-Library samples, operator cache, and Inventory Import all use **expanded package directories** (`software/{Publisher.Product.Version}/` with immediate `software.yaml`). **No zip** (or other archive) as SoR, Inventory Import format, or forge/Library sample format.
+12. **Inventory Import:** One directory picker. Classify: package root (immediate `software.yaml`) → import that id; parent of one or more package roots → batch; otherwise reject (including selecting `windows/` / `linux/` / `macos/` alone). Package id = folder name; create-only. Do not auto-walk up from an OS child. Operators may also place dirs under `automation/software/` without Import.
+13. **Library pull (forge/path):** Catalog and pull **package units** (not leaf-only). Copy the whole tree into `automation/software/{id}/`. Prefer one provenance row per package id. Artifactory (`type: api`) may later ingest **dir trees or single archives** but must **normalize into the same cache dirs** ([#487](https://github.com/dustinestes/Hatchery/issues/487)); that is not a second Software shape.
 
 ### Illustrative `software.yaml`
 
@@ -105,6 +108,8 @@ Exact keys are finalized in the definition-schema and Clutch-form children; samp
 - Merging Controller OS package-manager distribution (ADR-0005) with this product noun
 - In-app `software.yaml` editor (tracked as optional / post-v1; likely wont-do unless reopened)
 - Guest-plane login UI solely for Software detect
+- Zip (or other archive) as Library/forge/Hatchery-Library SoR, operator-cache layout, or Inventory Import
+- Settings “source shape” fork of Software (Artifactory archive ingest stays adapter-side, post-v1 #487)
 
 ## Alternatives
 
@@ -115,6 +120,8 @@ Exact keys are finalized in the definition-schema and Clutch-form children; samp
 | Bare-string Clutch script entries forever | Blocks a single typed parse path for mixed Scripts + Software |
 | In-guest agent for detect | Heavier than remoting the defined detect command |
 | Document how-to only in Hatchery-Library | Library is consume-only content; Hatchery owns operator docs |
+| Zip as Library / Import SoR | Forces unpack before YAML/sync; second shape vs forge/path dirs; Inventory browser cannot attach siblings to a lone file pick |
+| Per-connection Software “source shape” in Settings | Forks the product noun; adapters should normalize into cache dirs instead |
 
 ## Related docs
 
