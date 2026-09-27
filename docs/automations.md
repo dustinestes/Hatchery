@@ -6,7 +6,7 @@
 <h1>Automation Scripts</h1>
 <br clear="both">
 
-How to write, configure, and run automation scripts against guest VMs after first boot. For install-time unattended templates, see [Answer Files](answer-files.md).
+How to write, configure, and run automation scripts against guest VMs after first boot. For guest application packages, see [Software](software.md). For install-time unattended templates, see [Answer Files](answer-files.md).
 
 <br>
 
@@ -319,6 +319,8 @@ Also covered in [Getting started - VirtIO Drivers](getting-started.md#virtio-dri
 
 ## Related
 
+- [Software](software.md) - post-boot guest packages (ordered with Scripts in Clutch `automations`)
+- [ADR-0025](adr/0025-software-product-model.md) - Software product model
 - [Answer Files](answer-files.md) - install-time templates (not Scripts)
 - [ADR-0024](adr/0024-answer-files-product-model.md) - Answer Files product model
 
