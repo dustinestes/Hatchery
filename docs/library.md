@@ -170,19 +170,19 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
-**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO** (`filter: *`), **All Answer Files** (`filter: *answerfiles/*`), and **All Software** (`filter: *software/*`). Existing Controllers with any connection are left unchanged (software kind + binding are still ensured when the Hatchery Library connection is present).
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings (alphabetical by label) with path-scoped filters under each Hatchery-Library tree. Existing Controllers with any connection are left unchanged except: software kind + binding are ensured when the Hatchery Library connection is present, and legacy well-known bindings still on `filter: *` are migrated to the scoped patterns.
 
 | | |
 |---|---|
 | **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
 | **Provider** | `github` |
-| **Kinds** | scripts, clutches, media, answerfiles, software |
-| **Scripts** | label `All Scripts` · filter `*` |
-| **Clutches** | label `All Clutches` · filter `*` |
-| **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
-| **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
-| **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` (repo tree under `answerfiles/`, including `.j2` templates and companions such as `.ps1`) |
+| **Kinds** | answerfiles, clutches, media, scripts, software |
+| **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` |
+| **Clutches** | label `All Clutches` · filter `*clutches/*` |
+| **Media ISO** | label `All ISOs` · filter `*media/iso/*` · target `iso` |
+| **Scripts** | label `All Scripts` · filter `*scripts/*` |
 | **Software** | label `All Software` · filter `*software/*` (package dirs with `software.yaml`; pull copies the whole package tree) |
+| **Media VirtIO** | label `All VirtIO` · filter `*media/virtio/*` · target `virtio` |
 
 Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 
