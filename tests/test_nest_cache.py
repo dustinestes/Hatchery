@@ -46,7 +46,7 @@ class TestCollectArtifacts:
             _clutch_with_media(
                 virtio_drivers="virtio.iso",
                 answer_file="unattend.xml",
-                automations=["setup.ps1"],
+                automations=[{"type": "script", "name": "setup.ps1"}],
             )
         )
         kinds = {a.kind for a in arts}
@@ -56,6 +56,18 @@ class TestCollectArtifacts:
             "automation/answerfiles",
             "automation/scripts",
         }
+
+    def test_skips_software_automations_until_hatch_software(self):
+        arts = collect_clutch_artifacts(
+            _clutch_with_media(
+                automations=[
+                    {"type": "script", "name": "setup.ps1"},
+                    {"type": "software", "name": "Hatchery.SoftwareExample.1.0.0"},
+                ],
+            )
+        )
+        assert [a.basename for a in arts if a.kind == "automation/scripts"] == ["setup.ps1"]
+        assert not any("SoftwareExample" in (a.basename or "") for a in arts)
 
     def test_dedupes_shared_iso_across_vms(self):
         vms = [

@@ -54,7 +54,7 @@ hatchery.vmRows = (function () {
       clearAnswerFileParams(row);
     }
 
-    // ── Script row helpers (shared across initScriptList and addRow) ──────────
+    // ── Automation row helpers (shared across initAutomationList and addRow) ──
 
     function renderParamFields(scriptItem, params, savedParams) {
       var existing = scriptItem.querySelector('.script-params');
@@ -142,23 +142,48 @@ hatchery.vmRows = (function () {
       }
     }
 
-    function addScriptItem(list, scriptName, rebootAfter, savedParams) {
+    function automationAlreadyInList(list, type, name) {
+      return Array.from(list.querySelectorAll('.script-item')).some(function (el) {
+        return el.dataset.automationType === type && el.dataset.automationName === name;
+      });
+    }
+
+    function addAutomationItem(list, type, name, opts) {
+      opts = opts || {};
+      var rebootAfter = !!opts.rebootAfter;
+      var cleanPayload = opts.cleanPayloadOnSuccess !== false;
+      var savedParams = opts.savedParams || null;
       var item = document.createElement('div');
       item.className = 'script-item';
-      item.dataset.scriptName = scriptName;
+      item.dataset.automationType = type;
+      item.dataset.automationName = name;
+      // Legacy aliases used by older selectors during transition
+      item.dataset.scriptName = name;
+      var kindLabel = type === 'software' ? 'Software' : 'Script';
+      var removeLabel = type === 'software' ? 'Remove software' : 'Remove script';
       var CHEVRON_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
       var CHEVRON_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
       var CLOSE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      var optionsHtml =
+        '<label class="script-item-option">' +
+          '<input type="checkbox" class="vm-script-reboot"' + (rebootAfter ? ' checked' : '') + '> Reboot after' +
+        '</label>';
+      if (type === 'software') {
+        optionsHtml +=
+          '<label class="script-item-option" title="Clean installer files on success">' +
+            '<input type="checkbox" class="vm-software-clean"' + (cleanPayload ? ' checked' : '') +
+            '> Clean on success' +
+          '</label>';
+      }
       item.innerHTML =
         '<div class="script-item-header">' +
-          '<span class="script-item-name">' + scriptName + '</span>' +
-          '<label class="script-item-reboot-label">' +
-            '<input type="checkbox" class="vm-script-reboot"' + (rebootAfter ? ' checked' : '') + '> Reboot after' +
-          '</label>' +
+          '<span class="automation-kind-badge" data-kind="' + type + '">' + kindLabel + '</span>' +
+          '<span class="script-item-name" title="' + name + '">' + name + '</span>' +
+          '<div class="script-item-options">' + optionsHtml + '</div>' +
           '<div class="script-item-actions">' +
             '<button type="button" class="btn-listbox vm-script-up" title="Move up" aria-label="Move up">' + CHEVRON_UP + '</button>' +
             '<button type="button" class="btn-listbox vm-script-down" title="Move down" aria-label="Move down">' + CHEVRON_DOWN + '</button>' +
-            '<button type="button" class="btn-icon vm-script-remove" title="Remove" aria-label="Remove script">' + CLOSE + '</button>' +
+            '<button type="button" class="btn-icon vm-script-remove" title="Remove" aria-label="' + removeLabel + '">' + CLOSE + '</button>' +
           '</div>' +
         '</div>' +
         '<div class="script-item-params"></div>';
@@ -175,55 +200,97 @@ hatchery.vmRows = (function () {
         item.remove();
         isDirty = true;
       });
+      item.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+        cb.addEventListener('change', function () { isDirty = true; });
+      });
 
       list.appendChild(item);
 
-      // Fetch params and render fields; savedParams pre-fills values
-      fetch('/api/automation/scripts/' + encodeURIComponent(scriptName) + '/params')
-        .then(function (r) { return r.json(); })
-        .then(function (params) { renderParamFields(item, params, savedParams); })
-        .catch(function () {});
+      if (type === 'script') {
+        fetch('/api/automation/scripts/' + encodeURIComponent(name) + '/params')
+          .then(function (r) { return r.json(); })
+          .then(function (params) { renderParamFields(item, params, savedParams); })
+          .catch(function () {});
+      }
     }
 
-    function initScriptList(row) {
-      var list = row.querySelector('.vm-scripts-list');
-      var select = row.querySelector('.vm-script-select');
-      var addBtn = row.querySelector('.vm-add-script');
-      var refreshBtn = row.querySelector('.vm-refresh-scripts');
+    function initAutomationList(row) {
+      var list = row.querySelector('.vm-automations-list') || row.querySelector('.vm-scripts-list');
+      var scriptSelect = row.querySelector('.vm-script-select');
+      var softwareSelect = row.querySelector('.vm-software-select');
+      var addScriptBtn = row.querySelector('.vm-add-script');
+      var addSoftwareBtn = row.querySelector('.vm-add-software');
+      var refreshScriptsBtn = row.querySelector('.vm-refresh-scripts');
+      var refreshSoftwareBtn = row.querySelector('.vm-refresh-software');
 
-      if (!list || !select) return;
+      if (!list) return;
 
-      if (addBtn) {
-        addBtn.addEventListener('click', function () {
-          var name = select.value;
+      if (addScriptBtn && scriptSelect) {
+        addScriptBtn.addEventListener('click', function () {
+          var name = scriptSelect.value;
           if (!name) return;
-          var already = Array.from(list.querySelectorAll('.script-item'))
-            .some(function (el) { return el.dataset.scriptName === name; });
-          if (already) return;
-          addScriptItem(list, name, false, null);
-          select.value = '';
+          if (automationAlreadyInList(list, 'script', name)) return;
+          addAutomationItem(list, 'script', name, { rebootAfter: false, savedParams: null });
+          scriptSelect.value = '';
           isDirty = true;
         });
       }
 
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', function () {
-          refreshBtn.disabled = true;
+      if (addSoftwareBtn && softwareSelect) {
+        addSoftwareBtn.addEventListener('click', function () {
+          var name = softwareSelect.value;
+          if (!name) return;
+          if (automationAlreadyInList(list, 'software', name)) return;
+          addAutomationItem(list, 'software', name, {
+            rebootAfter: false,
+            cleanPayloadOnSuccess: true,
+          });
+          softwareSelect.value = '';
+          isDirty = true;
+        });
+      }
+
+      if (refreshScriptsBtn && scriptSelect) {
+        refreshScriptsBtn.addEventListener('click', function () {
+          refreshScriptsBtn.disabled = true;
           fetch('/api/automation/scripts')
             .then(function (r) { return r.json(); })
             .then(function (files) {
-              var current = select.value;
-              select.innerHTML = '<option value="">- select a script to add -</option>';
+              var current = scriptSelect.value;
+              scriptSelect.innerHTML = '<option value="">- select a script to add -</option>';
               files.forEach(function (f) {
                 var opt = document.createElement('option');
                 opt.value = f;
                 opt.textContent = f;
                 if (f === current) opt.selected = true;
-                select.appendChild(opt);
+                scriptSelect.appendChild(opt);
               });
             })
             .catch(function () {})
-            .finally(function () { refreshBtn.disabled = false; });
+            .finally(function () { refreshScriptsBtn.disabled = false; });
+        });
+      }
+
+      if (refreshSoftwareBtn && softwareSelect) {
+        refreshSoftwareBtn.addEventListener('click', function () {
+          refreshSoftwareBtn.disabled = true;
+          fetch('/api/automation/software')
+            .then(function (r) { return r.json(); })
+            .then(function (items) {
+              var current = softwareSelect.value;
+              softwareSelect.innerHTML = '<option value="">- select software to add -</option>';
+              (items || []).forEach(function (item) {
+                var name = typeof item === 'string' ? item : item.name;
+                if (!name) return;
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                if (name === current) opt.selected = true;
+                softwareSelect.appendChild(opt);
+              });
+            })
+            .catch(function () {})
+            .finally(function () { refreshSoftwareBtn.disabled = false; });
         });
       }
     }
@@ -260,7 +327,7 @@ hatchery.vmRows = (function () {
         el.addEventListener('change', function () { isDirty = true; });
       });
 
-      initScriptList(row);
+      initAutomationList(row);
 
       var osSelect = row.querySelector('[name="vm_os[]"]');
       if (osSelect) {
@@ -282,13 +349,16 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_admin_username[]"]', vmData.admin_username || '');
         set(row, '[name="vm_answer_file[]"]', vmData.answer_file || vmData.os_config || '');
         if (vmData.automations && vmData.automations.length) {
-          var scriptsList = row.querySelector('.vm-scripts-list');
-          if (scriptsList) {
+          var autoList = row.querySelector('.vm-automations-list') || row.querySelector('.vm-scripts-list');
+          if (autoList) {
             vmData.automations.forEach(function (entry) {
-              var scriptName = typeof entry === 'string' ? entry : entry.name;
-              var rebootAfter = typeof entry === 'object' && !!entry.reboot_after;
-              var savedParams = (typeof entry === 'object' && entry.parameters) ? entry.parameters : null;
-              addScriptItem(scriptsList, scriptName, rebootAfter, savedParams);
+              if (typeof entry === 'string' || !entry || !entry.name) return;
+              var type = entry.type === 'software' ? 'software' : 'script';
+              addAutomationItem(autoList, type, entry.name, {
+                rebootAfter: !!entry.reboot_after,
+                cleanPayloadOnSuccess: entry.clean_payload_on_success !== false,
+                savedParams: entry.parameters || null,
+              });
             });
           }
         }
@@ -367,22 +437,27 @@ hatchery.vmRows = (function () {
 
     function serializeAutomations() {
       container.querySelectorAll('.vm-row').forEach(function (row) {
-        var list = row.querySelector('.vm-scripts-list');
+        var list = row.querySelector('.vm-automations-list') || row.querySelector('.vm-scripts-list');
         var hidden = row.querySelector('.vm-automations-hidden');
         if (list && hidden) {
           var entries = Array.from(list.querySelectorAll('.script-item')).map(function (item) {
-            var name = item.dataset.scriptName;
+            var type = item.dataset.automationType === 'software' ? 'software' : 'script';
+            var name = item.dataset.automationName || item.dataset.scriptName;
+            var entry = { type: type, name: name };
             var rebootAfter = item.querySelector('.vm-script-reboot')
               ? item.querySelector('.vm-script-reboot').checked
               : false;
-            var params = {};
-            item.querySelectorAll('.script-param-input').forEach(function (input) {
-              if (input.value.trim()) params[input.dataset.param] = input.value.trim();
-            });
-            if (!rebootAfter && !Object.keys(params).length) return name;
-            var entry = { name: name };
             if (rebootAfter) entry.reboot_after = true;
-            if (Object.keys(params).length) entry.parameters = params;
+            if (type === 'script') {
+              var params = {};
+              item.querySelectorAll('.script-param-input').forEach(function (input) {
+                if (input.value.trim()) params[input.dataset.param] = input.value.trim();
+              });
+              if (Object.keys(params).length) entry.parameters = params;
+            } else {
+              var cleanCb = item.querySelector('.vm-software-clean');
+              if (cleanCb && !cleanCb.checked) entry.clean_payload_on_success = false;
+            }
             return entry;
           });
           hidden.value = JSON.stringify(entries);

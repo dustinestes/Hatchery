@@ -219,16 +219,19 @@ def archive_if_terminal(session_id: str) -> dict | None:
 
 
 def add_vm_scripts(session_id: str, vm_name: str, scripts: list) -> None:
-    """Record the declared automation scripts for a VM at hatch time.
+    """Record declared script automations for a VM at hatch time.
 
-    Each AutomationScript is stored as a pending row in run_order. Inserted before the VM
-    is created so the Nests panel can show the full script list immediately after hatching.
+    Each typed ``script`` entry is stored as a pending row in run_order. Software
+    entries are not inserted here (hatch Software steps: #474). Called before the
+    VM is created so the Nests panel can show the script list after hatching.
     """
     if not scripts:
         return
     conn = db.get_connection()
     try:
         for i, script in enumerate(scripts):
+            if getattr(script, "type", "script") != "script":
+                continue
             conn.execute(
                 """INSERT INTO hatch_vm_scripts
                    (session_id, vm_name, script_name, run_order, reboot_after, parameters, status)

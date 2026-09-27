@@ -406,8 +406,10 @@ def _script_used_by() -> dict[str, list[dict]]:
             continue
         clutch_file = Path(path).name
         for vm in clutch.vms:
-            for script in vm.automations:
-                usage.setdefault(script.name, []).append(
+            for entry in vm.automations:
+                if entry.type != "script":
+                    continue
+                usage.setdefault(entry.name, []).append(
                     {"clutch": clutch_file, "clutch_name": clutch.name, "vm": vm.name}
                 )
     return usage
@@ -2308,18 +2310,21 @@ def hatch_clutch_post():
 def _parse_automations(raw: str) -> list:
     """Parse the vm_automations[] hidden field value.
 
-    Accepts JSON (new format with optional parameters) or a legacy comma-separated
-    string of script names. Always returns a list compatible with AutomationScript.coerce().
+    Expects a JSON array of typed entries ``{type, name, ...}`` (#473).
+    Bare-string / comma-separated lists are not accepted.
     """
-    raw = raw.strip()
+    raw = (raw or "").strip()
     if not raw:
         return []
-    if raw.startswith("["):
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-    return [a.strip() for a in raw.split(",") if a.strip()]
+    if not raw.startswith("["):
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return data
 
 
 def _parse_answer_file_parameters(raw: str) -> dict[str, str]:
@@ -2448,6 +2453,7 @@ def _build_template_ctx(*, page_title: str | None = None):
         virtio_files=_scan_dir("media/virtio"),
         answer_file_files=_scan_dir("automation/answerfiles", extensions=[".j2"]),
         scripts_files=_scan_dir("automation/scripts"),
+        software_files=[s["name"] for s in _scan_software_inventory()],
     )
     if page_title:
         ctx["page_title"] = page_title
@@ -3024,12 +3030,20 @@ def api_clutch_detail(filename):
                     "answer_file_parameters": v.answer_file_parameters or {},
                     "admin_username": v.admin_username or "",
                     "automations": [
-                        s.name
-                        if not s.reboot_after and not s.parameters
-                        else {
+                        {
+                            "type": s.type,
                             "name": s.name,
                             **({"reboot_after": True} if s.reboot_after else {}),
-                            **({"parameters": s.parameters} if s.parameters else {}),
+                            **(
+                                {"parameters": s.parameters}
+                                if s.type == "script" and s.parameters
+                                else {}
+                            ),
+                            **(
+                                {"clean_payload_on_success": False}
+                                if s.type == "software" and not s.clean_payload_on_success
+                                else {}
+                            ),
                         }
                         for s in v.automations
                     ],

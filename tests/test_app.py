@@ -2116,10 +2116,16 @@ class TestBuildRoute:
     def test_build_post_saves_automations_in_clutch(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
-        form = {**VALID_BUILD_FORM, "vm_automations[]": "setup.ps1,configure.ps1"}
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_automations[]": (
+                '[{"type":"script","name":"setup.ps1"},{"type":"script","name":"configure.ps1"}]'
+            ),
+        }
         client.post("/build", data=form)
         c = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
         assert [s.name for s in c.vms[0].automations] == ["setup.ps1", "configure.ps1"]
+        assert all(s.type == "script" for s in c.vms[0].automations)
 
     def test_build_post_admin_username_saved_to_clutch(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -3388,13 +3394,14 @@ class TestAPIClutchDetail:
             ram_gb=4,
             disk_gb=60,
             os_media="win11.iso",
-            automations=[AutomationScript(name="setup.ps1", reboot_after=True)],
+            automations=[AutomationScript(type="script", name="setup.ps1", reboot_after=True)],
         )
         c = Clutch(name="my-lab", vms=[vm])
         clutch_lib.export(c, "my-lab", clutches_dir)
         data = client.get("/api/clutch/my-lab.yaml").get_json()
         entry = data["vms"][0]["automations"][0]
         assert isinstance(entry, dict)
+        assert entry["type"] == "script"
         assert entry["name"] == "setup.ps1"
         assert entry["reboot_after"] is True
 
@@ -4410,7 +4417,14 @@ class TestAutomationScriptsPane:
                     ram_gb=4,
                     disk_gb=60,
                     os_media="win11.iso",
-                    automations=["setup.ps1", {"name": "configure.ps1", "reboot_after": True}],
+                    automations=[
+                        {"type": "script", "name": "setup.ps1"},
+                        {
+                            "type": "script",
+                            "name": "configure.ps1",
+                            "reboot_after": True,
+                        },
+                    ],
                 )
             ],
         )
@@ -4481,7 +4495,7 @@ class TestAutomationScriptsPane:
                         ram_gb=4,
                         disk_gb=40,
                         os_media="win.iso",
-                        automations=["setup.ps1"],
+                        automations=[{"type": "script", "name": "setup.ps1"}],
                     )
                 ],
             ),

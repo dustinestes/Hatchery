@@ -22,18 +22,56 @@ class GuestOS(str, Enum):
     SERVER2025 = "server2025"
 
 
-class AutomationScript(BaseModel):
-    """A post-boot script entry. Accepts a plain string (name only) or a mapping."""
+class AutomationEntry(BaseModel):
+    """Typed post-boot automation (#473 / ADR-0025).
 
+    Every entry must declare ``type: script`` or ``type: software`` plus ``name``.
+    Bare strings are rejected (pre-release break).
+    """
+
+    type: str
     name: str
     reboot_after: bool = False
-    parameters: dict[str, str] = {}
+    parameters: dict[str, str] = Field(default_factory=dict)
+    clean_payload_on_success: bool = True
+
+    @field_validator("type")
+    @classmethod
+    def known_type(cls, v: str) -> str:
+        t = (v or "").strip().lower()
+        if t not in ("script", "software"):
+            raise ValueError("type must be 'script' or 'software'")
+        return t
+
+    @field_validator("name")
+    @classmethod
+    def name_nonempty(cls, v: str) -> str:
+        text = (v or "").strip()
+        if not text:
+            raise ValueError("name must not be empty")
+        return text
+
+    @model_validator(mode="after")
+    def type_specific_fields(self) -> AutomationEntry:
+        if self.type == "software" and self.parameters:
+            raise ValueError("software automations do not accept parameters")
+        return self
 
     @classmethod
-    def coerce(cls, v: Any) -> "AutomationScript":
+    def coerce(cls, v: Any) -> AutomationEntry:
+        if isinstance(v, AutomationEntry):
+            return v
         if isinstance(v, str):
-            return cls(name=v)
+            raise ValueError(
+                "bare-string automations are not supported; use {type: script|software, name: ...}"
+            )
+        if not isinstance(v, dict):
+            raise ValueError("automation entry must be a mapping with type and name")
         return cls.model_validate(v)
+
+
+# Back-compat alias for imports that still say AutomationScript.
+AutomationScript = AutomationEntry
 
 
 class VMConfig(BaseModel):
@@ -50,16 +88,16 @@ class VMConfig(BaseModel):
     )
     answer_file_parameters: dict[str, str] = {}
     admin_username: str | None = None
-    automations: list[AutomationScript] = []
+    automations: list[AutomationEntry] = []
     parallel: bool = False
     depends_on: list[str] = []
 
     @field_validator("automations", mode="before")
     @classmethod
-    def coerce_automations(cls, v: Any) -> list[AutomationScript]:
+    def coerce_automations(cls, v: Any) -> list[AutomationEntry]:
         if not isinstance(v, list):
             return []
-        return [AutomationScript.coerce(item) for item in v]
+        return [AutomationEntry.coerce(item) for item in v]
 
     @field_validator("vcpus")
     @classmethod
@@ -245,19 +283,21 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = clutch_obj.model_dump(mode="json", exclude_none=True)
     for vm in data.get("vms", []):
-        # Compact automations: plain string only when reboot_after=False and no parameters
+        # Always emit typed automations (ADR-0025 / #473); omit default-false/empty fields.
         if "automations" in vm:
             compacted = []
             for s in vm["automations"]:
-                if not s.get("reboot_after") and not s.get("parameters"):
-                    compacted.append(s["name"])
-                else:
-                    entry = {"name": s["name"]}
-                    if s.get("reboot_after"):
-                        entry["reboot_after"] = s["reboot_after"]
-                    if s.get("parameters"):
-                        entry["parameters"] = s["parameters"]
-                    compacted.append(entry)
+                entry: dict[str, Any] = {
+                    "type": s.get("type") or "script",
+                    "name": s["name"],
+                }
+                if s.get("reboot_after"):
+                    entry["reboot_after"] = True
+                if entry["type"] == "script" and s.get("parameters"):
+                    entry["parameters"] = s["parameters"]
+                if entry["type"] == "software" and not s.get("clean_payload_on_success", True):
+                    entry["clean_payload_on_success"] = False
+                compacted.append(entry)
             vm["automations"] = compacted
         # Omit empty answer_file_parameters (same compactness as empty script params)
         if not vm.get("answer_file_parameters"):

@@ -65,13 +65,17 @@ vms:
       input_locale: en-US
       system_locale: en-US
 
-    # automations (optional): ordered list of post-boot automation scripts
-    # Filenames relative to automation/scripts/ in the data directory.
-    # Executed in order against the VM after it is fledged, via WinRM (Windows)
-    # or SSH (Linux, future). Omit or leave empty to skip post-boot automation.
+    # automations (optional): ordered typed post-boot steps (#473 / ADR-0025).
+    # Every entry requires type: script|software and name. Bare strings rejected.
+    # script name = basename under automation/scripts/
+    # software name = package id under automation/software/
     automations:
-      - install-chocolatey.ps1
-      - install-dev-tools.ps1
+      - type: script
+        name: install-chocolatey.ps1
+      - type: software
+        name: Hatchery.SoftwareExample.1.0.0
+      - type: script
+        name: install-dev-tools.ps1
 
     # depends_on (optional): VM names in this Clutch that must be fully fledged
     # before this VM is hatched. VMs with no dependencies hatch in parallel.
@@ -93,7 +97,8 @@ vms:
 #     os_media: server2022-eval.iso
 #     answer_file: server2022-unattend.xml
 #     automations:
-#       - promote-domain-controller.ps1
+#       - type: script
+#         name: promote-domain-controller.ps1
 #
 #   - name: client01
 #     os: win11
@@ -103,6 +108,7 @@ vms:
 #     os_media: Win11_24H2.iso
 #     answer_file: win11-unattend.xml
 #     automations:
-#       - join-domain.ps1
+#       - type: script
+#         name: join-domain.ps1
 #     depends_on:
 #       - dc01    # hatches only after dc01 is fledged

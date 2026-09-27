@@ -1521,7 +1521,7 @@ html.sidebar-collapsed-init .topbar-name {
   transition: background 100ms ease;
 }
 
-/* ── Script row items (Post-Boot Scripts in Clutch editor) ── */
+/* ── Automation row items (Post-boot Automations in Clutch editor) ── */
 
 .script-add-row {
   display: flex;
@@ -1535,10 +1535,12 @@ html.sidebar-collapsed-init .topbar-name {
   min-width: 0;
 }
 
-.vm-scripts-list {
+.vm-scripts-list,
+.vm-automations-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 8px;
 }
 
 .script-item {
@@ -1548,15 +1550,42 @@ html.sidebar-collapsed-init .topbar-name {
 }
 
 .script-item-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
+  column-gap: 12px;
+  row-gap: 6px;
   padding: 6px 10px;
   background: var(--color-surface-alt);
 }
 
+.automation-kind-badge {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.75rem;
+  min-height: 1.35rem;
+  font-size: 10px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
+  color: var(--gold-dark);
+  background: color-mix(in srgb, var(--gold) 14%, var(--color-surface));
+}
+
+[data-theme="dark"] .automation-kind-badge {
+  color: var(--gold-light);
+  border-color: color-mix(in srgb, var(--gold) 50%, var(--color-border));
+  background: color-mix(in srgb, var(--gold) 16%, var(--color-surface));
+}
+
 .script-item-name {
-  flex: 1;
+  min-width: 0;
   font-size: 12px;
   font-family: monospace;
   color: var(--color-text);
@@ -1565,6 +1594,16 @@ html.sidebar-collapsed-init .topbar-name {
   white-space: nowrap;
 }
 
+.script-item-options {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-width: 9.5rem;
+}
+
+.script-item-option,
 .script-item-reboot-label {
   display: flex;
   align-items: center;
@@ -1580,8 +1619,9 @@ html.sidebar-collapsed-init .topbar-name {
 .script-item-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
-  flex-shrink: 0;
+  width: 4.5rem;
 }
 
 .script-item-params {

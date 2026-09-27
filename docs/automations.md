@@ -233,35 +233,64 @@ After installation, the Requirements check in the Settings pane will show `pwsh`
 
 ## Clutch YAML Syntax
 
-The `automations` key under a VM accepts a list of scripts. Each entry is either a plain script name (no parameters, no reboot) or an object with optional `parameters` and `reboot_after` keys.
+The `automations` key under a VM is an **ordered** list of typed entries. Every entry must declare `type: script` or `type: software` plus `name` ([ADR-0025](adr/0025-software-product-model.md), [#473](https://github.com/dustinestes/Hatchery/issues/473)). Bare string script names are **not** accepted (pre-release break).
 
-**Simple form** - no parameters, no reboot:
-
-```yaml
-automations:
-  - configure-vm-basics.ps1
-  - install-dev-tools.ps1
-```
-
-**Object form** - with parameters and/or reboot:
+**Script** (optional `parameters` / `reboot_after`):
 
 ```yaml
 automations:
-  - name: configure-vm-basics.ps1
+  - type: script
+    name: configure-vm-basics.ps1
     reboot_after: true
     parameters:
       ComputerName: dc01
       TimeZone: "Central Standard Time"
-  - name: install-dev-tools.ps1
+  - type: script
+    name: install-dev-tools.ps1
 ```
 
-You can mix both forms freely in the same list. Hatchery normalizes them on load.
+**Mixed Scripts and Software:**
 
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `name` | string | - | Filename of the script in `automation/scripts/` |
-| `reboot_after` | boolean | `false` | Reboot the VM after this script succeeds before running the next |
-| `parameters` | map | `{}` | Named values passed to the script's `param()` block |
+```yaml
+automations:
+  - type: script
+    name: configure-vm-basics.ps1
+  - type: software
+    name: Hatchery.SoftwareExample.1.0.0
+    clean_payload_on_success: true
+  - type: script
+    name: enable-rdp-windows.ps1
+    reboot_after: true
+```
+
+| Key | Type | Default | Applies to | Description |
+|---|---|---|---|---|
+| `type` | `script` \| `software` | required | both | Automation kind |
+| `name` | string | required | both | Script basename under `automation/scripts/`, or package id under `automation/software/` |
+| `reboot_after` | boolean | `false` | both | Reboot the VM after this step succeeds before running the next |
+| `parameters` | map | `{}` | script only | Named values passed to the script's `param()` block |
+| `clean_payload_on_success` | boolean | `true` | software only | Remove staged installer payload after a successful install |
+
+Software hatch execution (stage → install → optional clean) is tracked in [#474](https://github.com/dustinestes/Hatchery/issues/474). Until then, Software rows are saved on the Clutch and shown in the form; hatch logs a warning and skips running them.
+
+### Migration from bare-string automations
+
+If an older Clutch used:
+
+```yaml
+automations:
+  - configure-vm-basics.ps1
+```
+
+rewrite each entry to:
+
+```yaml
+automations:
+  - type: script
+    name: configure-vm-basics.ps1
+```
+
+Or open the Clutch in **Edit**, re-add each script from the Scripts picker, and save.
 
 <br>
 
@@ -302,7 +331,8 @@ Full flow when you do want VirtIO:
 
 ```yaml
 automations:
-  - name: install-virtio-drivers-windows.ps1
+  - type: script
+    name: install-virtio-drivers-windows.ps1
     parameters:
       IsoLabel: virtio-win
 ```
