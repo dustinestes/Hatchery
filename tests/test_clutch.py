@@ -40,8 +40,10 @@ FULL_VM = """\
         virtio_drivers: virtio-win.iso
         answer_file: win11-unattend.xml.j2
         automations:
-          - install-chocolatey.ps1
-          - install-dev-tools.ps1
+          - type: script
+            name: install-chocolatey.ps1
+          - type: script
+            name: install-dev-tools.ps1
         depends_on: []
 """
 
@@ -520,25 +522,41 @@ class TestAppendVM:
             clutch.append_vm(vm, tmp_path / "missing.yaml")
 
 
-# ── AutomationScript ──────────────────────────────────────────────────────────
+# ── AutomationEntry (typed automations / #473) ────────────────────────────────
 
 
-class TestAutomationScript:
-    def test_coerce_from_string(self):
-        s = AutomationScript.coerce("setup.ps1")
-        assert s.name == "setup.ps1"
-        assert s.reboot_after is False
+class TestAutomationEntry:
+    def test_coerce_rejects_bare_string(self):
+        with pytest.raises(ValueError, match="bare-string"):
+            AutomationScript.coerce("setup.ps1")
 
     def test_coerce_from_dict(self):
-        s = AutomationScript.coerce({"name": "setup.ps1", "reboot_after": True})
+        s = AutomationScript.coerce({"type": "script", "name": "setup.ps1", "reboot_after": True})
+        assert s.type == "script"
         assert s.name == "setup.ps1"
         assert s.reboot_after is True
 
+    def test_coerce_requires_type(self):
+        with pytest.raises(Exception):
+            AutomationScript.coerce({"name": "setup.ps1"})
+
     def test_reboot_after_defaults_false(self):
-        s = AutomationScript(name="a.ps1")
+        s = AutomationScript(type="script", name="a.ps1")
         assert s.reboot_after is False
 
-    def test_vmconfig_accepts_string_list(self):
+    def test_software_defaults_clean_payload(self):
+        s = AutomationScript(type="software", name="Hatchery.SoftwareExample.1.0.0")
+        assert s.clean_payload_on_success is True
+
+    def test_software_rejects_parameters(self):
+        with pytest.raises(Exception):
+            AutomationScript(
+                type="software",
+                name="Hatchery.SoftwareExample.1.0.0",
+                parameters={"x": "1"},
+            )
+
+    def test_vmconfig_accepts_typed_list(self):
         vm = VMConfig(
             name="dc01",
             os="win10",
@@ -546,13 +564,29 @@ class TestAutomationScript:
             ram_gb=2,
             disk_gb=20,
             os_media="win10.iso",
-            automations=["a.ps1", "b.ps1"],
+            automations=[
+                {"type": "script", "name": "a.ps1"},
+                {"type": "software", "name": "Hatchery.SoftwareExample.1.0.0"},
+            ],
         )
         assert len(vm.automations) == 2
         assert all(isinstance(s, AutomationScript) for s in vm.automations)
-        assert vm.automations[0].name == "a.ps1"
+        assert vm.automations[0].type == "script"
+        assert vm.automations[1].type == "software"
 
-    def test_vmconfig_accepts_mixed_list(self):
+    def test_vmconfig_rejects_bare_strings(self):
+        with pytest.raises(Exception):
+            VMConfig(
+                name="dc01",
+                os="win10",
+                vcpus=1,
+                ram_gb=2,
+                disk_gb=20,
+                os_media="win10.iso",
+                automations=["a.ps1"],
+            )
+
+    def test_yaml_always_emits_type(self, tmp_path):
         vm = VMConfig(
             name="dc01",
             os="win10",
@@ -560,31 +594,17 @@ class TestAutomationScript:
             ram_gb=2,
             disk_gb=20,
             os_media="win10.iso",
-            automations=["a.ps1", {"name": "b.ps1", "reboot_after": True}],
-        )
-        assert vm.automations[0].reboot_after is False
-        assert vm.automations[1].reboot_after is True
-
-    def test_yaml_round_trip_plain_string(self, tmp_path):
-        """Scripts with reboot_after=False are written as plain strings in YAML."""
-        vm = VMConfig(
-            name="dc01",
-            os="win10",
-            vcpus=1,
-            ram_gb=2,
-            disk_gb=20,
-            os_media="win10.iso",
-            automations=["setup.ps1"],
+            automations=[{"type": "script", "name": "setup.ps1"}],
         )
         c = Clutch(name="lab", vms=[vm])
         path = tmp_path / "lab.yaml"
         clutch.save(c, path)
         raw = path.read_text()
-        assert "- setup.ps1" in raw
+        assert "type: script" in raw
+        assert "name: setup.ps1" in raw
         assert "reboot_after" not in raw
 
     def test_yaml_round_trip_reboot_after_true(self, tmp_path):
-        """Scripts with reboot_after=True are written as a mapping in YAML."""
         vm = VMConfig(
             name="dc01",
             os="win10",
@@ -592,13 +612,38 @@ class TestAutomationScript:
             ram_gb=2,
             disk_gb=20,
             os_media="win10.iso",
-            automations=[{"name": "setup.ps1", "reboot_after": True}],
+            automations=[{"type": "script", "name": "setup.ps1", "reboot_after": True}],
         )
         c = Clutch(name="lab", vms=[vm])
         path = tmp_path / "lab.yaml"
         clutch.save(c, path)
         raw = path.read_text()
         assert "reboot_after: true" in raw
+        assert "type: script" in raw
+
+    def test_yaml_software_clean_false(self, tmp_path):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="win10.iso",
+            automations=[
+                {
+                    "type": "software",
+                    "name": "Hatchery.SoftwareExample.1.0.0",
+                    "clean_payload_on_success": False,
+                }
+            ],
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        raw = path.read_text()
+        assert "type: software" in raw
+        assert "clean_payload_on_success: false" in raw
+        loaded = clutch.load(path)
+        assert loaded.vms[0].automations[0].clean_payload_on_success is False
 
     def test_parallel_false_omitted_from_yaml(self, tmp_path):
         vm = VMConfig(
@@ -614,8 +659,7 @@ class TestAutomationScript:
         clutch.save(c, path)
         assert "parallel" not in path.read_text()
 
-    def test_load_backward_compat_string_automations(self, tmp_path):
-        """Existing clutch files with plain string automations still load correctly."""
+    def test_load_rejects_bare_string_automations(self, tmp_path):
         content = textwrap.dedent("""
             name: lab
             vms:
@@ -629,34 +673,20 @@ class TestAutomationScript:
                   - setup.ps1
                   - configure.ps1
         """)
-        result = clutch.load(write_clutch(tmp_path, content))
-        assert [s.name for s in result.vms[0].automations] == ["setup.ps1", "configure.ps1"]
+        with pytest.raises(Exception):
+            clutch.load(write_clutch(tmp_path, content))
 
     def test_parameters_default_empty(self):
-        s = AutomationScript(name="setup.ps1")
+        s = AutomationScript(type="script", name="setup.ps1")
         assert s.parameters == {}
 
     def test_coerce_from_dict_with_parameters(self):
-        s = AutomationScript.coerce({"name": "setup.ps1", "parameters": {"Env": "dev"}})
+        s = AutomationScript.coerce(
+            {"type": "script", "name": "setup.ps1", "parameters": {"Env": "dev"}}
+        )
         assert s.parameters == {"Env": "dev"}
 
-    def test_yaml_compact_when_no_params_no_reboot(self, tmp_path):
-        """Scripts with no parameters and reboot_after=False stay as plain strings."""
-        vm = VMConfig(
-            name="dc01",
-            os="win10",
-            vcpus=1,
-            ram_gb=2,
-            disk_gb=20,
-            os_media="w.iso",
-            automations=["setup.ps1"],
-        )
-        path = tmp_path / "lab.yaml"
-        clutch.save(Clutch(name="lab", vms=[vm]), path)
-        assert "- setup.ps1" in path.read_text()
-
     def test_yaml_mapping_when_parameters_present(self, tmp_path):
-        """Scripts with parameters are written as mappings in YAML."""
         vm = VMConfig(
             name="dc01",
             os="win10",
@@ -664,16 +694,16 @@ class TestAutomationScript:
             ram_gb=2,
             disk_gb=20,
             os_media="w.iso",
-            automations=[{"name": "setup.ps1", "parameters": {"Env": "dev"}}],
+            automations=[{"type": "script", "name": "setup.ps1", "parameters": {"Env": "dev"}}],
         )
         path = tmp_path / "lab.yaml"
         clutch.save(Clutch(name="lab", vms=[vm]), path)
         raw = path.read_text()
         assert "Env: dev" in raw
         assert "parameters" in raw
+        assert "type: script" in raw
 
     def test_yaml_round_trip_with_parameters(self, tmp_path):
-        """Parameters survive a save/load round trip."""
         vm = VMConfig(
             name="dc01",
             os="win10",
@@ -681,7 +711,13 @@ class TestAutomationScript:
             ram_gb=2,
             disk_gb=20,
             os_media="w.iso",
-            automations=[{"name": "setup.ps1", "parameters": {"Region": "us-east-1"}}],
+            automations=[
+                {
+                    "type": "script",
+                    "name": "setup.ps1",
+                    "parameters": {"Region": "us-east-1"},
+                }
+            ],
         )
         path = tmp_path / "lab.yaml"
         clutch.save(Clutch(name="lab", vms=[vm]), path)

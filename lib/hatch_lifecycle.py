@@ -543,7 +543,17 @@ def create_and_start_hatch(
             admin_username=vm.admin_username or None,
             admin_password=passwords.get(vm.name),
         )
-        hatch_lib.add_vm_scripts(session_id, vm.name, vm.automations)
+        script_entries = [a for a in vm.automations if a.type == "script"]
+        software_entries = [a for a in vm.automations if a.type == "software"]
+        hatch_lib.add_vm_scripts(session_id, vm.name, script_entries)
+        for sw in software_entries:
+            hatch_lib.add_event(
+                session_id,
+                vm.name,
+                "hatchery",
+                "WARNING",
+                f"Software automation '{sw.name}' is declared but not executed yet (#474)",
+            )
         hatch_lib.add_event(
             session_id,
             vm.name,

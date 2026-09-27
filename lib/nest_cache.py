@@ -128,8 +128,11 @@ def collect_vm_artifacts(vm: VMConfig) -> list[CacheArtifact]:
         arts.append(_artifact_from_name("media/virtio", vm.virtio_drivers, vm_name=vm.name))
     if vm.answer_file:
         arts.append(_artifact_from_name("automation/answerfiles", vm.answer_file, vm_name=vm.name))
-    for script in vm.automations:
-        arts.append(_artifact_from_name("automation/scripts", script.name, vm_name=vm.name))
+    for entry in vm.automations:
+        if getattr(entry, "type", "script") != "script":
+            # Software Nest-cache staging lands with hatch Software steps (#474).
+            continue
+        arts.append(_artifact_from_name("automation/scripts", entry.name, vm_name=vm.name))
     return arts
 
 

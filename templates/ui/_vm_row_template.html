@@ -10,7 +10,7 @@
       </button>
     </div>
     <div class="vm-row-body" hidden>
-      <div class="form-grid">
+      <div class="form-grid form-grid-3">
         <div class="form-group">
           <label class="form-label">VM Name <span class="required">*</span></label>
           <input type="text" name="vm_name[]" class="form-input vm-name-input" required placeholder="e.g. dc01">
@@ -22,6 +22,13 @@
               <option value="{{ os_type }}">{{ os_type }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Depends On</label>
+          <select class="form-select vm-depends-on" multiple size="3" aria-label="Depends on other VMs">
+            <!-- options populated by JS from current VM names -->
+          </select>
+          <input type="hidden" name="vm_depends_on[]" class="vm-depends-on-hidden" value="">
         </div>
       </div>
       <div class="form-grid form-grid-3">
@@ -94,35 +101,53 @@
           </div>
         </div>
       </div>
-      <div class="form-grid form-grid-1">
-        <div class="form-group">
-          <label class="form-label">Depends On</label>
-          <select class="form-select vm-depends-on" multiple size="3" aria-label="Depends on other VMs">
-            <!-- options populated by JS from current VM names -->
-          </select>
-          <input type="hidden" name="vm_depends_on[]" class="vm-depends-on-hidden" value="">
-        </div>
-      </div>
       <div class="form-group">
         <div class="form-label-row">
-          <label class="form-label">Post-Boot Scripts</label>
-          <button type="button" class="btn-refresh-label vm-refresh-scripts" title="Refresh script list">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          </button>
+          <label class="form-label">Post-boot Automations</label>
         </div>
-        <div class="script-add-row">
-          <select class="form-select vm-script-select">
-            <option value="">- select a script to add -</option>
-            {% for f in scripts_files %}
-              <option value="{{ f }}">{{ f }}</option>
-            {% endfor %}
-          </select>
-          <button type="button" class="btn vm-add-script">Add</button>
+        <div class="form-grid">
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Scripts</label>
+              <button type="button" class="btn-refresh-label vm-refresh-scripts" title="Refresh script list" aria-label="Refresh script list">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+            </div>
+            <div class="script-add-row">
+              <select class="form-select vm-script-select" aria-label="Select a script to add">
+                <option value="">- select a script to add -</option>
+                {% for f in scripts_files %}
+                  <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn vm-add-script">Add</button>
+            </div>
+            {% if not scripts_files %}
+              <p class="form-hint">No scripts found. Add them via the Automations pane or Library.</p>
+            {% endif %}
+          </div>
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Software</label>
+              <button type="button" class="btn-refresh-label vm-refresh-software" title="Refresh software list" aria-label="Refresh software list">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+            </div>
+            <div class="script-add-row">
+              <select class="form-select vm-software-select" aria-label="Select a software package to add">
+                <option value="">- select software to add -</option>
+                {% for f in software_files %}
+                  <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn vm-add-software">Add</button>
+            </div>
+            {% if not software_files %}
+              <p class="form-hint">No software packages found. Pull packages via Library → Software.</p>
+            {% endif %}
+          </div>
         </div>
-        {% if not scripts_files %}
-          <p class="form-hint">No automation files found. Add scripts via the Automations pane.</p>
-        {% endif %}
-        <div class="vm-scripts-list"></div>
+        <div class="vm-automations-list" aria-label="Ordered post-boot automations"></div>
         <input type="hidden" name="vm_automations[]" class="vm-automations-hidden" value="">
       </div>
     </div>
