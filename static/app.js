@@ -168,7 +168,7 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
         set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
         set(row, '[name="vm_admin_username[]"]', vmData.admin_username || '');
-        set(row, '[name="vm_os_config[]"]', vmData.os_config || '');
+        set(row, '[name="vm_answer_file[]"]', vmData.answer_file || vmData.os_config || '');
         if (vmData.automations && vmData.automations.length) {
           var scriptsList = row.querySelector('.vm-scripts-list');
           if (scriptsList) {
@@ -1855,7 +1855,8 @@ hatchery.bindUnsavedLeave = function (opts) {
   var ENDPOINTS = {
     iso: '/api/media/iso',
     virtio: '/api/media/virtio',
-    os_config: '/api/automation/os-config',
+    answer_file: '/api/automation/answerfiles',
+    os_config: '/api/automation/answerfiles',
   };
 
   function rebuildOptions(select, files) {

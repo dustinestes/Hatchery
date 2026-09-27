@@ -23,7 +23,7 @@ _DATA_SUBDIRS = [
     "media/virtio",
     "media/vhd",
     "media/qemu",
-    "automation/os_config",
+    "automation/answerfiles",
     "automation/scripts",
 ]
 
@@ -385,8 +385,28 @@ def defaults_for_exportable_settings() -> dict:
 def init_data_dir() -> None:
     """Create the data directory and all subdirectories if they do not exist."""
     root = data_dir()
+    _migrate_os_config_to_answerfiles(root)
     for subdir in _DATA_SUBDIRS:
         (root / subdir).mkdir(parents=True, exist_ok=True)
+
+
+def _migrate_os_config_to_answerfiles(root: Path) -> None:
+    """One-time rename of legacy ``automation/os_config`` → ``answerfiles`` (#448)."""
+    old = root / "automation" / "os_config"
+    new = root / "automation" / "answerfiles"
+    if not old.is_dir():
+        return
+    if not new.exists():
+        old.rename(new)
+        return
+    for entry in old.iterdir():
+        dest = new / entry.name
+        if not dest.exists():
+            entry.rename(dest)
+    try:
+        old.rmdir()
+    except OSError:
+        pass
 
 
 def _write_bootstrap(cfg: dict) -> None:

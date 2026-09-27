@@ -286,7 +286,7 @@ class TestCreateVM:
         cmd = mock_run.call_args[0][0]
         assert any("virtio-win.iso" in arg and "cdrom" in arg for arg in cmd)
 
-    def test_os_config_creates_floppy(self, tmp_path, provider):
+    def test_answer_file_creates_floppy(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
         answer = provider.automation_dir / "win11.xml"
@@ -300,7 +300,7 @@ class TestCreateVM:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            os_config="win11.xml",
+            answer_file="win11.xml",
         )
         with patch.object(provider, "_create_answer_image", return_value=img_path) as mock_img:
             with patch("subprocess.run") as mock_run:
@@ -324,7 +324,7 @@ class TestCreateVM:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            os_config="win11.xml",
+            answer_file="win11.xml",
         )
         with patch.object(provider, "_create_answer_image", return_value=img_path):
             with patch("subprocess.run") as mock_run:
@@ -346,7 +346,7 @@ class TestCreateVM:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            os_config="win11.xml",
+            answer_file="win11.xml",
         )
         with patch.object(provider, "_create_answer_image", return_value=img_path):
             with patch(
@@ -373,7 +373,7 @@ class TestCreateVM:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            os_config="missing.xml",
+            answer_file="missing.xml",
         )
         with pytest.raises(FileNotFoundError, match="missing.xml"):
             provider.create_vm(vm)

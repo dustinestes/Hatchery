@@ -35,7 +35,7 @@ For operator-authored post-boot scripts, see [Automation Scripts](automations.md
 
 Install-time unattended templates (Autounattend and future Linux seeds) are **Answer Files**. Operator how-to, tokens, companions, and per-OS notes: [Answer Files](answer-files.md). Architecture: [ADR-0024](adr/0024-answer-files-product-model.md).
 
-Until the user-owned hatch path ships, the Controller may still render Windows Autounattend from `templates/answerfiles/` when admin credentials are set. Do not treat that shadow path as the long-term customization surface - copy or pull a sample into `automation/answerfiles/` (legacy: `automation/os_config/`) and select it on the Clutch once Answer Files are required.
+Until the user-owned hatch path ships, the Controller may still render Windows Autounattend from `templates/answerfiles/` when admin credentials are set. Do not treat that shadow path as the long-term customization surface - copy or pull a sample into `automation/answerfiles/` and select it on the Clutch once Answer Files are required.
 
 ---
 

@@ -27,7 +27,7 @@ def _clutch_with_media(**kwargs) -> Clutch:
         disk_gb=60,
         os_media="win11.iso",
         virtio_drivers=kwargs.get("virtio_drivers"),
-        os_config=kwargs.get("os_config"),
+        answer_file=kwargs.get("answer_file", kwargs.get("os_config")),
         automations=kwargs.get("automations") or [],
     )
     return Clutch(name="lab", vms=[vm])
@@ -45,7 +45,7 @@ class TestCollectArtifacts:
         arts = collect_clutch_artifacts(
             _clutch_with_media(
                 virtio_drivers="virtio.iso",
-                os_config="unattend.xml",
+                answer_file="unattend.xml",
                 automations=["setup.ps1"],
             )
         )
@@ -53,7 +53,7 @@ class TestCollectArtifacts:
         assert kinds == {
             "media/iso",
             "media/virtio",
-            "automation/os_config",
+            "automation/answerfiles",
             "automation/scripts",
         }
 

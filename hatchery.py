@@ -2062,7 +2062,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
-    os_config_list = form.getlist("vm_os_config[]")
+    answer_file_list = form.getlist("vm_answer_file[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2079,7 +2079,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "disk_gb": disk_list[i] if i < len(disk_list) else "60",
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
-                "os_config": os_config_list[i] if i < len(os_config_list) else "",
+                "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
                 "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
                 "automations": _parse_automations(auto_raw),
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
@@ -2098,7 +2098,7 @@ def _vm_list_from_form(form):
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
-    os_config_list = form.getlist("vm_os_config[]")
+    answer_file_list = form.getlist("vm_answer_file[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2121,7 +2121,7 @@ def _vm_list_from_form(form):
                 disk_gb=int(disk_list[i] or 20) if i < len(disk_list) else 20,
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
-                os_config=(os_config_list[i] or None) if i < len(os_config_list) else None,
+                answer_file=(answer_file_list[i] or None) if i < len(answer_file_list) else None,
                 admin_username=(admin_username_list[i] or None)
                 if i < len(admin_username_list)
                 else None,
@@ -2138,7 +2138,7 @@ def _build_template_ctx(*, page_title: str | None = None):
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media/iso"),
         virtio_files=_scan_dir("media/virtio"),
-        os_config_files=_scan_dir("automation/os_config"),
+        answer_file_files=_scan_dir("automation/answerfiles"),
         scripts_files=_scan_dir("automation/scripts"),
     )
     if page_title:
@@ -2417,9 +2417,15 @@ def api_automation_script_delete(name):
     return _api_unlink_inventory_file(_resolve_script_path(name))
 
 
+@app.route("/api/automation/answerfiles")
+def api_automation_answerfiles():
+    return jsonify(_scan_dir("automation/answerfiles"))
+
+
 @app.route("/api/automation/os-config")
 def api_automation_os_config():
-    return jsonify(_scan_dir("automation/os_config"))
+    """Legacy alias for Answer Files list (#448)."""
+    return jsonify(_scan_dir("automation/answerfiles"))
 
 
 @app.route("/api/automation/scripts")
@@ -2562,7 +2568,7 @@ def api_clutch_detail(filename):
                     "disk_gb": v.disk_gb,
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
-                    "os_config": v.os_config or "",
+                    "answer_file": v.answer_file or "",
                     "admin_username": v.admin_username or "",
                     "automations": [
                         s.name

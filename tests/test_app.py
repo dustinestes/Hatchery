@@ -3076,7 +3076,7 @@ class TestAPIClutchDetail:
         assert "ram_gb" in vm
         assert "disk_gb" in vm
         assert "virtio_drivers" in vm
-        assert "os_config" in vm
+        assert "answer_file" in vm
         assert "admin_username" in vm
         assert vm["os_media"] == "win11.iso"
 
@@ -3214,7 +3214,7 @@ class TestProvider:
         assert isinstance(provider, LibvirtProvider)
         assert provider.iso_dir == tmp_path / "media" / "iso"
         assert provider.virtio_dir == tmp_path / "media" / "virtio"
-        assert provider.automation_dir == tmp_path / "automation" / "os_config"
+        assert provider.automation_dir == tmp_path / "automation" / "answerfiles"
 
     def test_provider_honors_nest_id(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -3955,8 +3955,8 @@ class TestAPIRoutes:
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
-    def test_api_automation_os_config_returns_json(self, client):
-        resp = client.get("/api/automation/os-config")
+    def test_api_automation_answerfiles_returns_json(self, client):
+        resp = client.get("/api/automation/answerfiles")
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 

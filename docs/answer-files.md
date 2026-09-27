@@ -32,7 +32,7 @@ Install-time templates for unattended guest OS setup - distinct from post-boot [
 
 ## Overview
 
-**Answer Files** are templates Hatchery renders at hatch time and attaches as install media so the guest OS installer can run unattended. They live under `automation/answerfiles/` in the Hatchery data directory (legacy path until rename ships: `automation/os_config/`).
+**Answer Files** are templates Hatchery renders at hatch time and attaches as install media so the guest OS installer can run unattended. They live under `automation/answerfiles/` in the Hatchery data directory.
 
 Product shape is locked in [ADR-0024](adr/0024-answer-files-product-model.md). Today the Controller may still auto-render Windows Autounattend from built-in Jinja when admin credentials are set; that shadow path is being replaced by user-owned Answer Files (see follow-on issues on [#447](https://github.com/dustinestes/Hatchery/issues/447)). Do not delete Controller templates until Hatchery-Library samples are in place.
 
@@ -125,13 +125,11 @@ hatchery:
 
 | Field | Meaning |
 |---|---|
-| `answer_file` | Filename under `automation/answerfiles/` (legacy Clutch key: `os_config`) |
-| `answer_file_parameters` | Map of user-declared param values for that file |
+| `answer_file` | Filename under `automation/answerfiles/` (legacy Clutch key `os_config` still accepted on load) |
+| `answer_file_parameters` | Map of user-declared param values for that file (follow-on) |
 | `admin_username` / hatch password | Feed system tokens when the Guest OS needs them |
 
 When Answer Files are required for a guest type, missing `answer_file` or a missing required declared param fails before VM create, with a clear UI/CLI error. Admin credentials no longer select a hidden Controller template.
-
-Until the rename issue lands, Clutch YAML and the form may still say `os_config`; treat it as the Answer File picker.
 
 <br>
 

@@ -326,13 +326,25 @@ class TestInitDataDir:
         cfg.load()
         cfg.init_data_dir()
         root = cfg.data_dir()
-        for subdir in ["clutches", "media", "automation/os_config", "automation/scripts"]:
+        for subdir in ["clutches", "media", "automation/answerfiles", "automation/scripts"]:
             assert (root / subdir).is_dir(), f"Expected {subdir}/ to exist"
 
     def test_is_idempotent(self, isolated_config):
         cfg.load()
         cfg.init_data_dir()
         cfg.init_data_dir()
+
+    def test_migrates_os_config_to_answerfiles(self, isolated_config):
+        cfg.load()
+        root = cfg.data_dir()
+        old = root / "automation" / "os_config"
+        old.mkdir(parents=True)
+        (old / "sample.xml").write_text("<unattend/>", encoding="utf-8")
+        cfg.init_data_dir()
+        new = root / "automation" / "answerfiles"
+        assert new.is_dir()
+        assert (new / "sample.xml").is_file()
+        assert not old.exists()
 
     def test_creates_root_if_missing(self, isolated_config):
         cfg.load()

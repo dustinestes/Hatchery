@@ -77,14 +77,14 @@
       <div class="form-grid">
         <div class="form-group">
           <div class="form-label-row">
-            <label class="form-label">OS Config</label>
-            <button type="button" class="btn-refresh-label" data-refresh="os_config" title="Refresh OS config files">
+            <label class="form-label">Answer File</label>
+            <button type="button" class="btn-refresh-label" data-refresh="answer_file" title="Refresh Answer Files">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           </div>
-          <select name="vm_os_config[]" class="form-select">
+          <select name="vm_answer_file[]" class="form-select" aria-label="Answer File">
             <option value="">- none -</option>
-            {% for f in os_config_files %}
+            {% for f in answer_file_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
           </select>

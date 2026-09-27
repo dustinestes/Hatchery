@@ -20,14 +20,14 @@ from lib.nest_transport import NestConnectionConfig
 ArtifactKind = Literal[
     "media/iso",
     "media/virtio",
-    "automation/os_config",
+    "automation/answerfiles",
     "automation/scripts",
 ]
 
 _KIND_DIR: dict[ArtifactKind, str] = {
     "media/iso": "media/iso",
     "media/virtio": "media/virtio",
-    "automation/os_config": "automation/os_config",
+    "automation/answerfiles": "automation/answerfiles",
     "automation/scripts": "automation/scripts",
 }
 
@@ -126,8 +126,8 @@ def collect_vm_artifacts(vm: VMConfig) -> list[CacheArtifact]:
     ]
     if vm.virtio_drivers:
         arts.append(_artifact_from_name("media/virtio", vm.virtio_drivers, vm_name=vm.name))
-    if vm.os_config:
-        arts.append(_artifact_from_name("automation/os_config", vm.os_config, vm_name=vm.name))
+    if vm.answer_file:
+        arts.append(_artifact_from_name("automation/answerfiles", vm.answer_file, vm_name=vm.name))
     for script in vm.automations:
         arts.append(_artifact_from_name("automation/scripts", script.name, vm_name=vm.name))
     return arts
