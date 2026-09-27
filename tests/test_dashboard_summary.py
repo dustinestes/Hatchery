@@ -23,6 +23,7 @@ def _iso(tmp_path, monkeypatch):
     cfg.load()
     cfg.bind_db()
     yield
+    db._db_path = None
 
 
 class TestNestTileFields:

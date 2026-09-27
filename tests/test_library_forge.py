@@ -11,11 +11,20 @@ from urllib.error import HTTPError
 
 import pytest
 
+from lib import db as db_module
 from lib import library as library_lib
 from lib.library_forge import github as gh
 from lib.library_forge import register_builtins
 from lib.library_forge.github import GitHubAdapter
 from lib.library_forge.registry import all_providers, clear_registry, get_adapter
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db(tmp_path):
+    """Bind a temp DB so forge pull provenance stays off the operator Controller (#460)."""
+    db_module.init_db(tmp_path / "hatchery.db")
+    yield
+    db_module._db_path = None
 
 
 @pytest.fixture(autouse=True)

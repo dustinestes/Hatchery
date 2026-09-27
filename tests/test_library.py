@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
+import lib.db as db_module
 import lib.library as library
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db(tmp_path):
+    """Bind a temp DB so pull provenance never hits the operator Controller (#460)."""
+    db_module.init_db(tmp_path / "hatchery.db")
+    yield
+    db_module._db_path = None
 
 
 @pytest.fixture
@@ -252,6 +261,15 @@ class TestPathLibrary:
         assert result["name"] == "hello.ps1"
         assert (dest / "hello.ps1").is_file()
         assert result["sha256"] == library.sha256_file(dest / "hello.ps1")
+
+        from lib import library_provenance as prov
+
+        rows = prov.list_all()
+        assert len(rows) == 1
+        assert rows[0]["cache_name"] == "hello.ps1"
+        assert rows[0]["connection_id"] == "c1"
+        assert db_module._db_path is not None
+        assert Path(db_module._db_path).resolve().is_relative_to(tmp_path.resolve())
 
         with pytest.raises(FileExistsError):
             library.pull_script(conn, "hello.ps1")
