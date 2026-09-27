@@ -81,6 +81,94 @@ class TestImportUploads:
             tmp_path / "automation" / "answerfiles" / "win11.xml"
         ).read_bytes() == b"<unattend/>"
 
+    def test_imports_software_package_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        uploads = [
+            SimpleNamespace(
+                filename="Acme.Widget.1.0.0/software.yaml",
+                stream=BytesIO(b"hatchery:\n  publisher: Acme\n"),
+            ),
+            SimpleNamespace(
+                filename="Acme.Widget.1.0.0/windows/setup.exe",
+                stream=BytesIO(b"installer"),
+            ),
+        ]
+
+        result = import_files_lib.import_uploads("automation/software", uploads)
+
+        assert result["imported"] == ["Acme.Widget.1.0.0"]
+        assert result["errors"] == []
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        assert (pkg / "software.yaml").is_file()
+        assert (pkg / "windows" / "setup.exe").read_bytes() == b"installer"
+
+    def test_imports_software_parent_of_packages(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        uploads = [
+            SimpleNamespace(
+                filename="bundle/Acme.Widget.1.0.0/software.yaml",
+                stream=BytesIO(b"hatchery: {}\n"),
+            ),
+            SimpleNamespace(
+                filename="bundle/Acme.Other.2.0.0/software.yaml",
+                stream=BytesIO(b"hatchery: {}\n"),
+            ),
+        ]
+
+        result = import_files_lib.import_uploads("automation/software", uploads)
+
+        assert sorted(result["imported"]) == ["Acme.Other.2.0.0", "Acme.Widget.1.0.0"]
+        assert result["errors"] == []
+
+    def test_rejects_software_os_child_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        uploads = [
+            SimpleNamespace(
+                filename="windows/setup.exe",
+                stream=BytesIO(b"installer"),
+            ),
+        ]
+
+        result = import_files_lib.import_uploads("automation/software", uploads)
+
+        assert result["imported"] == []
+        assert "software.yaml" in result["errors"][0]["reason"]
+
+    def test_rejects_software_bad_package_id(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        uploads = [
+            SimpleNamespace(
+                filename="NotAPackage/software.yaml",
+                stream=BytesIO(b"hatchery: {}\n"),
+            ),
+        ]
+
+        result = import_files_lib.import_uploads("automation/software", uploads)
+
+        assert result["imported"] == []
+        assert "Publisher.Product.Version" in result["errors"][0]["reason"]
+
+    def test_rejects_software_path_traversal(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        uploads = [
+            SimpleNamespace(
+                filename="Acme.Evil.1.0.0/../escape.txt",
+                stream=BytesIO(b"nope"),
+            ),
+            SimpleNamespace(
+                filename="Acme.Evil.1.0.0/software.yaml",
+                stream=BytesIO(b"hatchery: {}\n"),
+            ),
+        ]
+
+        result = import_files_lib.import_uploads("automation/software", uploads)
+
+        # Traversal path rejected; package may still import if yaml alone is enough,
+        # or fail closed if incomplete - either way escape.txt must not land outside.
+        assert result is not None
+        assert not (tmp_path / "escape.txt").exists()
+        assert not (tmp_path / "automation" / "software" / "escape.txt").exists()
+
     def test_rejects_answerfile_bad_extension(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         upload = SimpleNamespace(filename="notes.md", stream=BytesIO(b"hi"))

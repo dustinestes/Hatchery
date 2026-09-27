@@ -67,6 +67,9 @@ class TestRoutes:
     def test_automation_answerfiles_returns_200(self, client):
         assert client.get("/automation/answerfiles").status_code == 200
 
+    def test_automation_software_returns_200(self, client):
+        assert client.get("/automation/software").status_code == 200
+
     def test_media_redirects_to_iso(self, client):
         resp = client.get("/media")
         assert resp.status_code == 302
@@ -298,6 +301,14 @@ class TestPageTitles:
         assert "sidebar-item--group active open" in html
         assert 'href="/automation/answerfiles"' in html
 
+    def test_automation_software_title(self, client):
+        html = client.get("/automation/software").data.decode()
+        assert ">Software</h1>" in html
+        assert 'id="topbar-page-title"' in html
+        assert "Select a software package to inspect" in html
+        assert "sidebar-item--group active open" in html
+        assert 'href="/automation/software"' in html
+
     def test_automation_scripts_marks_group_and_child(self, client):
         html = client.get("/automation/scripts").data.decode()
         assert "sidebar-item--group active open" in html
@@ -310,6 +321,16 @@ class TestPageTitles:
         assert html.count("sidebar-subitem active") == 1
         assert "Answer Files" in html
         assert 'href="/automation/scripts"' in html
+        assert 'href="/automation/software"' in html
+        assert 'href="/automation/answerfiles"' in html
+
+    def test_automation_software_marks_group_and_child(self, client):
+        html = client.get("/automation/software").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert "Software" in html
+        assert 'href="/automation/scripts"' in html
+        assert 'href="/automation/software"' in html
         assert 'href="/automation/answerfiles"' in html
 
     def test_automation_scripts_from_library_when_enabled(self, client, monkeypatch):
@@ -370,6 +391,13 @@ class TestPageTitles:
         assert "answerfiles-filter-language" not in answerfiles
         assert 'id="answerfiles-filter-state"' in answerfiles
         assert "scripts-layout" in answerfiles
+
+        software = client.get("/automation/software").data.decode()
+        assert "inventory-toolbar" in software
+        assert 'id="software-filter-q"' in software
+        assert "software-filter-language" not in software
+        assert 'id="software-filter-state"' in software
+        assert "scripts-layout" in software
 
         media = client.get("/media/iso").data.decode()
         assert "inventory-toolbar" in media
@@ -4040,6 +4068,7 @@ class TestApiImport:
         assert 'id="media-import-btn"' in client.get("/media/virtio").data.decode()
         assert 'id="scripts-import-btn"' in client.get("/automation/scripts").data.decode()
         assert 'id="answerfiles-import-btn"' in client.get("/automation/answerfiles").data.decode()
+        assert 'id="software-import-btn"' in client.get("/automation/software").data.decode()
 
     def test_import_requires_files(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -4047,6 +4076,8 @@ class TestApiImport:
         assert resp.status_code == 400
         resp_af = client.post("/api/import/automation/answerfiles", data={})
         assert resp_af.status_code == 400
+        resp_sw = client.post("/api/import/automation/software", data={})
+        assert resp_sw.status_code == 400
 
 
 class TestApiInventoryDelete:
@@ -4165,6 +4196,11 @@ class TestAPIRoutes:
 
     def test_api_automation_answerfiles_returns_json(self, client):
         resp = client.get("/api/automation/answerfiles")
+        assert resp.status_code == 200
+        assert isinstance(resp.get_json(), list)
+
+    def test_api_automation_software_returns_json(self, client):
+        resp = client.get("/api/automation/software")
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
@@ -4560,6 +4596,105 @@ class TestAutomationAnswerfilesPane:
         assert (
             tmp_path / "automation" / "answerfiles" / "win11.xml"
         ).read_bytes() == b"<unattend/>"
+
+
+class TestAutomationSoftwarePane:
+    def test_page_lists_packages_and_metadata(self, client, tmp_path, monkeypatch):
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n  publisher: Acme\n  product: Widget\n  version: '1.0.0'\n"
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/software").data.decode()
+        assert "Acme.Widget.1.0.0" in html
+        assert "Acme" in html
+        assert "Widget" in html
+        assert "automation/software/Acme.Widget.1.0.0" in html
+        assert "scripts-layout" in html
+        assert 'aria-label="Filter software packages"' in html
+        assert 'id="software-filter-q"' in html
+        assert "software-filter-language" not in html
+        assert 'id="software-meta-publisher"' in html
+        assert 'id="software-meta-product"' in html
+        assert 'id="software-meta-version"' in html
+        assert "applySoftwareFilters" in html
+        assert "hatchery.onStatusTick" in html
+        # Library domain is #470 — no From library menu yet.
+        assert "From library…" not in html
+
+    def test_empty_state_when_no_packages(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "software").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        html = client.get("/automation/software").data.decode()
+        assert "No software packages found" in html
+        assert "automation/software/" in html
+
+    def test_content_api_returns_software_yaml(self, client, tmp_path, monkeypatch):
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        pkg.mkdir(parents=True)
+        body = "hatchery:\n  publisher: Acme\n"
+        (pkg / "software.yaml").write_text(body)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        resp = client.get("/api/automation/software/Acme.Widget.1.0.0/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "Acme.Widget.1.0.0"
+        assert data["content"] == body
+
+    def test_content_api_404_when_missing(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "software").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/software/Missing.Pkg.1.0.0/content")
+        assert resp.status_code == 404
+
+    def test_content_api_rejects_path_traversal(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "software").mkdir(parents=True)
+        (tmp_path / "outside.yaml").write_text("secret")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/software/../outside.yaml/content")
+        assert resp.status_code == 404
+
+    def test_delete_package_tree(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text("hatchery: {}\n")
+        (pkg / "windows").mkdir()
+        (pkg / "windows" / "setup.exe").write_bytes(b"x")
+        resp = client.post("/api/automation/software/Acme.Widget.1.0.0/delete")
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+        assert not pkg.exists()
+
+    def test_import_software_package_dir(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "automation" / "software").mkdir(parents=True)
+        resp = client.post(
+            "/api/import/automation/software",
+            data={
+                "files": [
+                    (io.BytesIO(b"hatchery:\n  publisher: Acme\n"), "Acme.Widget.1.0.0/software.yaml"),
+                    (io.BytesIO(b"bin"), "Acme.Widget.1.0.0/windows/setup.exe"),
+                ]
+            },
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["imported"] == ["Acme.Widget.1.0.0"]
+        assert (
+            tmp_path / "automation" / "software" / "Acme.Widget.1.0.0" / "software.yaml"
+        ).is_file()
+
+    def test_page_import_is_directory_picker(self, client):
+        html = client.get("/automation/software").data.decode()
+        assert "webkitdirectory" in html
+        assert 'accept=".zip"' not in html
+        assert "useRelativePaths: true" in html
+        assert "No software packages found" in html or "software-nav" in html
 
 
 class TestMediaPanes:
