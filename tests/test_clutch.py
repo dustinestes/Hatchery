@@ -38,7 +38,7 @@ FULL_VM = """\
         disk_gb: 80
         os_media: Win11_24H2.iso
         virtio_drivers: virtio-win.iso
-        os_config: win11-unattend.xml.j2
+        answer_file: win11-unattend.xml.j2
         automations:
           - install-chocolatey.ps1
           - install-dev-tools.ps1
@@ -72,7 +72,7 @@ class TestValidSingleVM:
         result = clutch.load(write_clutch(tmp_path, MINIMAL_VM))
         vm = result.vms[0]
         assert vm.virtio_drivers is None
-        assert vm.os_config is None
+        assert vm.answer_file is None
         assert vm.automations == []
         assert vm.depends_on == []
 
@@ -80,13 +80,28 @@ class TestValidSingleVM:
         result = clutch.load(write_clutch(tmp_path, FULL_VM))
         vm = result.vms[0]
         assert vm.virtio_drivers == "virtio-win.iso"
-        assert vm.os_config == "win11-unattend.xml.j2"
+        assert vm.answer_file == "win11-unattend.xml.j2"
         assert [s.name for s in vm.automations] == [
             "install-chocolatey.ps1",
             "install-dev-tools.ps1",
         ]
         assert all(not s.reboot_after for s in vm.automations)
         assert result.description == "Full example"
+
+    def test_legacy_os_config_key_aliases_to_answer_file(self, tmp_path):
+        yaml_text = """\
+name: legacy-lab
+vms:
+  - name: vm1
+    os: win11
+    vcpus: 2
+    ram_gb: 4
+    disk_gb: 40
+    os_media: win11.iso
+    os_config: legacy-unattend.xml
+"""
+        result = clutch.load(write_clutch(tmp_path, yaml_text))
+        assert result.vms[0].answer_file == "legacy-unattend.xml"
 
     def test_all_os_types_accepted(self, tmp_path):
         for os_val in ("win10", "win11", "server2022", "server2025"):

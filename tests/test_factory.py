@@ -39,7 +39,7 @@ class TestGetProvider:
         nests_lib.ensure_local_nest()
         provider = get_provider("local")
         assert isinstance(provider, LibvirtProvider)
-        assert provider.automation_dir == tmp_path / "automation" / "os_config"
+        assert provider.automation_dir == tmp_path / "automation" / "answerfiles"
 
     def test_unknown_nest_raises(self):
         with pytest.raises(UnknownNestError) as exc:

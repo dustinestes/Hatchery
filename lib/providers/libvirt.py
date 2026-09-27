@@ -227,9 +227,9 @@ class LibvirtProvider(BaseProvider):
                 setup_script = answerfile_lib.render_setup_script()
                 answer_img = self._create_answer_image(xml, config.name, setup_script)
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
-            elif config.os_config:
-                os_config = self._resolve_automation(config.os_config)
-                answer_img = self._create_answer_image(os_config.read_text(), config.name)
+            elif config.answer_file:
+                answer_src = self._resolve_automation(config.answer_file)
+                answer_img = self._create_answer_image(answer_src.read_text(), config.name)
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
             subprocess.run(cmd, check=True, env=_system_env())
@@ -540,7 +540,7 @@ class LibvirtProvider(BaseProvider):
         resolved = self.automation_dir / filename
         if not resolved.exists():
             raise FileNotFoundError(
-                f"os_config file not found in automation directory: {filename}\n"
-                "Create or upload the answer file via the Automations pane before hatching."
+                f"answer_file not found in automation/answerfiles: {filename}\n"
+                "Create or upload the Answer File via the Automations pane before hatching."
             )
         return resolved

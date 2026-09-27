@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ValidationError, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 
 class GuestOS(str, Enum):
@@ -37,7 +44,10 @@ class VMConfig(BaseModel):
     disk_gb: int
     os_media: str
     virtio_drivers: str | None = None
-    os_config: str | None = None
+    answer_file: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("answer_file", "os_config"),
+    )
     admin_username: str | None = None
     automations: list[AutomationScript] = []
     parallel: bool = False

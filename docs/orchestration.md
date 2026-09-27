@@ -79,7 +79,7 @@ If the VM has an admin username and password configured, Hatchery currently rend
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
-**Target model ([ADR-0024](adr/0024-answer-files-product-model.md)):** user-owned [Answer Files](answer-files.md) under `automation/answerfiles/` (selected on the Clutch), rendered with system tokens and declared parameters, then Nest-attached. Shadow Controller templates remain until Hatchery-Library samples land and hatch switches. An optional pre-authored file may still be selected today via the Clutch `os_config` field (legacy name for the Answer File picker).
+**Target model ([ADR-0024](adr/0024-answer-files-product-model.md)):** user-owned [Answer Files](answer-files.md) under `automation/answerfiles/` (Clutch field `answer_file`), rendered with system tokens and declared parameters, then Nest-attached. Shadow Controller templates remain until hatch switches (#452). Legacy Clutch key `os_config` is still accepted on load.
 
 The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 

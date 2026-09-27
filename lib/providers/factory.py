@@ -72,7 +72,7 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
         return LibvirtProvider(
             iso_dir=data / "media" / "iso",
             virtio_dir=data / "media" / "virtio",
-            automation_dir=data / "automation" / "os_config",
+            automation_dir=data / "automation" / "answerfiles",
         )
 
     raise UnsupportedProviderError(
