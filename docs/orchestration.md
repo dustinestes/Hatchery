@@ -70,7 +70,7 @@ When the user submits a Clutch for hatching:
 
 ### Answer file
 
-If the VM has an admin username and password configured, Hatchery renders two files from Jinja2 templates and writes both into a 1.44 MB FAT floppy image using `mtools` (no root access required):
+If the VM has an admin username and password configured, Hatchery currently renders two files from Jinja2 templates under `templates/answerfiles/` and writes both into a 1.44 MB FAT floppy image using `mtools` (no root access required):
 
 | File on floppy | Source template | Purpose |
 |---|---|---|
@@ -78,6 +78,8 @@ If the VM has an admin username and password configured, Hatchery renders two fi
 | `hatchery-setup.ps1` | `templates/answerfiles/hatchery-setup.ps1.j2` | First-boot orchestrator script |
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
+
+**Target model ([ADR-0024](adr/0024-answer-files-product-model.md)):** user-owned [Answer Files](answer-files.md) under `automation/answerfiles/` (selected on the Clutch), rendered with system tokens and declared parameters, then Nest-attached. Shadow Controller templates remain until Hatchery-Library samples land and hatch switches. An optional pre-authored file may still be selected today via the Clutch `os_config` field (legacy name for the Answer File picker).
 
 The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 

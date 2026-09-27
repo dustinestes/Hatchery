@@ -6,7 +6,7 @@
 <h1>Customization</h1>
 <br clear="both">
 
-How to customize Hatchery - provisioning scripts, VM configuration profiles, and answer file templates.
+How to customize Hatchery - provisioning scripts, VM configuration profiles, and Answer Files.
 
 <br>
 
@@ -14,7 +14,7 @@ How to customize Hatchery - provisioning scripts, VM configuration profiles, and
 
 - [Contents](#contents)
 - [Provisioning Scripts](#provisioning-scripts)
-- [Answer File Templates](#answer-file-templates)
+- [Answer Files](#answer-files)
 - [Adding a New Guest OS](#adding-a-new-guest-os)
 
 ---
@@ -25,21 +25,17 @@ How to customize Hatchery - provisioning scripts, VM configuration profiles, and
 
 Post-install provisioning is defined in `lib/provision.py`. The default sequence installs Chocolatey, VS Code, Python, Go, PowerShell, and OpenSSH. To add, remove, or change what gets installed, edit the WinRM command list in `provision.py`.
 
+For operator-authored post-boot scripts, see [Automation Scripts](automations.md).
+
 ---
 
 <br>
 
-## Answer File Templates
+## Answer Files
 
-Answer file templates live in `templates/answerfiles/`. Each file is a Jinja2 template rendered with the values from the VM creation form. To adjust locale, keyboard layout, timezone, or first-boot scripts, edit the relevant `*.xml.j2` file.
+Install-time unattended templates (Autounattend and future Linux seeds) are **Answer Files**. Operator how-to, tokens, companions, and per-OS notes: [Answer Files](answer-files.md). Architecture: [ADR-0024](adr/0024-answer-files-product-model.md).
 
-Variables available in all Windows answer file templates:
-
-| Variable | Source |
-|---|---|
-| `vm_name` | VM name from the creation form |
-| `admin_username` | Admin username from the form |
-| `admin_password` | Admin password from the form |
+Until the user-owned hatch path ships, the Controller may still render Windows Autounattend from `templates/answerfiles/` when admin credentials are set. Do not treat that shadow path as the long-term customization surface - copy or pull a sample into `automation/answerfiles/` (legacy: `automation/os_config/`) and select it on the Clutch once Answer Files are required.
 
 ---
 
@@ -49,10 +45,10 @@ Variables available in all Windows answer file templates:
 
 To add support for a new guest OS:
 
-1. Create an answer file template in `templates/answerfiles/` (or a cloud-init config for Linux)
-2. Add an entry to `answerfile.py` mapping the OS type to the template and generation strategy
-3. Add the OS type to the creation form options in `templates/ui/create.html`
-4. Register any UEFI/TPM requirements in the provider's `create_vm` method
+1. Add an Answer File sample/strategy for that OS (see [Answer Files](answer-files.md)) and Nest attach capability
+2. Extend `lib/answerfile.py` / hatch render and the Guest OS enum as needed
+3. Add the OS type to the Clutch / hatch form options
+4. Register any UEFI/TPM or other Nest requirements in the provider
 
 <br>
 

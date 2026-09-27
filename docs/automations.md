@@ -6,7 +6,7 @@
 <h1>Automation Scripts</h1>
 <br clear="both">
 
-How to write, configure, and run automation scripts against guest VMs after first boot.
+How to write, configure, and run automation scripts against guest VMs after first boot. For install-time unattended templates, see [Answer Files](answer-files.md).
 
 <br>
 
@@ -23,6 +23,7 @@ How to write, configure, and run automation scripts against guest VMs after firs
 - [Parameter Introspection (pwsh)](#parameter-introspection-pwsh)
 - [Clutch YAML Syntax](#clutch-yaml-syntax)
 - [Example Files](#example-files)
+- [Related](#related)
 
 ---
 
@@ -309,6 +310,17 @@ automations:
 4. After OS install, Hatchery runs the script over WinRM. Prefer the guest-tools MSI when present on the ISO; otherwise it falls back to `pnputil` plus the QEMU guest agent MSI under `guest-agent\`.
 
 Also covered in [Getting started - VirtIO Drivers](getting-started.md#virtio-drivers).
+
+<br>
+
+---
+
+<br>
+
+## Related
+
+- [Answer Files](answer-files.md) - install-time templates (not Scripts)
+- [ADR-0024](adr/0024-answer-files-product-model.md) - Answer Files product model
 
 <br>
 
