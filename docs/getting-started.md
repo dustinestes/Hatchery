@@ -197,6 +197,8 @@ bash scripts/uninstall-service.sh
 
 The VM appears on the dashboard while hatching. Provisioning completes in the background; the VM status updates to **fledged** when ready.
 
+Admin Username / Password are **hatch-scoped through fledged**: Hatchery uses them for unattended install tokens and WinRM while Scripts run. After fledged, rotating or hardening that account is your responsibility (a final Clutch automation, or out-of-band). Hatchery-Library’s cleanup scripts remove guest Hatchery artifacts; they do not change the admin password. Details: [Answer Files - Hatch-scoped through fledged](answer-files.md#hatch-scoped-through-fledged).
+
 ---
 
 <br>

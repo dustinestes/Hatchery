@@ -373,7 +373,9 @@ When a real migration framework becomes necessary:
 
 ## Credential storage
 
-Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** - post-install automation (issue [#77](https://github.com/dustinestes/Hatchery/issues/77)) requires them to authenticate over WinRM or SSH after a VM fledges in order to run provisioning scripts. Re-entering credentials at that point would break the zero-manual-steps automation goal.
+Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** during hatch: Automation Scripts need them to authenticate over WinRM (or SSH later) until the VM reaches **fledged**. Re-entering credentials mid-hatch would break unattended provisioning.
+
+Product intent (ADR-0024 / [#455](https://github.com/dustinestes/Hatchery/issues/455)): credentials are **hatch-scoped through fledged**, not Hatchery’s long-term manage credential for the guest. Operator how-to: [Answer Files - Hatch-scoped through fledged](../answer-files.md#hatch-scoped-through-fledged).
 
 ### What is stored and where
 
@@ -387,14 +389,16 @@ The database is protected only by host filesystem permissions. It is not encrypt
 
 ### Display in the UI
 
-Displaying passwords in the Nests VM inventory is **opt-in** via the **Show admin passwords** setting (default: off). When off, the password column renders as `••••••••`. Usernames are always visible.
+Displaying passwords in the Nests VM inventory is **opt-in** via the **Show admin passwords** setting (default: off). When off, the password column renders as `••••••••`. Usernames are always visible. Treat inventory values as hatch history after fledged, not as proof the guest password is still current.
 
-### Mitigation options
+### After fledged (operator responsibility)
 
 Users who want to limit credential exposure after provisioning can add a final automation script that:
 
-- Changes the admin username and/or password after provisioning completes
+- Changes the admin username and/or password after Scripts complete (or out-of-band)
 - Pushes the new credentials into their own secrets management system (HashiCorp Vault, 1Password, etc.)
+
+[Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ships [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) to remove guest Hatchery artifacts; that script does **not** rotate the admin password. Author a rotation script when guests outlive setup.
 
 This is the recommended approach for environments where VMs outlive their initial setup or store sensitive data.
 

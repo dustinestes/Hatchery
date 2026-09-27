@@ -348,6 +348,9 @@
               <span class="vm-field-value">${renderPasswordCell(vm)}</span>
             </div>
           </div>
+          ${vm.admin_username
+            ? '<p class="form-hint">Hatch-scoped through fledged. Rotate after fledged if the guest outlives setup.</p>'
+            : ''}
           ${renderScripts(vm)}
         </div>
       </div>`;

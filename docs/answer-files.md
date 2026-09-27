@@ -80,9 +80,27 @@ Injected from the Clutch VM / hatch session. Do **not** declare these as user pa
 |---|---|
 | `vm_name` | VM name (Windows ComputerName may truncate) |
 | `admin_username` | Admin Username on the VM (when Guest OS needs hatch creds) |
-| `admin_password` | Admin password supplied at hatch (not stored long-term as a manage credential) |
+| `admin_password` | Admin password supplied at hatch time |
 
-Admin username / password remain first-class VM fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); both are required when that section is visible. Other Guest OS values hide those fields and strip them on save. After fledged, rotating that account is an operator/script concern (see Library hardening/cleanup scripts), not something Hatchery must keep using.
+Admin Username / Password remain first-class Clutch / hatch fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); both are required when that section is visible. Other Guest OS values hide those fields and strip them on save.
+
+### Hatch-scoped through fledged
+
+Those credentials exist so Hatchery can:
+
+1. Inject reserved tokens into the Answer File (local admin / AutoLogon during install)
+2. Authenticate guest WinRM while Automation Scripts run until the VM reaches **fledged**
+
+They are **not** Hatchery’s long-term manage credential for the guest after fledged. Product intent (ADR-0024): hatch-scoped through fledged; post-fledged rotation and hardening are the operator’s job.
+
+| After fledged | Guidance |
+|---|---|
+| Rotate / harden the hatch admin | Add a final Clutch automation (or out-of-band change) that sets a new password and records it in your secrets store |
+| Hatchery-Library cleanup scripts | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) removes guest Hatchery artifacts under `C:\Program Files\Hatchery\`; it does **not** rotate the admin password |
+| Inventory Username / Password | May still show the hatch values (password display is opt-in in Settings) until the hatch session is archived - treat that as hatch history, not the guest’s ongoing secret of record |
+| Encrypted credential storage | Out of scope here; tracked in [#110](https://github.com/dustinestes/Hatchery/issues/110) |
+
+See also [Credential storage](schema/database.md#credential-storage).
 
 ### User-declared parameters
 
@@ -188,8 +206,9 @@ UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/prov
 ### Using Windows Answer Files
 
 1. Put an Autounattend Jinja template (and optional companion) in `automation/answerfiles/`, or pull from [Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) (`answerfiles/windows/`).
-2. On the Clutch VM: set Guest OS, Admin Username / Password, select the Answer File, fill declared parameters.
+2. On the Clutch VM: set Guest OS, Admin Username, select the Answer File, fill declared parameters (password is supplied at hatch).
 3. Hatch: Controller renders tokens, packs media, Nest attaches; Windows Setup runs unattended; companion prepares remoting; Hatchery provisions scripts until fledged.
+4. After fledged: rotate or harden the hatch admin yourself if the guest outlives setup (see [Hatch-scoped through fledged](#hatch-scoped-through-fledged)).
 
 <br>
 
