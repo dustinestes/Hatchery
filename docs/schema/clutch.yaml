@@ -24,7 +24,7 @@ vms:
 
     # os (required): guest OS type
     # Accepted values: win10 | win11 | server2022 | server2025
-    # Controls: answer file template selection, UEFI/TPM requirements
+    # Controls: Answer File / UEFI/TPM requirements (see docs/answer-files.md)
     os: win11
 
     # vcpus (required): number of virtual CPUs - must be >= 1
@@ -47,18 +47,22 @@ vms:
     # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
     virtio_drivers: virtio-win.iso
 
-    # admin_username (optional): administrator account name for unattended install
-    # When set alongside an admin password (supplied at hatch time - never stored),
-    # Hatchery renders an Autounattend.xml automatically. Leave unset to provide
-    # a pre-authored os_config file instead.
+    # admin_username (optional): administrator account for unattended install / hatch→fledged
+    # Injected as reserved system tokens into the selected Answer File (ADR-0024).
+    # Password is supplied at hatch time - not stored as a long-lived manage credential.
     admin_username: admin
 
-    # os_config (optional): OS deployment configuration file
-    # Filename relative to automation/os_config/ in the data directory, or an absolute path.
-    # Windows: Autounattend.xml (pre-authored); ignored when admin_username is set
-    # and a password is provided at hatch time - rendered automatically instead.
-    # Linux (future): cloud-init user-data, kickstart, or preseed file
-    os_config: win11-unattend.xml
+    # os_config (optional, legacy name): Answer File under automation/os_config/
+    # Target name: answer_file under automation/answerfiles/ (see docs/answer-files.md, ADR-0024).
+    # Windows: Autounattend Jinja template. Today, when admin_username + hatch password are set,
+    # Hatchery may still auto-render from Controller templates/answerfiles/ instead of this file;
+    # that shadow path is being removed after Library samples land.
+    # Linux (future): cloud-init / kickstart / preseed Answer File.
+    os_config: win11-unattend.xml.j2
+
+    # answer_file_parameters (future): map of user-declared Answer File parameters
+    # answer_file_parameters:
+    #   input_locale: en-US
 
     # automations (optional): ordered list of post-boot automation scripts
     # Filenames relative to automation/scripts/ in the data directory.
