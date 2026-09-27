@@ -82,7 +82,7 @@ Injected from the Clutch VM / hatch session. Do **not** declare these as user pa
 | `admin_username` | Admin Username on the VM (when Guest OS needs hatch creds) |
 | `admin_password` | Admin password supplied at hatch (not stored long-term as a manage credential) |
 
-Admin username / password remain first-class VM fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); other Guest OS values hide those fields and strip them on save. After fledged, rotating that account is an operator/script concern (see Library hardening/cleanup scripts), not something Hatchery must keep using.
+Admin username / password remain first-class VM fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); both are required when that section is visible. Other Guest OS values hide those fields and strip them on save. After fledged, rotating that account is an operator/script concern (see Library hardening/cleanup scripts), not something Hatchery must keep using.
 
 ### User-declared parameters
 
@@ -136,7 +136,7 @@ hatchery:
 |---|---|
 | `answer_file` | Filename under `automation/answerfiles/` ending in `.j2` (Jinja template). Companions (e.g. `hatchery-setup.ps1`) are not listed in the Clutch picker. Legacy Clutch key `os_config` is still accepted on load. |
 | `answer_file_parameters` | Map of user-declared param values for that file (from frontmatter `hatchery.parameters`) |
-| `admin_username` / hatch password | Feed system tokens when the Guest OS needs them |
+| `admin_username` / hatch password | Required for Windows guests (`admin_username` on the Clutch; password at hatch). Feed system tokens when the Guest OS needs them |
 
 When Answer Files are required for a guest type, missing `answer_file` or a missing required declared param fails before VM create, with a clear UI/CLI error. Admin credentials no longer select a hidden Controller template.
 

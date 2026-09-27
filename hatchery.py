@@ -2318,6 +2318,14 @@ def _vm_list_from_form(form):
             answer_file = None
             admin_username = None
             answer_file_parameters = {}
+        elif not (admin_username or "").strip():
+            label = name.strip() or f"VM {i + 1}"
+            raise ValueError(
+                f"{label}: Admin Username is required for {os_val} guests "
+                "(needed for Answer File tokens and hatch through fledged)."
+            )
+        else:
+            admin_username = admin_username.strip()
         vms.append(
             VMConfig(
                 name=name.strip(),

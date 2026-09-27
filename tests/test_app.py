@@ -41,6 +41,7 @@ VALID_BUILD_FORM = {
     "vm_ram_gb[]": "4",
     "vm_disk_gb[]": "60",
     "vm_os_media[]": "win11.iso",
+    "vm_admin_username[]": "admin",
     "vm_depends_on[]": "",
 }
 
@@ -1937,6 +1938,7 @@ class TestBuildRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/build", data=form, follow_redirects=False)
@@ -1954,6 +1956,7 @@ class TestBuildRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/build", data=form)
@@ -1971,6 +1974,7 @@ class TestBuildRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         with patch("hatchery.clutch_lib.export", side_effect=RuntimeError("disk full")):
@@ -1990,6 +1994,7 @@ class TestBuildRoute:
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
             "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_admin_username[]": ["admin", "admin"],
             "vm_depends_on[]": ["client01", "dc01"],
         }
         resp = client.post("/build", data=form)
@@ -2012,6 +2017,7 @@ class TestBuildRoute:
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
             "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_admin_username[]": ["admin", "admin"],
             "vm_depends_on[]": ["client01", "dc01"],
         }
         resp = client.post("/build", data=form)
@@ -2041,6 +2047,15 @@ class TestBuildRoute:
         assert resp.status_code == 302
         saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
         assert saved.vms[0].admin_username == "alice"
+
+    def test_build_post_missing_admin_username_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {**VALID_BUILD_FORM, "vm_admin_username[]": ""}
+        resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "Admin Username is required" in resp.data.decode()
+        assert not (tmp_path / "clutches" / "test-lab.yaml").exists()
 
     def test_build_post_save_and_hatch_saves_clutch_and_redirects_to_hatch_clutch(
         self, client, tmp_path, monkeypatch
@@ -2091,6 +2106,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/edit", data=form, follow_redirects=False)
@@ -2110,6 +2126,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/edit", data=form, follow_redirects=False)
@@ -2131,6 +2148,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/edit", data=form)
@@ -2151,6 +2169,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         html = client.post("/edit", data=form).data.decode()
@@ -2170,6 +2189,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/edit", data=form, follow_redirects=False)
@@ -2198,6 +2218,7 @@ class TestEditRoute:
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
             "vm_os_media[]": ["win11.iso", "win11.iso"],
+            "vm_admin_username[]": ["admin", "admin"],
             "vm_depends_on[]": ["client01", "dc01"],
         }
         resp = client.post("/edit", data=form)
@@ -2220,6 +2241,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         with patch("hatchery.clutch_lib.save", side_effect=RuntimeError("I/O error")):
@@ -2254,6 +2276,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         resp = client.post("/edit", data=form, follow_redirects=False)
@@ -2293,6 +2316,7 @@ class TestEditRoute:
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
             "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
             "vm_depends_on[]": "",
         }
         client.post("/edit", data=form)

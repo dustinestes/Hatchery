@@ -32,18 +32,25 @@ hatchery.vmRows = (function () {
       section.hidden = !show;
       var answerSelect = row.querySelector('[name="vm_answer_file[]"]');
       var adminInput = row.querySelector('[name="vm_admin_username[]"]');
-      var reqMark = row.querySelector('.vm-answer-file-required');
+      var answerReqMark = row.querySelector('.vm-answer-file-required');
+      var adminReqMark = row.querySelector('.vm-admin-username-required');
       if (show) {
         if (answerSelect) answerSelect.required = true;
-        if (reqMark) reqMark.hidden = false;
+        if (adminInput) adminInput.required = true;
+        if (answerReqMark) answerReqMark.hidden = false;
+        if (adminReqMark) adminReqMark.hidden = false;
         return;
       }
       if (answerSelect) {
         answerSelect.required = false;
         answerSelect.value = '';
       }
-      if (reqMark) reqMark.hidden = true;
-      if (adminInput) adminInput.value = '';
+      if (answerReqMark) answerReqMark.hidden = true;
+      if (adminInput) {
+        adminInput.required = false;
+        adminInput.value = '';
+      }
+      if (adminReqMark) adminReqMark.hidden = true;
       clearAnswerFileParams(row);
     }
 
