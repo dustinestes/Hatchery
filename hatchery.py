@@ -584,13 +584,18 @@ def automation_answerfiles():
     )
 
 
+def _scan_software_inventory() -> list[dict]:
+    """Return Software package inventory with Library provenance / drift cues (#470)."""
+    return _enrich_library_inventory(software_lib.scan_inventory(), domain="software")
+
+
 @app.route("/automation/software")
 def automation_software():
     """Automations → Software inventory (#469 / #470)."""
     return render_template(
         "automation_software.html",
         active_pane="automation_software",
-        packages=software_lib.scan_inventory(),
+        packages=_scan_software_inventory(),
         used_by={},
         library_enabled=config.library_enabled(),
         library_connections=(
@@ -1532,7 +1537,7 @@ def api_library_software():
     except ValueError as exc:
         return jsonify({"error": str(exc), "items": []}), 400
     items = library_lib.catalog_software(connections, bindings)
-    cached_names = {s["name"] for s in software_lib.scan_inventory()}
+    cached_names = {s["name"] for s in _scan_software_inventory()}
     items = library_lib.annotate_cached(items, cached_names)
     return jsonify({"items": items})
 
@@ -2704,51 +2709,89 @@ def api_media_virtio_inspect(name):
     return _api_media_inspect("virtio", name)
 
 
-def _api_unlink_inventory_file(path) -> tuple:
-    """Unlink a resolved inventory file; return (jsonify_result, status)."""
+def _clear_cache_provenance(
+    domain: str,
+    cache_name: str,
+    *,
+    media_target: str | None = None,
+) -> None:
+    """Drop Library provenance after inventory delete.
+
+    Leaving the row with a missing cache tip makes evaluate report ``out_of_sync``
+    (source ok, no local tip file) and fires Library drift Alerts.
+    """
+    try:
+        from lib import library_drift as drift
+        from lib import library_provenance as prov
+
+        if prov.delete_row(domain, cache_name, media_target=media_target):
+            drift.reconcile_domain_alerts(auto_sync=False)
+    except Exception:
+        pass
+
+
+def _api_unlink_inventory_file(
+    path,
+    *,
+    domain: str,
+    media_target: str | None = None,
+) -> tuple:
+    """Unlink a resolved inventory file and clear Library provenance if linked."""
     if path is None or not path.is_file():
         return jsonify({"error": "not found"}), 404
+    name = path.name
     try:
         path.unlink()
     except OSError as exc:
         return jsonify({"error": str(exc)}), 500
-    return jsonify({"ok": True, "name": path.name}), 200
+    _clear_cache_provenance(domain, name, media_target=media_target)
+    return jsonify({"ok": True, "name": name}), 200
 
 
 @app.route("/api/media/iso/<path:name>/delete", methods=["POST"])
 def api_media_iso_delete(name):
-    return _api_unlink_inventory_file(media_inspect_lib.resolve_media_path("iso", name))
+    return _api_unlink_inventory_file(
+        media_inspect_lib.resolve_media_path("iso", name),
+        domain="media",
+        media_target="iso",
+    )
 
 
 @app.route("/api/media/virtio/<path:name>/delete", methods=["POST"])
 def api_media_virtio_delete(name):
-    return _api_unlink_inventory_file(media_inspect_lib.resolve_media_path("virtio", name))
+    return _api_unlink_inventory_file(
+        media_inspect_lib.resolve_media_path("virtio", name),
+        domain="media",
+        media_target="virtio",
+    )
 
 
 @app.route("/api/automation/scripts/<path:name>/delete", methods=["POST"])
 def api_automation_script_delete(name):
-    return _api_unlink_inventory_file(_resolve_script_path(name))
+    return _api_unlink_inventory_file(_resolve_script_path(name), domain="scripts")
 
 
 @app.route("/api/automation/answerfiles/<path:name>/delete", methods=["POST"])
 def api_automation_answerfile_delete(name):
-    return _api_unlink_inventory_file(_resolve_answerfile_path(name))
+    return _api_unlink_inventory_file(_resolve_answerfile_path(name), domain="answerfiles")
 
 
 @app.route("/api/automation/software/<path:name>/delete", methods=["POST"])
 def api_automation_software_delete(name):
     from pathlib import Path
 
+    safe = Path(name).name
     ok, err = software_lib.delete_package(name)
     if not ok:
         status = 404 if err == "not found" else 500
         return jsonify({"error": err}), status
-    return jsonify({"ok": True, "name": Path(name).name}), 200
+    _clear_cache_provenance("software", safe)
+    return jsonify({"ok": True, "name": safe}), 200
 
 
 @app.route("/api/automation/software")
 def api_automation_software():
-    return jsonify(software_lib.scan_inventory())
+    return jsonify(_scan_software_inventory())
 
 
 @app.route("/api/automation/answerfiles")

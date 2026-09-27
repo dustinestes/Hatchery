@@ -4726,6 +4726,31 @@ class TestAutomationSoftwarePane:
         assert resp.get_json()["ok"] is True
         assert not pkg.exists()
 
+    def test_delete_package_clears_library_provenance(self, client, tmp_path, monkeypatch):
+        """Inventory delete must unlink provenance so drift does not flag out_of_sync."""
+        from lib import library_provenance as prov
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text("hatchery:\n  kind: software\n")
+        prov.upsert_on_pull(
+            domain="software",
+            cache_name="Acme.Widget.1.0.0",
+            connection_id="c1",
+            relative_path="software/Acme.Widget.1.0.0/software.yaml",
+            source_type="path",
+            cache_sha256="abc",
+            binding_id="b1",
+            drift_state="in_sync",
+        )
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is not None
+
+        resp = client.post("/api/automation/software/Acme.Widget.1.0.0/delete")
+        assert resp.status_code == 200
+        assert not pkg.exists()
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is None
+
     def test_import_software_package_dir(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "automation" / "software").mkdir(parents=True)

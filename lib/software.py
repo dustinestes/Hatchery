@@ -120,17 +120,6 @@ def scan_inventory() -> list[dict[str, Any]]:
                 "subtitle": display_subtitle(meta),
                 "modified_at": modified,
                 "has_definition": definition.is_file(),
-                # Library domain lands in #470 — local-only cues for now.
-                "drift_state": "local",
-                "orphan": False,
-                "orphan_reason": "",
-                "library_provenance": None,
-                "library_cue": "local",
-                "library_cue_short": "",
-                "library_show_rail_icon": False,
-                "source_status": "",
-                "sync_state": "",
-                "source_status_message": "",
             }
         )
     return items
