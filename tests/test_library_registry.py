@@ -232,7 +232,13 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     assert conn["provider"] == "github"
     assert conn["base_uri"] == registry.HATCHERY_LIBRARY_BASE_URI
     assert conn["token"] == ""
-    assert set(conn["kinds"]) == {"scripts", "clutches", "media", "packages"}
+    assert set(conn["kinds"]) == {
+        "scripts",
+        "clutches",
+        "media",
+        "packages",
+        "answerfiles",
+    }
 
     scripts = registry.list_bindings(domain="scripts")
     clutches = registry.list_bindings(domain="clutches")
@@ -242,26 +248,9 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
-    assert answerfiles == []
-
-    # Answer Files binding is allowed after seed (operator opt-in; not auto-added).
-    registry.upsert_connection(
-        {
-            **conn,
-            "kinds": sorted(set(conn["kinds"]) | {"answerfiles"}),
-        }
-    )
-    registry.upsert_binding(
-        {
-            "id": "hatchery-library-answerfiles",
-            "connection_id": registry.HATCHERY_LIBRARY_CONNECTION_ID,
-            "domain": "answerfiles",
-            "label": "All Answer Files",
-            "filter": "*",
-            "enabled": True,
-        }
-    )
-    assert len(registry.list_bindings(domain="answerfiles")) == 1
+    assert [(b["id"], b["label"], b["filter"]) for b in answerfiles] == [
+        ("hatchery-library-answerfiles", "All Answer Files", "*")
+    ]
 
     # Second call is a no-op once any connection exists.
     assert registry.ensure_hatchery_library() is False

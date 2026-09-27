@@ -562,7 +562,7 @@ def ensure_hatchery_library() -> bool:
             "base_uri": HATCHERY_LIBRARY_BASE_URI,
             "token": "",
             "expires_at": None,
-            "kinds": ["scripts", "clutches", "media", "packages"],
+            "kinds": ["scripts", "clutches", "media", "packages", "answerfiles"],
             "enabled": True,
         }
     )
@@ -599,6 +599,14 @@ def ensure_hatchery_library() -> bool:
             "domain": "media",
             "target": "virtio",
             "label": "All VirtIO",
+            "filter": "*",
+            "enabled": True,
+        },
+        {
+            "id": "hatchery-library-answerfiles",
+            "connection_id": cid,
+            "domain": "answerfiles",
+            "label": "All Answer Files",
             "filter": "*",
             "enabled": True,
         },

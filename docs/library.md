@@ -170,7 +170,7 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
-**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, and **All VirtIO** (`filter: *`). Existing Controllers with any connection are left unchanged.
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO**, and **All Answer Files** (`filter: *`). Existing Controllers with any connection are left unchanged.
 
 | | |
 |---|---|
