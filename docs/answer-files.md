@@ -125,7 +125,7 @@ hatchery:
 
 | Field | Meaning |
 |---|---|
-| `answer_file` | Filename under `automation/answerfiles/` (legacy Clutch key `os_config` still accepted on load) |
+| `answer_file` | Filename under `automation/answerfiles/` ending in `.j2` (Jinja template). Companions (e.g. `hatchery-setup.ps1`) are not listed in the Clutch picker. Legacy Clutch key `os_config` is still accepted on load. |
 | `answer_file_parameters` | Map of user-declared param values for that file (follow-on) |
 | `admin_username` / hatch password | Feed system tokens when the Guest OS needs them |
 

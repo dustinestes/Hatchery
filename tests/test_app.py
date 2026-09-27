@@ -4023,6 +4023,23 @@ class TestAPIRoutes:
         assert resp.status_code == 200
         assert isinstance(resp.get_json(), list)
 
+    def test_api_answerfiles_selectable_only_j2(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11-autounattend.xml.j2").write_text("{{ vm_name }}")
+        (answerfiles / "hatchery-setup.ps1").write_text("# companion")
+        (answerfiles / "notes.txt").write_text("not selectable")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        resp = client.get("/api/automation/answerfiles/selectable")
+        assert resp.status_code == 200
+        assert resp.get_json() == ["win11-autounattend.xml.j2"]
+
+        html = client.get("/build").data.decode()
+        assert "win11-autounattend.xml.j2" in html
+        assert "hatchery-setup.ps1" not in html
+        assert "notes.txt" not in html
+
     def test_api_automation_scripts_returns_json(self, client):
         resp = client.get("/api/automation/scripts")
         assert resp.status_code == 200

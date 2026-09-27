@@ -2246,7 +2246,7 @@ def _build_template_ctx(*, page_title: str | None = None):
         os_types=[e.value for e in GuestOS],
         media_files=_scan_dir("media/iso"),
         virtio_files=_scan_dir("media/virtio"),
-        answer_file_files=_scan_dir("automation/answerfiles"),
+        answer_file_files=_scan_dir("automation/answerfiles", extensions=[".j2"]),
         scripts_files=_scan_dir("automation/scripts"),
     )
     if page_title:
@@ -2540,10 +2540,16 @@ def api_automation_answerfiles():
     return jsonify(_scan_answerfile_inventory())
 
 
+@app.route("/api/automation/answerfiles/selectable")
+def api_automation_answerfiles_selectable():
+    """Basenames suitable for Clutch ``answer_file`` (Jinja ``.j2`` templates only)."""
+    return jsonify(_scan_dir("automation/answerfiles", extensions=[".j2"]))
+
+
 @app.route("/api/automation/os-config")
 def api_automation_os_config():
-    """Legacy alias for Answer Files list (#448)."""
-    return jsonify(_scan_answerfile_inventory())
+    """Legacy alias for selectable Answer Files (#448 / Clutch form refresh)."""
+    return jsonify(_scan_dir("automation/answerfiles", extensions=[".j2"]))
 
 
 @app.route("/api/automation/scripts")

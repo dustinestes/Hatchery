@@ -1855,8 +1855,8 @@ hatchery.bindUnsavedLeave = function (opts) {
   var ENDPOINTS = {
     iso: '/api/media/iso',
     virtio: '/api/media/virtio',
-    answer_file: '/api/automation/answerfiles',
-    os_config: '/api/automation/answerfiles',
+    answer_file: '/api/automation/answerfiles/selectable',
+    os_config: '/api/automation/answerfiles/selectable',
   };
 
   function rebuildOptions(select, files) {
