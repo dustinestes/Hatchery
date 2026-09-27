@@ -236,7 +236,7 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
         "scripts",
         "clutches",
         "media",
-        "packages",
+        "software",
         "answerfiles",
     }
 
@@ -244,16 +244,95 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     clutches = registry.list_bindings(domain="clutches")
     media = registry.list_bindings(domain="media")
     answerfiles = registry.list_bindings(domain="answerfiles")
-    assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*")]
-    assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
+    software = registry.list_bindings(domain="software")
+    assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*scripts/*")]
+    assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*clutches/*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
-    assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
+    assert by_target == {
+        ("iso", "All ISOs", "*media/iso/*"),
+        ("virtio", "All VirtIO", "*media/virtio/*"),
+    }
     assert [(b["id"], b["label"], b["filter"]) for b in answerfiles] == [
         ("hatchery-library-answerfiles", "All Answer Files", "*answerfiles/*")
     ]
+    assert [(b["id"], b["label"], b["filter"]) for b in software] == [
+        ("hatchery-library-software", "All Software", "*software/*")
+    ]
+    # Seed specs are defined in alphabetical label order.
+    seed_labels = [s["label"] for s in registry._HATCHERY_LIBRARY_BINDINGS]
+    assert seed_labels == sorted(seed_labels)
 
     # Second call is a no-op once any connection exists.
     assert registry.ensure_hatchery_library() is False
+    assert registry.ensure_software_library_defaults() is False
+
+
+def test_ensure_software_library_defaults_backfills(tmp_path, monkeypatch):
+    _init(tmp_path, monkeypatch)
+    registry.upsert_connection(
+        {
+            "id": registry.HATCHERY_LIBRARY_CONNECTION_ID,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": registry.HATCHERY_LIBRARY_BASE_URI,
+            "token": "",
+            "kinds": ["scripts", "clutches", "media", "answerfiles"],
+            "enabled": True,
+        }
+    )
+    assert registry.list_bindings(domain="software") == []
+    assert registry.ensure_software_library_defaults() is True
+    conn = registry.get_connection(registry.HATCHERY_LIBRARY_CONNECTION_ID)
+    assert "software" in conn["kinds"]
+    software = registry.list_bindings(domain="software")
+    assert [(b["id"], b["filter"]) for b in software] == [
+        ("hatchery-library-software", "*software/*")
+    ]
+    assert registry.ensure_software_library_defaults() is False
+
+
+def test_ensure_software_library_defaults_scopes_legacy_star_filters(tmp_path, monkeypatch):
+    _init(tmp_path, monkeypatch)
+    registry.upsert_connection(
+        {
+            "id": registry.HATCHERY_LIBRARY_CONNECTION_ID,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": registry.HATCHERY_LIBRARY_BASE_URI,
+            "token": "",
+            "kinds": ["scripts", "clutches", "media", "answerfiles", "software"],
+            "enabled": True,
+        }
+    )
+    cid = registry.HATCHERY_LIBRARY_CONNECTION_ID
+    registry.upsert_binding(
+        {
+            "id": "hatchery-library-scripts",
+            "connection_id": cid,
+            "domain": "scripts",
+            "label": "All Scripts",
+            "filter": "*",
+            "enabled": True,
+        }
+    )
+    registry.upsert_binding(
+        {
+            "id": "hatchery-library-scripts-custom",
+            "connection_id": cid,
+            "domain": "scripts",
+            "label": "Custom",
+            "filter": "*",
+            "enabled": True,
+        }
+    )
+    assert registry.ensure_software_library_defaults() is True
+    scripts = {b["id"]: b for b in registry.list_bindings(domain="scripts")}
+    assert scripts["hatchery-library-scripts"]["filter"] == "*scripts/*"
+    # Non-seed binding with * is left alone.
+    assert scripts["hatchery-library-scripts-custom"]["filter"] == "*"
+    assert registry.ensure_software_library_defaults() is False
 
 
 def test_ensure_hatchery_library_skips_nonempty_registry(tmp_path, monkeypatch):

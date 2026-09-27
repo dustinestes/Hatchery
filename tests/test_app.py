@@ -646,6 +646,7 @@ class TestDashboardSummaryApi:
                         "clutches": 1,
                         "media": 0,
                         "answerfiles": 0,
+                        "software": 0,
                     },
                     "by_drift": {
                         "in_sync": 2,
@@ -1116,6 +1117,62 @@ class TestLibraryContentPane:
         assert pull.status_code == 200
         assert pull.get_json()["imported"] == ["win11.xml.j2"]
         assert (tmp_path / "data" / "automation" / "answerfiles" / "win11.xml.j2").is_file()
+
+    def test_library_content_catalog_software_domain(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        pkg = share / "software" / "Acme.Widget.1.0.0"
+        (pkg / "windows").mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n  kind: software\npublisher: Acme\nproduct: Widget\nversion: 1.0.0\n",
+            encoding="utf-8",
+        )
+        (pkg / "windows" / "Setup.exe").write_bytes(b"MZ")
+        conn = {
+            "id": "sw1",
+            "label": "SW share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+            "enabled": True,
+        }
+        bind = {
+            "id": "b-sw",
+            "connection_id": "sw1",
+            "filter": "*software/*",
+            "domain": "software",
+            "enabled": True,
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_answerfile_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_software_bindings", lambda: [bind])
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "software").mkdir(parents=True)
+        resp = client.get("/api/library/content/catalog?domain=software")
+        assert resp.status_code == 200
+        items = resp.get_json()["items"]
+        assert len(items) == 1
+        assert items[0]["domain"] == "software"
+        assert items[0]["name"] == "Acme.Widget.1.0.0"
+
+        pull = client.post(
+            "/api/library/software/pull",
+            json={
+                "connection": conn,
+                "relative_path": items[0]["relative_path"],
+                "binding_id": "b-sw",
+            },
+        )
+        assert pull.status_code == 200
+        assert pull.get_json()["imported"] == ["Acme.Widget.1.0.0"]
+        assert (
+            tmp_path / "data" / "automation" / "software" / "Acme.Widget.1.0.0" / "software.yaml"
+        ).is_file()
 
     def test_library_content_catalog_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
@@ -4668,6 +4725,31 @@ class TestAutomationSoftwarePane:
         assert resp.status_code == 200
         assert resp.get_json()["ok"] is True
         assert not pkg.exists()
+
+    def test_delete_package_clears_library_provenance(self, client, tmp_path, monkeypatch):
+        """Inventory delete must unlink provenance so drift does not flag out_of_sync."""
+        from lib import library_provenance as prov
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        pkg = tmp_path / "automation" / "software" / "Acme.Widget.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text("hatchery:\n  kind: software\n")
+        prov.upsert_on_pull(
+            domain="software",
+            cache_name="Acme.Widget.1.0.0",
+            connection_id="c1",
+            relative_path="software/Acme.Widget.1.0.0/software.yaml",
+            source_type="path",
+            cache_sha256="abc",
+            binding_id="b1",
+            drift_state="in_sync",
+        )
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is not None
+
+        resp = client.post("/api/automation/software/Acme.Widget.1.0.0/delete")
+        assert resp.status_code == 200
+        assert not pkg.exists()
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is None
 
     def test_import_software_package_dir(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)

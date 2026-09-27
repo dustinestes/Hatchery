@@ -14,7 +14,7 @@ from typing import Any
 from lib import db as db_module
 from lib.library import CONNECTION_KINDS, CONNECTION_TYPES, MEDIA_TARGETS
 
-DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
+DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles", "software"})
 
 
 def _now() -> str:
@@ -540,6 +540,49 @@ HATCHERY_LIBRARY_CONNECTION_ID = "hatchery-library"
 HATCHERY_LIBRARY_BASE_URI = "https://github.com/dustinestes/Hatchery-Library"
 
 
+# Canonical Hatchery Library seed bindings (label order = alphabetical).
+_HATCHERY_LIBRARY_BINDINGS: tuple[dict, ...] = (
+    {
+        "id": "hatchery-library-answerfiles",
+        "domain": "answerfiles",
+        "label": "All Answer Files",
+        "filter": "*answerfiles/*",
+    },
+    {
+        "id": "hatchery-library-clutches",
+        "domain": "clutches",
+        "label": "All Clutches",
+        "filter": "*clutches/*",
+    },
+    {
+        "id": "hatchery-library-media-iso",
+        "domain": "media",
+        "target": "iso",
+        "label": "All ISOs",
+        "filter": "*media/iso/*",
+    },
+    {
+        "id": "hatchery-library-scripts",
+        "domain": "scripts",
+        "label": "All Scripts",
+        "filter": "*scripts/*",
+    },
+    {
+        "id": "hatchery-library-software",
+        "domain": "software",
+        "label": "All Software",
+        "filter": "*software/*",
+    },
+    {
+        "id": "hatchery-library-media-virtio",
+        "domain": "media",
+        "target": "virtio",
+        "label": "All VirtIO",
+        "filter": "*media/virtio/*",
+    },
+)
+
+
 def ensure_hatchery_library() -> bool:
     """Seed the public Hatchery Library forge connection + bindings if empty.
 
@@ -562,58 +605,83 @@ def ensure_hatchery_library() -> bool:
             "base_uri": HATCHERY_LIBRARY_BASE_URI,
             "token": "",
             "expires_at": None,
-            "kinds": ["scripts", "clutches", "media", "packages", "answerfiles"],
+            "kinds": ["answerfiles", "clutches", "media", "scripts", "software"],
             "enabled": True,
         }
     )
     cid = HATCHERY_LIBRARY_CONNECTION_ID
-    for item in (
-        {
-            "id": "hatchery-library-scripts",
+    for spec in _HATCHERY_LIBRARY_BINDINGS:
+        item = {
+            "id": spec["id"],
             "connection_id": cid,
-            "domain": "scripts",
-            "label": "All Scripts",
-            "filter": "*",
+            "domain": spec["domain"],
+            "label": spec["label"],
+            "filter": spec["filter"],
             "enabled": True,
-        },
-        {
-            "id": "hatchery-library-clutches",
-            "connection_id": cid,
-            "domain": "clutches",
-            "label": "All Clutches",
-            "filter": "*",
-            "enabled": True,
-        },
-        {
-            "id": "hatchery-library-media-iso",
-            "connection_id": cid,
-            "domain": "media",
-            "target": "iso",
-            "label": "All ISOs",
-            "filter": "*",
-            "enabled": True,
-        },
-        {
-            "id": "hatchery-library-media-virtio",
-            "connection_id": cid,
-            "domain": "media",
-            "target": "virtio",
-            "label": "All VirtIO",
-            "filter": "*",
-            "enabled": True,
-        },
-        {
-            "id": "hatchery-library-answerfiles",
-            "connection_id": cid,
-            "domain": "answerfiles",
-            "label": "All Answer Files",
-            "filter": "*answerfiles/*",
-            "enabled": True,
-        },
-    ):
+        }
+        if "target" in spec:
+            item["target"] = spec["target"]
         upsert_binding(item)
 
     from lib import config as config_lib
 
     config_lib.update_settings({"library_enabled": True})
     return True
+
+
+def ensure_software_library_defaults() -> bool:
+    """Ensure Hatchery Library has ``software`` kind + scoped seed bindings (#470).
+
+    Safe for Controllers that already seeded before the software domain existed,
+    or that still have legacy ``filter: *`` on the well-known binding ids.
+    Returns True if anything was added or updated.
+    """
+    if not db_module.is_initialized():
+        return False
+    conn = get_connection(HATCHERY_LIBRARY_CONNECTION_ID)
+    if conn is None:
+        return False
+    changed = False
+    kinds = list(conn.get("kinds") or [])
+    if "software" not in kinds:
+        # Drop legacy packages slot if present (migration should have remapped).
+        kinds = [k for k in kinds if k != "packages"]
+        kinds.append("software")
+        upsert_connection({**conn, "kinds": kinds})
+        changed = True
+
+    by_id = {b["id"]: b for b in list_bindings()}
+    for spec in _HATCHERY_LIBRARY_BINDINGS:
+        bid = spec["id"]
+        existing = by_id.get(bid)
+        if existing is None:
+            # Only auto-insert software (other domains may have been removed on purpose).
+            if spec["domain"] != "software":
+                continue
+            item = {
+                "id": bid,
+                "connection_id": HATCHERY_LIBRARY_CONNECTION_ID,
+                "domain": spec["domain"],
+                "label": spec["label"],
+                "filter": spec["filter"],
+                "enabled": True,
+            }
+            if "target" in spec:
+                item["target"] = spec["target"]
+            upsert_binding(item)
+            changed = True
+            continue
+        if existing.get("connection_id") != HATCHERY_LIBRARY_CONNECTION_ID:
+            continue
+        # Migrate legacy unscoped seed filter without clobbering operator edits.
+        if (existing.get("filter") or "").strip() == "*":
+            item = {
+                **existing,
+                "filter": spec["filter"],
+                "label": existing.get("label") or spec["label"],
+            }
+            if "target" in spec:
+                item["target"] = existing.get("target") or spec["target"]
+            upsert_binding(item)
+            changed = True
+    return changed

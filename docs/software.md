@@ -220,7 +220,7 @@ Hatch lifecycle: `script` → today’s script runner; `software` → stage payl
 
 ## Library
 
-Library domain **`software`** (migrated from reserved `packages`). Fresh Controllers seed an **All Software** binding (`filter: *software/*`). Hatchery-Library remains a content source only; pull is operator-driven. Samples are **expanded directories** under `software/` (not zip). Catalog/pull treat each package dir as one unit (see [#470](https://github.com/dustinestes/Hatchery/issues/470)). Artifactory may later deliver trees or archives but still lands cache dirs ([#487](https://github.com/dustinestes/Hatchery/issues/487)).
+Library domain **`software`** (migrated from reserved `packages`). Fresh Controllers seed an **All Software** binding (`filter: *software/*`). Hatchery-Library remains a content source only; pull is operator-driven. Samples are **expanded directories** under `software/` (not zip). Catalog/pull treat each package dir as one unit. Artifactory may later deliver trees or archives but still lands cache dirs ([#487](https://github.com/dustinestes/Hatchery/issues/487)).
 
 <br>
 

@@ -141,7 +141,7 @@ Library connection registry ([ADR-0017](../adr/0017-library-connections-bindings
 
 ### library_connection_kinds
 
-Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packages`, `answerfiles`).
+Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `answerfiles`, `software`).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -156,7 +156,7 @@ Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packa
 
 ### library_bindings
 
-Domain locators under a connection (Scripts / Clutches / Media / Answer Files filters).
+Domain locators under a connection (Scripts / Clutches / Media / Answer Files / Software filters).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|

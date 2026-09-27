@@ -22,13 +22,15 @@ from urllib.request import Request, urlopen
 from lib.import_files import ANSWERFILE_EXTENSIONS, SCRIPT_EXTENSIONS
 
 CONNECTION_TYPES = frozenset({"path", "https", "api", "forge"})
-CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages", "answerfiles"})
+CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "answerfiles", "software"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
 CLUTCH_EXTENSIONS = frozenset({".yaml"})
 _SAMPLE_LIMIT = 5
 _SCRIPT_PULL_DEST = "automation/scripts"
 _ANSWERFILE_PULL_DEST = "automation/answerfiles"
+_SOFTWARE_PULL_DEST = "automation/software"
+_SOFTWARE_DEFINITION = "software.yaml"
 _CLUTCH_PULL_DEST = "clutches"
 _LEGACY_GIT_CACHE_SUBDIR = "library/git"
 _LEGACY_GIT_REMOVED_MSG = (
@@ -214,6 +216,17 @@ def parse_answerfile_bindings(raw: list | None, connections: list[dict]) -> list
     )
 
 
+def parse_software_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
+    """Validate Software domain bindings against the connection registry."""
+    return _parse_domain_bindings(
+        raw,
+        connections,
+        domain="software",
+        kind="software",
+        noun="software",
+    )
+
+
 def parse_clutch_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
     """Validate Clutches domain bindings against the connection registry."""
     return _parse_domain_bindings(
@@ -381,6 +394,8 @@ def cache_path_for(
         return root / _SCRIPT_PULL_DEST / name
     if domain_n == "answerfiles":
         return root / _ANSWERFILE_PULL_DEST / name
+    if domain_n == "software":
+        return root / _SOFTWARE_PULL_DEST / name
     if domain_n == "clutches":
         return root / _CLUTCH_PULL_DEST / name
     if domain_n == "media":
@@ -389,6 +404,20 @@ def cache_path_for(
             raise ValueError(f"media target must be one of: {', '.join(sorted(MEDIA_TARGETS))}")
         return root / "media" / target / name
     raise ValueError(f"unknown cache domain: {domain}")
+
+
+def cache_tip_path(
+    domain: str,
+    cache_name: str,
+    *,
+    media_target: str | None = None,
+    data_dir: Path | None = None,
+) -> Path:
+    """Path used for tip/hash compare (file). Software uses ``software.yaml`` in the package dir."""
+    base = cache_path_for(domain, cache_name, media_target=media_target, data_dir=data_dir)
+    if (domain or "").strip().lower() == "software":
+        return base / _SOFTWARE_DEFINITION
+    return base
 
 
 def size_mtime_digest(path: Path) -> str:
@@ -853,6 +882,53 @@ def list_answerfile_hits(
     return list_hits(conn, filt, extensions=ANSWERFILE_EXTENSIONS, limit=limit)
 
 
+def list_software_hits(
+    conn: dict,
+    filt: str,
+    *,
+    limit: int | None = None,
+) -> list[dict]:
+    """List Software **package units** (dirs with immediate ``software.yaml``).
+
+    Discovers ``software.yaml`` leaves via the connection lister, then collapses
+    each parent directory into one catalog hit (``name`` = package id).
+    """
+    ctype = (conn.get("type") or "").strip().lower()
+    if ctype in ("api", "https"):
+        # Package trees / archive normalize for api: #487. HTTPS is single-file.
+        return []
+
+    raw = list_hits(conn, filt, extensions=frozenset({".yaml"}), limit=None)
+    units: list[dict] = []
+    seen: set[str] = set()
+    for hit in raw:
+        if Path(str(hit.get("name") or "")).name != _SOFTWARE_DEFINITION:
+            continue
+        rel = str(hit.get("relative_path") or "").replace("\\", "/").lstrip("/")
+        parts = Path(rel).parts
+        if len(parts) < 2:
+            continue
+        package_id = parts[-2]
+        if package_id.count(".") < 2:
+            continue
+        if package_id in seen:
+            continue
+        seen.add(package_id)
+        units.append(
+            {
+                "name": package_id,
+                "relative_path": rel,  # path to software.yaml (tip + pull root parent)
+                "sha256": hit.get("sha256"),
+                "connection_id": hit.get("connection_id"),
+                "source_type": hit.get("source_type"),
+            }
+        )
+        if limit is not None and len(units) >= limit:
+            break
+    units.sort(key=lambda h: str(h.get("name") or "").lower())
+    return units
+
+
 def list_clutch_hits(
     conn: dict,
     filt: str,
@@ -1028,6 +1104,7 @@ def test_filter(conn: dict, filt: str, *, domain: str = "scripts") -> dict:
     list_by_domain = {
         "scripts": (list_script_hits, "script"),
         "answerfiles": (list_answerfile_hits, "answerfile"),
+        "software": (list_software_hits, "software package"),
         "media": (list_media_hits, "media"),
         "clutches": (list_clutch_hits, "clutch"),
     }
@@ -1037,10 +1114,11 @@ def test_filter(conn: dict, filt: str, *, domain: str = "scripts") -> dict:
     except ValueError as exc:
         return {"ok": False, "message": str(exc), "hits": []}
     if not hits:
+        empty_noun = "software packages" if domain == "software" else f"{noun} files"
         return {
             "ok": True,
             "message": (
-                f"Connected, but no {noun} files matched this filter "
+                f"Connected, but no {empty_noun} matched this filter "
                 f"(sample limit {_SAMPLE_LIMIT})."
             ),
             "hits": [],
@@ -1152,6 +1230,182 @@ def sync_answerfile(
 ) -> dict:
     """Overwrite a cached Answer File from its Library source (no provenance upsert)."""
     return pull_answerfile(
+        conn,
+        relative_path,
+        dest_dir=dest_dir,
+        binding_id=binding_id,
+        overwrite=True,
+    )
+
+
+def list_files_under_prefix(conn: dict, prefix: str) -> list[dict]:
+    """List **all** files under ``prefix`` (no extension filter). Path + forge only."""
+    prefix_n = prefix.replace("\\", "/").strip("/")
+    if not prefix_n or ".." in Path(prefix_n).parts:
+        raise ValueError("Invalid package prefix")
+    ctype = (conn.get("type") or "").strip().lower()
+    if ctype == "path":
+        root = _expand_base(conn["base_uri"])
+        pkg = root / prefix_n
+        if not pkg.is_dir():
+            raise FileNotFoundError(f"Not found on connection: {prefix_n}")
+        hits: list[dict] = []
+        for path in sorted(pkg.rglob("*")):
+            if not path.is_file():
+                continue
+            try:
+                rel_parts = path.relative_to(root).parts
+            except ValueError:
+                continue
+            if ".git" in rel_parts:
+                continue
+            rel = path.relative_to(root).as_posix()
+            hits.append(
+                {
+                    "name": path.name,
+                    "relative_path": rel,
+                    "sha256": sha256_file(path),
+                    "connection_id": conn["id"],
+                    "source_type": "path",
+                }
+            )
+        return hits
+    if ctype == "forge":
+        index = tip_index_for_connection(conn)
+        hits = []
+        for rel in sorted(index):
+            rel_n = str(rel).replace("\\", "/")
+            if rel_n == prefix_n or rel_n.startswith(prefix_n + "/"):
+                hits.append(
+                    {
+                        "name": Path(rel_n).name,
+                        "relative_path": rel_n,
+                        "sha256": None,
+                        "connection_id": conn["id"],
+                        "source_type": "forge",
+                    }
+                )
+        return hits
+    raise ValueError(
+        f"Software tree listing not supported for type: {ctype} (path and forge in v1; api: #487)"
+    )
+
+
+def _materialize_file(conn: dict, relative_path: str, dest: Path) -> str:
+    """Write one Library file to ``dest``; return content SHA-256."""
+    rel = relative_path.replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        raise ValueError("Invalid relative path")
+    ctype = (conn.get("type") or "").strip().lower()
+    if ctype == "path":
+        src = _expand_base(conn["base_uri"]) / rel
+        if not src.is_file():
+            raise FileNotFoundError(f"Not found on connection: {rel}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        return sha256_file(dest)
+    if ctype == "forge":
+        adapter = _forge_adapter(conn)
+        result = adapter.pull_file(conn, rel, dest)
+        return str(result.get("sha256") or sha256_file(dest))
+    raise ValueError(f"Pull not supported for type: {ctype}")
+
+
+def pull_software(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+    overwrite: bool = False,
+) -> dict:
+    """Copy one Software **package tree** into ``automation/software/{id}/``.
+
+    ``relative_path`` is the path to the package's ``software.yaml`` (catalog tip).
+    One provenance row is recorded per package id (tip = ``software.yaml``).
+    """
+    from lib import config as config_lib
+
+    rel = relative_path.replace("\\", "/").lstrip("/")
+    if Path(rel).name != _SOFTWARE_DEFINITION:
+        raise ValueError(f"Software pull requires path to {_SOFTWARE_DEFINITION}")
+    parts = Path(rel).parts
+    if len(parts) < 2:
+        raise ValueError("Invalid software package path")
+    package_id = parts[-2]
+    if package_id.count(".") < 2:
+        raise ValueError(f"Invalid package id '{package_id}' (need Publisher.Product.Version)")
+    package_prefix = "/".join(parts[:-1])
+
+    dest_root = dest_dir or (config_lib.data_dir() / _SOFTWARE_PULL_DEST)
+    dest_root.mkdir(parents=True, exist_ok=True)
+    dest_pkg = dest_root / package_id
+    if dest_pkg.exists() and not overwrite:
+        raise FileExistsError(f"Already in cache: {package_id}")
+
+    files = list_files_under_prefix(conn, package_prefix)
+    if not any(str(h.get("relative_path") or "") == rel for h in files):
+        raise FileNotFoundError(f"Not found on connection: {rel}")
+
+    staging = dest_root / f".pull-{package_id}.tmp"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    tip_sha = ""
+    try:
+        for hit in files:
+            file_rel = str(hit.get("relative_path") or "").replace("\\", "/")
+            if not (file_rel == package_prefix or file_rel.startswith(package_prefix + "/")):
+                continue
+            suffix = file_rel[len(package_prefix) :].lstrip("/")
+            if not suffix or ".." in Path(suffix).parts:
+                continue
+            dest_file = staging / suffix
+            digest = _materialize_file(conn, file_rel, dest_file)
+            if file_rel == rel:
+                tip_sha = digest
+        if not (staging / _SOFTWARE_DEFINITION).is_file():
+            raise FileNotFoundError(f"Missing {_SOFTWARE_DEFINITION} after pull")
+        if not tip_sha:
+            tip_sha = sha256_file(staging / _SOFTWARE_DEFINITION)
+        if dest_pkg.exists():
+            shutil.rmtree(dest_pkg)
+        staging.rename(dest_pkg)
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    result = {
+        "name": package_id,
+        "sha256": tip_sha,
+        "dest": str(dest_pkg),
+    }
+    if overwrite:
+        tip = resolve_source_digest(conn, rel, single_file=True)
+        tip_file = dest_pkg / _SOFTWARE_DEFINITION
+        if tip_file.is_file():
+            assert_pulled_matches_tip(tip_file, tip, content_sha256=tip_sha)
+    else:
+        _record_provenance(
+            conn,
+            domain="software",
+            relative_path=rel,
+            result=result,
+            binding_id=binding_id,
+        )
+    return result
+
+
+def sync_software(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+) -> dict:
+    """Overwrite a cached Software package tree from its Library source."""
+    return pull_software(
         conn,
         relative_path,
         dest_dir=dest_dir,
@@ -1338,6 +1592,11 @@ def catalog_answerfiles(connections: list[dict], bindings: list[dict]) -> list[d
     return _catalog(connections, bindings, list_fn=list_answerfile_hits)
 
 
+def catalog_software(connections: list[dict], bindings: list[dict]) -> list[dict]:
+    """Union of Software package units across software bindings (dedupe by id, first wins)."""
+    return _catalog(connections, bindings, list_fn=list_software_hits)
+
+
 def catalog_clutches(connections: list[dict], bindings: list[dict]) -> list[dict]:
     """Union of Clutch hits across Clutches bindings (dedupe by name, first wins)."""
     return _catalog(connections, bindings, list_fn=list_clutch_hits)
@@ -1423,16 +1682,19 @@ def catalog_content_union(
     media_cached_names: set[str] | list[str],
     answerfile_bindings: list[dict] | None = None,
     answerfile_cached_names: set[str] | list[str] | None = None,
+    software_bindings: list[dict] | None = None,
+    software_cached_names: set[str] | list[str] | None = None,
     domain: str | None = None,
 ) -> list[dict]:
     """Cross-domain catalog for Library → Content Available (#392).
 
     Stamps each row with ``domain`` (and media ``target`` from bindings).
-    Optional ``domain`` filters to scripts | clutches | media | answerfiles.
+    Optional ``domain`` filters to scripts | clutches | media | answerfiles | software.
     """
     domain_norm = (domain or "").strip().lower() or None
-    if domain_norm and domain_norm not in ("scripts", "clutches", "media", "answerfiles"):
-        raise ValueError("domain must be scripts, clutches, media, or answerfiles")
+    allowed = ("scripts", "clutches", "media", "answerfiles", "software")
+    if domain_norm and domain_norm not in allowed:
+        raise ValueError("domain must be scripts, clutches, media, answerfiles, or software")
 
     out: list[dict] = []
     if domain_norm in (None, "scripts"):
@@ -1457,6 +1719,19 @@ def catalog_content_union(
         for item in answerfiles:
             row = dict(item)
             row["domain"] = "answerfiles"
+            out.append(row)
+
+    if domain_norm in (None, "software"):
+        sw_bindings = software_bindings or []
+        sw_cached = software_cached_names or []
+        sw_conns = connections_for_bindings(connections, sw_bindings)
+        software = annotate_cached(
+            catalog_software(sw_conns, parse_software_bindings(sw_bindings, sw_conns)),
+            sw_cached,
+        )
+        for item in software:
+            row = dict(item)
+            row["domain"] = "software"
             out.append(row)
 
     if domain_norm in (None, "clutches"):

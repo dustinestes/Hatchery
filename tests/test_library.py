@@ -573,3 +573,164 @@ class TestAnswerfileLibrary:
         assert len(rows) == 1
         assert rows[0]["domain"] == "answerfiles"
         assert rows[0]["name"] == "win11.xml.j2"
+
+
+class TestSoftwareLibrary:
+    @pytest.fixture
+    def software_share(self, tmp_path: Path) -> Path:
+        root = tmp_path / "sw-share"
+        pkg = root / "software" / "Acme.Widget.1.0.0"
+        (pkg / "windows").mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n  kind: software\npublisher: Acme\nproduct: Widget\nversion: 1.0.0\n",
+            encoding="utf-8",
+        )
+        (pkg / "windows" / "Setup.exe").write_bytes(b"MZ-fake")
+        # Non-package yaml should not become a unit
+        other = root / "software" / "notes"
+        other.mkdir(parents=True)
+        (other / "readme.yaml").write_text("x\n", encoding="utf-8")
+        return root
+
+    def _sw_conn(self, root: Path) -> dict:
+        return {
+            "id": "sw1",
+            "label": "Software share",
+            "type": "path",
+            "base_uri": str(root),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+        }
+
+    def test_parse_software_bindings_requires_kind(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "Scripts only",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts"],
+                }
+            ]
+        )
+        with pytest.raises(ValueError, match="does not serve software"):
+            library.parse_software_bindings(
+                [{"id": "b1", "connection_id": "a", "filter": "*software/*"}], conns
+            )
+
+    def test_list_catalog_pull_tree(self, software_share, tmp_path, monkeypatch):
+        conn = self._sw_conn(software_share)
+        hits = library.list_software_hits(conn, "*software/*", limit=None)
+        assert len(hits) == 1
+        assert hits[0]["name"] == "Acme.Widget.1.0.0"
+        assert hits[0]["relative_path"].endswith("software.yaml")
+
+        bindings = [
+            {
+                "id": "b1",
+                "connection_id": "sw1",
+                "filter": "*software/*",
+                "domain": "software",
+                "enabled": True,
+            }
+        ]
+        items = library.catalog_software([conn], bindings)
+        assert [i["name"] for i in items] == ["Acme.Widget.1.0.0"]
+
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        dest = tmp_path / "data" / "automation" / "software"
+        dest.mkdir(parents=True)
+        result = library.pull_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        assert result["name"] == "Acme.Widget.1.0.0"
+        pkg = dest / "Acme.Widget.1.0.0"
+        assert (pkg / "software.yaml").is_file()
+        assert (pkg / "windows" / "Setup.exe").is_file()
+        assert library.cache_path_for("software", "Acme.Widget.1.0.0") == pkg
+        assert library.cache_tip_path("software", "Acme.Widget.1.0.0") == pkg / "software.yaml"
+
+        from lib import library_provenance as prov
+
+        rows = prov.list_all()
+        assert len(rows) == 1
+        assert rows[0]["domain"] == "software"
+        assert rows[0]["cache_name"] == "Acme.Widget.1.0.0"
+
+        with pytest.raises(FileExistsError):
+            library.pull_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+
+    def test_catalog_content_union_software(self, software_share, tmp_path, monkeypatch):
+        conn = self._sw_conn(software_share)
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        bindings = [
+            {
+                "id": "b1",
+                "connection_id": "sw1",
+                "filter": "*software/*",
+                "domain": "software",
+                "enabled": True,
+            }
+        ]
+        rows = library.catalog_content_union(
+            connections=[conn],
+            script_bindings=[],
+            clutch_bindings=[],
+            media_bindings=[],
+            software_bindings=bindings,
+            script_cached_names=[],
+            clutch_cached_names=[],
+            media_cached_names=[],
+            software_cached_names=[],
+            domain="software",
+        )
+        assert len(rows) == 1
+        assert rows[0]["domain"] == "software"
+        assert rows[0]["name"] == "Acme.Widget.1.0.0"
+
+    def test_list_software_hits_skips_api_and_https(self, software_share):
+        api = {
+            "id": "api1",
+            "label": "API",
+            "type": "api",
+            "provider": "artifactory",
+            "base_uri": "https://example.com/artifactory",
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+        }
+        https = {
+            "id": "h1",
+            "label": "HTTPS",
+            "type": "https",
+            "base_uri": "https://example.com/files",
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+        }
+        assert library.list_software_hits(api, "*") == []
+        assert library.list_software_hits(https, "*") == []
+
+    def test_sync_software_overwrites_and_delete_cache(self, software_share, tmp_path, monkeypatch):
+        conn = self._sw_conn(software_share)
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "software").mkdir(parents=True)
+        library.pull_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        pkg = tmp_path / "data" / "automation" / "software" / "Acme.Widget.1.0.0"
+        (pkg / "windows" / "Setup.exe").write_bytes(b"old")
+
+        src = software_share / "software" / "Acme.Widget.1.0.0" / "windows" / "Setup.exe"
+        src.write_bytes(b"new-bytes")
+        result = library.sync_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        assert result["name"] == "Acme.Widget.1.0.0"
+        assert (pkg / "windows" / "Setup.exe").read_bytes() == b"new-bytes"
+
+        from lib import library_provenance as prov
+
+        row = prov.get_for_cache("software", "Acme.Widget.1.0.0")
+        assert row is not None
+        deleted = prov.delete_attributed_cache_files([row], data_dir=tmp_path / "data")
+        assert deleted == ["Acme.Widget.1.0.0"]
+        assert not pkg.exists()
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is None

@@ -223,6 +223,7 @@
     clutches: {{ library_clutch_bindings | default([]) | tojson }},
     media: {{ library_media_bindings | default([]) | tojson }},
     answerfiles: {{ library_answerfile_bindings | default([]) | tojson }},
+    software: {{ library_software_bindings | default([]) | tojson }},
   };
   const initialDomain = {{ initial_domain | default('') | tojson }};
   const initialName = {{ initial_name | default('') | tojson }};
@@ -233,6 +234,7 @@
   const clutchesPullUrl = {{ url_for('api_library_clutches_pull') | tojson }};
   const mediaPullUrl = {{ url_for('api_library_media_pull') | tojson }};
   const answerfilesPullUrl = {{ url_for('api_library_answerfiles_pull') | tojson }};
+  const softwarePullUrl = {{ url_for('api_library_software_pull') | tojson }};
 
   let selectedBtn = null;
   let libraryMode = 'hidden';
@@ -248,6 +250,7 @@
         clutches: clutchesPullUrl,
         media: mediaPullUrl,
         answerfiles: answerfilesPullUrl,
+        software: softwarePullUrl,
       },
       showDomainColumn: true,
     });
@@ -287,6 +290,7 @@
     if (domain === 'clutches') return 'Clutches';
     if (domain === 'media') return 'Media';
     if (domain === 'answerfiles') return 'Answer Files';
+    if (domain === 'software') return 'Software';
     return 'Library';
   }
 

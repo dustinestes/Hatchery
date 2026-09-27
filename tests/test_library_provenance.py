@@ -476,6 +476,7 @@ class TestCountsByDomain:
             "clutches": 0,
             "media": 0,
             "scripts": 0,
+            "software": 0,
         }
 
     def test_groups_domains(self, data_env):
@@ -511,6 +512,7 @@ class TestCountsByDomain:
             "clutches": 0,
             "media": 2,
             "scripts": 2,
+            "software": 0,
         }
         assert prov.counts_by_drift_state()["in_sync"] == 4
         assert prov.counts_by_drift_state()["out_of_sync"] == 0
@@ -644,6 +646,33 @@ class TestSourceStatusAxes:
         assert items[0]["source_status"] == "ok"
         assert items[0]["sync_state"] == "in_sync"
         assert items[0]["source_status_message"] == ""
+
+    def test_enrich_software_inventory_attaches_provenance(self, data_env, tmp_path):
+        share = tmp_path / "share" / "software" / "Acme.Widget.1.0.0"
+        share.mkdir(parents=True)
+        (share / "software.yaml").write_text(
+            "hatchery:\n  kind: software\n  publisher: Acme\n  product: Widget\n  version: '1.0.0'\n",
+            encoding="utf-8",
+        )
+        (share / "windows").mkdir()
+        (share / "windows" / "Setup.exe").write_bytes(b"x")
+        conn = {
+            **_path_conn(tmp_path / "share"),
+            "kinds": ["software"],
+        }
+        library_lib.pull_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        items = prov.enrich_inventory(
+            [{"name": "Acme.Widget.1.0.0"}],
+            domain="software",
+            connection_ids={"c1"},
+            binding_ids=set(),
+        )
+        assert items[0]["library_provenance"] is not None
+        assert items[0]["library_provenance"]["cache_name"] == "Acme.Widget.1.0.0"
+        assert items[0]["drift_state"] == "in_sync"
+        assert items[0]["library_cue"] in ("synced", "linked", "in_sync")
+        assert items[0]["source_status"] == "ok"
+        assert items[0]["sync_state"] == "in_sync"
 
     def test_attributed_inventory_cross_domain(self, data_env, tmp_path):
         share = tmp_path / "share"

@@ -14,6 +14,7 @@ _DOMAIN_LABELS = {
     "clutches": "Clutches",
     "media": "Media",
     "answerfiles": "Answer Files",
+    "software": "Software",
 }
 
 
@@ -30,6 +31,7 @@ def connection_and_binding_ids() -> tuple[set[str], set[str]]:
         (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
         (library_lib.parse_media_bindings, config.library_media_bindings),
         (library_lib.parse_answerfile_bindings, config.library_answerfile_bindings),
+        (library_lib.parse_software_bindings, config.library_software_bindings),
     ):
         try:
             bindings = parse_fn(getter() or [], connections)
@@ -195,7 +197,7 @@ def evaluate_row(
             sync_state="unevaluated",
         )
 
-    cache_path = library_lib.cache_path_for(
+    cache_path = library_lib.cache_tip_path(
         domain, name, media_target=target, data_dir=config.data_dir()
     )
     cache_sha = ""
@@ -443,6 +445,8 @@ def sync_row(row: dict[str, Any], connections: dict[str, dict]) -> dict[str, Any
         library_lib.sync_script(conn, rel, binding_id=bid)
     elif domain == "answerfiles":
         library_lib.sync_answerfile(conn, rel, binding_id=bid)
+    elif domain == "software":
+        library_lib.sync_software(conn, rel, binding_id=bid)
     elif domain == "clutches":
         library_lib.sync_clutch(conn, rel, binding_id=bid)
     elif domain == "media":

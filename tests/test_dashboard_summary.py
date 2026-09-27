@@ -153,6 +153,7 @@ class TestLibrarySummary:
             "clutches": 0,
             "media": 0,
             "answerfiles": 0,
+            "software": 0,
         }
         assert summary["by_drift"] == {
             "in_sync": 0,
@@ -208,6 +209,7 @@ class TestLibrarySummary:
             "clutches": 1,
             "media": 1,
             "answerfiles": 0,
+            "software": 0,
         }
         assert summary["by_drift"]["in_sync"] == 3
         assert summary["by_drift"]["out_of_sync"] == 1
