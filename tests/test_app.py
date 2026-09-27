@@ -1118,6 +1118,62 @@ class TestLibraryContentPane:
         assert pull.get_json()["imported"] == ["win11.xml.j2"]
         assert (tmp_path / "data" / "automation" / "answerfiles" / "win11.xml.j2").is_file()
 
+    def test_library_content_catalog_software_domain(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        pkg = share / "software" / "Acme.Widget.1.0.0"
+        (pkg / "windows").mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n  kind: software\npublisher: Acme\nproduct: Widget\nversion: 1.0.0\n",
+            encoding="utf-8",
+        )
+        (pkg / "windows" / "Setup.exe").write_bytes(b"MZ")
+        conn = {
+            "id": "sw1",
+            "label": "SW share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+            "enabled": True,
+        }
+        bind = {
+            "id": "b-sw",
+            "connection_id": "sw1",
+            "filter": "*software/*",
+            "domain": "software",
+            "enabled": True,
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_answerfile_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_software_bindings", lambda: [bind])
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "software").mkdir(parents=True)
+        resp = client.get("/api/library/content/catalog?domain=software")
+        assert resp.status_code == 200
+        items = resp.get_json()["items"]
+        assert len(items) == 1
+        assert items[0]["domain"] == "software"
+        assert items[0]["name"] == "Acme.Widget.1.0.0"
+
+        pull = client.post(
+            "/api/library/software/pull",
+            json={
+                "connection": conn,
+                "relative_path": items[0]["relative_path"],
+                "binding_id": "b-sw",
+            },
+        )
+        assert pull.status_code == 200
+        assert pull.get_json()["imported"] == ["Acme.Widget.1.0.0"]
+        assert (
+            tmp_path / "data" / "automation" / "software" / "Acme.Widget.1.0.0" / "software.yaml"
+        ).is_file()
+
     def test_library_content_catalog_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         resp = client.get("/api/library/content/catalog")

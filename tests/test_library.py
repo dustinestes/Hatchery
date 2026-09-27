@@ -688,3 +688,49 @@ class TestSoftwareLibrary:
         assert len(rows) == 1
         assert rows[0]["domain"] == "software"
         assert rows[0]["name"] == "Acme.Widget.1.0.0"
+
+    def test_list_software_hits_skips_api_and_https(self, software_share):
+        api = {
+            "id": "api1",
+            "label": "API",
+            "type": "api",
+            "provider": "artifactory",
+            "base_uri": "https://example.com/artifactory",
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+        }
+        https = {
+            "id": "h1",
+            "label": "HTTPS",
+            "type": "https",
+            "base_uri": "https://example.com/files",
+            "token": "",
+            "expires_at": None,
+            "kinds": ["software"],
+        }
+        assert library.list_software_hits(api, "*") == []
+        assert library.list_software_hits(https, "*") == []
+
+    def test_sync_software_overwrites_and_delete_cache(self, software_share, tmp_path, monkeypatch):
+        conn = self._sw_conn(software_share)
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "software").mkdir(parents=True)
+        library.pull_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        pkg = tmp_path / "data" / "automation" / "software" / "Acme.Widget.1.0.0"
+        (pkg / "windows" / "Setup.exe").write_bytes(b"old")
+
+        src = software_share / "software" / "Acme.Widget.1.0.0" / "windows" / "Setup.exe"
+        src.write_bytes(b"new-bytes")
+        result = library.sync_software(conn, "software/Acme.Widget.1.0.0/software.yaml")
+        assert result["name"] == "Acme.Widget.1.0.0"
+        assert (pkg / "windows" / "Setup.exe").read_bytes() == b"new-bytes"
+
+        from lib import library_provenance as prov
+
+        row = prov.get_for_cache("software", "Acme.Widget.1.0.0")
+        assert row is not None
+        deleted = prov.delete_attributed_cache_files([row], data_dir=tmp_path / "data")
+        assert deleted == ["Acme.Widget.1.0.0"]
+        assert not pkg.exists()
+        assert prov.get_for_cache("software", "Acme.Widget.1.0.0") is None

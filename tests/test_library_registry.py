@@ -258,6 +258,32 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
 
     # Second call is a no-op once any connection exists.
     assert registry.ensure_hatchery_library() is False
+    assert registry.ensure_software_library_defaults() is False
+
+
+def test_ensure_software_library_defaults_backfills(tmp_path, monkeypatch):
+    _init(tmp_path, monkeypatch)
+    registry.upsert_connection(
+        {
+            "id": registry.HATCHERY_LIBRARY_CONNECTION_ID,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": registry.HATCHERY_LIBRARY_BASE_URI,
+            "token": "",
+            "kinds": ["scripts", "clutches", "media", "answerfiles"],
+            "enabled": True,
+        }
+    )
+    assert registry.list_bindings(domain="software") == []
+    assert registry.ensure_software_library_defaults() is True
+    conn = registry.get_connection(registry.HATCHERY_LIBRARY_CONNECTION_ID)
+    assert "software" in conn["kinds"]
+    software = registry.list_bindings(domain="software")
+    assert [(b["id"], b["filter"]) for b in software] == [
+        ("hatchery-library-software", "*software/*")
+    ]
+    assert registry.ensure_software_library_defaults() is False
 
 
 def test_ensure_hatchery_library_skips_nonempty_registry(tmp_path, monkeypatch):
