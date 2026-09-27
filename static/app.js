@@ -38,6 +38,72 @@ hatchery.vmRows = (function () {
       scriptItem.querySelector('.script-item-params').appendChild(div);
     }
 
+    function renderAnswerFileParamFields(mount, params, savedParams) {
+      mount.innerHTML = '';
+      if (!params || !params.length) return;
+      var div = document.createElement('div');
+      div.className = 'script-params';
+      params.forEach(function (p) {
+        var fieldRow = document.createElement('div');
+        fieldRow.className = 'script-param-row';
+        var label = document.createElement('label');
+        label.className = 'script-param-label';
+        var displayName = p.label || p.name;
+        label.textContent = displayName + (p.mandatory ? ' *' : '');
+        if (p.help) label.title = p.help;
+        var input = document.createElement('input');
+        input.className = 'script-param-input vm-answer-file-param-input';
+        input.type = 'text';
+        input.dataset.param = p.name;
+        input.placeholder = p.default != null ? String(p.default) : '';
+        input.value = (savedParams && savedParams[p.name] != null) ? savedParams[p.name] : '';
+        if (p.mandatory && p.default == null) input.required = true;
+        fieldRow.appendChild(label);
+        fieldRow.appendChild(input);
+        div.appendChild(fieldRow);
+      });
+      mount.appendChild(div);
+    }
+
+    function clearAnswerFileParams(row) {
+      var mount = row.querySelector('.vm-answer-file-params');
+      var hidden = row.querySelector('.vm-answer-file-parameters-hidden');
+      if (mount) mount.innerHTML = '';
+      if (hidden) hidden.value = '';
+    }
+
+    function loadAnswerFileParams(row, fileName, savedParams) {
+      var mount = row.querySelector('.vm-answer-file-params');
+      if (!mount) return;
+      if (!fileName) {
+        clearAnswerFileParams(row);
+        return;
+      }
+      fetch('/api/automation/answerfiles/' + encodeURIComponent(fileName) + '/params')
+        .then(function (r) {
+          if (!r.ok) return [];
+          return r.json();
+        })
+        .then(function (params) {
+          renderAnswerFileParamFields(mount, params, savedParams || null);
+        })
+        .catch(function () {
+          clearAnswerFileParams(row);
+        });
+    }
+
+    function initAnswerFileParams(row, savedParams) {
+      var select = row.querySelector('[name="vm_answer_file[]"]');
+      if (!select) return;
+      select.addEventListener('change', function () {
+        isDirty = true;
+        loadAnswerFileParams(row, select.value, null);
+      });
+      if (select.value) {
+        loadAnswerFileParams(row, select.value, savedParams || null);
+      }
+    }
+
     function addScriptItem(list, scriptName, rebootAfter, savedParams) {
       var item = document.createElement('div');
       item.className = 'script-item';
@@ -183,9 +249,11 @@ hatchery.vmRows = (function () {
         if (vmData.depends_on && vmData.depends_on.length) {
           row.dataset.pendingDepends = vmData.depends_on.join(',');
         }
+        initAnswerFileParams(row, vmData.answer_file_parameters || null);
       } else {
         body.hidden = false;
         toggleBtn.setAttribute('aria-expanded', 'true');
+        initAnswerFileParams(row, null);
       }
 
       container.appendChild(clone);
@@ -274,6 +342,18 @@ hatchery.vmRows = (function () {
       });
     }
 
+    function serializeAnswerFileParameters() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var hidden = row.querySelector('.vm-answer-file-parameters-hidden');
+        if (!hidden) return;
+        var params = {};
+        row.querySelectorAll('.vm-answer-file-param-input').forEach(function (input) {
+          if (input.value.trim()) params[input.dataset.param] = input.value.trim();
+        });
+        hidden.value = Object.keys(params).length ? JSON.stringify(params) : '';
+      });
+    }
+
     function expandInvalidRows() {
       container.querySelectorAll('.vm-row').forEach(function (row) {
         var body = row.querySelector('.vm-row-body');
@@ -296,6 +376,7 @@ hatchery.vmRows = (function () {
       applyPendingDepends: applyPendingDepends,
       serializeDependsOn: serializeDependsOn,
       serializeAutomations: serializeAutomations,
+      serializeAnswerFileParameters: serializeAnswerFileParameters,
       expandInvalidRows: expandInvalidRows,
       markDirty: function () { isDirty = true; },
       markClean: function () { isDirty = false; },

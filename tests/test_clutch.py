@@ -103,6 +103,43 @@ vms:
         result = clutch.load(write_clutch(tmp_path, yaml_text))
         assert result.vms[0].answer_file == "legacy-unattend.xml"
 
+    def test_answer_file_parameters_round_trip(self, tmp_path):
+        vm = VMConfig(
+            name="vm1",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            answer_file_parameters={"input_locale": "en-US", "ui_language": "en-US"},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        raw = path.read_text()
+        assert "answer_file_parameters:" in raw
+        assert "input_locale: en-US" in raw
+        loaded = clutch.load(path)
+        assert loaded.vms[0].answer_file_parameters == {
+            "input_locale": "en-US",
+            "ui_language": "en-US",
+        }
+
+    def test_empty_answer_file_parameters_omitted_from_yaml(self, tmp_path):
+        vm = VMConfig(
+            name="vm1",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            answer_file_parameters={},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        assert "answer_file_parameters" not in path.read_text()
+
     def test_all_os_types_accepted(self, tmp_path):
         for os_val in ("win10", "win11", "server2022", "server2025"):
             content = MINIMAL_VM.replace("os: win11", f"os: {os_val}")
@@ -650,6 +687,65 @@ class TestAutomationScript:
         clutch.save(Clutch(name="lab", vms=[vm]), path)
         loaded = clutch.load(path)
         assert loaded.vms[0].automations[0].parameters == {"Region": "us-east-1"}
+
+
+class TestAnswerFileParameters:
+    def test_defaults_to_empty(self):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="w.iso",
+        )
+        assert vm.answer_file_parameters == {}
+
+    def test_yaml_round_trip(self, tmp_path):
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            answer_file_parameters={"input_locale": "en-GB"},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        loaded = clutch.load(path)
+        assert loaded.vms[0].answer_file_parameters == {"input_locale": "en-GB"}
+        assert "input_locale: en-GB" in path.read_text()
+
+    def test_empty_map_omitted_from_yaml(self, tmp_path):
+        vm = VMConfig(
+            name="dc01",
+            os="win10",
+            vcpus=1,
+            ram_gb=2,
+            disk_gb=20,
+            os_media="w.iso",
+            answer_file_parameters={},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        assert "answer_file_parameters" not in path.read_text()
+
+    def test_load_without_key_defaults_empty(self, tmp_path):
+        content = textwrap.dedent("""
+            name: lab
+            vms:
+              - name: dc01
+                os: win10
+                vcpus: 1
+                ram_gb: 2
+                disk_gb: 20
+                os_media: win10.iso
+                answer_file: win10.xml.j2
+        """)
+        result = clutch.load(write_clutch(tmp_path, content))
+        assert result.vms[0].answer_file_parameters == {}
 
 
 # ── storage_path ──────────────────────────────────────────────────────────────

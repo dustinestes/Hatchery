@@ -60,9 +60,10 @@ vms:
     # Linux (future): cloud-init / kickstart / preseed Answer File.
     answer_file: win11-unattend.xml.j2
 
-    # answer_file_parameters (future): map of user-declared Answer File parameters
-    # answer_file_parameters:
-    #   input_locale: en-US
+    # answer_file_parameters: map of user-declared Answer File parameters (#451)
+    answer_file_parameters:
+      input_locale: en-US
+      system_locale: en-US
 
     # automations (optional): ordered list of post-boot automation scripts
     # Filenames relative to automation/scripts/ in the data directory.

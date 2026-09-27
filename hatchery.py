@@ -11,6 +11,7 @@ from lib import db
 from lib import clutch as clutch_lib
 from lib import hatch as hatch_lib
 from lib import alerts as alerts_lib
+from lib import answerfile as answerfile_lib
 from lib import media_inspect as media_inspect_lib
 from lib import import_files as import_files_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
@@ -2218,6 +2219,20 @@ def _parse_automations(raw: str) -> list:
     return [a.strip() for a in raw.split(",") if a.strip()]
 
 
+def _parse_answer_file_parameters(raw: str) -> dict[str, str]:
+    """Parse the vm_answer_file_parameters[] hidden field JSON map."""
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items() if v is not None and str(v).strip() != ""}
+
+
 def _vm_dicts_from_form(form) -> list[dict]:
     """Extract raw VM dicts from form fields without validation, used for error re-renders."""
     names = form.getlist("vm_name[]")
@@ -2228,6 +2243,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     answer_file_list = form.getlist("vm_answer_file[]")
+    answer_file_params_list = form.getlist("vm_answer_file_parameters[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2235,6 +2251,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     for i, name in enumerate(names):
         dep_raw = depends_list[i] if i < len(depends_list) else ""
         auto_raw = automations_list[i] if i < len(automations_list) else ""
+        afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
         result.append(
             {
                 "name": name,
@@ -2245,6 +2262,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
                 "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
+                "answer_file_parameters": _parse_answer_file_parameters(afp_raw),
                 "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
                 "automations": _parse_automations(auto_raw),
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
@@ -2264,6 +2282,7 @@ def _vm_list_from_form(form):
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
     answer_file_list = form.getlist("vm_answer_file[]")
+    answer_file_params_list = form.getlist("vm_answer_file_parameters[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2277,6 +2296,7 @@ def _vm_list_from_form(form):
         depends_on = [d.strip() for d in depends_raw.split(",") if d.strip()]
         auto_raw = automations_list[i] if i < len(automations_list) else ""
         automations = _parse_automations(auto_raw)
+        afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
         vms.append(
             VMConfig(
                 name=name.strip(),
@@ -2287,6 +2307,7 @@ def _vm_list_from_form(form):
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
                 answer_file=(answer_file_list[i] or None) if i < len(answer_file_list) else None,
+                answer_file_parameters=_parse_answer_file_parameters(afp_raw),
                 admin_username=(admin_username_list[i] or None)
                 if i < len(admin_username_list)
                 else None,
@@ -2603,6 +2624,23 @@ def api_automation_answerfiles_selectable():
     return jsonify(_scan_dir("automation/answerfiles", extensions=[".j2"]))
 
 
+@app.route("/api/automation/answerfiles/<path:name>/params")
+def api_automation_answerfile_params(name):
+    """Return declared frontmatter parameters for an Answer File (#451).
+
+    Shape matches script params UI JSON. Reserved system tokens are omitted.
+    Empty list when the file has no ``hatchery.parameters`` frontmatter.
+    """
+    answerfile_path = _resolve_answerfile_path(name)
+    if answerfile_path is None or not answerfile_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        text = answerfile_path.read_text(encoding="utf-8")
+    except OSError:
+        return jsonify([])
+    return jsonify(answerfile_lib.declared_parameters(text))
+
+
 @app.route("/api/automation/os-config")
 def api_automation_os_config():
     """Legacy alias for selectable Answer Files (#448 / Clutch form refresh)."""
@@ -2769,6 +2807,7 @@ def api_clutch_detail(filename):
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
                     "answer_file": v.answer_file or "",
+                    "answer_file_parameters": v.answer_file_parameters or {},
                     "admin_username": v.admin_username or "",
                     "automations": [
                         s.name
