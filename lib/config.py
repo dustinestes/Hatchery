@@ -363,6 +363,13 @@ def library_media_bindings() -> list:
     return library_registry_lib.list_bindings(domain="media")
 
 
+def library_answerfile_bindings() -> list:
+    """Return Answer Files domain bindings (list of dicts)."""
+    from lib import library_registry as library_registry_lib
+
+    return library_registry_lib.list_bindings(domain="answerfiles")
+
+
 def exportable_setting_keys() -> frozenset[str]:
     """Keys included in Settings export/import (not bootstrap ``data_dir``).
 

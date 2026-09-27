@@ -324,3 +324,106 @@ class TestLibraryDropGitType:
             assert row["type"] == "git"
         finally:
             conn.close()
+
+
+class TestLibraryAnswerfilesDomain:
+    def test_migrates_kinds_and_bindings_checks(self, tmp_path):
+        path = tmp_path / "pre-answerfiles.db"
+        sqlite3 = __import__("sqlite3")
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE library_connections (
+                    id          TEXT PRIMARY KEY,
+                    label       TEXT    NOT NULL,
+                    type        TEXT    NOT NULL,
+                    provider    TEXT    NOT NULL DEFAULT '',
+                    base_uri    TEXT    NOT NULL,
+                    token       TEXT    NOT NULL DEFAULT '',
+                    expires_at  TEXT,
+                    enabled     INTEGER NOT NULL DEFAULT 1,
+                    created_at  TEXT    NOT NULL,
+                    updated_at  TEXT    NOT NULL,
+                    CHECK (type IN ('path', 'https', 'api', 'forge')),
+                    CHECK (enabled IN (0, 1))
+                );
+                CREATE TABLE library_connection_kinds (
+                    connection_id   TEXT    NOT NULL,
+                    kind            TEXT    NOT NULL,
+                    PRIMARY KEY (connection_id, kind),
+                    FOREIGN KEY (connection_id) REFERENCES library_connections(id)
+                        ON DELETE CASCADE,
+                    CHECK (kind IN ('scripts', 'clutches', 'media', 'packages'))
+                );
+                CREATE TABLE library_bindings (
+                    id              TEXT PRIMARY KEY,
+                    connection_id   TEXT    NOT NULL,
+                    domain          TEXT    NOT NULL,
+                    media_target    TEXT    NOT NULL DEFAULT '',
+                    label           TEXT    NOT NULL,
+                    filter          TEXT    NOT NULL DEFAULT '*',
+                    enabled         INTEGER NOT NULL DEFAULT 1,
+                    created_at      TEXT    NOT NULL,
+                    updated_at      TEXT    NOT NULL,
+                    FOREIGN KEY (connection_id) REFERENCES library_connections(id)
+                        ON DELETE CASCADE,
+                    CHECK (domain IN ('scripts', 'clutches', 'media')),
+                    CHECK (
+                        (domain != 'media' AND media_target = '')
+                        OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
+                    ),
+                    CHECK (enabled IN (0, 1))
+                );
+                INSERT INTO library_connections (
+                    id, label, type, provider, base_uri, token, expires_at,
+                    enabled, created_at, updated_at
+                ) VALUES (
+                    'c1', 'Share', 'path', '', '/tmp/share', '', NULL,
+                    1, '2026-01-01', '2026-01-01'
+                );
+                INSERT INTO library_connection_kinds (connection_id, kind)
+                VALUES ('c1', 'scripts');
+                INSERT INTO library_bindings (
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                ) VALUES (
+                    'b1', 'c1', 'scripts', '', 'All', '*', 1, '2026-01-01', '2026-01-01'
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        db_module.init_db(path)
+        conn = db_module.get_connection()
+        try:
+            kinds_ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connection_kinds'"
+            ).fetchone()[0]
+            binds_ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_bindings'"
+            ).fetchone()[0]
+            assert "answerfiles" in kinds_ddl
+            assert "answerfiles" in binds_ddl
+            conn.execute(
+                "INSERT INTO library_connection_kinds (connection_id, kind) VALUES ('c1', 'answerfiles')"
+            )
+            conn.execute(
+                """
+                INSERT INTO library_bindings (
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                ) VALUES (
+                    'b-af', 'c1', 'answerfiles', '', 'AF', '*', 1, '2026-01-01', '2026-01-01'
+                )
+                """
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT domain FROM library_bindings WHERE id = 'b-af'"
+            ).fetchone()
+            assert row["domain"] == "answerfiles"
+        finally:
+            conn.close()

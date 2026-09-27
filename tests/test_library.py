@@ -458,3 +458,100 @@ class TestMediaLibrary:
         assert [i["name"] for i in iso_items] == ["win11.iso"]
         virtio_items = library.catalog_media([conn], bindings, target="virtio")
         assert [i["name"] for i in virtio_items] == ["virtio.iso"]
+
+
+class TestAnswerfileLibrary:
+    @pytest.fixture
+    def answerfile_share(self, tmp_path: Path) -> Path:
+        root = tmp_path / "af-share"
+        (root / "nested").mkdir(parents=True)
+        (root / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+        (root / "nested" / "setup.ps1").write_text("Write-Host ok\n", encoding="utf-8")
+        (root / "notes.md").write_text("skip\n", encoding="utf-8")
+        return root
+
+    def _af_conn(self, root: Path) -> dict:
+        return {
+            "id": "af1",
+            "label": "Answer File share",
+            "type": "path",
+            "base_uri": str(root),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["answerfiles"],
+        }
+
+    def test_parse_answerfile_bindings_requires_kind(self):
+        conns = library.parse_connections(
+            [
+                {
+                    "id": "a",
+                    "label": "Scripts only",
+                    "type": "path",
+                    "base_uri": "/tmp",
+                    "expires_at": "",
+                    "kinds": ["scripts"],
+                }
+            ]
+        )
+        with pytest.raises(ValueError, match="does not serve answerfiles"):
+            library.parse_answerfile_bindings(
+                [{"id": "b1", "connection_id": "a", "filter": "*"}], conns
+            )
+
+    def test_list_catalog_pull_and_cache_path(self, answerfile_share, tmp_path, monkeypatch):
+        conn = self._af_conn(answerfile_share)
+        hits = library.list_answerfile_hits(conn, "*", limit=None)
+        names = {h["name"] for h in hits}
+        assert names == {"win11.xml.j2", "setup.ps1"}
+
+        bindings = [
+            {
+                "id": "b1",
+                "connection_id": "af1",
+                "filter": "*",
+                "domain": "answerfiles",
+                "enabled": True,
+            }
+        ]
+        items = library.catalog_answerfiles([conn], bindings)
+        assert {i["name"] for i in items} == names
+
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        dest = tmp_path / "data" / "automation" / "answerfiles"
+        dest.mkdir(parents=True)
+        result = library.pull_answerfile(conn, "win11.xml.j2")
+        assert result["name"] == "win11.xml.j2"
+        assert (dest / "win11.xml.j2").is_file()
+        assert library.cache_path_for("answerfiles", "win11.xml.j2") == dest / "win11.xml.j2"
+
+        with pytest.raises(FileExistsError):
+            library.pull_answerfile(conn, "win11.xml.j2")
+
+    def test_catalog_content_union_answerfiles(self, answerfile_share, tmp_path, monkeypatch):
+        conn = self._af_conn(answerfile_share)
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path / "data")
+        bindings = [
+            {
+                "id": "b1",
+                "connection_id": "af1",
+                "filter": "*.j2",
+                "domain": "answerfiles",
+                "enabled": True,
+            }
+        ]
+        rows = library.catalog_content_union(
+            connections=[conn],
+            script_bindings=[],
+            clutch_bindings=[],
+            media_bindings=[],
+            answerfile_bindings=bindings,
+            script_cached_names=[],
+            clutch_cached_names=[],
+            media_cached_names=[],
+            answerfile_cached_names=[],
+            domain="answerfiles",
+        )
+        assert len(rows) == 1
+        assert rows[0]["domain"] == "answerfiles"
+        assert rows[0]["name"] == "win11.xml.j2"

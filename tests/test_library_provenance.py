@@ -472,6 +472,7 @@ class TestBidirectionalDrift:
 class TestCountsByDomain:
     def test_empty(self, data_env):
         assert prov.counts_by_domain() == {
+            "answerfiles": 0,
             "clutches": 0,
             "media": 0,
             "scripts": 0,
@@ -506,6 +507,7 @@ class TestCountsByDomain:
             media_target="virtio",
         )
         assert prov.counts_by_domain() == {
+            "answerfiles": 0,
             "clutches": 0,
             "media": 2,
             "scripts": 2,

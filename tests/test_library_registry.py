@@ -237,10 +237,31 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     scripts = registry.list_bindings(domain="scripts")
     clutches = registry.list_bindings(domain="clutches")
     media = registry.list_bindings(domain="media")
+    answerfiles = registry.list_bindings(domain="answerfiles")
     assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*")]
     assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
+    assert answerfiles == []
+
+    # Answer Files binding is allowed after seed (operator opt-in; not auto-added).
+    registry.upsert_connection(
+        {
+            **conn,
+            "kinds": sorted(set(conn["kinds"]) | {"answerfiles"}),
+        }
+    )
+    registry.upsert_binding(
+        {
+            "id": "hatchery-library-answerfiles",
+            "connection_id": registry.HATCHERY_LIBRARY_CONNECTION_ID,
+            "domain": "answerfiles",
+            "label": "All Answer Files",
+            "filter": "*",
+            "enabled": True,
+        }
+    )
+    assert len(registry.list_bindings(domain="answerfiles")) == 1
 
     # Second call is a no-op once any connection exists.
     assert registry.ensure_hatchery_library() is False

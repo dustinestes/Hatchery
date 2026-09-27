@@ -13,6 +13,7 @@ _DOMAIN_LABELS = {
     "scripts": "Scripts",
     "clutches": "Clutches",
     "media": "Media",
+    "answerfiles": "Answer Files",
 }
 
 
@@ -28,6 +29,7 @@ def connection_and_binding_ids() -> tuple[set[str], set[str]]:
         (library_lib.parse_script_bindings, config.library_script_bindings),
         (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
         (library_lib.parse_media_bindings, config.library_media_bindings),
+        (library_lib.parse_answerfile_bindings, config.library_answerfile_bindings),
     ):
         try:
             bindings = parse_fn(getter() or [], connections)
@@ -439,6 +441,8 @@ def sync_row(row: dict[str, Any], connections: dict[str, dict]) -> dict[str, Any
     target = row.get("media_target") or None
     if domain == "scripts":
         library_lib.sync_script(conn, rel, binding_id=bid)
+    elif domain == "answerfiles":
+        library_lib.sync_answerfile(conn, rel, binding_id=bid)
     elif domain == "clutches":
         library_lib.sync_clutch(conn, rel, binding_id=bid)
     elif domain == "media":

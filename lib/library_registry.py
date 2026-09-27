@@ -14,7 +14,7 @@ from typing import Any
 from lib import db as db_module
 from lib.library import CONNECTION_KINDS, CONNECTION_TYPES, MEDIA_TARGETS
 
-DOMAINS = frozenset({"scripts", "clutches", "media"})
+DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
 
 
 def _now() -> str:
@@ -480,6 +480,7 @@ def migrate_from_app_settings(conn: sqlite3.Connection) -> bool:
             ("scripts", "library_script_bindings"),
             ("clutches", "library_clutch_bindings"),
             ("media", "library_media_bindings"),
+            ("answerfiles", "library_answerfile_bindings"),
         )
         for domain, key in domain_keys:
             for item in _load_json(key):
@@ -527,6 +528,7 @@ def migrate_from_app_settings(conn: sqlite3.Connection) -> bool:
         "library_script_bindings",
         "library_clutch_bindings",
         "library_media_bindings",
+        "library_answerfile_bindings",
     ):
         conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
     return True
