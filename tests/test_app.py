@@ -4700,6 +4700,8 @@ class TestAutomationSoftwarePane:
         data = resp.get_json()
         assert data["name"] == "Acme.Widget.1.0.0"
         assert data["content"] == body
+        assert data["definition_valid"] is False
+        assert "Invalid Software definition" in data["definition_error"]
 
     def test_content_api_404_when_missing(self, client, tmp_path, monkeypatch):
         (tmp_path / "automation" / "software").mkdir(parents=True)

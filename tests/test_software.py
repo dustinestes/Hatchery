@@ -17,7 +17,12 @@ class TestSoftwareInventory:
             "  publisher: Acme\n"
             "  product: Widget\n"
             "  version: '1.0.0'\n"
-            "  architecture: x64\n"
+            "platforms:\n"
+            "  windows:\n"
+            "    x64:\n"
+            "      install: {command: '.\\Setup.exe'}\n"
+            "      uninstall: {command: 'u'}\n"
+            "      detect: {command: 'd'}\n"
         )
 
         items = software_lib.scan_inventory()

@@ -2873,7 +2873,7 @@ def api_automation_answerfile_content(name):
 
 @app.route("/api/automation/software/<path:name>/content")
 def api_automation_software_content(name):
-    """Return read-only text of ``software.yaml`` for a package id."""
+    """Return read-only text of ``software.yaml`` plus load-time validation (#471)."""
     definition = software_lib.resolve_definition_path(name)
     if definition is None or not definition.is_file():
         return jsonify({"error": "not found"}), 404
@@ -2887,7 +2887,21 @@ def api_automation_software_content(name):
         text = definition.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return jsonify({"error": "unreadable"}), 500
-    return jsonify({"name": definition.parent.name, "content": text})
+    parsed, err = software_lib.try_load_definition(definition)
+    payload = {
+        "name": definition.parent.name,
+        "content": text,
+        "definition_valid": err is None,
+        "definition_error": err or "",
+    }
+    if parsed is not None:
+        meta = parsed.hatchery.model_dump()
+        meta["architecture"] = ", ".join(parsed.architecture_labels())
+        payload["meta"] = meta
+        payload["platforms"] = {
+            os_key: sorted(arches.keys()) for os_key, arches in parsed.platforms.items()
+        }
+    return jsonify(payload)
 
 
 @app.route("/api/automation/scripts/<path:name>/params")
