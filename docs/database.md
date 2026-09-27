@@ -86,7 +86,7 @@ The file is not included in the Hatchery source repository.
 | VM provisioning state and credentials | `hatch_vm_status` | App-generated runtime state; credentials required for post-install automation over WinRM/SSH - see note below |
 | Clutch instance state | `clutch_instances` | App-observed runtime state, not user-authored - tracks which VMs were hatched from which Clutch |
 
-> **Note on credential storage:** `admin_username` and `admin_password` are stored in plaintext in `hatch_vm_status`. This is required - post-install automation needs them to authenticate to the VM after it fledges. Credentials are protected only by host filesystem permissions. For mitigation options and the v2 hardening roadmap, see [`schema/database.md - Credential storage`](schema/database.md#credential-storage).
+> **Note on credential storage:** `admin_username` and `admin_password` are stored in plaintext in `hatch_vm_status` so hatch can authenticate through fledged. They are hatch-scoped for product intent - not a long-term manage credential. After fledged, rotate or harden the guest account yourself. See [`schema/database.md - Credential storage`](schema/database.md#credential-storage) and [Answer Files - Hatch-scoped through fledged](answer-files.md#hatch-scoped-through-fledged).
 
 <br>
 

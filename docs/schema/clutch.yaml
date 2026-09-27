@@ -49,8 +49,9 @@ vms:
 
     # admin_username (required for Windows guests): administrator account for unattended
     # install / hatch→fledged. Injected as reserved system tokens into the selected Answer File
-    # (ADR-0024 / #465). Password is supplied at hatch time - not stored as a long-lived
-    # manage credential. Hidden / not required for non-Windows Guest OS (#453).
+    # (ADR-0024 / #465). Password is supplied at hatch time. Hatch-scoped through fledged -
+    # rotate after fledged if the guest outlives setup (#455). Hidden / not required for
+    # non-Windows Guest OS (#453).
     admin_username: admin
 
     # answer_file (required for Windows guests): Answer File under automation/answerfiles/

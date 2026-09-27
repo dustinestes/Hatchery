@@ -35,7 +35,7 @@ For operator-authored post-boot scripts, see [Automation Scripts](automations.md
 
 Install-time unattended templates (Autounattend and future Linux seeds) are **Answer Files**. Operator how-to, tokens, companions, and per-OS notes: [Answer Files](answer-files.md). Architecture: [ADR-0024](adr/0024-answer-files-product-model.md).
 
-Windows hatch requires a selected Answer File under `automation/answerfiles/` (pull Library samples or author your own). Admin credentials inject reserved system tokens; they do not select a hidden Controller template.
+Windows hatch requires a selected Answer File under `automation/answerfiles/` (pull Library samples or author your own). Admin credentials inject reserved system tokens for hatch through fledged; they do not select a hidden Controller template. After fledged, rotate the hatch admin yourself if the guest outlives setup ([Answer Files - Hatch-scoped through fledged](answer-files.md#hatch-scoped-through-fledged)).
 
 ---
 
