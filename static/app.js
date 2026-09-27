@@ -8,6 +8,44 @@ hatchery.vmRows = (function () {
 
     var rowIdx = 0;
     var isDirty = false;
+    var windowsHatchOs = (template.getAttribute('data-windows-hatch-os') || '')
+      .split(',')
+      .map(function (s) { return s.trim(); })
+      .filter(Boolean);
+
+    function osNeedsWindowsHatchFields(osValue) {
+      return windowsHatchOs.indexOf(osValue) !== -1;
+    }
+
+    function clearAnswerFileParams(row) {
+      var mount = row.querySelector('.vm-answer-file-params');
+      var hidden = row.querySelector('.vm-answer-file-parameters-hidden');
+      if (mount) mount.innerHTML = '';
+      if (hidden) hidden.value = '';
+    }
+
+    function syncWindowsHatchFields(row) {
+      var section = row.querySelector('.vm-windows-hatch-fields');
+      var osSelect = row.querySelector('[name="vm_os[]"]');
+      if (!section || !osSelect) return;
+      var show = osNeedsWindowsHatchFields(osSelect.value);
+      section.hidden = !show;
+      var answerSelect = row.querySelector('[name="vm_answer_file[]"]');
+      var adminInput = row.querySelector('[name="vm_admin_username[]"]');
+      var reqMark = row.querySelector('.vm-answer-file-required');
+      if (show) {
+        if (answerSelect) answerSelect.required = true;
+        if (reqMark) reqMark.hidden = false;
+        return;
+      }
+      if (answerSelect) {
+        answerSelect.required = false;
+        answerSelect.value = '';
+      }
+      if (reqMark) reqMark.hidden = true;
+      if (adminInput) adminInput.value = '';
+      clearAnswerFileParams(row);
+    }
 
     // ── Script row helpers (shared across initScriptList and addRow) ──────────
 
@@ -63,13 +101,6 @@ hatchery.vmRows = (function () {
         div.appendChild(fieldRow);
       });
       mount.appendChild(div);
-    }
-
-    function clearAnswerFileParams(row) {
-      var mount = row.querySelector('.vm-answer-file-params');
-      var hidden = row.querySelector('.vm-answer-file-parameters-hidden');
-      if (mount) mount.innerHTML = '';
-      if (hidden) hidden.value = '';
     }
 
     function loadAnswerFileParams(row, fileName, savedParams) {
@@ -224,6 +255,14 @@ hatchery.vmRows = (function () {
 
       initScriptList(row);
 
+      var osSelect = row.querySelector('[name="vm_os[]"]');
+      if (osSelect) {
+        osSelect.addEventListener('change', function () {
+          syncWindowsHatchFields(row);
+          isDirty = true;
+        });
+      }
+
       if (vmData) {
         set(row, '[name="vm_name[]"]', vmData.name);
         summary.textContent = vmData.name || 'New VM';
@@ -249,10 +288,12 @@ hatchery.vmRows = (function () {
         if (vmData.depends_on && vmData.depends_on.length) {
           row.dataset.pendingDepends = vmData.depends_on.join(',');
         }
+        syncWindowsHatchFields(row);
         initAnswerFileParams(row, vmData.answer_file_parameters || null);
       } else {
         body.hidden = false;
         toggleBtn.setAttribute('aria-expanded', 'true');
+        syncWindowsHatchFields(row);
         initAnswerFileParams(row, null);
       }
 

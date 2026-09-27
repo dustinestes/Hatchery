@@ -1,4 +1,4 @@
-<template id="vm-row-template">
+<template id="vm-row-template" data-windows-hatch-os="{{ windows_hatch_os_types | join(',') }}">
   <div class="vm-row" data-vm-index="">
     <div class="vm-row-header">
       <button type="button" class="vm-row-toggle" aria-expanded="false">
@@ -68,29 +68,33 @@
           </select>
         </div>
       </div>
-      <div class="form-grid form-grid-1">
-        <div class="form-group">
-          <label class="form-label">Admin Username</label>
-          <input type="text" name="vm_admin_username[]" class="form-input" placeholder="e.g. admin">
+      {# Admin + Answer File: shown for Windows hatch guests (#453 / ADR-0024) #}
+      <div class="vm-windows-hatch-fields">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Admin Username</label>
+            <input type="text" name="vm_admin_username[]" class="form-input" placeholder="e.g. admin" autocomplete="off">
+            <p class="form-hint">Used as a reserved Answer File token for hatch through fledged.</p>
+          </div>
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Answer File <span class="required vm-answer-file-required" hidden>*</span></label>
+              <button type="button" class="btn-refresh-label" data-refresh="answer_file" title="Refresh Answer Files">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+            </div>
+            <select name="vm_answer_file[]" class="form-select" aria-label="Answer File">
+              <option value="">- none -</option>
+              {% for f in answer_file_files %}
+                <option value="{{ f }}">{{ f }}</option>
+              {% endfor %}
+            </select>
+            <div class="vm-answer-file-params"></div>
+            <input type="hidden" name="vm_answer_file_parameters[]" class="vm-answer-file-parameters-hidden" value="">
+          </div>
         </div>
       </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label">Answer File</label>
-            <button type="button" class="btn-refresh-label" data-refresh="answer_file" title="Refresh Answer Files">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            </button>
-          </div>
-          <select name="vm_answer_file[]" class="form-select" aria-label="Answer File">
-            <option value="">- none -</option>
-            {% for f in answer_file_files %}
-              <option value="{{ f }}">{{ f }}</option>
-            {% endfor %}
-          </select>
-          <div class="vm-answer-file-params"></div>
-          <input type="hidden" name="vm_answer_file_parameters[]" class="vm-answer-file-parameters-hidden" value="">
-        </div>
+      <div class="form-grid form-grid-1">
         <div class="form-group">
           <label class="form-label">Depends On</label>
           <select class="form-select vm-depends-on" multiple size="3" aria-label="Depends on other VMs">

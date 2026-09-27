@@ -82,7 +82,7 @@ Injected from the Clutch VM / hatch session. Do **not** declare these as user pa
 | `admin_username` | Admin Username on the VM (when Guest OS needs hatch creds) |
 | `admin_password` | Admin password supplied at hatch (not stored long-term as a manage credential) |
 
-Admin username / password remain first-class VM fields when the selected Guest OS needs them for hatch through fledged. Hide them in the form when the OS does not apply. After fledged, rotating that account is an operator/script concern (see Library hardening/cleanup scripts), not something Hatchery must keep using.
+Admin username / password remain first-class VM fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); other Guest OS values hide those fields and strip them on save. After fledged, rotating that account is an operator/script concern (see Library hardening/cleanup scripts), not something Hatchery must keep using.
 
 ### User-declared parameters
 
@@ -208,7 +208,7 @@ Expected kinds differ from Windows Autounattend:
 
 Answer Files remain the product umbrella; `hatchery.kind` and Nest attach strategy will select the media layout. Do not assume floppy or `Autounattend.xml` filenames.
 
-Admin Username / Password form fields will hide or change when Linux guests need SSH keys or other bootstrap identity instead.
+Admin Username / Password form fields hide for non-Windows Guest OS today (#453). Linux bootstrap identity (SSH keys, etc.) is out of scope until #217.
 
 <br>
 
@@ -218,7 +218,7 @@ Admin Username / Password form fields will hide or change when Linux guests need
 
 ## macOS
 
-**Planned / often N/A.** UTM and macOS guests do not use Windows Autounattend. Capability “answer file attach” may be unsupported ([`docs/providers.md`](providers.md)). The Clutch form should hide Answer File and Windows admin fields when the Guest OS cannot use them.
+**Planned / often N/A.** UTM and macOS guests do not use Windows Autounattend. Capability “answer file attach” may be unsupported ([`docs/providers.md`](providers.md)). The Clutch form already hides Answer File and Windows admin fields when the Guest OS is not in the Windows hatch set (#453).
 
 <br>
 

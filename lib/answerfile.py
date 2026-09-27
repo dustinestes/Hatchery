@@ -14,6 +14,7 @@ SETUP_SCRIPT_NAME = "hatchery-setup.ps1"
 RESERVED_SYSTEM_TOKENS = frozenset({"vm_name", "admin_username", "admin_password"})
 
 # Guests that require a selected Answer File at hatch (Windows Autounattend today).
+# Same set drives Clutch form Admin Username / Answer File visibility (#453).
 _ANSWER_FILE_REQUIRED_OS = frozenset(
     {GuestOS.WIN10, GuestOS.WIN11, GuestOS.SERVER2022, GuestOS.SERVER2025}
 )
@@ -31,6 +32,20 @@ def requires_answer_file(os_type: GuestOS | str) -> bool:
         return GuestOS(os_type) in _ANSWER_FILE_REQUIRED_OS
     except ValueError:
         return False
+
+
+def needs_windows_hatch_fields(os_type: GuestOS | str) -> bool:
+    """Return True when the Clutch form should show Admin Username and Answer File.
+
+    Today this matches ``requires_answer_file`` (Windows Autounattend hatch path).
+    Linux / macOS guests will hide these fields when those OS values land.
+    """
+    return requires_answer_file(os_type)
+
+
+def windows_hatch_os_values() -> tuple[str, ...]:
+    """Guest OS string values that use Windows hatch Answer File / admin fields."""
+    return tuple(sorted(os.value for os in _ANSWER_FILE_REQUIRED_OS))
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any] | None, str]:

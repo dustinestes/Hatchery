@@ -232,6 +232,17 @@ class TestValidateVmAnswerFile:
         assert answerfile.requires_answer_file(GuestOS.WIN11) is True
         assert answerfile.requires_answer_file("win10") is True
 
+    def test_needs_windows_hatch_fields_matches_answer_file_set(self):
+        for os_val in answerfile.windows_hatch_os_values():
+            assert answerfile.needs_windows_hatch_fields(os_val) is True
+        assert answerfile.needs_windows_hatch_fields("linux") is False
+        assert answerfile.windows_hatch_os_values() == (
+            "server2022",
+            "server2025",
+            "win10",
+            "win11",
+        )
+
 
 class TestCompanionNames:
     def test_rejects_path_separators(self):
