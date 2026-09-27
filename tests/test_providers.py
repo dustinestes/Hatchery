@@ -460,6 +460,37 @@ class TestCreateVM:
         assert "<Autounattend/>" in xml_arg
 
 
+class TestAnswerFileAttachCapability:
+    def test_base_default_is_false(self):
+        from lib.providers.base import BaseProvider
+
+        assert BaseProvider.supports_answer_file_attach is False
+
+    def test_libvirt_supports_attach(self):
+        assert LibvirtProvider.supports_answer_file_attach is True
+
+    def test_base_prepare_raises_when_guest_needs_attach(self):
+        from lib.providers.base import BaseProvider
+
+        vm = VMConfig(
+            name="test-vm",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml",
+        )
+        with pytest.raises(ValueError, match="does not support Answer File attach"):
+            BaseProvider.prepare_answer_file_media(object(), vm, admin_password="x")
+
+    def test_nest_tools_list_mtools_not_virt_make_fs(self):
+        names = {s.name for s in LibvirtProvider.nest_tool_specs()}
+        assert "mformat" in names
+        assert "mcopy" in names
+        assert "virt-make-fs" not in names
+
+
 # ── Power state ───────────────────────────────────────────────────────────────
 
 

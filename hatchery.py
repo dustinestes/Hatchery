@@ -2157,13 +2157,23 @@ def hatch_clutch_post():
         )
 
     try:
-        _provider(nest_id)
+        provider = _provider(nest_id)
     except UnsupportedProviderError as exc:
         return _render_hatch_clutch_form(
             clutch_files,
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=str(exc),
+            selected_nest_id=nest_id,
+        )
+
+    attach_errors = hatch_lifecycle_lib.answer_file_attach_errors(provider, clutch_obj.vms)
+    if attach_errors:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error="; ".join(attach_errors),
             selected_nest_id=nest_id,
         )
 

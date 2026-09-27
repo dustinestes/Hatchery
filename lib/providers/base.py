@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import ClassVar
 
 from lib.clutch import VMConfig
 
 
 class BaseProvider(ABC):
     """Abstract interface all hypervisor providers must implement."""
+
+    #: Whether this Nest can pack and attach Answer File media at hatch time.
+    #: Libvirt local floppy is the first working backend (#454 / ADR-0024).
+    #: Hyper-V / UTM remain Planned (see docs/providers.md).
+    supports_answer_file_attach: ClassVar[bool] = False
 
     @classmethod
     def nest_tool_specs(cls) -> list:
@@ -16,6 +23,28 @@ class BaseProvider(ABC):
         do not belong here.
         """
         return []
+
+    def prepare_answer_file_media(
+        self,
+        config: VMConfig,
+        *,
+        admin_password: str | None = None,
+    ) -> Path | None:
+        """Render and pack Answer File media for Nest attach, or None if not required.
+
+        Providers that set ``supports_answer_file_attach`` must override this and return
+        a Nest-local path for ``create_vm`` to attach. Default raises when the guest
+        requires an Answer File but this Nest cannot attach.
+        """
+        from lib import answerfile as answerfile_lib
+
+        if not answerfile_lib.requires_answer_file(config.os):
+            return None
+        raise ValueError(
+            f"Nest provider {type(self).__name__} does not support Answer File attach. "
+            "Windows Autounattend attach works on libvirt local today; "
+            "Hyper-V and UTM are Planned (see docs/providers.md)."
+        )
 
     @abstractmethod
     def create_vm(

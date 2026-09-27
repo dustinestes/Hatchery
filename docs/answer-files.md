@@ -228,7 +228,9 @@ Admin Username / Password form fields hide for non-Windows Guest OS today (#453)
 
 ## Nest attach
 
-Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific:
+Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific, gated by
+`BaseProvider.supports_answer_file_attach` and implemented in
+`prepare_answer_file_media` (Nest id → factory; ADR-0003 / #454).
 
 | Nest | Windows attach (status) |
 |---|---|
@@ -237,7 +239,9 @@ Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific:
 | Hyper-V | Planned - Gen2 often uses a second DVD/ISO, not floppy |
 | UTM | Planned / N/A depending on guest |
 
-See the [provider matrix](providers.md). UI and CLI must go through Nest id → factory; do not hard-wire libvirt floppy into operator surfaces.
+Hatch (UI and CLI) fails early when a Clutch needs Answer File attach and the selected Nest
+reports `supports_answer_file_attach=False`. See the [provider matrix](providers.md). Do not
+hard-wire libvirt floppy into operator surfaces.
 
 <br>
 
