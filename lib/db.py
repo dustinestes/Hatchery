@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS library_connection_kinds (
     kind            TEXT    NOT NULL,
     PRIMARY KEY (connection_id, kind),
     FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
-    CHECK (kind IN ('scripts', 'clutches', 'media', 'packages', 'answerfiles'))
+    CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
 );
 
 CREATE TABLE IF NOT EXISTS library_bindings (
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS library_bindings (
     created_at      TEXT    NOT NULL,
     updated_at      TEXT    NOT NULL,
     FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
-    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles')),
+    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles', 'software')),
     CHECK (
         (domain != 'media' AND media_target = '')
         OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
@@ -213,6 +213,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_library_registry(conn)
     _migrate_library_drop_git_connection_type(conn)
     _migrate_library_answerfiles_domain(conn)
+    _migrate_library_software_domain(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -239,7 +240,7 @@ def _migrate_library_registry(conn: sqlite3.Connection) -> None:
             kind            TEXT    NOT NULL,
             PRIMARY KEY (connection_id, kind),
             FOREIGN KEY (connection_id) REFERENCES library_connections(id) ON DELETE CASCADE,
-            CHECK (kind IN ('scripts', 'clutches', 'media', 'packages', 'answerfiles'))
+            CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
         )
         """
     )
@@ -294,7 +295,7 @@ def _migrate_library_registry(conn: sqlite3.Connection) -> None:
                 kinds = []
             for kind in kinds:
                 k = str(kind).strip().lower()
-                if k not in ("scripts", "clutches", "media", "packages"):
+                if k not in ("scripts", "clutches", "media", "answerfiles", "software"):
                     continue
                 conn.execute(
                     """
@@ -345,7 +346,7 @@ def _migrate_library_registry(conn: sqlite3.Connection) -> None:
                 PRIMARY KEY (connection_id, kind),
                 FOREIGN KEY (connection_id) REFERENCES library_connections__new(id)
                     ON DELETE CASCADE,
-                CHECK (kind IN ('scripts', 'clutches', 'media', 'packages', 'answerfiles'))
+                CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
             )
             """
         )
@@ -444,7 +445,7 @@ def _migrate_library_drop_git_connection_type(conn: sqlite3.Connection) -> None:
                 PRIMARY KEY (connection_id, kind),
                 FOREIGN KEY (connection_id) REFERENCES library_connections__nogit(id)
                     ON DELETE CASCADE,
-                CHECK (kind IN ('scripts', 'clutches', 'media', 'packages', 'answerfiles'))
+                CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
             )
             """
         )
@@ -473,7 +474,7 @@ def _migrate_library_drop_git_connection_type(conn: sqlite3.Connection) -> None:
                     updated_at      TEXT    NOT NULL,
                     FOREIGN KEY (connection_id) REFERENCES library_connections__nogit(id)
                         ON DELETE CASCADE,
-                    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles')),
+                    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles', 'software')),
                     CHECK (
                         (domain != 'media' AND media_target = '')
                         OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
@@ -578,7 +579,7 @@ def _migrate_library_answerfiles_domain(conn: sqlite3.Connection) -> None:
                     PRIMARY KEY (connection_id, kind),
                     FOREIGN KEY (connection_id) REFERENCES library_connections(id)
                         ON DELETE CASCADE,
-                    CHECK (kind IN ('scripts', 'clutches', 'media', 'packages', 'answerfiles'))
+                    CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
                 )
                 """
             )
@@ -613,7 +614,7 @@ def _migrate_library_answerfiles_domain(conn: sqlite3.Connection) -> None:
                     updated_at      TEXT    NOT NULL,
                     FOREIGN KEY (connection_id) REFERENCES library_connections(id)
                         ON DELETE CASCADE,
-                    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles')),
+                    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles', 'software')),
                     CHECK (
                         (domain != 'media' AND media_target = '')
                         OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
@@ -647,6 +648,143 @@ def _migrate_library_answerfiles_domain(conn: sqlite3.Connection) -> None:
                 CREATE INDEX IF NOT EXISTS idx_library_bindings_domain
                     ON library_bindings(domain, media_target)
                 """
+            )
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
+def _migrate_library_software_domain(conn: sqlite3.Connection) -> None:
+    """Migrate Library kind ``packages`` → ``software``; add bindings domain (#470 / ADR-0025)."""
+    kinds_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_connection_kinds'"
+    ).fetchone()
+    bindings_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='library_bindings'"
+    ).fetchone()
+    if not kinds_table and not bindings_table:
+        return
+
+    need_kinds = False
+    need_bindings = False
+    if kinds_table:
+        ddl_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_connection_kinds'"
+        ).fetchone()
+        ddl = (ddl_row[0] if ddl_row else "") or ""
+        if "packages" in ddl or "software" not in ddl:
+            need_kinds = True
+    if bindings_table:
+        ddl_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='library_bindings'"
+        ).fetchone()
+        ddl = (ddl_row[0] if ddl_row else "") or ""
+        if "software" not in ddl:
+            need_bindings = True
+    if not need_kinds and not need_bindings:
+        # Still remap any leftover kind rows if CHECK already allows software.
+        if kinds_table:
+            conn.execute(
+                "UPDATE library_connection_kinds SET kind = 'software' WHERE kind = 'packages'"
+            )
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        if need_kinds:
+            conn.execute(
+                """
+                CREATE TABLE library_connection_kinds__sw (
+                    connection_id   TEXT    NOT NULL,
+                    kind            TEXT    NOT NULL,
+                    PRIMARY KEY (connection_id, kind),
+                    FOREIGN KEY (connection_id) REFERENCES library_connections(id)
+                        ON DELETE CASCADE,
+                    CHECK (kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'software'))
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO library_connection_kinds__sw (connection_id, kind)
+                SELECT connection_id,
+                       CASE WHEN kind = 'packages' THEN 'software' ELSE kind END
+                FROM library_connection_kinds
+                WHERE kind IN ('scripts', 'clutches', 'media', 'answerfiles', 'packages', 'software')
+                """
+            )
+            # Deduplicate if both packages and software existed (unlikely).
+            conn.execute(
+                """
+                DELETE FROM library_connection_kinds__sw
+                WHERE rowid NOT IN (
+                    SELECT MIN(rowid) FROM library_connection_kinds__sw
+                    GROUP BY connection_id, kind
+                )
+                """
+            )
+            conn.execute("DROP TABLE library_connection_kinds")
+            conn.execute(
+                "ALTER TABLE library_connection_kinds__sw RENAME TO library_connection_kinds"
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_library_connection_kinds_kind
+                    ON library_connection_kinds(kind)
+                """
+            )
+        if need_bindings:
+            conn.execute(
+                """
+                CREATE TABLE library_bindings__sw (
+                    id              TEXT PRIMARY KEY,
+                    connection_id   TEXT    NOT NULL,
+                    domain          TEXT    NOT NULL,
+                    media_target    TEXT    NOT NULL DEFAULT '',
+                    label           TEXT    NOT NULL,
+                    filter          TEXT    NOT NULL DEFAULT '*',
+                    enabled         INTEGER NOT NULL DEFAULT 1,
+                    created_at      TEXT    NOT NULL,
+                    updated_at      TEXT    NOT NULL,
+                    FOREIGN KEY (connection_id) REFERENCES library_connections(id)
+                        ON DELETE CASCADE,
+                    CHECK (domain IN ('scripts', 'clutches', 'media', 'answerfiles', 'software')),
+                    CHECK (
+                        (domain != 'media' AND media_target = '')
+                        OR (domain = 'media' AND media_target IN ('iso', 'virtio'))
+                    ),
+                    CHECK (enabled IN (0, 1))
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO library_bindings__sw (
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                )
+                SELECT
+                    id, connection_id, domain, media_target, label, filter,
+                    enabled, created_at, updated_at
+                FROM library_bindings
+                """
+            )
+            conn.execute("DROP TABLE library_bindings")
+            conn.execute("ALTER TABLE library_bindings__sw RENAME TO library_bindings")
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_library_bindings_connection
+                    ON library_bindings(connection_id)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_library_bindings_domain
+                    ON library_bindings(domain, media_target)
+                """
+            )
+        elif kinds_table and not need_kinds:
+            conn.execute(
+                "UPDATE library_connection_kinds SET kind = 'software' WHERE kind = 'packages'"
             )
     finally:
         conn.execute("PRAGMA foreign_keys = ON")

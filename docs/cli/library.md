@@ -52,7 +52,7 @@ Local Controller cache inventory (`hatchery scripts list` / `media list`) is **n
 | `--id` | no | Stable id string. Omit to auto-generate (same as UI). Pass to upsert or restore a known id for re-linking bindings |
 | `--type` | yes | `path` · `https` · `api` · `forge` (classic `git` removed - ADR-0020) |
 | `--base-uri` | yes | Absolute filesystem path (`path`) or HTTPS URL (`https` / `api` / `forge`) |
-| `--kinds` | yes | Comma-separated from `scripts`, `clutches`, `media`, `packages`, `answerfiles` |
+| `--kinds` | yes | Comma-separated from `scripts`, `clutches`, `media`, `answerfiles`, `software` |
 | `--label` | no | Display name. Defaults to `--id` when provided; otherwise a placeholder until upsert returns the generated id |
 | `--provider` | for `api` / `forge` | Adapter id: forge `github`; api `artifactory` (omit for `path` / `https`) |
 | `--token` | no | Auth token for `api` / `forge` (stored in SQLite; prefer env/secret workflows later) |
@@ -98,7 +98,7 @@ uv run hatchery library connection test local-share
 |---|---|---|
 | `--id` | no | Stable binding id. Omit to auto-generate; pass to upsert/restore |
 | `--connection-id` | yes | Existing connection id |
-| `--domain` | yes | `scripts` · `clutches` · `media` · `answerfiles` |
+| `--domain` | yes | `scripts` · `clutches` · `media` · `answerfiles` · `software` |
 | `--filter` | yes | Glob relative to the connection (e.g. `*.ps1`, `clutches/*.yaml`, `*`) |
 | `--label` | no | Display name (defaults to `--filter`) |
 | `--target` | media only | `iso` · `virtio` (default `iso`) |
@@ -124,7 +124,7 @@ Same shared Library lib as the UI (`catalog_*`, `pull_*`, `library_provenance.de
 
 | Flag | Commands | Required | Accepted values |
 |---|---|---|---|
-| `--domain` | list, pull, remove | yes | `scripts` · `clutches` · `media` · `answerfiles` |
+| `--domain` | list, pull, remove | yes | `scripts` · `clutches` · `media` · `answerfiles` · `software` |
 | `--connection` | list (optional), pull (required) | pull | Connection id |
 | `--path` | pull | yes | Relative path from catalog (`relative_path`, e.g. `scripts/windows/foo.ps1`) |
 | `--name` | remove | yes | Cached basename in the operator cache (e.g. `foo.ps1`), not the forge relative path |

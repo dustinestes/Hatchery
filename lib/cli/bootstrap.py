@@ -54,6 +54,7 @@ def init_controller_runtime(*, create: bool = True) -> None:
         db_module.init_db(root / "hatchery.db")
         cfg.bind_db()
         library_registry_lib.ensure_hatchery_library()
+        library_registry_lib.ensure_software_library_defaults()
         return
 
     if not root.is_dir():
@@ -67,6 +68,7 @@ def init_controller_runtime(*, create: bool = True) -> None:
         db_module.init_db(db_path)
         cfg.bind_db()
         library_registry_lib.ensure_hatchery_library()
+        library_registry_lib.ensure_software_library_defaults()
 
 
 def bootstrap(args: argparse.Namespace, *, create: bool = True) -> None:

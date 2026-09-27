@@ -222,6 +222,7 @@ def library_summary() -> dict[str, Any]:
             "clutches": int(linked.get("clutches") or 0),
             "media": int(linked.get("media") or 0),
             "answerfiles": int(linked.get("answerfiles") or 0),
+            "software": int(linked.get("software") or 0),
         },
         "by_drift": {
             "in_sync": int(by_drift.get("in_sync") or 0),

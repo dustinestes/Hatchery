@@ -236,7 +236,7 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
         "scripts",
         "clutches",
         "media",
-        "packages",
+        "software",
         "answerfiles",
     }
 
@@ -244,12 +244,16 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     clutches = registry.list_bindings(domain="clutches")
     media = registry.list_bindings(domain="media")
     answerfiles = registry.list_bindings(domain="answerfiles")
+    software = registry.list_bindings(domain="software")
     assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*")]
     assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
     assert [(b["id"], b["label"], b["filter"]) for b in answerfiles] == [
         ("hatchery-library-answerfiles", "All Answer Files", "*answerfiles/*")
+    ]
+    assert [(b["id"], b["label"], b["filter"]) for b in software] == [
+        ("hatchery-library-software", "All Software", "*software/*")
     ]
 
     # Second call is a no-op once any connection exists.

@@ -129,9 +129,9 @@
                   'media': 'Media',
                   'scripts': 'Scripts',
                   'answerfiles': 'Answer Files',
-                  'packages': 'Packages'
+                  'software': 'Software'
                 } %}
-                {% for kind in ['clutches', 'media', 'scripts', 'answerfiles', 'packages'] %}
+                {% for kind in ['clutches', 'media', 'scripts', 'answerfiles', 'software'] %}
                 <label class="form-radio">
                   <input type="checkbox" class="library-kind-check" value="{{ kind }}"
                          {% if kind in (conn.kinds or []) %}checked{% endif %}>
@@ -525,6 +525,96 @@
     </p>
   </section>
 
+<section class="form-section library-domain-section" id="library-domain-software">
+    <h2 class="form-section-title">Software</h2>
+    <p class="form-help-text">
+      Bindings pick a software-capable connection and a path/filter (glob for path/forge).
+      Catalog units are package directories with <code>software.yaml</code>.
+      Pull lands in <code>automation/software/{Publisher.Product.Version}/</code> under the data directory.
+    </p>
+    <div class="section-header">
+      <span class="form-label" id="library-software-bind-label">Software bindings</span>
+      <button type="button" id="add-library-software-bind-btn" class="btn btn-secondary btn-sm"
+              aria-label="Add software binding">+ Add binding</button>
+    </div>
+    <div id="library-software-bind-rows" class="library-bind-rows" role="group"
+         aria-labelledby="library-software-bind-label">
+      {% for bind in (cfg.get('library_software_bindings') or []) %}
+      {% set bind_on = bind.get('enabled', True) %}
+      {% set bind_conn = (cfg.get('library_connections') or []) | selectattr('id', 'equalto', bind.connection_id) | list %}
+      {% set parent_on = (bind_conn[0].get('enabled', True) if bind_conn else True) %}
+      <div class="library-bind-row{% if not bind_on %} library-bind-row--disabled{% endif %}{% if not parent_on %} library-bind-row--cascaded-off{% endif %}">
+        <input type="hidden" name="library_software_bind_id" value="{{ bind.id }}">
+        <input type="hidden" name="library_software_bind_enabled" class="library-bind-enabled-value"
+               value="{{ '1' if bind_on else '0' }}">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="false"
+                  aria-label="Expand software binding">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="library-conn-summary library-bind-summary">Software binding</span>
+          </button>
+          <button type="button" class="btn-icon library-software-bind-remove" title="Remove binding"
+                  aria-label="Remove software binding">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          <label class="form-toggle library-row-enabled-toggle">
+            <input type="checkbox" class="library-bind-enabled-check"
+                   {% if bind_on %}checked{% endif %}
+                   aria-label="Enable software binding">
+          </label>
+        </div>
+        <p class="library-bind-cascade-note" hidden role="status"></p>
+        <div class="library-conn-row-body library-bind-row-body" hidden>
+          <div class="library-conn-row-fields">
+            <div class="form-group">
+              <label class="form-label">Connection</label>
+              <select name="library_software_bind_connection_id"
+                      class="form-select library-software-bind-conn-select" required>
+                <option value="">Choose a connection</option>
+                {% for conn in (cfg.get('library_connections') or []) if 'software' in (conn.kinds or []) %}
+                <option value="{{ conn.id }}" {% if conn.id == bind.connection_id %}selected{% endif %}>
+                  {{ conn.label }}{% if not conn.get('enabled', True) %} (off){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Label</label>
+              <input type="text" name="library_software_bind_label" class="form-input library-bind-label-input"
+                     value="{{ bind.label or bind.filter or '*' }}" placeholder="Friendly name (defaults to filter)"
+                     aria-label="Software binding label">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Filter</label>
+              <input type="text" name="library_software_bind_filter" class="form-input library-bind-filter-input"
+                     value="{{ bind.filter or '*' }}" placeholder="*software/* or software/**">
+            </div>
+          </div>
+          <div class="library-bind-row-actions">
+            <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-primary btn-sm library-software-test-filter-btn">Test</button>
+            <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                    aria-disabled="true" title="No unsaved changes">Save</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="empty-state" id="library-software-bind-rows-empty"
+       {% if cfg.get('library_software_bindings') %}hidden{% endif %}>
+      No Software bindings for this connection yet.
+    </p>
+  </section>
+
     </div>
   </div>
 </div>
@@ -627,8 +717,8 @@
               <span class="form-radio-label">Answer Files</span>
             </label>
             <label class="form-radio">
-              <input type="checkbox" class="library-kind-check" value="packages">
-              <span class="form-radio-label">Packages</span>
+              <input type="checkbox" class="library-kind-check" value="software">
+              <span class="form-radio-label">Software</span>
             </label>
           </div>
         </div>
@@ -760,6 +850,66 @@
     </div>
   </div>
 </template>
+
+<template id="library-software-bind-row-template">
+  <div class="library-bind-row">
+    <input type="hidden" name="library_software_bind_id" value="">
+    <input type="hidden" name="library_software_bind_enabled" class="library-bind-enabled-value" value="1">
+    <div class="library-conn-row-header">
+      <button type="button" class="library-conn-toggle library-bind-toggle" aria-expanded="true"
+              aria-label="Collapse software binding">
+        <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="library-conn-summary library-bind-summary">New software binding</span>
+      </button>
+      <button type="button" class="btn-icon library-software-bind-remove" title="Remove binding"
+              aria-label="Remove software binding">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <label class="form-toggle library-row-enabled-toggle">
+        <input type="checkbox" class="library-bind-enabled-check" checked
+               aria-label="Enable software binding">
+      </label>
+    </div>
+    <p class="library-bind-cascade-note" hidden role="status"></p>
+    <div class="library-conn-row-body library-bind-row-body">
+      <div class="library-conn-row-fields">
+        <div class="form-group">
+          <label class="form-label">Connection</label>
+          <select name="library_software_bind_connection_id" class="form-select library-software-bind-conn-select" required>
+            <option value="">Choose a connection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input type="text" name="library_software_bind_label" class="form-input library-bind-label-input"
+                 value="" placeholder="Friendly name (defaults to filter)"
+                 aria-label="Software binding label">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Filter</label>
+          <input type="text" name="library_software_bind_filter" class="form-input library-bind-filter-input"
+                 value="*software/*" placeholder="*software/* or software/**">
+        </div>
+      </div>
+      <div class="library-bind-row-actions">
+        <span class="library-test-result library-bind-test-result" role="status" aria-live="polite"></span>
+        <button type="button" class="btn btn-primary btn-sm library-software-test-filter-btn">Test</button>
+        <button type="button" class="btn btn-primary btn-sm library-save-bind-btn" disabled
+                aria-disabled="true" title="No unsaved changes">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
 
 <template id="library-clutch-bind-row-template">
   <div class="library-bind-row">
@@ -964,10 +1114,15 @@
   const answerfileEmpty = document.getElementById('library-answerfile-bind-rows-empty');
   const answerfileTpl = document.getElementById('library-answerfile-bind-row-template');
   const addAnswerfileBtn = document.getElementById('add-library-answerfile-bind-btn');
+  const softwareRows = document.getElementById('library-software-bind-rows');
+  const softwareEmpty = document.getElementById('library-software-bind-rows-empty');
+  const softwareTpl = document.getElementById('library-software-bind-row-template');
+  const addSoftwareBtn = document.getElementById('add-library-software-bind-btn');
   if (!connRows || !connTpl || !addConnBtn || !bindRows || !bindTpl || !addBindBtn) return;
   if (!clutchRows || !clutchTpl || !addClutchBtn) return;
   if (!mediaRows || !mediaTpl || !addMediaBtn) return;
   if (!answerfileRows || !answerfileTpl || !addAnswerfileBtn) return;
+  if (!softwareRows || !softwareTpl || !addSoftwareBtn) return;
 
 
   if (!window.CSS) window.CSS = {};
@@ -1064,6 +1219,7 @@
     filterContainer(clutchRows, clutchEmpty);
     filterContainer(mediaRows, mediaEmpty);
     filterContainer(answerfileRows, answerfileEmpty);
+    filterContainer(softwareRows, softwareEmpty);
   }
 
   var CONN_EXPANDED_KEY = 'hatchery.library.connExpanded.';
@@ -1305,7 +1461,8 @@
             '#library-script-bind-rows .library-bind-row, '
             + '#library-clutch-bind-rows .library-bind-row, '
             + '#library-media-bind-rows .library-bind-row, '
-            + '#library-answerfile-bind-rows .library-bind-row'
+            + '#library-answerfile-bind-rows .library-bind-row, '
+            + '#library-software-bind-rows .library-bind-row'
           ).forEach(function (bindRow) {
             var sel = bindRow.querySelector('select[name$="_connection_id"]');
             if (sel && sel.value === cid) bindRow.remove();
@@ -1325,6 +1482,7 @@
           syncClutchEmpty();
           syncMediaEmpty();
           syncAnswerfileEmpty();
+          syncSoftwareEmpty();
           refreshBindConnectionOptions();
           if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
             hatchery.refreshStatusSurfaces();
@@ -1410,6 +1568,10 @@
 
   function syncAnswerfileEmpty() {
     if (answerfileEmpty) answerfileEmpty.hidden = !selectedConnId || countVisibleBinds(answerfileRows) > 0;
+  }
+
+  function syncSoftwareEmpty() {
+    if (softwareEmpty) softwareEmpty.hidden = !selectedConnId || countVisibleBinds(softwareRows) > 0;
   }
 
   function syncKinds(row) {
@@ -1600,6 +1762,9 @@
     Array.prototype.forEach.call(answerfileRows.children, function (row) {
       updateCascadeForBind(row, 'answerfile binding');
     });
+    Array.prototype.forEach.call(softwareRows.children, function (row) {
+      updateCascadeForBind(row, 'software binding');
+    });
   }
 
   function setExpiryMin(row) {
@@ -1656,6 +1821,7 @@
     refreshBindSelects('.library-clutch-bind-conn-select', 'clutches');
     refreshBindSelects('.library-media-bind-conn-select', 'media');
     refreshBindSelects('.library-answerfile-bind-conn-select', 'answerfiles');
+    refreshBindSelects('.library-software-bind-conn-select', 'software');
     refreshAllCascades();
   }
 
@@ -2114,6 +2280,7 @@
         syncClutchEmpty();
         syncMediaEmpty();
         syncAnswerfileEmpty();
+        syncSoftwareEmpty();
       }
       refreshBindDirty(row, domain);
     });
@@ -2242,6 +2409,32 @@
     syncAnswerfileEmpty
   );
 
+  addSoftwareBtn.addEventListener('click', function () {
+    if (!selectedConnId) return;
+    const node = softwareTpl.content.cloneNode(true);
+    const row = node.querySelector('.library-bind-row');
+    row.dataset.persisted = '0';
+    row.querySelector('input[name="library_software_bind_id"]').value = newId();
+    softwareRows.appendChild(node);
+    const sel = preselectBindConnection(row, '.library-software-bind-conn-select');
+    syncSoftwareEmpty();
+    updateCascadeForBind(row, 'software binding');
+    refreshBindDirty(row, 'software');
+    filterBindingsForSelected();
+    syncSoftwareEmpty();
+    const focusEl = row.querySelector('.library-bind-label-input') || sel;
+    if (focusEl) focusEl.focus();
+  });
+
+  wireBindRowClick(
+    softwareRows,
+    '.library-software-bind-remove',
+    '.library-software-test-filter-btn',
+    'software',
+    'software binding',
+    syncSoftwareEmpty
+  );
+
   if (connNav) {
     connNav.addEventListener('click', function (e) {
       const btn = e.target.closest('.scripts-nav-item');
@@ -2301,6 +2494,9 @@
   Array.prototype.forEach.call(answerfileRows.children, function (row) {
     markBindClean(row, 'answerfiles');
   });
+  Array.prototype.forEach.call(softwareRows.children, function (row) {
+    markBindClean(row, 'software');
+  });
   refreshBindConnectionOptions();
   rebuildNav();
   syncConnEmpty();
@@ -2311,7 +2507,7 @@
   let initial = '';
   if (connParam && connRows.querySelector('input[name="library_conn_id"][value="' + connParam.replace(/"/g, '') + '"]')) {
     initial = connParam;
-  } else if (domainParam && ['scripts', 'clutches', 'media', 'answerfiles'].indexOf(domainParam) !== -1) {
+  } else if (domainParam && ['scripts', 'clutches', 'media', 'answerfiles', 'software'].indexOf(domainParam) !== -1) {
     initial = firstConnMatchingDomain(domainParam);
   }
   if (!initial && connRows.children.length) {
@@ -2319,7 +2515,8 @@
   }
   selectConnection(initial, {
     scrollDomain: (domainParam === 'scripts' || domainParam === 'clutches'
-      || domainParam === 'media' || domainParam === 'answerfiles')
+      || domainParam === 'media' || domainParam === 'answerfiles'
+      || domainParam === 'software')
       ? domainParam
       : '',
   });

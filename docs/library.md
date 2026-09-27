@@ -55,7 +55,7 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 ## Connections and Bindings
 
-**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, answerfiles, and **software** once [#199](https://github.com/dustinestes/Hatchery/issues/199) lands - migrating the reserved empty `packages` kind) so domain pickers only offer relevant connections.
+**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, answerfiles, **software**) so domain pickers only offer relevant connections.
 
 **Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern), and an optional operator **label** for display ([#359](https://github.com/dustinestes/Hatchery/issues/359)). When label is empty, Hatchery stores and shows the filter string. Multiple bindings per domain are allowed (several forge repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
 
@@ -84,7 +84,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 **Settings owns the Library feature flag** (`library_enabled` under General). Connection/binding **configuration** is stored in SQLite tables `library_connections`, `library_connection_kinds`, and `library_bindings` ([ADR-0017](adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)) and edited from **Library → Connections** ([ADR-0016](adr/0016-library-operator-plane.md), [#375](https://github.com/dustinestes/Hatchery/issues/375)).
 
-Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media|answerfiles`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
+Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media|answerfiles|software`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
 
 **Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db` and domain caches). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
@@ -137,7 +137,7 @@ Disabling a connection **cascades in the UI** (dependent bindings dim + note “
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
-Each connection declares **artifact types** (scripts, clutches, media, answerfiles, and **software** after the Library domain child under [#199](https://github.com/dustinestes/Hatchery/issues/199); `packages` migrates to `software`) so domain pickers only offer relevant connections.
+Each connection declares **artifact types** (scripts, clutches, media, answerfiles, software) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library → Content or Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled. `/library` redirects to `/library/content`.
 
@@ -170,18 +170,19 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
-**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO** (`filter: *`), and **All Answer Files** (`filter: *answerfiles/*` so the catalog stays under the Library repo’s `answerfiles/` tree). Existing Controllers with any connection are left unchanged.
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO** (`filter: *`), **All Answer Files** (`filter: *answerfiles/*`), and **All Software** (`filter: *software/*`). Existing Controllers with any connection are left unchanged (software kind + binding are still ensured when the Hatchery Library connection is present).
 
 | | |
 |---|---|
 | **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
 | **Provider** | `github` |
-| **Kinds** | scripts, clutches, media, packages (→ **software** under [#199](https://github.com/dustinestes/Hatchery/issues/199)), answerfiles |
+| **Kinds** | scripts, clutches, media, answerfiles, software |
 | **Scripts** | label `All Scripts` · filter `*` |
 | **Clutches** | label `All Clutches` · filter `*` |
 | **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
 | **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
 | **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` (repo tree under `answerfiles/`, including `.j2` templates and companions such as `.ps1`) |
+| **Software** | label `All Software` · filter `*software/*` (package dirs with `software.yaml`; pull copies the whole package tree) |
 
 Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 

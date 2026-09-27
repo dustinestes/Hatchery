@@ -8,7 +8,7 @@ from typing import Any
 
 from lib import db
 
-DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
+DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles", "software"})
 # Derived for one-release UI/API compat (ADR-0018). Prefer source_status + sync_state.
 DRIFT_STATES = frozenset({"in_sync", "out_of_sync", "unknown", "orphan"})
 SOURCE_STATUSES = frozenset(
@@ -656,6 +656,11 @@ def delete_attributed_cache_files(
             if path.is_file():
                 path.unlink()
                 deleted.append(name)
+            elif path.is_dir() and domain == "software":
+                import shutil
+
+                shutil.rmtree(path)
+                deleted.append(name)
         except OSError:
             pass
         delete_row(domain, name, media_target=target or None)
@@ -716,6 +721,7 @@ _DOMAIN_LABELS = {
     "clutches": "Clutches",
     "media": "Media",
     "answerfiles": "Answer Files",
+    "software": "Software",
 }
 
 

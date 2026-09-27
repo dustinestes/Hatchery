@@ -14,7 +14,7 @@ from typing import Any
 from lib import db as db_module
 from lib.library import CONNECTION_KINDS, CONNECTION_TYPES, MEDIA_TARGETS
 
-DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
+DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles", "software"})
 
 
 def _now() -> str:
@@ -562,7 +562,7 @@ def ensure_hatchery_library() -> bool:
             "base_uri": HATCHERY_LIBRARY_BASE_URI,
             "token": "",
             "expires_at": None,
-            "kinds": ["scripts", "clutches", "media", "packages", "answerfiles"],
+            "kinds": ["scripts", "clutches", "media", "software", "answerfiles"],
             "enabled": True,
         }
     )
@@ -610,6 +610,14 @@ def ensure_hatchery_library() -> bool:
             "filter": "*answerfiles/*",
             "enabled": True,
         },
+        {
+            "id": "hatchery-library-software",
+            "connection_id": cid,
+            "domain": "software",
+            "label": "All Software",
+            "filter": "*software/*",
+            "enabled": True,
+        },
     ):
         upsert_binding(item)
 
@@ -617,3 +625,38 @@ def ensure_hatchery_library() -> bool:
 
     config_lib.update_settings({"library_enabled": True})
     return True
+
+
+def ensure_software_library_defaults() -> bool:
+    """Ensure Hatchery Library has ``software`` kind + All Software binding (#470).
+
+    Safe for Controllers that already seeded before the software domain existed.
+    Returns True if anything was added.
+    """
+    if not db_module.is_initialized():
+        return False
+    conn = get_connection(HATCHERY_LIBRARY_CONNECTION_ID)
+    if conn is None:
+        return False
+    changed = False
+    kinds = list(conn.get("kinds") or [])
+    if "software" not in kinds:
+        # Drop legacy packages slot if present (migration should have remapped).
+        kinds = [k for k in kinds if k != "packages"]
+        kinds.append("software")
+        upsert_connection({**conn, "kinds": kinds})
+        changed = True
+    existing_ids = {b["id"] for b in list_bindings(domain="software")}
+    if "hatchery-library-software" not in existing_ids:
+        upsert_binding(
+            {
+                "id": "hatchery-library-software",
+                "connection_id": HATCHERY_LIBRARY_CONNECTION_ID,
+                "domain": "software",
+                "label": "All Software",
+                "filter": "*software/*",
+                "enabled": True,
+            }
+        )
+        changed = True
+    return changed

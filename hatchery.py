@@ -144,6 +144,7 @@ if config.nest_local_enabled():
     nests_lib.ensure_local_nest()
 nests_lib.migrate_legacy_ssh_identities()
 library_registry_lib.ensure_hatchery_library()
+library_registry_lib.ensure_software_library_defaults()
 
 register_builtins()
 migrate_bg_interval()
@@ -585,15 +586,19 @@ def automation_answerfiles():
 
 @app.route("/automation/software")
 def automation_software():
-    """Automations → Software inventory (#469). Library domain lands in #470."""
+    """Automations → Software inventory (#469 / #470)."""
     return render_template(
         "automation_software.html",
         active_pane="automation_software",
         packages=software_lib.scan_inventory(),
         used_by={},
-        library_enabled=False,
-        library_connections=[],
-        library_bindings=[],
+        library_enabled=config.library_enabled(),
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
+        library_bindings=_library_reattach_bindings("software"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
@@ -759,6 +764,7 @@ def _library_bindings_by_id() -> dict[str, dict]:
         (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
         (library_lib.parse_media_bindings, config.library_media_bindings),
         (library_lib.parse_answerfile_bindings, config.library_answerfile_bindings),
+        (library_lib.parse_software_bindings, config.library_software_bindings),
     ):
         try:
             binds = parse_fn(getter() or [], connections)
@@ -816,6 +822,7 @@ def library_content_pane():
         library_clutch_bindings=_library_reattach_bindings("clutches"),
         library_media_bindings=_library_reattach_bindings("media"),
         library_answerfile_bindings=_library_reattach_bindings("answerfiles"),
+        library_software_bindings=_library_reattach_bindings("software"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
         library_content_remove_url=url_for("api_library_content_remove"),
@@ -844,6 +851,7 @@ def library_connections_pane():
         "library_clutch_bindings": config.library_clutch_bindings(),
         "library_media_bindings": config.library_media_bindings(),
         "library_answerfile_bindings": config.library_answerfile_bindings(),
+        "library_software_bindings": config.library_software_bindings(),
     }
     return render_template(
         "library_connections.html",
@@ -1132,6 +1140,10 @@ def _library_reattach_bindings(domain: str, *, media_target: str | None = None) 
             binds = library_lib.parse_answerfile_bindings(
                 config.library_answerfile_bindings(), connections
             )
+        elif key == "software":
+            binds = library_lib.parse_software_bindings(
+                config.library_software_bindings(), connections
+            )
         elif key == "clutches":
             binds = library_lib.parse_clutch_bindings(config.library_clutch_bindings(), connections)
         elif key == "media":
@@ -1291,10 +1303,11 @@ _BINDING_PARSE = {
     "clutches": library_lib.parse_clutch_bindings,
     "media": library_lib.parse_media_bindings,
     "answerfiles": library_lib.parse_answerfile_bindings,
+    "software": library_lib.parse_software_bindings,
 }
 
-_LIBRARY_DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
-_LIBRARY_DOMAIN_ERROR = "domain must be scripts, clutches, media, or answerfiles"
+_LIBRARY_DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles", "software"})
+_LIBRARY_DOMAIN_ERROR = "domain must be scripts, clutches, media, answerfiles, or software"
 
 
 @app.route("/api/library/connections/<conn_id>", methods=["DELETE"])
@@ -1493,6 +1506,51 @@ def api_library_answerfiles_pull():
         binding_id = str(data.get("binding_id") or "").strip() or None
         overwrite = bool(data.get("overwrite") or data.get("sync"))
         result = library_lib.pull_answerfile(
+            conn, relative_path, binding_id=binding_id, overwrite=overwrite
+        )
+    except FileExistsError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
+
+
+@app.route("/api/library/software")
+def api_library_software():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    raw_connections = config.library_connections()
+    raw_bindings = config.library_software_bindings()
+    try:
+        connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+        bindings = library_lib.parse_software_bindings(raw_bindings, connections)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    items = library_lib.catalog_software(connections, bindings)
+    cached_names = {s["name"] for s in software_lib.scan_inventory()}
+    items = library_lib.annotate_cached(items, cached_names)
+    return jsonify({"items": items})
+
+
+@app.route("/api/library/software/pull", methods=["POST"])
+def api_library_software_pull():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data)
+        relative_path = str(data.get("relative_path") or "").strip()
+        if not relative_path:
+            raise ValueError("relative_path is required")
+        binding_id = str(data.get("binding_id") or "").strip() or None
+        overwrite = bool(data.get("overwrite") or data.get("sync"))
+        result = library_lib.pull_software(
             conn, relative_path, binding_id=binding_id, overwrite=overwrite
         )
     except FileExistsError as exc:
@@ -1801,11 +1859,13 @@ def api_library_content_catalog():
             clutch_bindings=config.library_clutch_bindings(),
             media_bindings=config.library_media_bindings(),
             answerfile_bindings=config.library_answerfile_bindings(),
+            software_bindings=config.library_software_bindings(),
             script_cached_names={s["name"] for s in _scan_script_inventory()},
             clutch_cached_names={c["name"] for c in _scan_clutch_inventory()},
             media_cached_names={i["name"] for i in media_inspect_lib.scan_media_dir("iso")}
             | {i["name"] for i in media_inspect_lib.scan_media_dir("virtio")},
             answerfile_cached_names={a["name"] for a in _scan_answerfile_inventory()},
+            software_cached_names={s["name"] for s in software_lib.scan_inventory()},
             domain=domain,
         )
     except ValueError as exc:

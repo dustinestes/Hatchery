@@ -1435,6 +1435,7 @@ hatchery.bindUnsavedLeave = function (opts) {
       if (domain === 'clutches') return 'Clutches';
       if (domain === 'media') return 'Media';
       if (domain === 'answerfiles') return 'Answer Files';
+      if (domain === 'software') return 'Software';
       return domain || '';
     }
 

@@ -476,6 +476,7 @@ class TestCountsByDomain:
             "clutches": 0,
             "media": 0,
             "scripts": 0,
+            "software": 0,
         }
 
     def test_groups_domains(self, data_env):
@@ -511,6 +512,7 @@ class TestCountsByDomain:
             "clutches": 0,
             "media": 2,
             "scripts": 2,
+            "software": 0,
         }
         assert prov.counts_by_drift_state()["in_sync"] == 4
         assert prov.counts_by_drift_state()["out_of_sync"] == 0

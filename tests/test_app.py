@@ -646,6 +646,7 @@ class TestDashboardSummaryApi:
                         "clutches": 1,
                         "media": 0,
                         "answerfiles": 0,
+                        "software": 0,
                     },
                     "by_drift": {
                         "in_sync": 2,
