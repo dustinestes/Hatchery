@@ -1901,6 +1901,14 @@ class TestBuildRoute:
     def test_build_get_returns_200(self, client):
         assert client.get("/build").status_code == 200
 
+    def test_build_get_windows_hatch_fields_marked(self, client):
+        html = client.get("/build").data.decode()
+        assert 'class="vm-windows-hatch-fields"' in html
+        assert 'data-windows-hatch-os="' in html
+        assert "win11" in html
+        assert 'name="vm_admin_username[]"' in html
+        assert 'name="vm_answer_file[]"' in html
+
     def test_build_get_contains_build_form(self, client):
         html = client.get("/build").data.decode()
         assert "build-form" in html

@@ -2284,6 +2284,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
 
 def _vm_list_from_form(form):
     """Parse and validate a list of VMConfig objects from array-notation form fields."""
+    from lib import answerfile as answerfile_lib
 
     names = form.getlist("vm_name[]")
     oses = form.getlist("vm_os[]")
@@ -2308,20 +2309,27 @@ def _vm_list_from_form(form):
         auto_raw = automations_list[i] if i < len(automations_list) else ""
         automations = _parse_automations(auto_raw)
         afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
+        os_val = oses[i] if i < len(oses) else ""
+        answer_file = (answer_file_list[i] or None) if i < len(answer_file_list) else None
+        admin_username = (admin_username_list[i] or None) if i < len(admin_username_list) else None
+        answer_file_parameters = _parse_answer_file_parameters(afp_raw)
+        # Non-Windows guests: strip Windows hatch fields even if the form posted them.
+        if not answerfile_lib.needs_windows_hatch_fields(os_val):
+            answer_file = None
+            admin_username = None
+            answer_file_parameters = {}
         vms.append(
             VMConfig(
                 name=name.strip(),
-                os=oses[i] if i < len(oses) else "",
+                os=os_val,
                 vcpus=int(vcpus_list[i] or 1) if i < len(vcpus_list) else 1,
                 ram_gb=int(ram_list[i] or 1) if i < len(ram_list) else 1,
                 disk_gb=int(disk_list[i] or 20) if i < len(disk_list) else 20,
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
-                answer_file=(answer_file_list[i] or None) if i < len(answer_file_list) else None,
-                answer_file_parameters=_parse_answer_file_parameters(afp_raw),
-                admin_username=(admin_username_list[i] or None)
-                if i < len(admin_username_list)
-                else None,
+                answer_file=answer_file,
+                answer_file_parameters=answer_file_parameters,
+                admin_username=admin_username,
                 automations=automations,
                 depends_on=depends_on,
             )
@@ -2330,9 +2338,12 @@ def _vm_list_from_form(form):
 
 
 def _build_template_ctx(*, page_title: str | None = None):
+    from lib import answerfile as answerfile_lib
+
     ctx = dict(
         active_pane="clutches",
         os_types=[e.value for e in GuestOS],
+        windows_hatch_os_types=list(answerfile_lib.windows_hatch_os_values()),
         media_files=_scan_dir("media/iso"),
         virtio_files=_scan_dir("media/virtio"),
         answer_file_files=_scan_dir("automation/answerfiles", extensions=[".j2"]),
