@@ -50,7 +50,7 @@
               data-name="{{ s.name }}"
               data-relative-path="{{ s.relative_path }}"
               data-absolute-path="{{ s.absolute_path }}"
-              data-extension="{{ s.extension }}"
+              data-language="{{ s.language }}"
               data-modified-at="{{ s.modified_at }}"
               data-drift-state="{{ s.drift_state or 'local' }}"
               data-source-status="{{ s.source_status or '' }}"
@@ -64,7 +64,7 @@
               aria-pressed="false">
         <span class="scripts-nav-main">
           <span class="scripts-nav-label">{{ s.name }}</span>
-          <span class="scripts-nav-sub">{{ s.extension }}{% if s.library_cue_short %} · {{ s.library_cue_short }}{% endif %}</span>
+          <span class="scripts-nav-sub">{{ s.language }}{% if s.library_cue_short %} · {{ s.library_cue_short }}{% endif %}</span>
         </span>
         <span class="scripts-nav-drift-icon library-status-cue-icon library-status-cue-icon--warn"
               data-library-cue-icon="warn"
@@ -191,8 +191,8 @@
           <dd id="answerfiles-meta-path"></dd>
         </div>
         <div class="scripts-meta-row">
-          <dt>Extension</dt>
-          <dd id="answerfiles-meta-extension"></dd>
+          <dt>Language</dt>
+          <dd id="answerfiles-meta-language"></dd>
         </div>
         <div class="scripts-meta-row">
           <dt>Modified</dt>
@@ -264,7 +264,7 @@
   const detail = document.getElementById('answerfiles-detail');
   const stub = document.getElementById('answerfiles-stub');
   const pathEl = document.getElementById('answerfiles-meta-path');
-  const extEl = document.getElementById('answerfiles-meta-extension');
+  const languageEl = document.getElementById('answerfiles-meta-language');
   const modifiedEl = document.getElementById('answerfiles-meta-modified');
   const usedByList = document.getElementById('answerfiles-used-by-list');
   const usedByEmpty = document.getElementById('answerfiles-used-by-empty');
@@ -476,7 +476,7 @@
   function applyDriftChrome(btn, item) {
     if (!btn || !item || !libStatus) return;
     var cue = libStatus.resolveFromItem(item);
-    var ext = item.extension || btn.getAttribute('data-extension') || '';
+    var lang = item.language || btn.getAttribute('data-language') || '';
     btn.setAttribute('data-drift-state', item.drift_state || 'local');
     btn.setAttribute('data-source-status', item.source_status || '');
     btn.setAttribute('data-sync-state', item.sync_state || '');
@@ -491,7 +491,7 @@
     var sub = btn.querySelector('.scripts-nav-sub');
     if (sub) {
       var suffix = cue.short ? (' · ' + cue.short) : '';
-      sub.textContent = languageLabel(ext) + suffix;
+      sub.textContent = languageLabel(lang) + suffix;
     }
     var warnIcon = btn.querySelector('[data-library-cue-icon="warn"]');
     var okIcon = btn.querySelector('[data-library-cue-icon="ok"]');
@@ -621,7 +621,7 @@
     const name = btn.getAttribute('data-name');
     const rel = btn.getAttribute('data-relative-path') || '';
     const abs = btn.getAttribute('data-absolute-path') || '';
-    const extension = btn.getAttribute('data-extension') || '';
+    const language = btn.getAttribute('data-language') || '';
     const modified = btn.getAttribute('data-modified-at') || '';
 
     nav.querySelectorAll('.scripts-nav-item').forEach(function (el) {
@@ -644,9 +644,9 @@
     setLibraryStatus(btn);
 
     titleEl.textContent = name;
-    metaEl.textContent = extension;
+    metaEl.textContent = language;
     pathEl.textContent = rel;
-    extEl.textContent = extension;
+    languageEl.textContent = language;
     modifiedEl.textContent = formatModified(modified);
     renderUsedBy(name);
     bodyEl.textContent = 'Loading…';

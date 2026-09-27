@@ -4202,13 +4202,15 @@ class TestAutomationAnswerfilesPane:
         html = client.get("/automation/answerfiles").data.decode()
         assert "win11.xml" in html
         assert "cloud-init.yml" in html
-        assert ".xml" in html
-        assert ".yml" in html
+        assert "XML" in html
+        assert "YAML" in html
         assert "automation/answerfiles/win11.xml" in html
         assert "scripts-layout" in html
         assert 'aria-label="Filter answer files"' in html
         assert 'id="answerfiles-filter-q"' in html
         assert "answerfiles-filter-language" not in html
+        assert 'id="answerfiles-meta-language"' in html
+        assert ">Language</dt>" in html or "<dt>Language</dt>" in html
         assert 'id="answerfiles-filter-state"' in html
         assert "answerfiles-nav-filtered-empty" in html
         assert 'aria-label="Copy"' in html

@@ -235,6 +235,16 @@ _SCRIPT_LANGUAGES = {
     ".cmd": "Batch",
 }
 
+_ANSWERFILE_LANGUAGES = {
+    **_SCRIPT_LANGUAGES,
+    ".xml": "XML",
+    ".j2": "Jinja",
+    ".yml": "YAML",
+    ".yaml": "YAML",
+    ".cfg": "Config",
+    ".txt": "Text",
+}
+
 _SCRIPT_CONTENT_MAX_BYTES = 1_048_576  # 1 MiB
 
 
@@ -399,11 +409,14 @@ def _script_used_by() -> dict[str, list[dict]]:
     return usage
 
 
-def _answerfile_extension(name: str) -> str:
+def _answerfile_language(name: str) -> str:
+    """Human language/format label for Answer File rail + detail (match Scripts)."""
     from pathlib import Path
 
     ext = Path(name).suffix.lower()
-    return ext if ext else "(none)"
+    if not ext:
+        return "Unknown"
+    return _ANSWERFILE_LANGUAGES.get(ext, ext.lstrip(".").upper() or "Unknown")
 
 
 def _resolve_answerfile_path(name: str):
@@ -444,7 +457,7 @@ def _scan_answerfile_inventory() -> list[dict]:
                 "name": f.name,
                 "relative_path": f"{subdir}/{f.name}",
                 "absolute_path": str(f.resolve()),
-                "extension": _answerfile_extension(f.name),
+                "language": _answerfile_language(f.name),
                 "modified_at": modified,
             }
         )
