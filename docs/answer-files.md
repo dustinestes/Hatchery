@@ -86,11 +86,20 @@ Admin username / password remain first-class VM fields when the selected Guest O
 
 ### User-declared parameters
 
-Declared in YAML frontmatter under `hatchery.parameters` (exact schema lands with the params implementation). Shown on the Clutch builder like script parameters. Example: locales (`input_locale`, `system_locale`, `ui_language`, `user_locale`).
+Declared in YAML frontmatter under `hatchery.parameters`. Shown on the Clutch builder like script parameters. Example: locales (`input_locale`, `system_locale`, `ui_language`, `user_locale`).
+
+Each entry supports:
+
+| Key | Meaning |
+|---|---|
+| `name` | Required. Jinja token name. Reserved system tokens are skipped. |
+| `label` | Optional display label (and help tooltip). Falls back to `name` in the UI. |
+| `default` | Optional default shown as placeholder; may be prefilled by the operator. |
+| `mandatory` | Optional. Default `false`. When true and no default, the field is required. |
 
 Substitution uses Jinja: `{{ input_locale }}` in the template body.
 
-Illustrative frontmatter:
+Frontmatter:
 
 ```yaml
 ---
@@ -126,7 +135,7 @@ hatchery:
 | Field | Meaning |
 |---|---|
 | `answer_file` | Filename under `automation/answerfiles/` ending in `.j2` (Jinja template). Companions (e.g. `hatchery-setup.ps1`) are not listed in the Clutch picker. Legacy Clutch key `os_config` is still accepted on load. |
-| `answer_file_parameters` | Map of user-declared param values for that file (follow-on) |
+| `answer_file_parameters` | Map of user-declared param values for that file (from frontmatter `hatchery.parameters`) |
 | `admin_username` / hatch password | Feed system tokens when the Guest OS needs them |
 
 When Answer Files are required for a guest type, missing `answer_file` or a missing required declared param fails before VM create, with a clear UI/CLI error. Admin credentials no longer select a hidden Controller template.

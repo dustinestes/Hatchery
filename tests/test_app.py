@@ -3175,6 +3175,7 @@ class TestAPIClutchDetail:
         assert "disk_gb" in vm
         assert "virtio_drivers" in vm
         assert "answer_file" in vm
+        assert "answer_file_parameters" in vm
         assert "admin_username" in vm
         assert vm["os_media"] == "win11.iso"
 
@@ -4128,6 +4129,52 @@ class TestAPIRoutes:
         with patch("shutil.which", return_value="/usr/bin/pwsh"):
             resp = client.get("/api/automation/scripts/../secret.ps1/params")
         assert resp.status_code == 404
+
+    def test_api_answerfile_params_returns_declared(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml.j2").write_text(
+            "---\nhatchery:\n  parameters:\n"
+            "    - name: input_locale\n      label: Input locale\n      default: en-US\n"
+            "    - name: vm_name\n      label: Reserved\n"
+            "---\n{{ input_locale }}\n"
+        )
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/win11.xml.j2/params")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["name"] == "input_locale"
+        assert data[0]["label"] == "Input locale"
+        assert data[0]["type"] == "String"
+
+    def test_api_answerfile_params_empty_without_frontmatter(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "plain.xml.j2").write_text("<unattend>{{ vm_name }}</unattend>\n")
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/plain.xml.j2/params")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_api_answerfile_params_404_when_missing(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/missing.xml.j2/params")
+        assert resp.status_code == 404
+
+    def test_build_saves_answer_file_parameters(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir(parents=True)
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_answer_file[]": "win11.xml.j2",
+            "vm_answer_file_parameters[]": '{"input_locale": "en-GB"}',
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
+        assert saved.vms[0].answer_file_parameters == {"input_locale": "en-GB"}
 
     def test_api_clutches_returns_json(self, client):
         resp = client.get("/api/clutches")

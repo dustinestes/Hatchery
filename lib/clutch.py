@@ -48,6 +48,7 @@ class VMConfig(BaseModel):
         default=None,
         validation_alias=AliasChoices("answer_file", "os_config"),
     )
+    answer_file_parameters: dict[str, str] = {}
     admin_username: str | None = None
     automations: list[AutomationScript] = []
     parallel: bool = False
@@ -258,6 +259,9 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
                         entry["parameters"] = s["parameters"]
                     compacted.append(entry)
             vm["automations"] = compacted
+        # Omit empty answer_file_parameters (same compactness as empty script params)
+        if not vm.get("answer_file_parameters"):
+            vm.pop("answer_file_parameters", None)
         # Omit parallel when False (default)
         if not vm.get("parallel"):
             vm.pop("parallel", None)

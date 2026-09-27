@@ -164,3 +164,106 @@ class TestRenderSetupScript:
 
     def test_script_name_constant(self):
         assert answerfile.SETUP_SCRIPT_NAME == "hatchery-setup.ps1"
+
+
+_SAMPLE_FRONTMATTER = """\
+---
+hatchery:
+  kind: windows_unattend
+  guest_os: [win11]
+  companions:
+    - hatchery-setup.ps1
+  parameters:
+    - name: input_locale
+      label: Input locale
+      default: en-US
+    - name: vm_name
+      label: Should be skipped
+    - name: admin_username
+    - name: admin_password
+    - name: system_locale
+      label: System locale
+      default: en-US
+      mandatory: true
+    - label: Missing name skipped
+      default: x
+---
+<body>{{ input_locale }}</body>
+"""
+
+
+class TestParseFrontmatter:
+    def test_parses_hatchery_block(self):
+        hatchery, body = answerfile.parse_frontmatter(_SAMPLE_FRONTMATTER)
+        assert hatchery is not None
+        assert hatchery["kind"] == "windows_unattend"
+        assert "companions" in hatchery
+        assert body.startswith("<body>")
+
+    def test_no_frontmatter_returns_none(self):
+        text = "<unattend>{{ vm_name }}</unattend>"
+        hatchery, body = answerfile.parse_frontmatter(text)
+        assert hatchery is None
+        assert body == text
+
+    def test_malformed_yaml_returns_none(self):
+        text = "---\nhatchery: [\nbad\n---\nbody\n"
+        hatchery, body = answerfile.parse_frontmatter(text)
+        assert hatchery is None
+        assert body == text
+
+    def test_missing_closing_delimiter_returns_none(self):
+        text = "---\nhatchery:\n  kind: windows_unattend\nbody without close\n"
+        hatchery, body = answerfile.parse_frontmatter(text)
+        assert hatchery is None
+        assert body == text
+
+    def test_missing_hatchery_key_returns_none(self):
+        text = "---\nother: true\n---\nbody\n"
+        hatchery, body = answerfile.parse_frontmatter(text)
+        assert hatchery is None
+        assert body == text
+
+
+class TestDeclaredParameters:
+    def test_returns_user_params(self):
+        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        names = [p["name"] for p in params]
+        assert names == ["input_locale", "system_locale"]
+
+    def test_filters_reserved_system_tokens(self):
+        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        names = {p["name"] for p in params}
+        assert names.isdisjoint(answerfile.RESERVED_SYSTEM_TOKENS)
+
+    def test_shape_matches_script_params(self):
+        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        p = params[0]
+        assert p["name"] == "input_locale"
+        assert p["type"] == "String"
+        assert p["mandatory"] is False
+        assert p["default"] == "en-US"
+        assert p["help"] == "Input locale"
+        assert p["label"] == "Input locale"
+
+    def test_mandatory_true_when_set(self):
+        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        by_name = {p["name"]: p for p in params}
+        assert by_name["system_locale"]["mandatory"] is True
+
+    def test_no_frontmatter_returns_empty(self):
+        assert answerfile.declared_parameters("<unattend/>") == []
+
+    def test_malformed_returns_empty(self):
+        assert answerfile.declared_parameters("---\nhatchery: [\nbad\n---\nx\n") == []
+
+    def test_accepts_path(self, tmp_path):
+        path = tmp_path / "win11.xml.j2"
+        path.write_text(_SAMPLE_FRONTMATTER)
+        params = answerfile.declared_parameters(path)
+        assert [p["name"] for p in params] == ["input_locale", "system_locale"]
+
+    def test_reserved_constant(self):
+        assert answerfile.RESERVED_SYSTEM_TOKENS == frozenset(
+            {"vm_name", "admin_username", "admin_password"}
+        )
