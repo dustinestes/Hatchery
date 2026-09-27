@@ -181,12 +181,13 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 
 ### Hatchery guest directory
 
-`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` with two subdirectories on first boot:
+`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` on first boot. Path roles (`root`, `logs`, `temp`, `software`, `software_package(id)`) are the cross-platform vocabulary; Windows absolute values are locked today. See [Software - Guest path roles](software.md#guest-path-roles) and [ADR-0025](adr/0025-software-product-model.md).
 
 | Subdirectory | Contents |
 |---|---|
 | `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script) |
 | `temp\` | Ephemeral files - currently only `hatchery-ready` (deleted immediately on detection) |
+| `software\` | Staged installer payloads under `{package-id}\` when Software steps run ([Software](software.md)) |
 
 Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
 

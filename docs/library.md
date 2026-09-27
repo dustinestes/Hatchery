@@ -55,7 +55,7 @@ Nest transport (SSH default, WinRM fallback) is described in [Nest transport](ne
 
 ## Connections and Bindings
 
-**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, packages) so domain pickers only offer relevant connections.
+**Connections** are the registry of how to reach content (git forge, network share/path, HTTPS, **API catalogs** such as Artifactory). Each connection holds base URI and credentials (tokens/API keys) so auth is not repeated on every domain. Connections declare which **kinds** they serve (clutches, scripts, media, answerfiles, and **software** once [#199](https://github.com/dustinestes/Hatchery/issues/199) lands - migrating the reserved empty `packages` kind) so domain pickers only offer relevant connections.
 
 **Bindings** are rows under each domain (Clutches, Scripts, Media). A binding picks a connection plus a locator/filter (subpath, glob, repo+pattern), and an optional operator **label** for display ([#359](https://github.com/dustinestes/Hatchery/issues/359)). When label is empty, Hatchery stores and shows the filter string. Multiple bindings per domain are allowed (several forge repos for scripts, different layouts). A data-dir–shaped single tree is an optional convenience (one connection + three bindings), not a requirement.
 
@@ -137,7 +137,7 @@ Disabling a connection **cascades in the UI** (dependent bindings dim + note “
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
-Each connection declares **artifact types** (scripts, clutches, media, packages, answerfiles) so domain pickers only offer relevant connections.
+Each connection declares **artifact types** (scripts, clutches, media, answerfiles, and **software** after the Library domain child under [#199](https://github.com/dustinestes/Hatchery/issues/199); `packages` migrates to `software`) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library → Content or Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled. `/library` redirects to `/library/content`.
 
@@ -176,7 +176,7 @@ Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/
 |---|---|
 | **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
 | **Provider** | `github` |
-| **Kinds** | scripts, clutches, media, packages, answerfiles |
+| **Kinds** | scripts, clutches, media, packages (→ **software** under [#199](https://github.com/dustinestes/Hatchery/issues/199)), answerfiles |
 | **Scripts** | label `All Scripts` · filter `*` |
 | **Clutches** | label `All Clutches` · filter `*` |
 | **Media ISO** | label `All ISOs` · filter `*` · target `iso` |

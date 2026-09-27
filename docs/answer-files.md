@@ -6,7 +6,7 @@
 <h1>Answer Files</h1>
 <br clear="both">
 
-Install-time templates for unattended guest OS setup - distinct from post-boot [Automation Scripts](automations.md).
+Install-time templates for unattended guest OS setup - distinct from post-boot [Automation Scripts](automations.md) and [Software](software.md) packages.
 
 <br>
 
