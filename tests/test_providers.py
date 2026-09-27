@@ -188,7 +188,14 @@ def provider(tmp_path):
     iso_dir.mkdir(parents=True)
     virtio_dir.mkdir(parents=True)
     automation.mkdir()
+    (automation / "default.xml.j2").write_text("<Autounattend/>\n", encoding="utf-8")
     return LibvirtProvider(iso_dir=iso_dir, virtio_dir=virtio_dir, automation_dir=automation)
+
+
+def _vm(**kwargs) -> VMConfig:
+    """Build a VMConfig with a default Answer File (required for Windows hatch)."""
+    kwargs.setdefault("answer_file", "default.xml.j2")
+    return VMConfig(**kwargs)
 
 
 # ── create_vm ─────────────────────────────────────────────────────────────────
@@ -202,9 +209,7 @@ class TestCreateVM:
     def test_calls_virt_install(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = VMConfig(
-            name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
-        )
+        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -216,9 +221,7 @@ class TestCreateVM:
     def test_sets_memory_from_ram_gb(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = VMConfig(
-            name="test-vm", os="win11", vcpus=2, ram_gb=8, disk_gb=40, os_media="win11.iso"
-        )
+        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=8, disk_gb=40, os_media="win11.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -229,9 +232,7 @@ class TestCreateVM:
     def test_win11_adds_uefi_and_tpm(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = VMConfig(
-            name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
-        )
+        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -243,9 +244,7 @@ class TestCreateVM:
     def test_win10_no_uefi(self, tmp_path, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        vm = VMConfig(
-            name="test-vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso"
-        )
+        vm = _vm(name="test-vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -256,7 +255,7 @@ class TestCreateVM:
     def test_server2025_adds_uefi_and_tpm(self, tmp_path, provider):
         iso = provider.iso_dir / "server2025.iso"
         iso.touch()
-        vm = VMConfig(
+        vm = _vm(
             name="srv", os="server2025", vcpus=2, ram_gb=4, disk_gb=60, os_media="server2025.iso"
         )
         with patch("subprocess.run") as mock_run:
@@ -271,7 +270,7 @@ class TestCreateVM:
         virtio = provider.virtio_dir / "virtio-win.iso"
         iso.touch()
         virtio.touch()
-        vm = VMConfig(
+        vm = _vm(
             name="test-vm",
             os="win11",
             vcpus=2,
@@ -378,32 +377,50 @@ class TestCreateVM:
         with pytest.raises(FileNotFoundError, match="missing.xml"):
             provider.create_vm(vm)
 
-    def test_credentials_renders_answer_file(self, tmp_path, provider):
+    def test_user_answer_file_renders_tokens_and_companions(self, tmp_path, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
+        (provider.automation_dir / "win10.xml.j2").write_text(
+            "---\n"
+            "hatchery:\n"
+            "  companions:\n"
+            "    - hatchery-setup.ps1\n"
+            "  parameters:\n"
+            "    - name: input_locale\n"
+            "      default: en-US\n"
+            "---\n"
+            "<unattend>{{ admin_username }} {{ admin_password }} {{ input_locale }}</unattend>\n",
+            encoding="utf-8",
+        )
+        (provider.automation_dir / "hatchery-setup.ps1").write_text(
+            "Enable-PSRemoting -Force\n", encoding="utf-8"
+        )
         img_path = tmp_path / "fake.img"
         img_path.touch()
-        vm = VMConfig(
+        vm = _vm(
             name="test-vm",
             os="win10",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
             os_media="win10.iso",
+            answer_file="win10.xml.j2",
             admin_username="alice",
+            answer_file_parameters={"input_locale": "en-GB"},
         )
         with patch.object(provider, "_create_answer_image", return_value=img_path) as mock_img:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
                 provider.create_vm(vm, admin_password="secret")
-        xml_arg, _vm_name, setup_script = mock_img.call_args[0]
+        xml_arg, _vm_name, companions = mock_img.call_args[0]
         assert "alice" in xml_arg
         assert "secret" in xml_arg
-        assert "Enable-PSRemoting" in setup_script
+        assert "en-GB" in xml_arg
+        assert companions == [("hatchery-setup.ps1", "Enable-PSRemoting -Force\n")]
         cmd = mock_run.call_args[0][0]
         assert any("floppy" in arg for arg in cmd)
 
-    def test_credentials_skipped_when_no_password(self, tmp_path, provider):
+    def test_missing_answer_file_raises(self, tmp_path, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
         vm = VMConfig(
@@ -415,16 +432,17 @@ class TestCreateVM:
             os_media="win10.iso",
             admin_username="alice",
         )
-        with patch.object(provider, "_create_answer_image") as mock_img:
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
-                provider.create_vm(vm, admin_password=None)
-        mock_img.assert_not_called()
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(ValueError, match="Answer File is required"):
+                provider.create_vm(vm, admin_password="secret")
+        mock_run.assert_not_called()
 
-    def test_credentials_skipped_when_no_username(self, tmp_path, provider):
+    def test_answer_file_renders_without_admin_creds(self, tmp_path, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        vm = VMConfig(
+        img_path = tmp_path / "fake.img"
+        img_path.touch()
+        vm = _vm(
             name="test-vm",
             os="win10",
             vcpus=2,
@@ -432,11 +450,14 @@ class TestCreateVM:
             disk_gb=40,
             os_media="win10.iso",
         )
-        with patch.object(provider, "_create_answer_image") as mock_img:
+        with patch.object(provider, "_create_answer_image", return_value=img_path) as mock_img:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
-                provider.create_vm(vm, admin_password="secret")
-        mock_img.assert_not_called()
+                provider.create_vm(vm, admin_password=None)
+        mock_img.assert_called_once()
+        xml_arg, _vm_name, companions = mock_img.call_args[0]
+        assert companions == []
+        assert "<Autounattend/>" in xml_arg
 
 
 # ── Power state ───────────────────────────────────────────────────────────────
@@ -951,7 +972,7 @@ class TestStoragePath:
     def test_uses_pool_when_no_storage_path(self, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -964,7 +985,7 @@ class TestStoragePath:
         iso.touch()
         storage = tmp_path / "vms"
         storage.mkdir()
-        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm, storage_path=str(storage))
@@ -978,7 +999,7 @@ class TestStoragePath:
         iso.touch()
         storage = tmp_path / "vms"
         storage.mkdir()
-        vm = VMConfig(name="myvm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm = _vm(name="myvm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm, storage_path=str(storage))
@@ -990,7 +1011,7 @@ class TestStoragePath:
         iso.touch()
         storage = tmp_path / "vms"
         storage.mkdir()
-        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=80, os_media="win10.iso")
+        vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=80, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm, storage_path=str(storage))

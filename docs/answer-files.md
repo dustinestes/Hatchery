@@ -34,7 +34,7 @@ Install-time templates for unattended guest OS setup - distinct from post-boot [
 
 **Answer Files** are templates Hatchery renders at hatch time and attaches as install media so the guest OS installer can run unattended. They live under `automation/answerfiles/` in the Hatchery data directory.
 
-Product shape is locked in [ADR-0024](adr/0024-answer-files-product-model.md). Today the Controller may still auto-render Windows Autounattend from built-in Jinja when admin credentials are set; that shadow path is being replaced by user-owned Answer Files (see follow-on issues on [#447](https://github.com/dustinestes/Hatchery/issues/447)). Do not delete Controller templates until Hatchery-Library samples are in place.
+Product shape is locked in [ADR-0024](adr/0024-answer-files-product-model.md). Windows guests require a selected Answer File on the Clutch; Hatchery renders system tokens and declared parameters from that file (no Controller shadow templates).
 
 <br>
 
@@ -187,7 +187,7 @@ UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/prov
 
 ### Using Windows Answer Files
 
-1. Put an Autounattend Jinja template (and optional companion) in `automation/answerfiles/`, or pull from Hatchery-Library when available.
+1. Put an Autounattend Jinja template (and optional companion) in `automation/answerfiles/`, or pull from [Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) (`answerfiles/windows/`).
 2. On the Clutch VM: set Guest OS, Admin Username / Password, select the Answer File, fill declared parameters.
 3. Hatch: Controller renders tokens, packs media, Nest attaches; Windows Setup runs unattended; companion prepares remoting; Hatchery provisions scripts until fledged.
 
@@ -273,7 +273,7 @@ WinRM provision (Scripts) until fledged
 
 ## Example files
 
-Optional Windows samples (when published under Hatchery-Library `answerfiles/windows/`):
+Optional Windows samples under Hatchery-Library `answerfiles/windows/`:
 
 | File | Role |
 |---|---|
@@ -283,9 +283,7 @@ Optional Windows samples (when published under Hatchery-Library `answerfiles/win
 | `server2025-autounattend.xml.j2` | Server 2025 Autounattend |
 | `hatchery-setup.ps1` | Shared first-boot companion |
 
-How-to stays in this document. Hatchery-Library does not duplicate operator docs.
-
-Until samples land and hatch switches to user Answer Files, Controller shadow templates under `templates/answerfiles/` still drive the auto-render path when admin credentials are set. See [orchestration](orchestration.md).
+How-to stays in this document. Hatchery-Library does not duplicate operator docs. Pull companions alongside the template (same `automation/answerfiles/` directory).
 
 <br>
 

@@ -554,6 +554,19 @@ def missing_passwords(vms, passwords: dict) -> list[str]:
     return [vm.name for vm in vms if vm.admin_username and not passwords.get(vm.name)]
 
 
+def answer_file_errors(vms, passwords: dict | None = None) -> list[str]:
+    """Return hatch blockers for required Answer Files (empty if OK)."""
+    from lib import answerfile as answerfile_lib
+    from lib import config as config_lib
+
+    automation_dir = config_lib.data_dir() / "automation" / "answerfiles"
+    return answerfile_lib.validate_clutch_answer_files(
+        list(vms),
+        automation_dir=automation_dir,
+        passwords=passwords or {},
+    )
+
+
 class RetryError(Exception):
     """Raised when a provisioning retry cannot start."""
 

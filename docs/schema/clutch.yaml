@@ -52,13 +52,11 @@ vms:
     # Password is supplied at hatch time - not stored as a long-lived manage credential.
     admin_username: admin
 
-    # answer_file (optional): Answer File under automation/answerfiles/
+    # answer_file (required for Windows guests): Answer File under automation/answerfiles/
     # Legacy Clutch key ``os_config`` is still accepted on load (ADR-0024 / #448).
-    # Windows: Autounattend Jinja template. Today, when admin_username + hatch password
-    # are set, Hatchery may still auto-render from Controller templates/answerfiles/;
-    # that shadow path is removed in a follow-on issue after Library samples.
+    # Windows: Autounattend Jinja template rendered with system tokens + declared params.
     # Linux (future): cloud-init / kickstart / preseed Answer File.
-    answer_file: win11-unattend.xml.j2
+    answer_file: win11-autounattend.xml.j2
 
     # answer_file_parameters: map of user-declared Answer File parameters (#451)
     answer_file_parameters:

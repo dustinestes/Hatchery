@@ -125,10 +125,6 @@ Post-install provisioning. Connects to the guest over WinRM (Windows) or SSH (Li
 
 Jinja2 HTML templates served by Flask. No frontend framework - vanilla HTML, CSS, and JS only.
 
-### `templates/answerfiles/`
-
-Jinja2 templates for unattended install answer files. One template per supported guest OS.
-
 ### `tests/`
 
 pytest test suite. Mirrors the structure of `lib/`. Run with `uv run pytest`.

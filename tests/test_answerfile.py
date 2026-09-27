@@ -1,172 +1,10 @@
+import pytest
+
 from lib import answerfile
-from lib.clutch import GuestOS
+from lib.clutch import GuestOS, VMConfig
 
 
-class TestRenderWin10:
-    def test_returns_string(self):
-        result = answerfile.render(GuestOS.WIN10, "myvm", "admin", "pass1")
-        assert isinstance(result, str)
-
-    def test_contains_computer_name(self):
-        xml = answerfile.render(GuestOS.WIN10, "devbox", "admin", "pass1")
-        assert "<ComputerName>devbox</ComputerName>" in xml
-
-    def test_contains_admin_username(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "alice", "secret")
-        assert "alice" in xml
-
-    def test_contains_admin_password(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "MyP@ss!")
-        assert "MyP@ss!" in xml
-
-    def test_bios_single_partition(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert "<PartitionID>1</PartitionID>" in xml
-        assert "<Active>true</Active>" in xml
-
-    def test_no_edition_selection(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert "SERVERSTANDARD" not in xml
-        assert "InstallFrom" not in xml
-
-    def test_single_firstlogon_command(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        assert xml.count("<SynchronousCommand") == 1
-        assert "hatchery-setup.ps1" in xml
-
-    def test_name_truncated_to_15_chars(self):
-        xml = answerfile.render(GuestOS.WIN10, "a" * 20, "admin", "pass")
-        assert f"<ComputerName>{'a' * 15}</ComputerName>" in xml
-
-    def test_name_exactly_15_not_truncated(self):
-        xml = answerfile.render(GuestOS.WIN10, "a" * 15, "admin", "pass")
-        assert f"<ComputerName>{'a' * 15}</ComputerName>" in xml
-
-    def test_password_xml_escaped(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", 'p<a>ss&"end')
-        assert 'p<a>ss&"end' not in xml
-        assert "p&lt;a&gt;ss&amp;" in xml
-
-    def test_username_xml_escaped(self):
-        xml = answerfile.render(GuestOS.WIN10, "vm", "us<er>", "pass")
-        assert "us<er>" not in xml
-        assert "us&lt;er&gt;" in xml
-
-    def test_is_valid_xml(self):
-        import xml.etree.ElementTree as ET
-
-        xml = answerfile.render(GuestOS.WIN10, "vm", "admin", "pass")
-        ET.fromstring(xml)  # raises if invalid
-
-
-class TestRenderWin11:
-    def test_uefi_gpt_partitions(self):
-        xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert "EFI" in xml
-        assert "MSR" in xml
-
-    def test_install_to_partition_3(self):
-        xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert "<PartitionID>3</PartitionID>" in xml
-
-    def test_no_edition_selection(self):
-        xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert "SERVERSTANDARD" not in xml
-
-    def test_single_firstlogon_command(self):
-        xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        assert xml.count("<SynchronousCommand") == 1
-        assert "hatchery-setup.ps1" in xml
-
-    def test_is_valid_xml(self):
-        import xml.etree.ElementTree as ET
-
-        xml = answerfile.render(GuestOS.WIN11, "vm", "admin", "pass")
-        ET.fromstring(xml)
-
-
-class TestRenderServer2022:
-    def test_edition_selection_present(self):
-        xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert "Windows Server 2022 SERVERSTANDARD" in xml
-
-    def test_bios_single_partition(self):
-        xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert "<Active>true</Active>" in xml
-
-    def test_install_to_partition_1(self):
-        xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert "<PartitionID>1</PartitionID>" in xml
-
-    def test_single_firstlogon_command(self):
-        xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        assert xml.count("<SynchronousCommand") == 1
-        assert "hatchery-setup.ps1" in xml
-
-    def test_is_valid_xml(self):
-        import xml.etree.ElementTree as ET
-
-        xml = answerfile.render(GuestOS.SERVER2022, "vm", "admin", "pass")
-        ET.fromstring(xml)
-
-
-class TestRenderServer2025:
-    def test_edition_selection_present(self):
-        xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert "Windows Server 2025 SERVERSTANDARD" in xml
-
-    def test_uefi_gpt_partitions(self):
-        xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert "EFI" in xml
-        assert "MSR" in xml
-
-    def test_install_to_partition_3(self):
-        xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert "<PartitionID>3</PartitionID>" in xml
-
-    def test_single_firstlogon_command(self):
-        xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        assert xml.count("<SynchronousCommand") == 1
-        assert "hatchery-setup.ps1" in xml
-
-    def test_is_valid_xml(self):
-        import xml.etree.ElementTree as ET
-
-        xml = answerfile.render(GuestOS.SERVER2025, "vm", "admin", "pass")
-        ET.fromstring(xml)
-
-
-class TestRenderSetupScript:
-    def test_returns_string(self):
-        assert isinstance(answerfile.render_setup_script(), str)
-
-    def test_contains_all_setup_steps(self):
-        script = answerfile.render_setup_script()
-        assert "Enable-PSRemoting" in script
-        assert "LocalAccountTokenFilterPolicy" in script
-        assert "5985" in script
-        assert "OpenSSH.Server" in script
-        assert "hatchery-ready" in script
-
-    def test_contains_window_title(self):
-        assert "Hatchery - First Boot Setup" in answerfile.render_setup_script()
-
-    def test_log_uses_hatch_event_format(self):
-        script = answerfile.render_setup_script()
-        assert "[HATCH:" in script
-        assert 'Write-Log "INFO"' in script
-        assert 'Write-Log "ERROR"' in script
-
-    def test_log_path_is_hatchery_dir(self):
-        script = answerfile.render_setup_script()
-        assert r"C:\Program Files\Hatchery" in script
-        assert r"hatchery-setup.log" in script
-
-    def test_script_name_constant(self):
-        assert answerfile.SETUP_SCRIPT_NAME == "hatchery-setup.ps1"
-
-
-_SAMPLE_FRONTMATTER = """\
+_SAMPLE = """\
 ---
 hatchery:
   kind: windows_unattend
@@ -188,13 +26,13 @@ hatchery:
     - label: Missing name skipped
       default: x
 ---
-<body>{{ input_locale }}</body>
+<body>{{ input_locale }} {{ vm_name }} {{ admin_username }}</body>
 """
 
 
 class TestParseFrontmatter:
     def test_parses_hatchery_block(self):
-        hatchery, body = answerfile.parse_frontmatter(_SAMPLE_FRONTMATTER)
+        hatchery, body = answerfile.parse_frontmatter(_SAMPLE)
         assert hatchery is not None
         assert hatchery["kind"] == "windows_unattend"
         assert "companions" in hatchery
@@ -227,17 +65,17 @@ class TestParseFrontmatter:
 
 class TestDeclaredParameters:
     def test_returns_user_params(self):
-        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        params = answerfile.declared_parameters(_SAMPLE)
         names = [p["name"] for p in params]
         assert names == ["input_locale", "system_locale"]
 
     def test_filters_reserved_system_tokens(self):
-        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        params = answerfile.declared_parameters(_SAMPLE)
         names = {p["name"] for p in params}
         assert names.isdisjoint(answerfile.RESERVED_SYSTEM_TOKENS)
 
     def test_shape_matches_script_params(self):
-        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        params = answerfile.declared_parameters(_SAMPLE)
         p = params[0]
         assert p["name"] == "input_locale"
         assert p["type"] == "String"
@@ -247,7 +85,7 @@ class TestDeclaredParameters:
         assert p["label"] == "Input locale"
 
     def test_mandatory_true_when_set(self):
-        params = answerfile.declared_parameters(_SAMPLE_FRONTMATTER)
+        params = answerfile.declared_parameters(_SAMPLE)
         by_name = {p["name"]: p for p in params}
         assert by_name["system_locale"]["mandatory"] is True
 
@@ -259,7 +97,7 @@ class TestDeclaredParameters:
 
     def test_accepts_path(self, tmp_path):
         path = tmp_path / "win11.xml.j2"
-        path.write_text(_SAMPLE_FRONTMATTER)
+        path.write_text(_SAMPLE)
         params = answerfile.declared_parameters(path)
         assert [p["name"] for p in params] == ["input_locale", "system_locale"]
 
@@ -267,3 +105,134 @@ class TestDeclaredParameters:
         assert answerfile.RESERVED_SYSTEM_TOKENS == frozenset(
             {"vm_name", "admin_username", "admin_password"}
         )
+
+
+class TestRenderUserAnswerFile:
+    def test_renders_system_and_user_tokens(self, tmp_path):
+        path = tmp_path / "win11.xml.j2"
+        path.write_text(_SAMPLE, encoding="utf-8")
+        xml, companions = answerfile.render_user_answer_file(
+            path,
+            vm_name="devbox",
+            admin_username="alice",
+            admin_password="secret",
+            user_params={"input_locale": "en-GB", "system_locale": "en-GB"},
+        )
+        assert "en-GB" in xml
+        assert "devbox" in xml
+        assert "alice" in xml
+        assert companions == ["hatchery-setup.ps1"]
+
+    def test_truncates_vm_name_to_15(self, tmp_path):
+        path = tmp_path / "t.xml.j2"
+        path.write_text("{{ vm_name }}", encoding="utf-8")
+        xml, _ = answerfile.render_user_answer_file(path, vm_name="a" * 20)
+        assert xml == "a" * 15
+
+    def test_xml_escapes_special_chars(self, tmp_path):
+        path = tmp_path / "t.xml.j2"
+        path.write_text("<x>{{ admin_password }}</x>", encoding="utf-8")
+        xml, _ = answerfile.render_user_answer_file(
+            path, vm_name="vm", admin_password='p<a>ss&"end'
+        )
+        assert 'p<a>ss&"end' not in xml
+        assert "p&lt;a&gt;ss&amp;" in xml
+
+    def test_missing_jinja_var_raises(self, tmp_path):
+        path = tmp_path / "t.xml.j2"
+        path.write_text("{{ missing_token }}", encoding="utf-8")
+        with pytest.raises(answerfile.AnswerFileError, match="missing_token"):
+            answerfile.render_user_answer_file(path, vm_name="vm")
+
+    def test_plain_file_no_frontmatter(self, tmp_path):
+        path = tmp_path / "plain.xml"
+        path.write_text("<unattend/>\n", encoding="utf-8")
+        xml, companions = answerfile.render_user_answer_file(path, vm_name="vm")
+        assert "<unattend/>" in xml
+        assert companions == []
+
+
+class TestValidateVmAnswerFile:
+    def test_requires_answer_file_for_windows(self, tmp_path):
+        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
+        assert any("Answer File is required" in e for e in errors)
+
+    def test_missing_file(self, tmp_path):
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="missing.xml.j2",
+        )
+        errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
+        assert any("not found" in e for e in errors)
+
+    def test_missing_mandatory_param(self, tmp_path):
+        path = tmp_path / "win11.xml.j2"
+        path.write_text(
+            "---\n"
+            "hatchery:\n"
+            "  parameters:\n"
+            "    - name: region\n"
+            "      mandatory: true\n"
+            "---\n"
+            "{{ region }}\n",
+            encoding="utf-8",
+        )
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+        errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
+        assert any("parameter 'region' is required" in e for e in errors)
+
+    def test_missing_companion(self, tmp_path):
+        path = tmp_path / "win11.xml.j2"
+        path.write_text(
+            "---\nhatchery:\n  companions:\n    - hatchery-setup.ps1\n---\n<unattend/>\n",
+            encoding="utf-8",
+        )
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+        errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
+        assert any("companion 'hatchery-setup.ps1'" in e for e in errors)
+
+    def test_ok_when_complete(self, tmp_path):
+        (tmp_path / "win11.xml.j2").write_text(_SAMPLE, encoding="utf-8")
+        (tmp_path / "hatchery-setup.ps1").write_text("# setup\n", encoding="utf-8")
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            answer_file_parameters={"system_locale": "en-GB"},
+        )
+        assert answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path) == []
+
+    def test_requires_answer_file_helper(self):
+        assert answerfile.requires_answer_file(GuestOS.WIN11) is True
+        assert answerfile.requires_answer_file("win10") is True
+
+
+class TestCompanionNames:
+    def test_rejects_path_separators(self):
+        assert answerfile.companion_names({"companions": ["ok.ps1", "../x", "a/b"]}) == ["ok.ps1"]
