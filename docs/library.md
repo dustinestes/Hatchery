@@ -170,7 +170,7 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
-**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO**, and **All Answer Files** (`filter: *`). Existing Controllers with any connection are left unchanged.
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO** (`filter: *`), and **All Answer Files** (`filter: *answerfiles/*` so the catalog stays under the Library repo’s `answerfiles/` tree). Existing Controllers with any connection are left unchanged.
 
 | | |
 |---|---|
@@ -181,6 +181,7 @@ Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/
 | **Clutches** | label `All Clutches` · filter `*` |
 | **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
 | **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
+| **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` (repo tree under `answerfiles/`, including `.j2` templates and companions such as `.ps1`) |
 
 Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 

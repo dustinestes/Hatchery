@@ -607,7 +607,7 @@ def ensure_hatchery_library() -> bool:
             "connection_id": cid,
             "domain": "answerfiles",
             "label": "All Answer Files",
-            "filter": "*",
+            "filter": "*answerfiles/*",
             "enabled": True,
         },
     ):

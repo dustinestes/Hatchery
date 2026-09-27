@@ -249,7 +249,7 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
     assert [(b["id"], b["label"], b["filter"]) for b in answerfiles] == [
-        ("hatchery-library-answerfiles", "All Answer Files", "*")
+        ("hatchery-library-answerfiles", "All Answer Files", "*answerfiles/*")
     ]
 
     # Second call is a no-op once any connection exists.
