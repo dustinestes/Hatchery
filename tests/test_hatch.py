@@ -919,3 +919,54 @@ class TestGetLastScriptEventMessages:
         hatch_lib.add_event(sid, "dc01", "script", "INFO", "from script", script_name="setup.ps1")
         result = hatch_lib.get_last_script_event_messages(sid, "dc01")
         assert result == {"setup.ps1": "from script"}
+
+
+# ── Answer File attach capability ─────────────────────────────────────────────
+
+
+class TestAnswerFileAttachErrors:
+    def test_ok_when_libvirt_supports(self):
+        from lib import hatch_lifecycle as hl
+        from lib.clutch import VMConfig
+        from lib.providers.libvirt import LibvirtProvider
+
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+        provider = LibvirtProvider(iso_dir="/tmp", virtio_dir="/tmp", automation_dir="/tmp")
+        assert hl.answer_file_attach_errors(provider, [vm]) == []
+
+    def test_error_when_unsupported(self):
+        from lib import hatch_lifecycle as hl
+        from lib.clutch import VMConfig
+
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+
+        class _P:
+            supports_answer_file_attach = False
+
+        errors = hl.answer_file_attach_errors(_P(), [vm])  # type: ignore[arg-type]
+        assert len(errors) == 1
+        assert "does not support Answer File attach" in errors[0]
+
+    def test_ok_when_no_vms(self):
+        from lib import hatch_lifecycle as hl
+
+        class _P:
+            supports_answer_file_attach = False
+
+        assert hl.answer_file_attach_errors(_P(), []) == []  # type: ignore[arg-type]

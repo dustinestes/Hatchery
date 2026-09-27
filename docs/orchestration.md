@@ -79,7 +79,11 @@ Windows guests require a selected Answer File (`answer_file` on the Clutch VM). 
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
-Missing Answer File, missing companions, or missing mandatory parameters fail before `virt-install`, with a clear UI/CLI error. See [Answer Files](answer-files.md) and [ADR-0024](adr/0024-answer-files-product-model.md).
+Missing Answer File, missing companions, missing mandatory parameters, or a Nest that
+does not support Answer File attach (`supports_answer_file_attach`) fail before
+`virt-install`, with a clear UI/CLI error. See [Answer Files](answer-files.md) and
+[ADR-0024](adr/0024-answer-files-product-model.md). Libvirt local floppy is the working
+backend today; Hyper-V / UTM attach remain Planned ([providers.md](providers.md)).
 
 The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 

@@ -2746,6 +2746,26 @@ class TestRunHatchSession:
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "hatching"
 
+    def test_fails_when_nest_cannot_attach_answer_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_session(tmp_path)
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
+            mock_prov.return_value.supports_answer_file_attach = False
+            mock_prov.return_value.create_vm = MagicMock()
+            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+        assert self._get_vm(sid)["status"] == "failed"
+        assert "does not support Answer File attach" in (self._get_vm(sid).get("error") or "")
+        mock_prov.return_value.create_vm.assert_not_called()
+
 
 class TestSendBootKey:
     @pytest.fixture(autouse=True)

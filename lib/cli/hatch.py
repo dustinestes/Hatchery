@@ -123,9 +123,15 @@ def _hatch(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        get_provider(nest_id)
+        provider = get_provider(nest_id)
     except (NoNestSelectedError, UnknownNestError, UnsupportedProviderError) as exc:
         bootstrap.print_err(str(exc))
+        return 1
+
+    attach_errors = hatch_lifecycle_lib.answer_file_attach_errors(provider, clutch_obj.vms)
+    if attach_errors:
+        for msg in attach_errors:
+            bootstrap.print_err(msg)
         return 1
 
     try:

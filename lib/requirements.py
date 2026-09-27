@@ -287,6 +287,8 @@ def resolve_legacy_requirement_alerts(resolve_prefix) -> None:
         "virt-install",
         "qemu-img",
         "virt-make-fs",
+        "mformat",
+        "mcopy",
         "swtpm",
         "python3-gi",
         "pwsh",

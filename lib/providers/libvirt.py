@@ -37,13 +37,14 @@ _LIBVIRT_NEST_TOOLS: tuple[NestToolSpec, ...] = (
         packages={"linux": "qemu-utils", "macos": "qemu", "windows": "qemu"},
     ),
     NestToolSpec(
-        name="virt-make-fs",
-        required_for="Answer file floppy image creation",
-        packages={
-            "linux": "libguestfs-tools",
-            "macos": "libguestfs",
-            "windows": "libguestfs",
-        },
+        name="mformat",
+        required_for="Answer File floppy image creation",
+        packages={"linux": "mtools", "macos": "mtools", "windows": "mtools"},
+    ),
+    NestToolSpec(
+        name="mcopy",
+        required_for="Answer File floppy image creation",
+        packages={"linux": "mtools", "macos": "mtools", "windows": "mtools"},
     ),
     NestToolSpec(
         name="swtpm",
@@ -174,6 +175,8 @@ _OS_VARIANT: dict[GuestOS, str] = {
 
 
 class LibvirtProvider(BaseProvider):
+    supports_answer_file_attach = True
+
     def __init__(
         self,
         iso_dir: Path,
@@ -191,6 +194,35 @@ class LibvirtProvider(BaseProvider):
         return list(_LIBVIRT_NEST_TOOLS)
 
     # ── VM creation ───────────────────────────────────────────────────────────
+
+    def prepare_answer_file_media(
+        self,
+        config: VMConfig,
+        *,
+        admin_password: str | None = None,
+    ) -> Path | None:
+        """Render the user Answer File and pack Autounattend + companions onto a floppy."""
+        if not answerfile_lib.requires_answer_file(config.os):
+            return None
+        if not config.answer_file or not str(config.answer_file).strip():
+            raise ValueError(
+                f"Answer File is required for {config.os.value} guest "
+                f"'{config.name}'. Select an Answer File on the Clutch "
+                "before hatching."
+            )
+        answer_src = self._resolve_automation(config.answer_file)
+        xml, companion_names = answerfile_lib.render_user_answer_file(
+            answer_src,
+            vm_name=config.name,
+            admin_username=config.admin_username or "",
+            admin_password=admin_password or "",
+            user_params=dict(config.answer_file_parameters or {}),
+        )
+        companions: list[tuple[str, str]] = []
+        for name in companion_names:
+            companion_path = self._resolve_automation(name)
+            companions.append((name, companion_path.read_text(encoding="utf-8")))
+        return self._create_answer_image(xml, config.name, companions)
 
     def create_vm(
         self,
@@ -220,31 +252,13 @@ class LibvirtProvider(BaseProvider):
         answer_img: Path | None = None
 
         try:
-            if answerfile_lib.requires_answer_file(config.os):
-                if not config.answer_file or not str(config.answer_file).strip():
-                    raise ValueError(
-                        f"Answer File is required for {config.os.value} guest "
-                        f"'{config.name}'. Select an Answer File on the Clutch "
-                        "before hatching."
-                    )
-                answer_src = self._resolve_automation(config.answer_file)
-                xml, companion_names = answerfile_lib.render_user_answer_file(
-                    answer_src,
-                    vm_name=config.name,
-                    admin_username=config.admin_username or "",
-                    admin_password=admin_password or "",
-                    user_params=dict(config.answer_file_parameters or {}),
-                )
-                companions: list[tuple[str, str]] = []
-                for name in companion_names:
-                    companion_path = self._resolve_automation(name)
-                    companions.append((name, companion_path.read_text(encoding="utf-8")))
-                answer_img = self._create_answer_image(xml, config.name, companions)
+            answer_img = self.prepare_answer_file_media(config, admin_password=admin_password)
+            if answer_img:
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
             subprocess.run(cmd, check=True, env=_system_env())
         except Exception:
-            # Clean up on failure only — on success the floppy must persist through
+            # Clean up on failure only - on success the floppy must persist through
             # Windows installation. destroy_vm handles final cleanup.
             if answer_img and answer_img.exists():
                 answer_img.unlink()

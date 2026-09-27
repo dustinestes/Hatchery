@@ -84,6 +84,17 @@ def run_hatch_session(
             )
             hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
         return
+
+    attach_errors = answer_file_attach_errors(provider, vms)
+    if attach_errors:
+        msg = "; ".join(attach_errors)
+        for vm in vms:
+            hatch_lib.add_event(
+                session_id, vm.name, "hatchery", "ERROR", f"VM creation failed: {msg}"
+            )
+            hatch_lib.set_vm_status(session_id, vm.name, "failed", error=msg)
+        return
+
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
@@ -565,6 +576,21 @@ def answer_file_errors(vms, passwords: dict | None = None) -> list[str]:
         automation_dir=automation_dir,
         passwords=passwords or {},
     )
+
+
+def answer_file_attach_errors(provider: BaseProvider, vms) -> list[str]:
+    """Return hatch blockers when VMs need Answer File attach the Nest cannot do."""
+    from lib import answerfile as answerfile_lib
+
+    if not any(answerfile_lib.requires_answer_file(vm.os) for vm in vms):
+        return []
+    if getattr(provider, "supports_answer_file_attach", False):
+        return []
+    return [
+        "This Nest does not support Answer File attach. "
+        "Windows Autounattend attach works on libvirt local today; "
+        "Hyper-V and UTM are Planned (see docs/providers.md)."
+    ]
 
 
 class RetryError(Exception):

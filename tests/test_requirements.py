@@ -124,7 +124,14 @@ class TestNestToolsLocal:
         from lib.providers.libvirt import LibvirtProvider
 
         specs = LibvirtProvider.nest_tool_specs()
-        assert {s.name for s in specs} >= {"virsh", "virt-install", "python3-gi"}
+        assert {s.name for s in specs} >= {
+            "virsh",
+            "virt-install",
+            "python3-gi",
+            "mformat",
+            "mcopy",
+        }
+        assert "virt-make-fs" not in {s.name for s in specs}
 
         with (
             patch("shutil.which", return_value="/usr/bin/tool"),
