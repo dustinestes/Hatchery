@@ -145,6 +145,21 @@ def _mark_remaining_skipped(
             hatch_lib.set_script_status(session_id, vm_name, s["run_order"], "skipped")
 
 
+def _wait_winrm_after_reboot(session_id: str, vm_name: str, ip: str, *, script_name: str) -> None:
+    for _ in range(120):
+        time.sleep(5)
+        if check_winrm(ip):
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                "WinRM reconnected after reboot",
+                script_name=script_name,
+            )
+            return
+
+
 def _provision_vm_thread(
     session_id: str,
     vm_name: str,
@@ -152,42 +167,70 @@ def _provision_vm_thread(
     admin_username: str,
     admin_password: str,
 ) -> None:
-    """Run pending automation scripts for a VM sequentially, updating DB state per script."""
+    """Run pending automations (script|software) sequentially, updating DB per step."""
+    from lib import software_provision as software_provision_lib
+
     try:
         scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
         data_dir = config.data_dir()
+        vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
+        guest_os = vm_record.get("guest_os") or "win11"
 
         for script in scripts:
             if script["status"] == "succeeded":
                 continue
 
             sname = script["script_name"]
+            entry_type = script.get("entry_type") or "script"
+            kind_label = "software" if entry_type == "software" else "script"
             hatch_lib.add_event(
                 session_id,
                 vm_name,
                 "hatchery",
                 "INFO",
-                f"Starting script: {sname}",
+                f"Starting {kind_label}: {sname}",
                 script_name=sname,
             )
             hatch_lib.set_script_status(session_id, vm_name, script["run_order"], "running")
-            script_path = data_dir / "automation" / "scripts" / sname
 
             try:
-                exit_code, output = provision_lib.run_script(
-                    ip,
-                    admin_username,
-                    admin_password,
-                    script_path,
-                    parameters=script.get("parameters") or {},
-                )
+                if entry_type == "software":
+
+                    def _on_sw_event(level: str, message: str, _name: str = sname) -> None:
+                        hatch_lib.add_event(
+                            session_id,
+                            vm_name,
+                            "software",
+                            level if level in ("INFO", "WARN", "ERROR") else "INFO",
+                            message,
+                            script_name=_name,
+                        )
+
+                    exit_code, output, _install_reboot = software_provision_lib.run_software_entry(
+                        ip,
+                        admin_username,
+                        admin_password,
+                        package_id=sname,
+                        guest_os=guest_os,
+                        clean_payload_on_success=bool(script.get("clean_payload_on_success", True)),
+                        on_event=_on_sw_event,
+                    )
+                else:
+                    script_path = data_dir / "automation" / "scripts" / sname
+                    exit_code, output = provision_lib.run_script(
+                        ip,
+                        admin_username,
+                        admin_password,
+                        script_path,
+                        parameters=script.get("parameters") or {},
+                    )
             except Exception as exc:
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
                     "ERROR",
-                    f"Script failed: WinRM connection error - {exc}",
+                    f"{kind_label.capitalize()} failed: {exc}",
                     script_name=sname,
                 )
                 hatch_lib.set_script_status(
@@ -202,19 +245,20 @@ def _provision_vm_thread(
                 hatch_lib.set_vm_status(session_id, vm_name, "failed")
                 return
 
-            for event in hatch_lib.parse_hatch_event_lines(output):
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "script",
-                    event["level"],
-                    event["message"],
-                    script_name=sname,
-                    component=event["component"],
-                    received_at=event["received_at"],
-                )
+            if entry_type != "software":
+                for event in hatch_lib.parse_hatch_event_lines(output):
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "script",
+                        event["level"],
+                        event["message"],
+                        script_name=sname,
+                        component=event["component"],
+                        received_at=event["received_at"],
+                    )
 
-            if exit_code != 0:
+            if entry_type == "script" and exit_code != 0:
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
@@ -240,7 +284,7 @@ def _provision_vm_thread(
                 vm_name,
                 "hatchery",
                 "INFO",
-                f"Script complete: {sname} - Exit Code: {exit_code}",
+                f"{kind_label.capitalize()} complete: {sname} - Exit Code: {exit_code}",
                 script_name=sname,
             )
             hatch_lib.set_script_status(
@@ -258,30 +302,18 @@ def _provision_vm_thread(
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Rebooting VM after script: {sname}",
+                    f"Rebooting VM after {kind_label}: {sname}",
                     script_name=sname,
                 )
                 provision_lib.restart_guest(ip, admin_username, admin_password)
-                # Wait for WinRM to come back after restart
-                for _ in range(120):
-                    time.sleep(5)
-                    if check_winrm(ip):
-                        hatch_lib.add_event(
-                            session_id,
-                            vm_name,
-                            "hatchery",
-                            "INFO",
-                            "WinRM reconnected after reboot",
-                            script_name=sname,
-                        )
-                        break
+                _wait_winrm_after_reboot(session_id, vm_name, ip, script_name=sname)
 
         hatch_lib.add_event(
             session_id,
             vm_name,
             "hatchery",
             "INFO",
-            "All scripts succeeded - VM is fledged",
+            "All automations succeeded - VM is fledged",
         )
         hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -432,7 +464,7 @@ def sync_hatch_status(
                     "hatchery",
                     "INFO",
                     f"Windows setup complete - starting provisioning "
-                    f"({n} script{'s' if n != 1 else ''})",
+                    f"({n} automation{'s' if n != 1 else ''})",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
                 spawn_provision_thread(
@@ -448,7 +480,7 @@ def sync_hatch_status(
                     vm_name,
                     "hatchery",
                     "INFO",
-                    "Windows setup complete - no automation scripts configured",
+                    "Windows setup complete - no automations configured",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -542,18 +574,9 @@ def create_and_start_hatch(
             vm.name,
             admin_username=vm.admin_username or None,
             admin_password=passwords.get(vm.name),
+            guest_os=vm.os.value if hasattr(vm.os, "value") else str(vm.os),
         )
-        script_entries = [a for a in vm.automations if a.type == "script"]
-        software_entries = [a for a in vm.automations if a.type == "software"]
-        hatch_lib.add_vm_scripts(session_id, vm.name, script_entries)
-        for sw in software_entries:
-            hatch_lib.add_event(
-                session_id,
-                vm.name,
-                "hatchery",
-                "WARNING",
-                f"Software automation '{sw.name}' is declared but not executed yet (#474)",
-            )
+        hatch_lib.add_vm_scripts(session_id, vm.name, vm.automations)
         hatch_lib.add_event(
             session_id,
             vm.name,

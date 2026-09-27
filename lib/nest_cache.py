@@ -22,6 +22,7 @@ ArtifactKind = Literal[
     "media/virtio",
     "automation/answerfiles",
     "automation/scripts",
+    "automation/software",
 ]
 
 _KIND_DIR: dict[ArtifactKind, str] = {
@@ -29,7 +30,10 @@ _KIND_DIR: dict[ArtifactKind, str] = {
     "media/virtio": "media/virtio",
     "automation/answerfiles": "automation/answerfiles",
     "automation/scripts": "automation/scripts",
+    "automation/software": "automation/software",
 }
+
+_DIRECTORY_KINDS = frozenset({"automation/software"})
 
 ARTIFACT_KINDS = frozenset(_KIND_DIR)
 
@@ -129,10 +133,11 @@ def collect_vm_artifacts(vm: VMConfig) -> list[CacheArtifact]:
     if vm.answer_file:
         arts.append(_artifact_from_name("automation/answerfiles", vm.answer_file, vm_name=vm.name))
     for entry in vm.automations:
-        if getattr(entry, "type", "script") != "script":
-            # Software Nest-cache staging lands with hatch Software steps (#474).
-            continue
-        arts.append(_artifact_from_name("automation/scripts", entry.name, vm_name=vm.name))
+        kind = getattr(entry, "type", "script") or "script"
+        if kind == "software":
+            arts.append(_artifact_from_name("automation/software", entry.name, vm_name=vm.name))
+        else:
+            arts.append(_artifact_from_name("automation/scripts", entry.name, vm_name=vm.name))
     return arts
 
 
@@ -168,6 +173,26 @@ def verify_local(
         path = resolve_nest_path(art, root)
         if not path.exists():
             issues.append(ArtifactIssue(art, "missing"))
+            continue
+        if art.kind in _DIRECTORY_KINDS:
+            if not path.is_dir():
+                issues.append(
+                    ArtifactIssue(
+                        art,
+                        "not_a_file",
+                        detail=" (expected Software package directory)",
+                    )
+                )
+                continue
+            definition = path / "software.yaml"
+            if not definition.is_file():
+                issues.append(
+                    ArtifactIssue(
+                        art,
+                        "missing",
+                        detail=" (software.yaml missing in package)",
+                    )
+                )
             continue
         if not path.is_file():
             issues.append(ArtifactIssue(art, "not_a_file"))

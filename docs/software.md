@@ -191,12 +191,12 @@ Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutc
 
 Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error.
 
-Windows example after staging `Microsoft.VisualStudioCode.1.96.0`:
+Windows example after staging `Microsoft.VisualStudioCode.1.96.0` (guest arch `x64`):
 
 ```
 C:\Program Files\Hatchery\software\Microsoft.VisualStudioCode.1.96.0\
   VSCodeSetup-x64.exe
-  (any other files that were under automation/software/…/windows/)
+  (any other files that were under automation/software/…/windows/x64/)
 ```
 
 <br>
@@ -265,9 +265,9 @@ Clutch ordered automations
   → type: script  → provision.run_script
   → type: software
        → load software.yaml
-       → copy OS-dir contents → software_package(id)
+       → stage platforms/{os}/{arch}/ contents → software_package(id)
        → pre_install[] → install → post_install[]
-       → optional remove software_package(id)
+       → optional remove software_package(id) (#474)
        → detect (status / skip-if-present)
 ```
 

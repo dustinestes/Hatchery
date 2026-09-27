@@ -6,24 +6,27 @@ from pathlib import Path
 
 import winrm
 
+from lib.clutch import GuestOS
+from lib.guest_paths import guest_paths_for
+
 # WinRM uses Negotiate (NTLM) by default after Enable-PSRemoting.
 # NTLM is preferred over Basic because credentials never travel in plaintext.
 # Requires LocalAccountTokenFilterPolicy=1 on the guest for non-built-in admin accounts.
 _TRANSPORT = "ntlm"
 
-# Single well-identified directory for all Hatchery-managed files on the guest.
-# Created by hatchery-setup.ps1 on first boot.
-HATCHERY_GUEST_DIR = r"C:\Program Files\Hatchery"
+# Windows guest path roles (ADR-0025 / #474). Prefer guest_paths_for(GuestOS) in new code.
+_WINDOWS_PATHS = guest_paths_for(GuestOS.WIN11)
+HATCHERY_GUEST_DIR = _WINDOWS_PATHS.root
 
 # Written as the last step of hatchery-setup.ps1.
 # Hatchery polls for this file before starting automation scripts so that
 # provisioning never begins while first-boot setup is still running.
 # Deleted by Hatchery immediately on detection.
-SETUP_COMPLETE_FLAG = rf"{HATCHERY_GUEST_DIR}\temp\hatchery-ready"
+SETUP_COMPLETE_FLAG = rf"{_WINDOWS_PATHS.temp}\hatchery-ready"
 
 # Written by hatchery-setup.ps1 during FirstLogonCommands. Imported into hatch_events
 # after WinRM connects, then deleted so the guest stays clean.
-SETUP_LOG_FILE = rf"{HATCHERY_GUEST_DIR}\logs\hatchery-setup.log"
+SETUP_LOG_FILE = rf"{_WINDOWS_PATHS.logs}\hatchery-setup.log"
 
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
@@ -56,7 +59,7 @@ def _build_injection(script_name: str) -> str:
     Sets $script:HatchLogFile to a per-script path under HATCHERY_GUEST_DIR\\logs\\,
     creates the directory if needed, then defines Write-HatchEvent.
     """
-    log_file = rf"{HATCHERY_GUEST_DIR}\logs\{script_name}.log"
+    log_file = rf"{_WINDOWS_PATHS.logs}\{script_name}.log"
     return (
         f"$script:HatchLogFile = '{log_file}'\n"
         "$null = New-Item -Path (Split-Path $script:HatchLogFile) -ItemType Directory -Force\n"

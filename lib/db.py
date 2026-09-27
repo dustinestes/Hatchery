@@ -38,22 +38,25 @@ CREATE TABLE IF NOT EXISTS hatch_vm_status (
     admin_username TEXT,
     admin_password TEXT,
     error          TEXT,
+    guest_os       TEXT,
     UNIQUE(session_id, vm_name)
 );
 
 CREATE TABLE IF NOT EXISTS hatch_vm_scripts (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id   TEXT    NOT NULL REFERENCES hatch_sessions(id),
-    vm_name      TEXT    NOT NULL,
-    script_name  TEXT    NOT NULL,
-    run_order    INTEGER NOT NULL,
-    reboot_after INTEGER NOT NULL DEFAULT 0,
-    status       TEXT    NOT NULL DEFAULT 'pending',
-    exit_code    INTEGER,
-    output       TEXT,
-    parameters   TEXT,
-    started_at   TEXT,
-    completed_at TEXT,
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id                TEXT    NOT NULL REFERENCES hatch_sessions(id),
+    vm_name                   TEXT    NOT NULL,
+    script_name               TEXT    NOT NULL,
+    run_order                 INTEGER NOT NULL,
+    reboot_after              INTEGER NOT NULL DEFAULT 0,
+    status                    TEXT    NOT NULL DEFAULT 'pending',
+    exit_code                 INTEGER,
+    output                    TEXT,
+    parameters                TEXT,
+    started_at                TEXT,
+    completed_at              TEXT,
+    entry_type                TEXT    NOT NULL DEFAULT 'script',
+    clean_payload_on_success  INTEGER NOT NULL DEFAULT 1,
     UNIQUE(session_id, vm_name, run_order)
 );
 
@@ -214,6 +217,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_library_drop_git_connection_type(conn)
     _migrate_library_answerfiles_domain(conn)
     _migrate_library_software_domain(conn)
+    _migrate_hatch_vm_scripts_typed(conn)
+    _migrate_hatch_vm_status_guest_os(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -923,6 +928,37 @@ def _migrate_library_cache_provenance_axes(conn: sqlite3.Connection) -> None:
           AND (source_status_message = '' OR source_status_message IS NULL)
         """
     )
+
+
+def _migrate_hatch_vm_scripts_typed(conn: sqlite3.Connection) -> None:
+    """Add typed automation columns for mixed script|software hatch rows (#474)."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='hatch_vm_scripts'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_vm_scripts)").fetchall()}
+    if "entry_type" not in cols:
+        conn.execute(
+            "ALTER TABLE hatch_vm_scripts ADD COLUMN entry_type TEXT NOT NULL DEFAULT 'script'"
+        )
+    if "clean_payload_on_success" not in cols:
+        conn.execute(
+            "ALTER TABLE hatch_vm_scripts "
+            "ADD COLUMN clean_payload_on_success INTEGER NOT NULL DEFAULT 1"
+        )
+
+
+def _migrate_hatch_vm_status_guest_os(conn: sqlite3.Connection) -> None:
+    """Store Clutch guest OS on hatch VM rows for Software path resolution (#474)."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='hatch_vm_status'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_vm_status)").fetchall()}
+    if "guest_os" not in cols:
+        conn.execute("ALTER TABLE hatch_vm_status ADD COLUMN guest_os TEXT")
 
 
 def _migrate_nests_columns(conn: sqlite3.Connection) -> None:

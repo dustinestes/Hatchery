@@ -3032,7 +3032,7 @@ class TestSyncHatchStatus:
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         events = hatch_lib.get_events(sid, "dc01")
-        assert any("no automation scripts" in e["message"].lower() for e in events)
+        assert any("no automations" in e["message"].lower() for e in events)
 
     def test_no_change_when_setup_flag_not_present(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
