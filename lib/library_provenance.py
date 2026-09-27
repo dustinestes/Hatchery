@@ -8,7 +8,7 @@ from typing import Any
 
 from lib import db
 
-DOMAINS = frozenset({"scripts", "clutches", "media"})
+DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
 # Derived for one-release UI/API compat (ADR-0018). Prefer source_status + sync_state.
 DRIFT_STATES = frozenset({"in_sync", "out_of_sync", "unknown", "orphan"})
 SOURCE_STATUSES = frozenset(
@@ -251,7 +251,7 @@ def list_all() -> list[dict[str, Any]]:
 
 
 def counts_by_domain() -> dict[str, int]:
-    """Linked operator-cache counts per domain (scripts / clutches / media).
+    """Linked operator-cache counts per domain (scripts / clutches / media / answerfiles).
 
     ``media`` combines ISO and VirtIO rows. Missing domains return 0.
     """
@@ -715,6 +715,7 @@ _DOMAIN_LABELS = {
     "scripts": "Scripts",
     "clutches": "Clutches",
     "media": "Media",
+    "answerfiles": "Answer Files",
 }
 
 

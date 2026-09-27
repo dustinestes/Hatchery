@@ -60,7 +60,7 @@ Product shape is locked in [ADR-0024](adr/0024-answer-files-product-model.md). T
 
 ## Storage and Library
 
-- Place files in `automation/answerfiles/` (Import on Automations → Answer Files, or drop files there on the Controller). Library pull for the `answerfiles` domain lands with [#449](https://github.com/dustinestes/Hatchery/issues/449).
+- Place files in `automation/answerfiles/` (Import on Automations → Answer Files, or drop files there on the Controller). Library pull for the `answerfiles` domain is live: on a fresh Controller the Hatchery Library seed includes an **All Answer Files** binding; pull from Library → Content Available (or `hatchery library content pull --domain answerfiles`).
 - Optional samples ship in the public [Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) repo under `answerfiles/windows/`. That repo is **content only**. Pull or import only if you want Hatchery’s examples; nothing is auto-copied into your data dir.
 - Automations → Answer Files inventories those files for discovery and audit (metadata, Clutch usage, read-only content, copy path) - editing stays in your host editor.
 

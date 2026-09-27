@@ -62,7 +62,7 @@ def register(sub: argparse._SubParsersAction) -> None:
         "--kinds",
         required=True,
         metavar="LIST",
-        help="Comma-separated: scripts,clutches,media,packages",
+        help="Comma-separated: scripts,clutches,media,packages,answerfiles",
     )
     add_c.add_argument("--token", default="", metavar="TOKEN")
     rem_c = conn_sub.add_parser("remove", help="Delete a connection (cascades bindings)")
@@ -75,7 +75,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     list_b = bind_sub.add_parser("list", help="List Library bindings")
     list_b.add_argument(
         "--domain",
-        choices=("scripts", "clutches", "media"),
+        choices=("scripts", "clutches", "media", "answerfiles"),
         default=None,
         metavar="DOMAIN",
     )
@@ -96,9 +96,9 @@ def register(sub: argparse._SubParsersAction) -> None:
     add_b.add_argument(
         "--domain",
         required=True,
-        choices=("scripts", "clutches", "media"),
+        choices=("scripts", "clutches", "media", "answerfiles"),
         metavar="DOMAIN",
-        help="Binding domain: scripts | clutches | media",
+        help="Binding domain: scripts | clutches | media | answerfiles",
     )
     add_b.add_argument(
         "--filter",
@@ -127,9 +127,9 @@ def register(sub: argparse._SubParsersAction) -> None:
     list_ct.add_argument(
         "--domain",
         required=True,
-        choices=("scripts", "clutches", "media"),
+        choices=("scripts", "clutches", "media", "answerfiles"),
         metavar="DOMAIN",
-        help="Content domain: scripts | clutches | media",
+        help="Content domain: scripts | clutches | media | answerfiles",
     )
     list_ct.add_argument(
         "--connection",
@@ -152,7 +152,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     pull_ct.add_argument(
         "--domain",
         required=True,
-        choices=("scripts", "clutches", "media"),
+        choices=("scripts", "clutches", "media", "answerfiles"),
         metavar="DOMAIN",
     )
     pull_ct.add_argument(
@@ -189,7 +189,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     rem_ct.add_argument(
         "--domain",
         required=True,
-        choices=("scripts", "clutches", "media"),
+        choices=("scripts", "clutches", "media", "answerfiles"),
         metavar="DOMAIN",
     )
     rem_ct.add_argument(
@@ -429,6 +429,7 @@ def _binding(args: argparse.Namespace, *, as_json: bool) -> int:
             "scripts": library_lib.parse_script_bindings,
             "clutches": library_lib.parse_clutch_bindings,
             "media": library_lib.parse_media_bindings,
+            "answerfiles": library_lib.parse_answerfile_bindings,
         }
         try:
             connections = registry.list_connections()
@@ -469,6 +470,11 @@ def _cached_basenames(domain: str, *, target: str | None = None) -> set[str]:
         if not directory.is_dir():
             return set()
         return {p.name for p in directory.iterdir() if p.is_file()}
+    if domain == "answerfiles":
+        directory = root / "automation" / "answerfiles"
+        if not directory.is_dir():
+            return set()
+        return {p.name for p in directory.iterdir() if p.is_file()}
     if domain == "clutches":
         directory = root / "clutches"
         if not directory.is_dir():
@@ -504,10 +510,13 @@ def _catalog_items(
         "scripts": library_lib.parse_script_bindings,
         "clutches": library_lib.parse_clutch_bindings,
         "media": library_lib.parse_media_bindings,
+        "answerfiles": library_lib.parse_answerfile_bindings,
     }
     bindings = parsers[domain](raw_bindings, connections)
     if domain == "scripts":
         items = library_lib.catalog_scripts(connections, bindings)
+    elif domain == "answerfiles":
+        items = library_lib.catalog_answerfiles(connections, bindings)
     elif domain == "clutches":
         items = library_lib.catalog_clutches(connections, bindings)
     else:
@@ -559,6 +568,12 @@ def _content(args: argparse.Namespace, *, as_json: bool) -> int:
         try:
             if args.domain == "scripts":
                 result = library_lib.pull_script(
+                    row,
+                    args.relative_path,
+                    binding_id=args.binding_id,
+                )
+            elif args.domain == "answerfiles":
+                result = library_lib.pull_answerfile(
                     row,
                     args.relative_path,
                     binding_id=args.binding_id,

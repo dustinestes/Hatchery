@@ -1300,6 +1300,7 @@ hatchery.bindUnsavedLeave = function (opts) {
       if (domain === 'scripts') return 'Scripts';
       if (domain === 'clutches') return 'Clutches';
       if (domain === 'media') return 'Media';
+      if (domain === 'answerfiles') return 'Answer Files';
       return domain || '';
     }
 

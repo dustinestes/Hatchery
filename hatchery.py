@@ -461,7 +461,6 @@ def _scan_answerfile_inventory() -> list[dict]:
                 "modified_at": modified,
             }
         )
-    # domain=answerfiles is not in Library provenance CHECK yet (#449); enrich falls back.
     return _enrich_library_inventory(items, domain="answerfiles")
 
 
@@ -740,6 +739,7 @@ def _library_bindings_by_id() -> dict[str, dict]:
         (library_lib.parse_script_bindings, config.library_script_bindings),
         (library_lib.parse_clutch_bindings, config.library_clutch_bindings),
         (library_lib.parse_media_bindings, config.library_media_bindings),
+        (library_lib.parse_answerfile_bindings, config.library_answerfile_bindings),
     ):
         try:
             binds = parse_fn(getter() or [], connections)
@@ -796,6 +796,7 @@ def library_content_pane():
         library_script_bindings=_library_reattach_bindings("scripts"),
         library_clutch_bindings=_library_reattach_bindings("clutches"),
         library_media_bindings=_library_reattach_bindings("media"),
+        library_answerfile_bindings=_library_reattach_bindings("answerfiles"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
         library_content_remove_url=url_for("api_library_content_remove"),
@@ -823,6 +824,7 @@ def library_connections_pane():
         "library_script_bindings": config.library_script_bindings(),
         "library_clutch_bindings": config.library_clutch_bindings(),
         "library_media_bindings": config.library_media_bindings(),
+        "library_answerfile_bindings": config.library_answerfile_bindings(),
     }
     return render_template(
         "library_connections.html",
@@ -1107,6 +1109,10 @@ def _library_reattach_bindings(domain: str, *, media_target: str | None = None) 
     try:
         if key == "scripts":
             binds = library_lib.parse_script_bindings(config.library_script_bindings(), connections)
+        elif key == "answerfiles":
+            binds = library_lib.parse_answerfile_bindings(
+                config.library_answerfile_bindings(), connections
+            )
         elif key == "clutches":
             binds = library_lib.parse_clutch_bindings(config.library_clutch_bindings(), connections)
         elif key == "media":
@@ -1265,7 +1271,11 @@ _BINDING_PARSE = {
     "scripts": library_lib.parse_script_bindings,
     "clutches": library_lib.parse_clutch_bindings,
     "media": library_lib.parse_media_bindings,
+    "answerfiles": library_lib.parse_answerfile_bindings,
 }
+
+_LIBRARY_DOMAINS = frozenset({"scripts", "clutches", "media", "answerfiles"})
+_LIBRARY_DOMAIN_ERROR = "domain must be scripts, clutches, media, or answerfiles"
 
 
 @app.route("/api/library/connections/<conn_id>", methods=["DELETE"])
@@ -1333,7 +1343,7 @@ def api_library_binding_upsert(domain: str):
         return denied
     key = str(domain or "").strip().lower()
     if key not in _BINDING_PARSE:
-        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+        return jsonify({"ok": False, "error": _LIBRARY_DOMAIN_ERROR}), 400
     data = request.get_json(silent=True) or {}
     raw = data.get("binding")
     if not isinstance(raw, dict):
@@ -1364,7 +1374,7 @@ def api_library_binding_delete(domain: str, binding_id: str):
         return denied
     key = str(domain or "").strip().lower()
     if key not in _BINDING_PARSE:
-        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+        return jsonify({"ok": False, "error": _LIBRARY_DOMAIN_ERROR}), 400
     bid = str(binding_id or "").strip()
     if not bid:
         return jsonify({"ok": False, "error": "binding id is required"}), 400
@@ -1419,6 +1429,51 @@ def api_library_scripts_pull():
         binding_id = str(data.get("binding_id") or "").strip() or None
         overwrite = bool(data.get("overwrite") or data.get("sync"))
         result = library_lib.pull_script(
+            conn, relative_path, binding_id=binding_id, overwrite=overwrite
+        )
+    except FileExistsError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"imported": [result["name"]], "sha256": result["sha256"], "errors": []})
+
+
+@app.route("/api/library/answerfiles")
+def api_library_answerfiles():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    raw_connections = config.library_connections()
+    raw_bindings = config.library_answerfile_bindings()
+    try:
+        connections = library_lib.connections_for_bindings(raw_connections, raw_bindings)
+        bindings = library_lib.parse_answerfile_bindings(raw_bindings, connections)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "items": []}), 400
+    items = library_lib.catalog_answerfiles(connections, bindings)
+    cached_names = {s["name"] for s in _scan_answerfile_inventory()}
+    items = library_lib.annotate_cached(items, cached_names)
+    return jsonify({"items": items})
+
+
+@app.route("/api/library/answerfiles/pull", methods=["POST"])
+def api_library_answerfiles_pull():
+    denied = _library_require_enabled()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    try:
+        conn = _connection_from_request_body(data)
+        relative_path = str(data.get("relative_path") or "").strip()
+        if not relative_path:
+            raise ValueError("relative_path is required")
+        binding_id = str(data.get("binding_id") or "").strip() or None
+        overwrite = bool(data.get("overwrite") or data.get("sync"))
+        result = library_lib.pull_answerfile(
             conn, relative_path, binding_id=binding_id, overwrite=overwrite
         )
     except FileExistsError as exc:
@@ -1544,8 +1599,8 @@ def api_library_cache_sync():
     domain = str(data.get("domain") or "").strip().lower()
     name = str(data.get("name") or "").strip()
     media_target = str(data.get("media_target") or data.get("target") or "").strip().lower() or None
-    if domain not in ("scripts", "clutches", "media"):
-        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if domain not in _LIBRARY_DOMAINS:
+        return jsonify({"ok": False, "error": _LIBRARY_DOMAIN_ERROR}), 400
     if not name:
         return jsonify({"ok": False, "error": "name is required"}), 400
     row = prov.get_for_cache(domain, name, media_target=media_target)
@@ -1620,8 +1675,8 @@ def api_library_cache_reattach():
     relative_path = str(data.get("relative_path") or "").strip()
     binding_id = str(data.get("binding_id") or "").strip() or None
     commit = bool(data.get("commit"))
-    if domain not in ("scripts", "clutches", "media"):
-        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if domain not in _LIBRARY_DOMAINS:
+        return jsonify({"ok": False, "error": _LIBRARY_DOMAIN_ERROR}), 400
     if not name or not relative_path:
         return jsonify({"ok": False, "error": "name and relative_path are required"}), 400
     from pathlib import Path
@@ -1726,10 +1781,12 @@ def api_library_content_catalog():
             script_bindings=config.library_script_bindings(),
             clutch_bindings=config.library_clutch_bindings(),
             media_bindings=config.library_media_bindings(),
+            answerfile_bindings=config.library_answerfile_bindings(),
             script_cached_names={s["name"] for s in _scan_script_inventory()},
             clutch_cached_names={c["name"] for c in _scan_clutch_inventory()},
             media_cached_names={i["name"] for i in media_inspect_lib.scan_media_dir("iso")}
             | {i["name"] for i in media_inspect_lib.scan_media_dir("virtio")},
+            answerfile_cached_names={a["name"] for a in _scan_answerfile_inventory()},
             domain=domain,
         )
     except ValueError as exc:
@@ -1749,8 +1806,8 @@ def api_library_content_remove():
     domain = str(data.get("domain") or "").strip().lower()
     name = str(data.get("name") or "").strip()
     media_target = str(data.get("media_target") or "").strip().lower() or None
-    if domain not in ("scripts", "clutches", "media"):
-        return jsonify({"ok": False, "error": "domain must be scripts, clutches, or media"}), 400
+    if domain not in _LIBRARY_DOMAINS:
+        return jsonify({"ok": False, "error": _LIBRARY_DOMAIN_ERROR}), 400
     if not name:
         return jsonify({"ok": False, "error": "name is required"}), 400
     if domain == "media" and media_target not in ("iso", "virtio"):

@@ -19,15 +19,16 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from lib.import_files import SCRIPT_EXTENSIONS
+from lib.import_files import ANSWERFILE_EXTENSIONS, SCRIPT_EXTENSIONS
 
 CONNECTION_TYPES = frozenset({"path", "https", "api", "forge"})
-CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages"})
+CONNECTION_KINDS = frozenset({"scripts", "clutches", "media", "packages", "answerfiles"})
 MEDIA_EXTENSIONS = frozenset({".iso"})
 MEDIA_TARGETS = frozenset({"iso", "virtio"})
 CLUTCH_EXTENSIONS = frozenset({".yaml"})
 _SAMPLE_LIMIT = 5
 _SCRIPT_PULL_DEST = "automation/scripts"
+_ANSWERFILE_PULL_DEST = "automation/answerfiles"
 _CLUTCH_PULL_DEST = "clutches"
 _LEGACY_GIT_CACHE_SUBDIR = "library/git"
 _LEGACY_GIT_REMOVED_MSG = (
@@ -202,6 +203,17 @@ def parse_script_bindings(raw: list | None, connections: list[dict]) -> list[dic
     )
 
 
+def parse_answerfile_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
+    """Validate Answer Files domain bindings against the connection registry."""
+    return _parse_domain_bindings(
+        raw,
+        connections,
+        domain="answerfiles",
+        kind="answerfiles",
+        noun="answerfile",
+    )
+
+
 def parse_clutch_bindings(raw: list | None, connections: list[dict]) -> list[dict]:
     """Validate Clutches domain bindings against the connection registry."""
     return _parse_domain_bindings(
@@ -367,6 +379,8 @@ def cache_path_for(
     domain_n = (domain or "").strip().lower()
     if domain_n == "scripts":
         return root / _SCRIPT_PULL_DEST / name
+    if domain_n == "answerfiles":
+        return root / _ANSWERFILE_PULL_DEST / name
     if domain_n == "clutches":
         return root / _CLUTCH_PULL_DEST / name
     if domain_n == "media":
@@ -829,6 +843,16 @@ def list_script_hits(
     return list_hits(conn, filt, extensions=SCRIPT_EXTENSIONS, limit=limit)
 
 
+def list_answerfile_hits(
+    conn: dict,
+    filt: str,
+    *,
+    limit: int | None = None,
+) -> list[dict]:
+    """List Answer File files for a connection + filter."""
+    return list_hits(conn, filt, extensions=ANSWERFILE_EXTENSIONS, limit=limit)
+
+
 def list_clutch_hits(
     conn: dict,
     filt: str,
@@ -1003,6 +1027,7 @@ def test_filter(conn: dict, filt: str, *, domain: str = "scripts") -> dict:
     domain = (domain or "scripts").strip().lower()
     list_by_domain = {
         "scripts": (list_script_hits, "script"),
+        "answerfiles": (list_answerfile_hits, "answerfile"),
         "media": (list_media_hits, "media"),
         "clutches": (list_clutch_hits, "clutch"),
     }
@@ -1074,6 +1099,59 @@ def sync_script(
 ) -> dict:
     """Overwrite a cached script from its Library source (no provenance upsert)."""
     return pull_script(
+        conn,
+        relative_path,
+        dest_dir=dest_dir,
+        binding_id=binding_id,
+        overwrite=True,
+    )
+
+
+def pull_answerfile(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+    overwrite: bool = False,
+) -> dict:
+    """Copy one Answer File into the operator automation/answerfiles cache."""
+    from lib import config as config_lib
+
+    dest_root = dest_dir or (config_lib.data_dir() / _ANSWERFILE_PULL_DEST)
+    result = _pull_file(
+        conn,
+        relative_path,
+        dest_root=dest_root,
+        extensions=ANSWERFILE_EXTENSIONS,
+        kind_label="answerfile",
+        overwrite=overwrite,
+    )
+    if overwrite:
+        tip = resolve_source_digest(conn, relative_path, single_file=True)
+        dest = Path(str(result.get("dest") or ""))
+        if dest.is_file():
+            assert_pulled_matches_tip(dest, tip, content_sha256=str(result.get("sha256") or ""))
+    else:
+        _record_provenance(
+            conn,
+            domain="answerfiles",
+            relative_path=relative_path,
+            result=result,
+            binding_id=binding_id,
+        )
+    return result
+
+
+def sync_answerfile(
+    conn: dict,
+    relative_path: str,
+    *,
+    dest_dir: Path | None = None,
+    binding_id: str | None = None,
+) -> dict:
+    """Overwrite a cached Answer File from its Library source (no provenance upsert)."""
+    return pull_answerfile(
         conn,
         relative_path,
         dest_dir=dest_dir,
@@ -1255,6 +1333,11 @@ def catalog_scripts(connections: list[dict], bindings: list[dict]) -> list[dict]
     return _catalog(connections, bindings, list_fn=list_script_hits)
 
 
+def catalog_answerfiles(connections: list[dict], bindings: list[dict]) -> list[dict]:
+    """Union of Answer File hits across answerfiles bindings (dedupe by name, first wins)."""
+    return _catalog(connections, bindings, list_fn=list_answerfile_hits)
+
+
 def catalog_clutches(connections: list[dict], bindings: list[dict]) -> list[dict]:
     """Union of Clutch hits across Clutches bindings (dedupe by name, first wins)."""
     return _catalog(connections, bindings, list_fn=list_clutch_hits)
@@ -1338,16 +1421,18 @@ def catalog_content_union(
     script_cached_names: set[str] | list[str],
     clutch_cached_names: set[str] | list[str],
     media_cached_names: set[str] | list[str],
+    answerfile_bindings: list[dict] | None = None,
+    answerfile_cached_names: set[str] | list[str] | None = None,
     domain: str | None = None,
 ) -> list[dict]:
     """Cross-domain catalog for Library → Content Available (#392).
 
     Stamps each row with ``domain`` (and media ``target`` from bindings).
-    Optional ``domain`` filters to scripts | clutches | media.
+    Optional ``domain`` filters to scripts | clutches | media | answerfiles.
     """
     domain_norm = (domain or "").strip().lower() or None
-    if domain_norm and domain_norm not in ("scripts", "clutches", "media"):
-        raise ValueError("domain must be scripts, clutches, or media")
+    if domain_norm and domain_norm not in ("scripts", "clutches", "media", "answerfiles"):
+        raise ValueError("domain must be scripts, clutches, media, or answerfiles")
 
     out: list[dict] = []
     if domain_norm in (None, "scripts"):
@@ -1359,6 +1444,19 @@ def catalog_content_union(
         for item in scripts:
             row = dict(item)
             row["domain"] = "scripts"
+            out.append(row)
+
+    if domain_norm in (None, "answerfiles"):
+        af_bindings = answerfile_bindings or []
+        af_cached = answerfile_cached_names or []
+        af_conns = connections_for_bindings(connections, af_bindings)
+        answerfiles = annotate_cached(
+            catalog_answerfiles(af_conns, parse_answerfile_bindings(af_bindings, af_conns)),
+            af_cached,
+        )
+        for item in answerfiles:
+            row = dict(item)
+            row["domain"] = "answerfiles"
             out.append(row)
 
     if domain_norm in (None, "clutches"):

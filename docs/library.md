@@ -84,7 +84,7 @@ Content is identified by **basename + SHA-256** checksum - not a GUID catalog.
 
 **Settings owns the Library feature flag** (`library_enabled` under General). Connection/binding **configuration** is stored in SQLite tables `library_connections`, `library_connection_kinds`, and `library_bindings` ([ADR-0017](adr/0017-library-connections-bindings-tables.md), [#367](https://github.com/dustinestes/Hatchery/issues/367)) and edited from **Library → Connections** ([ADR-0016](adr/0016-library-operator-plane.md), [#375](https://github.com/dustinestes/Hatchery/issues/375)).
 
-Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
+Asset panes keep an in-context **Import** control. When Library is on, **From library…** deep-links to Library → Content **Available** (optionally filtered with `?tab=available&domain=scripts|clutches|media|answerfiles`). Domain panes show operator-cache inventory only; catalog browse and linked-item lifecycle live on **Library → Content**.
 
 **Backup / restore:** copy or reconnect the Controller **data directory** (includes `hatchery.db` and domain caches). Settings YAML export/import covers app settings only (including `library_enabled`) and is **not** the Library registry vehicle. Legacy `library_connections` / binding arrays in an old document are ignored with a warning and do **not** replace the SQLite registry.
 
@@ -95,8 +95,8 @@ Asset panes keep an in-context **Import** control. When Library is on, **From li
 
 When Library is on, the sidebar gains a **Library** group (above Notifications) with **Content** and **Connections**:
 
-- **Content** - **Linked | Available** tabs (#392). **Linked** is attributed Cached inventory with Sync / re-attach / Remove (default). **Available** is the cross-domain Library catalog (filter by domain / connection / in-cache, multi-select pull into domain operator caches). Deep-link Linked with `?domain=scripts|clutches|media&name=…` (optional `media_target`); open Available with `?tab=available&domain=…`. Domain Cached panes link **Content** when the selected file is linked.
-- **Left (Connections):** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts bindings for that connection only.
+- **Content** - **Linked | Available** tabs (#392). **Linked** is attributed Cached inventory with Sync / re-attach / Remove (default). **Available** is the cross-domain Library catalog (filter by domain / connection / in-cache, multi-select pull into domain operator caches). Deep-link Linked with `?domain=scripts|clutches|media|answerfiles&name=…` (optional `media_target`); open Available with `?tab=available&domain=…`. Domain Cached panes link **Content** when the selected file is linked.
+- **Left (Connections):** connection list (+ Add). **Right:** selected connection editor and Clutches / Media / Scripts / Answer Files bindings for that connection only.
 - **Connections** - registry rows (path/share, HTTPS, **API**, Forge) with optional **token expiry** (day picker; when set, ≥ tomorrow). Path, HTTPS, API, and Forge providers support test / list / pull. Each connection has an **Enabled** toggle (default on). Switching Enabled saves immediately for already-stored rows (fields stay locked while off). **Test** and **Save** sit together; Save is dimmed until that row has unsaved field changes.
 - **Clutches / Media / Scripts** - binding rows reuse collapse chrome (binding label + filter + cache target where relevant). Binding **Label** is optional and defaults to the filter when blank. Re-attach pickers show `Label (filter)` when they differ. Per-binding **Enabled** toggles (immediate save when already stored) and the same **Test** / **Save** pattern.
 
@@ -137,7 +137,7 @@ Disabling a connection **cascades in the UI** (dependent bindings dim + note “
 
 Missing `enabled` on export/import → treat as enabled (backward compatible).
 
-Each connection declares **artifact types** (scripts, clutches, media, packages) so domain pickers only offer relevant connections.
+Each connection declares **artifact types** (scripts, clutches, media, packages, answerfiles) so domain pickers only offer relevant connections.
 
 Enable Library under Settings → General. Deep links to Library → Content or Connections while the feature is off redirect to General with an enable hint. `/settings/library` redirects to `/library/connections` when enabled. `/library` redirects to `/library/content`.
 
@@ -170,17 +170,18 @@ Library stays **consume-only** - no Clutch↔forge round-trip or push back to re
 
 Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/Hatchery-Library) ([#315](https://github.com/dustinestes/Hatchery/issues/315)).
 
-**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, and **All VirtIO** (`filter: *`). Existing Controllers with any connection are left unchanged.
+**First run:** when the Library registry is empty, Hatchery seeds this Forge connection (no token), enables Library, and adds bindings labeled **All Scripts**, **All Clutches**, **All ISOs**, **All VirtIO** (`filter: *`), and **All Answer Files** (`filter: *answerfiles/*` so the catalog stays under the Library repo’s `answerfiles/` tree). Existing Controllers with any connection are left unchanged.
 
 | | |
 |---|---|
 | **Base URI** | `https://github.com/dustinestes/Hatchery-Library` |
 | **Provider** | `github` |
-| **Kinds** | scripts, clutches, media, packages |
+| **Kinds** | scripts, clutches, media, packages, answerfiles |
 | **Scripts** | label `All Scripts` · filter `*` |
 | **Clutches** | label `All Clutches` · filter `*` |
 | **Media ISO** | label `All ISOs` · filter `*` · target `iso` |
 | **Media VirtIO** | label `All VirtIO` · filter `*` · target `virtio` |
+| **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` (repo tree under `answerfiles/`, including `.j2` templates and companions such as `.ps1`) |
 
 Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
 

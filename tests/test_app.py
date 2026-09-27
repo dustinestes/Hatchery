@@ -612,7 +612,12 @@ class TestDashboardSummaryApi:
                     "unique_clutch_files": 1,
                 },
                 "library": {
-                    "linked": {"scripts": 2, "clutches": 1, "media": 0},
+                    "linked": {
+                        "scripts": 2,
+                        "clutches": 1,
+                        "media": 0,
+                        "answerfiles": 0,
+                    },
                     "by_drift": {
                         "in_sync": 2,
                         "out_of_sync": 1,
@@ -1028,11 +1033,60 @@ class TestLibraryContentPane:
         monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
         monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
         monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_answerfile_bindings", lambda: [])
         resp = client.get("/api/library/content/catalog")
         assert resp.status_code == 200
         data = resp.get_json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+    def test_library_content_catalog_answerfiles_domain(self, client, tmp_path, monkeypatch):
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+        conn = {
+            "id": "af1",
+            "label": "AF share",
+            "type": "path",
+            "base_uri": str(share),
+            "token": "",
+            "expires_at": None,
+            "kinds": ["answerfiles"],
+            "enabled": True,
+        }
+        bind = {
+            "id": "b-af",
+            "connection_id": "af1",
+            "filter": "*",
+            "domain": "answerfiles",
+            "enabled": True,
+        }
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        monkeypatch.setattr(cfg, "library_connections", lambda: [conn])
+        monkeypatch.setattr(cfg, "library_script_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_clutch_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_media_bindings", lambda: [])
+        monkeypatch.setattr(cfg, "library_answerfile_bindings", lambda: [bind])
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path / "data")
+        (tmp_path / "data" / "automation" / "answerfiles").mkdir(parents=True)
+        resp = client.get("/api/library/content/catalog?domain=answerfiles")
+        assert resp.status_code == 200
+        items = resp.get_json()["items"]
+        assert len(items) == 1
+        assert items[0]["domain"] == "answerfiles"
+        assert items[0]["name"] == "win11.xml.j2"
+
+        pull = client.post(
+            "/api/library/answerfiles/pull",
+            json={
+                "connection": conn,
+                "relative_path": items[0]["relative_path"],
+                "binding_id": "b-af",
+            },
+        )
+        assert pull.status_code == 200
+        assert pull.get_json()["imported"] == ["win11.xml.j2"]
+        assert (tmp_path / "data" / "automation" / "answerfiles" / "win11.xml.j2").is_file()
 
     def test_library_content_catalog_api_forbidden_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)

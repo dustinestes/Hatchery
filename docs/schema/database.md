@@ -88,7 +88,7 @@ Attribution of operator-cache files pulled via Library ([#308](https://github.co
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
-| `domain` | `TEXT` | `NOT NULL` | `scripts`, `clutches`, or `media` |
+| `domain` | `TEXT` | `NOT NULL` | `scripts`, `clutches`, `media`, or `answerfiles` |
 | `media_target` | `TEXT` | `NOT NULL DEFAULT ''` | `iso` / `virtio` for media; empty otherwise |
 | `cache_name` | `TEXT` | `NOT NULL` | Basename in operator cache |
 | `connection_id` | `TEXT` | `NOT NULL` | Stable Library connection id |
@@ -141,7 +141,7 @@ Library connection registry ([ADR-0017](../adr/0017-library-connections-bindings
 
 ### library_connection_kinds
 
-Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packages`).
+Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packages`, `answerfiles`).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -156,13 +156,13 @@ Which artifact kinds a connection serves (`scripts`, `clutches`, `media`, `packa
 
 ### library_bindings
 
-Domain locators under a connection (Scripts / Clutches / Media filters).
+Domain locators under a connection (Scripts / Clutches / Media / Answer Files filters).
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | Stable id |
 | `connection_id` | `TEXT` | `NOT NULL`, FK → `library_connections(id)` **ON DELETE CASCADE** | |
-| `domain` | `TEXT` | `NOT NULL` | `scripts` \| `clutches` \| `media` |
+| `domain` | `TEXT` | `NOT NULL` | `scripts` \| `clutches` \| `media` \| `answerfiles` |
 | `media_target` | `TEXT` | `NOT NULL DEFAULT ''` | `iso` / `virtio` for media; empty otherwise |
 | `label` | `TEXT` | `NOT NULL` | Operator display (defaults to filter) |
 | `filter` | `TEXT` | `NOT NULL DEFAULT '*'` | Path glob / locator |

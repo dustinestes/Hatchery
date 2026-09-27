@@ -29,6 +29,7 @@ _LEGACY_LIBRARY_KEYS = frozenset(
         "library_script_bindings",
         "library_clutch_bindings",
         "library_media_bindings",
+        "library_answerfile_bindings",
     }
 )
 

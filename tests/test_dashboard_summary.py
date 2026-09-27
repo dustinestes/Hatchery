@@ -147,7 +147,12 @@ class TestClutchSummary:
 class TestLibrarySummary:
     def test_empty_linked(self):
         summary = dash.library_summary()
-        assert summary["linked"] == {"scripts": 0, "clutches": 0, "media": 0}
+        assert summary["linked"] == {
+            "scripts": 0,
+            "clutches": 0,
+            "media": 0,
+            "answerfiles": 0,
+        }
         assert summary["by_drift"] == {
             "in_sync": 0,
             "out_of_sync": 0,
@@ -197,7 +202,12 @@ class TestLibrarySummary:
             drift_state="out_of_sync",
         )
         summary = dash.library_summary()
-        assert summary["linked"] == {"scripts": 2, "clutches": 1, "media": 1}
+        assert summary["linked"] == {
+            "scripts": 2,
+            "clutches": 1,
+            "media": 1,
+            "answerfiles": 0,
+        }
         assert summary["by_drift"]["in_sync"] == 3
         assert summary["by_drift"]["out_of_sync"] == 1
 

@@ -1142,6 +1142,87 @@ class TestLibraryCli:
         assert library_cmd.run(rem) == 1
         assert "provenance" in capsys.readouterr().err.lower()
 
+    def test_answerfiles_binding_and_content_list(self, isolated_config, tmp_path, capsys):
+        import json
+        import lib.cli.library as library_cmd
+
+        sandbox = tmp_path / "sandbox"
+        self._seed(sandbox)
+        share = tmp_path / "share"
+        share.mkdir()
+        (share / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(["library", "--data-dir", str(sandbox), "enable"])
+            )
+            == 0
+        )
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(
+                    [
+                        "library",
+                        "--data-dir",
+                        str(sandbox),
+                        "connection",
+                        "add",
+                        "--id",
+                        "af-share",
+                        "--type",
+                        "path",
+                        "--base-uri",
+                        str(share),
+                        "--kinds",
+                        "answerfiles",
+                    ]
+                )
+            )
+            == 0
+        )
+        assert (
+            library_cmd.run(
+                cli.build_parser().parse_args(
+                    [
+                        "library",
+                        "--data-dir",
+                        str(sandbox),
+                        "binding",
+                        "add",
+                        "--id",
+                        "af-all",
+                        "--connection-id",
+                        "af-share",
+                        "--domain",
+                        "answerfiles",
+                        "--filter",
+                        "*",
+                    ]
+                )
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        listing = cli.build_parser().parse_args(
+            [
+                "--json",
+                "library",
+                "--data-dir",
+                str(sandbox),
+                "content",
+                "list",
+                "--domain",
+                "answerfiles",
+                "--connection",
+                "af-share",
+            ]
+        )
+        assert library_cmd.run(listing) == 0
+        list_payload = json.loads(capsys.readouterr().out)
+        assert list_payload["domain"] == "answerfiles"
+        assert {i["name"] for i in list_payload["items"]} == {"win11.xml.j2"}
+
     def test_main_dispatches_library(self):
         with patch("lib.cli.library.run", return_value=0) as run:
             assert cli.main(["library", "enable"]) == 0

@@ -222,6 +222,7 @@
     scripts: {{ library_script_bindings | default([]) | tojson }},
     clutches: {{ library_clutch_bindings | default([]) | tojson }},
     media: {{ library_media_bindings | default([]) | tojson }},
+    answerfiles: {{ library_answerfile_bindings | default([]) | tojson }},
   };
   const initialDomain = {{ initial_domain | default('') | tojson }};
   const initialName = {{ initial_name | default('') | tojson }};
@@ -231,6 +232,7 @@
   const scriptsPullUrl = {{ url_for('api_library_scripts_pull') | tojson }};
   const clutchesPullUrl = {{ url_for('api_library_clutches_pull') | tojson }};
   const mediaPullUrl = {{ url_for('api_library_media_pull') | tojson }};
+  const answerfilesPullUrl = {{ url_for('api_library_answerfiles_pull') | tojson }};
 
   let selectedBtn = null;
   let libraryMode = 'hidden';
@@ -245,6 +247,7 @@
         scripts: scriptsPullUrl,
         clutches: clutchesPullUrl,
         media: mediaPullUrl,
+        answerfiles: answerfilesPullUrl,
       },
       showDomainColumn: true,
     });
@@ -283,6 +286,7 @@
     if (domain === 'scripts') return 'Scripts';
     if (domain === 'clutches') return 'Clutches';
     if (domain === 'media') return 'Media';
+    if (domain === 'answerfiles') return 'Answer Files';
     return 'Library';
   }
 

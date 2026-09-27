@@ -232,15 +232,25 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     assert conn["provider"] == "github"
     assert conn["base_uri"] == registry.HATCHERY_LIBRARY_BASE_URI
     assert conn["token"] == ""
-    assert set(conn["kinds"]) == {"scripts", "clutches", "media", "packages"}
+    assert set(conn["kinds"]) == {
+        "scripts",
+        "clutches",
+        "media",
+        "packages",
+        "answerfiles",
+    }
 
     scripts = registry.list_bindings(domain="scripts")
     clutches = registry.list_bindings(domain="clutches")
     media = registry.list_bindings(domain="media")
+    answerfiles = registry.list_bindings(domain="answerfiles")
     assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*")]
     assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {("iso", "All ISOs", "*"), ("virtio", "All VirtIO", "*")}
+    assert [(b["id"], b["label"], b["filter"]) for b in answerfiles] == [
+        ("hatchery-library-answerfiles", "All Answer Files", "*answerfiles/*")
+    ]
 
     # Second call is a no-op once any connection exists.
     assert registry.ensure_hatchery_library() is False
