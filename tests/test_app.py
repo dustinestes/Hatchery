@@ -2297,7 +2297,18 @@ def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     iso_dir = tmp_path / "media" / "iso"
     iso_dir.mkdir(parents=True, exist_ok=True)
     (iso_dir / "win11.iso").write_bytes(b"test-iso")
-    vm = VMConfig(name=vm_name, os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+    answer_dir = tmp_path / "automation" / "answerfiles"
+    answer_dir.mkdir(parents=True, exist_ok=True)
+    (answer_dir / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+    vm = VMConfig(
+        name=vm_name,
+        os="win11",
+        vcpus=2,
+        ram_gb=4,
+        disk_gb=60,
+        os_media="win11.iso",
+        answer_file="win11.xml.j2",
+    )
     c = Clutch(name=name, vms=[vm])
     clutch_lib.export(c, name, clutches_dir)
     return clutches_dir / f"{name}.yaml"
@@ -2407,6 +2418,35 @@ class TestHatchClutchRoute:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         clutches_dir = tmp_path / "clutches"
         clutches_dir.mkdir()
+        answer_dir = tmp_path / "automation" / "answerfiles"
+        answer_dir.mkdir(parents=True)
+        (answer_dir / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+        vm = VMConfig(
+            name="dc01",
+            os="win11",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+        )
+        c = Clutch(name="my-lab", vms=[vm])
+        clutch_lib.export(c, "my-lab", clutches_dir)
+        with patch("lib.hatch_lifecycle.run_hatch_session") as mock_run:
+            resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "Nest cache missing" in html
+        assert "media/iso/win11.iso" in html
+        mock_run.assert_not_called()
+
+    def test_post_missing_answer_file_rerenders_form(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"x")
         vm = VMConfig(
             name="dc01",
             os="win11",
@@ -2420,9 +2460,7 @@ class TestHatchClutchRoute:
         with patch("lib.hatch_lifecycle.run_hatch_session") as mock_run:
             resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         assert resp.status_code == 200
-        html = resp.data.decode()
-        assert "Nest cache missing" in html
-        assert "media/iso/win11.iso" in html
+        assert "Answer File is required" in resp.data.decode()
         mock_run.assert_not_called()
 
     def test_post_creates_session_and_redirects_to_nests(self, client, tmp_path, monkeypatch):

@@ -545,6 +545,9 @@ class TestOperatorInspect:
         self._seed_local_nest(sandbox)
         clutches = sandbox / "clutches"
         clutches.mkdir(parents=True, exist_ok=True)
+        answers = sandbox / "automation" / "answerfiles"
+        answers.mkdir(parents=True, exist_ok=True)
+        (answers / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
         clutch = Clutch(
             name="Lab",
             vms=[
@@ -555,6 +558,7 @@ class TestOperatorInspect:
                     ram_gb=4,
                     disk_gb=40,
                     os_media="win.iso",
+                    answer_file="win11.xml.j2",
                 )
             ],
         )

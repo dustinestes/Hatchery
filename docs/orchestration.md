@@ -70,16 +70,16 @@ When the user submits a Clutch for hatching:
 
 ### Answer file
 
-If the VM has an admin username and password configured, Hatchery currently renders two files from Jinja2 templates under `templates/answerfiles/` and writes both into a 1.44 MB FAT floppy image using `mtools` (no root access required):
+Windows guests require a selected Answer File (`answer_file` on the Clutch VM). Hatchery renders the Jinja template under `automation/answerfiles/` with reserved system tokens (`vm_name`, `admin_username`, `admin_password`) plus declared user parameters, then packs the result and any frontmatter companions into a 1.44 MB FAT floppy image using `mtools` (no root access required):
 
-| File on floppy | Source template | Purpose |
+| File on floppy | Source | Purpose |
 |---|---|---|
-| `Autounattend.xml` | `templates/answerfiles/<os>.xml.j2` | OS-specific unattended install answer file |
-| `hatchery-setup.ps1` | `templates/answerfiles/hatchery-setup.ps1.j2` | First-boot orchestrator script |
+| `Autounattend.xml` | Rendered Answer File body | OS unattended install |
+| Companion basenames (e.g. `hatchery-setup.ps1`) | Files listed in frontmatter `companions:` under `automation/answerfiles/` | First-boot orchestrator / extras |
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
-**Target model ([ADR-0024](adr/0024-answer-files-product-model.md)):** user-owned [Answer Files](answer-files.md) under `automation/answerfiles/` (Clutch field `answer_file`), rendered with system tokens and declared parameters, then Nest-attached. Shadow Controller templates remain until hatch switches (#452). Legacy Clutch key `os_config` is still accepted on load.
+Missing Answer File, missing companions, or missing mandatory parameters fail before `virt-install`, with a clear UI/CLI error. See [Answer Files](answer-files.md) and [ADR-0024](adr/0024-answer-files-product-model.md).
 
 The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
 
@@ -134,7 +134,7 @@ This is the **stable contract** between the answer file and the orchestrator. If
 
 ### The orchestrator script (`hatchery-setup.ps1`)
 
-`hatchery-setup.ps1` is rendered from `templates/answerfiles/hatchery-setup.ps1.j2` and written to the floppy alongside `Autounattend.xml`. It runs all setup steps sequentially inside a console window titled **"Hatchery - First Boot Setup"**, displaying a live progress list with step indicators:
+`hatchery-setup.ps1` is a companion file under `automation/answerfiles/` (Library samples ship it next to the Autounattend templates). It is packed onto the floppy alongside `Autounattend.xml` when listed in Answer File frontmatter. It runs all setup steps sequentially inside a console window titled **"Hatchery - First Boot Setup"**, displaying a live progress list with step indicators:
 
 | Indicator | Meaning |
 |---|---|

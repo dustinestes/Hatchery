@@ -35,7 +35,7 @@ For operator-authored post-boot scripts, see [Automation Scripts](automations.md
 
 Install-time unattended templates (Autounattend and future Linux seeds) are **Answer Files**. Operator how-to, tokens, companions, and per-OS notes: [Answer Files](answer-files.md). Architecture: [ADR-0024](adr/0024-answer-files-product-model.md).
 
-Until the user-owned hatch path ships, the Controller may still render Windows Autounattend from `templates/answerfiles/` when admin credentials are set. Do not treat that shadow path as the long-term customization surface - copy or pull a sample into `automation/answerfiles/` and select it on the Clutch once Answer Files are required.
+Windows hatch requires a selected Answer File under `automation/answerfiles/` (pull Library samples or author your own). Admin credentials inject reserved system tokens; they do not select a hidden Controller template.
 
 ---
 
@@ -46,7 +46,7 @@ Until the user-owned hatch path ships, the Controller may still render Windows A
 To add support for a new guest OS:
 
 1. Add an Answer File sample/strategy for that OS (see [Answer Files](answer-files.md)) and Nest attach capability
-2. Extend `lib/answerfile.py` / hatch render and the Guest OS enum as needed
+2. Extend hatch render / validation in `lib/answerfile.py` and the Guest OS enum as needed
 3. Add the OS type to the Clutch / hatch form options
 4. Register any UEFI/TPM or other Nest requirements in the provider
 

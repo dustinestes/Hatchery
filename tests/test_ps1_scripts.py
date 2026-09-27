@@ -1,18 +1,16 @@
-"""PowerShell syntax validation for .ps1.j2 templates.
+"""PowerShell syntax validation helper for companion scripts.
 
 Uses pwsh's built-in AST parser (ParseFile) - no execution, just parse.
 Tests are skipped automatically when pwsh is not available on the host.
 
-Sample automation scripts live in the Hatchery Library repo
-(https://github.com/dustinestes/Hatchery-Library), not in this tree.
+Windows Answer File companions (e.g. hatchery-setup.ps1) live in Hatchery-Library
+and the operator automation/answerfiles/ cache - not under Controller templates/.
 """
 
 import shutil
 import subprocess
 
 import pytest
-
-from lib import answerfile
 
 _PWSH = shutil.which("pwsh")
 
@@ -34,11 +32,10 @@ def _ps1_syntax_errors(path: str) -> list[str]:
 
 @pytest.mark.skipif(_PWSH is None, reason="pwsh not available")
 class TestPs1Syntax:
-    def test_setup_script_is_valid_powershell(self, tmp_path):
-        ps1 = tmp_path / "hatchery-setup.ps1"
-        ps1.write_text(answerfile.render_setup_script(), encoding="utf-8")
-        errors = _ps1_syntax_errors(str(ps1))
-        assert errors == [], "PowerShell syntax errors in hatchery-setup.ps1:\n" + "\n".join(errors)
+    def test_valid_powershell_passes(self, tmp_path):
+        ps1 = tmp_path / "ok.ps1"
+        ps1.write_text("Write-Host 'ok'\n", encoding="utf-8")
+        assert _ps1_syntax_errors(str(ps1)) == []
 
     def test_invalid_powershell_is_caught(self, tmp_path):
         ps1 = tmp_path / "bad.ps1"

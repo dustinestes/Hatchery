@@ -116,6 +116,12 @@ def _hatch(args: argparse.Namespace) -> int:
         bootstrap.print_err("Pass --password VM=SECRET for each (repeatable).")
         return 1
 
+    af_errors = hatch_lifecycle_lib.answer_file_errors(clutch_obj.vms, passwords)
+    if af_errors:
+        for msg in af_errors:
+            bootstrap.print_err(msg)
+        return 1
+
     try:
         get_provider(nest_id)
     except (NoNestSelectedError, UnknownNestError, UnsupportedProviderError) as exc:

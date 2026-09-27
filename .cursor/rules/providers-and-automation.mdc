@@ -1,6 +1,6 @@
 ---
 description: Provider interface, answer files, Nest transport, and provisioning patterns
-globs: lib/providers/**,lib/answerfile.py,lib/provision.py,lib/nest_transport.py,templates/answerfiles/**
+globs: lib/providers/**,lib/answerfile.py,lib/provision.py,lib/nest_transport.py
 alwaysApply: false
 ---
 
@@ -28,11 +28,12 @@ Docs: [`docs/providers.md`](../../docs/providers.md) (feature matrix), [`docs/ne
 
 ## Answer files
 
-Request by OS type via `lib/answerfile.py` - it picks the strategy. Templates: `templates/answerfiles/` (`win10`, `win11`, `server2022`, `server2025`).
+User-owned templates under `automation/answerfiles/` (Clutch `answer_file` + `answer_file_parameters`). Hatch render lives in `lib/answerfile.py` (frontmatter, system tokens, companions). Nest providers pack and attach media - do not hard-wire floppy into operator surfaces.
 
 ```
+❌ Silent Controller shadow Jinja under templates/answerfiles/
 ❌ Hardcode Autounattend paths in the Flask route
-✅ Call answerfile helpers; add a new guest = new template + branch in answerfile.py
+✅ Call answerfile helpers; new guests = sample Answer File + validation/OS enum
 ```
 
 Win11 / Server 2025 need UEFI + TPM (`swtpm`).

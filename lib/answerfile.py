@@ -6,47 +6,31 @@ from typing import Any
 import jinja2
 import yaml
 
-from lib.clutch import GuestOS
-
-_TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "answerfiles"
-
-_TEMPLATES: dict[GuestOS, str] = {
-    GuestOS.WIN10: "win10.xml.j2",
-    GuestOS.WIN11: "win11.xml.j2",
-    GuestOS.SERVER2022: "server2022.xml.j2",
-    GuestOS.SERVER2025: "server2025.xml.j2",
-}
+from lib.clutch import GuestOS, VMConfig
 
 SETUP_SCRIPT_NAME = "hatchery-setup.ps1"
-_SETUP_SCRIPT_TEMPLATE = "hatchery-setup.ps1.j2"
 
 # Injected from the Clutch VM / hatch session - never exposed as user params.
 RESERVED_SYSTEM_TOKENS = frozenset({"vm_name", "admin_username", "admin_password"})
 
-_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=False,
-)
-
-_xml_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=True,
+# Guests that require a selected Answer File at hatch (Windows Autounattend today).
+_ANSWER_FILE_REQUIRED_OS = frozenset(
+    {GuestOS.WIN10, GuestOS.WIN11, GuestOS.SERVER2022, GuestOS.SERVER2025}
 )
 
 
-def render(os_type: GuestOS, vm_name: str, admin_username: str, admin_password: str) -> str:
-    """Render an Autounattend.xml answer file for the given OS type and credentials."""
-    template = _xml_env.get_template(_TEMPLATES[os_type])
-    return template.render(
-        vm_name=vm_name[:15],
-        admin_username=admin_username,
-        admin_password=admin_password,
-    )
+class AnswerFileError(ValueError):
+    """Raised when an Answer File cannot be validated or rendered for hatch."""
 
 
-def render_setup_script() -> str:
-    """Render the first-boot orchestrator script written to the floppy alongside the answer file."""
-    return _env.get_template(_SETUP_SCRIPT_TEMPLATE).render()
+def requires_answer_file(os_type: GuestOS | str) -> bool:
+    """Return True when hatch requires a selected Answer File for this Guest OS."""
+    if isinstance(os_type, GuestOS):
+        return os_type in _ANSWER_FILE_REQUIRED_OS
+    try:
+        return GuestOS(os_type) in _ANSWER_FILE_REQUIRED_OS
+    except ValueError:
+        return False
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any] | None, str]:
@@ -90,15 +74,7 @@ def declared_parameters(text_or_path: str | Path) -> list[dict[str, Any]]:
     Accepts raw template text or a filesystem path. Reserved system tokens and
     entries without a ``name`` are skipped. Shape matches script params UI JSON.
     """
-    if isinstance(text_or_path, Path):
-        text = text_or_path.read_text(encoding="utf-8")
-    else:
-        candidate = Path(text_or_path)
-        if "\n" not in text_or_path and candidate.is_file():
-            text = candidate.read_text(encoding="utf-8")
-        else:
-            text = text_or_path
-
+    text = _read_text(text_or_path)
     hatchery, _body = parse_frontmatter(text)
     if hatchery is None:
         return []
@@ -130,3 +106,188 @@ def declared_parameters(text_or_path: str | Path) -> list[dict[str, Any]]:
             item["label"] = label_str
         result.append(item)
     return result
+
+
+def companion_names(hatchery: dict[str, Any] | None) -> list[str]:
+    """Return companion basenames from frontmatter (path separators rejected)."""
+    if not hatchery:
+        return []
+    raw = hatchery.get("companions")
+    if not isinstance(raw, list):
+        return []
+    names: list[str] = []
+    for entry in raw:
+        if not isinstance(entry, str):
+            continue
+        name = entry.strip()
+        if not name or "/" in name or "\\" in name or name in (".", ".."):
+            continue
+        names.append(name)
+    return names
+
+
+def render_user_answer_file(
+    path: Path,
+    *,
+    vm_name: str,
+    admin_username: str = "",
+    admin_password: str = "",
+    user_params: dict[str, str] | None = None,
+) -> tuple[str, list[str]]:
+    """Render a user-owned Answer File with system tokens and declared params.
+
+    Returns ``(rendered_body, companion_basenames)``. Frontmatter is stripped
+    before Jinja render. Missing Jinja variables raise ``AnswerFileError``.
+    """
+    text = path.read_text(encoding="utf-8")
+    hatchery, body = parse_frontmatter(text)
+    if hatchery is None:
+        body = text
+        companions: list[str] = []
+        defaults: dict[str, Any] = {}
+    else:
+        companions = companion_names(hatchery)
+        defaults = _parameter_defaults(hatchery)
+
+    context: dict[str, Any] = {**defaults, **(user_params or {})}
+    context["vm_name"] = (vm_name or "")[:15]
+    context["admin_username"] = admin_username or ""
+    context["admin_password"] = admin_password or ""
+
+    env = jinja2.Environment(autoescape=True, undefined=jinja2.StrictUndefined)
+    try:
+        rendered = env.from_string(body).render(**context)
+    except jinja2.TemplateError as exc:
+        raise AnswerFileError(f"Answer File '{path.name}': {exc}") from exc
+    return rendered, companions
+
+
+def validate_vm_answer_file(
+    vm: VMConfig,
+    *,
+    automation_dir: Path,
+    admin_password: str | None = None,
+) -> list[str]:
+    """Return human-readable hatch blockers for one VM's Answer File (empty if OK)."""
+    errors: list[str] = []
+    if not requires_answer_file(vm.os):
+        return errors
+
+    if not vm.answer_file or not str(vm.answer_file).strip():
+        errors.append(
+            f"{vm.name}: Answer File is required for {vm.os.value} guests. "
+            "Select an Answer File on the Clutch before hatching."
+        )
+        return errors
+
+    filename = str(vm.answer_file).strip()
+    path = _resolve_under(automation_dir, filename)
+    if path is None or not path.is_file():
+        errors.append(
+            f"{vm.name}: Answer File '{filename}' not found in automation/answerfiles/. "
+            "Pull or import the file before hatching."
+        )
+        return errors
+
+    text = path.read_text(encoding="utf-8")
+    hatchery, _body = parse_frontmatter(text)
+    user_params = dict(vm.answer_file_parameters or {})
+    for param in declared_parameters(text):
+        name = param["name"]
+        value = user_params.get(name)
+        if value is not None and str(value).strip() != "":
+            continue
+        default = param.get("default")
+        if default is not None and str(default).strip() != "":
+            continue
+        if param.get("mandatory"):
+            errors.append(
+                f"{vm.name}: Answer File parameter '{name}' is required "
+                f"(no value and no default on '{filename}')."
+            )
+
+    for companion in companion_names(hatchery):
+        cpath = _resolve_under(automation_dir, companion)
+        if cpath is None or not cpath.is_file():
+            errors.append(
+                f"{vm.name}: Answer File companion '{companion}' not found in "
+                "automation/answerfiles/. Pull or import it alongside the template."
+            )
+
+    # Dry-run render so missing Jinja tokens fail before virt-install.
+    if not errors:
+        try:
+            render_user_answer_file(
+                path,
+                vm_name=vm.name,
+                admin_username=vm.admin_username or "",
+                admin_password=admin_password or "",
+                user_params=user_params,
+            )
+        except AnswerFileError as exc:
+            errors.append(f"{vm.name}: {exc}")
+
+    return errors
+
+
+def validate_clutch_answer_files(
+    vms: list[VMConfig],
+    *,
+    automation_dir: Path,
+    passwords: dict[str, str | None] | None = None,
+) -> list[str]:
+    """Return hatch blockers for all VMs (empty if OK)."""
+    passwords = passwords or {}
+    errors: list[str] = []
+    for vm in vms:
+        errors.extend(
+            validate_vm_answer_file(
+                vm,
+                automation_dir=automation_dir,
+                admin_password=passwords.get(vm.name),
+            )
+        )
+    return errors
+
+
+def _parameter_defaults(hatchery: dict[str, Any]) -> dict[str, Any]:
+    defaults: dict[str, Any] = {}
+    raw_params = hatchery.get("parameters")
+    if not isinstance(raw_params, list):
+        return defaults
+    for entry in raw_params:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        name = name.strip()
+        if name in RESERVED_SYSTEM_TOKENS:
+            continue
+        if "default" in entry and entry["default"] is not None:
+            defaults[name] = entry["default"]
+    return defaults
+
+
+def _read_text(text_or_path: str | Path) -> str:
+    if isinstance(text_or_path, Path):
+        return text_or_path.read_text(encoding="utf-8")
+    candidate = Path(text_or_path)
+    if "\n" not in text_or_path and candidate.is_file():
+        return candidate.read_text(encoding="utf-8")
+    return text_or_path
+
+
+def _resolve_under(root: Path, filename: str) -> Path | None:
+    """Resolve ``filename`` under ``root``; reject absolute paths and traversal."""
+    name = (filename or "").strip()
+    if not name or Path(name).is_absolute():
+        return None
+    if ".." in Path(name).parts:
+        return None
+    resolved = (root / name).resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        return None
+    return resolved

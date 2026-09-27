@@ -81,6 +81,7 @@ _send_boot_key = hatch_lifecycle_lib.send_boot_key
 _spawn_provision_thread = hatch_lifecycle_lib.spawn_provision_thread
 _provision_vm_thread = hatch_lifecycle_lib._provision_vm_thread
 _missing_passwords = hatch_lifecycle_lib.missing_passwords
+_answer_file_errors = hatch_lifecycle_lib.answer_file_errors
 
 
 def _sync_hatch_status() -> None:
@@ -2123,6 +2124,16 @@ def hatch_clutch_post():
             preselected=filename,
             clutch_obj=clutch_obj,
             form_error=f"Password required for: {', '.join(missing)}",
+            selected_nest_id=nest_id,
+        )
+
+    af_errors = _answer_file_errors(clutch_obj.vms, passwords)
+    if af_errors:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error="; ".join(af_errors),
             selected_nest_id=nest_id,
         )
 
