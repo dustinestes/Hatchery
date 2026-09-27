@@ -4676,7 +4676,10 @@ class TestAutomationSoftwarePane:
             "/api/import/automation/software",
             data={
                 "files": [
-                    (io.BytesIO(b"hatchery:\n  publisher: Acme\n"), "Acme.Widget.1.0.0/software.yaml"),
+                    (
+                        io.BytesIO(b"hatchery:\n  publisher: Acme\n"),
+                        "Acme.Widget.1.0.0/software.yaml",
+                    ),
                     (io.BytesIO(b"bin"), "Acme.Widget.1.0.0/windows/setup.exe"),
                 ]
             },

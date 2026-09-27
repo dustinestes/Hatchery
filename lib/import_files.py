@@ -232,9 +232,7 @@ def import_software_tree(files: list) -> dict:
             errors.append({"name": package_id, "reason": "invalid package id"})
             continue
         if dest.exists():
-            errors.append(
-                {"name": package_id, "reason": "already exists (refuse overwrite)"}
-            )
+            errors.append({"name": package_id, "reason": "already exists (refuse overwrite)"})
             continue
         members: list[tuple[str, object]] = []
         prefix = pkg_root + "/"
@@ -270,9 +268,7 @@ def import_software_tree(files: list) -> dict:
             dest = _resolve_dest(root, package_id)
             assert dest is not None
             if dest.exists():
-                errors.append(
-                    {"name": package_id, "reason": "already exists (refuse overwrite)"}
-                )
+                errors.append({"name": package_id, "reason": "already exists (refuse overwrite)"})
                 continue
             staging = root / f".importing-{package_id}"
             if staging.exists():
