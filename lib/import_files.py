@@ -13,6 +13,9 @@ from lib import config
 # Must stay aligned with hatchery._SCRIPT_LANGUAGES keys.
 SCRIPT_EXTENSIONS = frozenset({".ps1", ".sh", ".bash", ".py", ".bat", ".cmd"})
 
+# Answer-file templates (#177): XML/Jinja, YAML, companions, plain text.
+ANSWERFILE_EXTENSIONS = frozenset({".xml", ".j2", ".yml", ".yaml", ".ps1", ".cfg", ".txt"})
+
 _KINDS: dict[str, dict] = {
     "clutches": {
         "subdir": "clutches",
@@ -29,6 +32,10 @@ _KINDS: dict[str, dict] = {
     "automation/scripts": {
         "subdir": "automation/scripts",
         "extensions": SCRIPT_EXTENSIONS,
+    },
+    "automation/answerfiles": {
+        "subdir": "automation/answerfiles",
+        "extensions": ANSWERFILE_EXTENSIONS,
     },
 }
 

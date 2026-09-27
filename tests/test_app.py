@@ -63,6 +63,9 @@ class TestRoutes:
     def test_automation_scripts_returns_200(self, client):
         assert client.get("/automation/scripts").status_code == 200
 
+    def test_automation_answerfiles_returns_200(self, client):
+        assert client.get("/automation/answerfiles").status_code == 200
+
     def test_media_redirects_to_iso(self, client):
         resp = client.get("/media")
         assert resp.status_code == 302
@@ -283,11 +286,30 @@ class TestPageTitles:
         assert "sidebar-item--group active open" in html
         assert 'href="/automation/scripts"' in html
 
+    def test_automation_answerfiles_title(self, client):
+        html = client.get("/automation/answerfiles").data.decode()
+        assert ">Answer Files</h1>" in html
+        assert 'id="topbar-page-title"' in html
+        assert "pane-header" not in html
+        assert "Select an answer file to inspect" in html
+        assert 'class="stub"' in html
+        assert "sidebar-item--group" in html
+        assert "sidebar-item--group active open" in html
+        assert 'href="/automation/answerfiles"' in html
+
     def test_automation_scripts_marks_group_and_child(self, client):
         html = client.get("/automation/scripts").data.decode()
         assert "sidebar-item--group active open" in html
         assert html.count("sidebar-subitem active") == 1
         assert "Scripts" in html
+
+    def test_automation_answerfiles_marks_group_and_child(self, client):
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "sidebar-item--group active open" in html
+        assert html.count("sidebar-subitem active") == 1
+        assert "Answer Files" in html
+        assert 'href="/automation/scripts"' in html
+        assert 'href="/automation/answerfiles"' in html
 
     def test_automation_scripts_from_library_when_enabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: True)
@@ -303,11 +325,26 @@ class TestPageTitles:
         assert "scripts-open-in-library" in html
         assert ">Content</a>" not in html
 
+    def test_automation_answerfiles_from_library_when_enabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: True)
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "From library…" in html
+        assert "/library/content?tab=available&domain=answerfiles" in html
+        assert 'id="answerfiles-open-in-content"' in html
+        assert 'aria-label="Open in Library Content"' in html
+        assert "scripts-open-in-library" in html
+
     def test_automation_scripts_no_from_library_when_disabled(self, client, monkeypatch):
         monkeypatch.setattr(cfg, "library_enabled", lambda: False)
         html = client.get("/automation/scripts").data.decode()
         assert "From library…" not in html
         assert 'id="scripts-library-browser"' not in html
+        assert "inventory-tabs" not in html
+
+    def test_automation_answerfiles_no_from_library_when_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(cfg, "library_enabled", lambda: False)
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "From library…" not in html
         assert "inventory-tabs" not in html
 
     def test_inventory_panes_share_cached_chrome_macros(self, client, monkeypatch):
@@ -325,6 +362,13 @@ class TestPageTitles:
         assert 'id="scripts-filter-state"' in scripts
         assert "scripts-layout" in scripts
         assert 'id="scripts-tab-cache"' not in scripts
+
+        answerfiles = client.get("/automation/answerfiles").data.decode()
+        assert "inventory-toolbar" in answerfiles
+        assert 'id="answerfiles-filter-q"' in answerfiles
+        assert "answerfiles-filter-language" not in answerfiles
+        assert 'id="answerfiles-filter-state"' in answerfiles
+        assert "scripts-layout" in answerfiles
 
         media = client.get("/media/iso").data.decode()
         assert "inventory-toolbar" in media
@@ -3850,11 +3894,14 @@ class TestApiImport:
         assert 'id="media-import-btn"' in client.get("/media/iso").data.decode()
         assert 'id="media-import-btn"' in client.get("/media/virtio").data.decode()
         assert 'id="scripts-import-btn"' in client.get("/automation/scripts").data.decode()
+        assert 'id="answerfiles-import-btn"' in client.get("/automation/answerfiles").data.decode()
 
     def test_import_requires_files(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         resp = client.post("/api/import/automation/scripts", data={})
         assert resp.status_code == 400
+        resp_af = client.post("/api/import/automation/answerfiles", data={})
+        assert resp_af.status_code == 400
 
 
 class TestApiInventoryDelete:
@@ -3886,6 +3933,15 @@ class TestApiInventoryDelete:
         assert resp.status_code == 200
         assert not (scripts / "setup.ps1").exists()
 
+    def test_delete_answerfile(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml").write_text("<unattend/>\n")
+        resp = client.post("/api/automation/answerfiles/win11.xml/delete")
+        assert resp.status_code == 200
+        assert not (answerfiles / "win11.xml").exists()
+
     def test_delete_missing_returns_404(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "media" / "iso").mkdir(parents=True)
@@ -3899,6 +3955,10 @@ class TestApiInventoryDelete:
         resp = client.post("/api/automation/scripts/../secret.txt/delete")
         assert resp.status_code == 404
         assert outside.exists()
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        resp_af = client.post("/api/automation/answerfiles/../secret.txt/delete")
+        assert resp_af.status_code == 404
+        assert outside.exists()
 
     def test_inventory_pages_have_delete_controls(self, client):
         iso_html = client.get("/media/iso").data.decode()
@@ -3907,6 +3967,9 @@ class TestApiInventoryDelete:
         scripts_html = client.get("/automation/scripts").data.decode()
         assert 'id="scripts-delete-btn"' in scripts_html
         assert 'id="delete-modal-backdrop"' in scripts_html
+        answerfiles_html = client.get("/automation/answerfiles").data.decode()
+        assert 'id="answerfiles-delete-btn"' in answerfiles_html
+        assert 'id="delete-modal-backdrop"' in answerfiles_html
 
 
 class TestAlertsAPI:
@@ -4126,6 +4189,167 @@ class TestAutomationScriptsPane:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         usage = app_module._script_used_by()
         assert usage["setup.ps1"] == [{"clutch": "lab.yaml", "clutch_name": "Lab", "vm": "web01"}]
+
+
+class TestAutomationAnswerfilesPane:
+    def test_page_lists_answerfiles_and_metadata(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml").write_text("<unattend/>")
+        (answerfiles / "cloud-init.yml").write_text("#cloud-config\n")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "win11.xml" in html
+        assert "cloud-init.yml" in html
+        assert ".xml" in html
+        assert ".yml" in html
+        assert "automation/answerfiles/win11.xml" in html
+        assert "scripts-layout" in html
+        assert 'aria-label="Filter answer files"' in html
+        assert 'id="answerfiles-filter-q"' in html
+        assert "answerfiles-filter-language" not in html
+        assert 'id="answerfiles-filter-state"' in html
+        assert "answerfiles-nav-filtered-empty" in html
+        assert 'aria-label="Copy"' in html
+        assert 'id="answerfiles-copy-path-item">Path</button>' in html
+        assert 'id="answerfiles-copy-content-item"' in html
+        assert ">Contents</button>" in html
+        assert "scripts-nav-drift-icon" in html
+        assert "hatchery.onStatusTick" in html
+        assert "applyAnswerfileFilters" in html
+
+    def test_page_shows_used_by_from_clutch_answer_file(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml").write_text("<unattend/>")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="win11",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=60,
+                    os_media="win11.iso",
+                    answer_file="win11.xml",
+                )
+            ],
+        )
+        clutch_lib.save(clutch, clutches / "lab.yaml")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "lab.yaml" in html
+        assert "dc01" in html
+
+    def test_page_shows_used_by_from_legacy_os_config(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "legacy.xml").write_text("<unattend/>")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        (clutches / "legacy.yaml").write_text(
+            "name: Legacy\nvms:\n"
+            "  - name: web01\n"
+            "    os: win11\n"
+            "    vcpus: 2\n"
+            "    ram_gb: 4\n"
+            "    disk_gb: 40\n"
+            "    os_media: win.iso\n"
+            "    os_config: legacy.xml\n"
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "legacy.yaml" in html
+        assert "web01" in html
+
+    def test_empty_state_when_no_answerfiles(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        html = client.get("/automation/answerfiles").data.decode()
+        assert "No answer files found" in html
+        assert "automation/answerfiles/" in html
+
+    def test_content_api_returns_answerfile_text(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml").write_text("<unattend/>")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+
+        resp = client.get("/api/automation/answerfiles/win11.xml/content")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "win11.xml"
+        assert data["content"] == "<unattend/>"
+
+    def test_content_api_404_when_missing(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/missing.xml/content")
+        assert resp.status_code == 404
+
+    def test_content_api_rejects_path_traversal(self, client, tmp_path, monkeypatch):
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        (tmp_path / "outside.xml").write_text("secret")
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/../outside.xml/content")
+        assert resp.status_code == 404
+
+    def test_content_api_rejects_oversized_file(self, client, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        big = answerfiles / "huge.xml"
+        big.write_bytes(b"x" * (app_module._SCRIPT_CONTENT_MAX_BYTES + 1))
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        resp = client.get("/api/automation/answerfiles/huge.xml/content")
+        assert resp.status_code == 413
+
+    def test_answerfile_used_by_helper_maps_references(self, tmp_path, monkeypatch):
+        answerfiles = tmp_path / "automation" / "answerfiles"
+        answerfiles.mkdir(parents=True)
+        (answerfiles / "win11.xml").write_text("x")
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        clutch_lib.save(
+            Clutch(
+                name="Lab",
+                vms=[
+                    VMConfig(
+                        name="web01",
+                        os="win11",
+                        vcpus=2,
+                        ram_gb=4,
+                        disk_gb=40,
+                        os_media="win.iso",
+                        answer_file="win11.xml",
+                    )
+                ],
+            ),
+            clutches / "lab.yaml",
+        )
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        usage = app_module._answerfile_used_by()
+        assert usage["win11.xml"] == [{"clutch": "lab.yaml", "clutch_name": "Lab", "vm": "web01"}]
+
+    def test_import_answerfile(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "automation" / "answerfiles").mkdir(parents=True)
+        resp = client.post(
+            "/api/import/automation/answerfiles",
+            data={"files": (io.BytesIO(b"<unattend/>"), "win11.xml")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["imported"] == ["win11.xml"]
+        assert (
+            tmp_path / "automation" / "answerfiles" / "win11.xml"
+        ).read_bytes() == b"<unattend/>"
 
 
 class TestMediaPanes:

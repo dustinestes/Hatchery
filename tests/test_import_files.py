@@ -69,6 +69,28 @@ class TestImportUploads:
         assert "unsupported file type" in result["errors"][0]["reason"]
         assert not (tmp_path / "automation" / "scripts" / "notes.txt").exists()
 
+    def test_imports_answerfile_xml(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        upload = SimpleNamespace(filename="win11.xml", stream=BytesIO(b"<unattend/>"))
+
+        result = import_files_lib.import_uploads("automation/answerfiles", [upload])
+
+        assert result["imported"] == ["win11.xml"]
+        assert result["errors"] == []
+        assert (
+            tmp_path / "automation" / "answerfiles" / "win11.xml"
+        ).read_bytes() == b"<unattend/>"
+
+    def test_rejects_answerfile_bad_extension(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        upload = SimpleNamespace(filename="notes.md", stream=BytesIO(b"hi"))
+
+        result = import_files_lib.import_uploads("automation/answerfiles", [upload])
+
+        assert result["imported"] == []
+        assert "unsupported file type" in result["errors"][0]["reason"]
+        assert not (tmp_path / "automation" / "answerfiles" / "notes.md").exists()
+
     def test_sanitizes_path_traversal_basename(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         upload = SimpleNamespace(

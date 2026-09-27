@@ -399,6 +399,83 @@ def _script_used_by() -> dict[str, list[dict]]:
     return usage
 
 
+def _answerfile_extension(name: str) -> str:
+    from pathlib import Path
+
+    ext = Path(name).suffix.lower()
+    return ext if ext else "(none)"
+
+
+def _resolve_answerfile_path(name: str):
+    """Return the path to a file under automation/answerfiles/, or None if invalid."""
+    from pathlib import Path
+
+    safe = Path(name).name
+    if not safe or safe in (".", ".."):
+        return None
+    answerfiles_dir = (config.data_dir() / "automation" / "answerfiles").resolve()
+    candidate = (answerfiles_dir / safe).resolve()
+    try:
+        candidate.relative_to(answerfiles_dir)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _scan_answerfile_inventory() -> list[dict]:
+    """Return inventory metadata for files in automation/answerfiles/."""
+    from datetime import datetime, timezone
+
+    subdir = "automation/answerfiles"
+    path = config.data_dir() / subdir
+    if not path.exists():
+        return []
+    items = []
+    for f in sorted(path.iterdir()):
+        if not f.is_file():
+            continue
+        try:
+            mtime = f.stat().st_mtime
+        except OSError:
+            continue
+        modified = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items.append(
+            {
+                "name": f.name,
+                "relative_path": f"{subdir}/{f.name}",
+                "absolute_path": str(f.resolve()),
+                "extension": _answerfile_extension(f.name),
+                "modified_at": modified,
+            }
+        )
+    # domain=answerfiles is not in Library provenance CHECK yet (#449); enrich falls back.
+    return _enrich_library_inventory(items, domain="answerfiles")
+
+
+def _answerfile_used_by() -> dict[str, list[dict]]:
+    """Map answer-file basename → [{clutch, vm}, ...] from Clutch answer_file refs."""
+    from pathlib import Path
+
+    clutches_dir = config.data_dir() / "clutches"
+    usage: dict[str, list[dict]] = {}
+    if not clutches_dir.exists():
+        return usage
+    for path in sorted(clutches_dir.glob("*.yaml")):
+        try:
+            clutch = clutch_lib.load(path)
+        except Exception:
+            continue
+        clutch_file = Path(path).name
+        for vm in clutch.vms:
+            name = (vm.answer_file or "").strip()
+            if not name:
+                continue
+            usage.setdefault(name, []).append(
+                {"clutch": clutch_file, "clutch_name": clutch.name, "vm": vm.name}
+            )
+    return usage
+
+
 # ── Navigation panes ──────────────────────────────────────────────────────────
 
 
@@ -468,6 +545,24 @@ def automation_scripts():
             else []
         ),
         library_bindings=_library_reattach_bindings("scripts"),
+        library_cache_sync_url=url_for("api_library_cache_sync"),
+        library_cache_reattach_url=url_for("api_library_cache_reattach"),
+    )
+
+
+@app.route("/automation/answerfiles")
+def automation_answerfiles():
+    return render_template(
+        "automation_answerfiles.html",
+        active_pane="automation_answerfiles",
+        answerfiles=_scan_answerfile_inventory(),
+        used_by=_answerfile_used_by(),
+        library_connections=(
+            library_lib.parse_connections(config.library_connections(), enforce_expiry_future=False)
+            if config.library_enabled()
+            else []
+        ),
+        library_bindings=_library_reattach_bindings("answerfiles"),
         library_cache_sync_url=url_for("api_library_cache_sync"),
         library_cache_reattach_url=url_for("api_library_cache_reattach"),
     )
@@ -2332,6 +2427,11 @@ def api_import_automation_scripts():
     return _api_import("automation/scripts")
 
 
+@app.route("/api/import/automation/answerfiles", methods=["POST"])
+def api_import_automation_answerfiles():
+    return _api_import("automation/answerfiles")
+
+
 def _api_import(kind: str):
     uploads = request.files.getlist("files")
     if not uploads or all(not f.filename for f in uploads):
@@ -2417,15 +2517,20 @@ def api_automation_script_delete(name):
     return _api_unlink_inventory_file(_resolve_script_path(name))
 
 
+@app.route("/api/automation/answerfiles/<path:name>/delete", methods=["POST"])
+def api_automation_answerfile_delete(name):
+    return _api_unlink_inventory_file(_resolve_answerfile_path(name))
+
+
 @app.route("/api/automation/answerfiles")
 def api_automation_answerfiles():
-    return jsonify(_scan_dir("automation/answerfiles"))
+    return jsonify(_scan_answerfile_inventory())
 
 
 @app.route("/api/automation/os-config")
 def api_automation_os_config():
     """Legacy alias for Answer Files list (#448)."""
-    return jsonify(_scan_dir("automation/answerfiles"))
+    return jsonify(_scan_answerfile_inventory())
 
 
 @app.route("/api/automation/scripts")
@@ -2450,6 +2555,25 @@ def api_automation_script_content(name):
     except OSError:
         return jsonify({"error": "unreadable"}), 500
     return jsonify({"name": script_path.name, "content": text})
+
+
+@app.route("/api/automation/answerfiles/<path:name>/content")
+def api_automation_answerfile_content(name):
+    """Return read-only text content of a file under automation/answerfiles/."""
+    answerfile_path = _resolve_answerfile_path(name)
+    if answerfile_path is None or not answerfile_path.is_file():
+        return jsonify({"error": "not found"}), 404
+    try:
+        size = answerfile_path.stat().st_size
+    except OSError:
+        return jsonify({"error": "not found"}), 404
+    if size > _SCRIPT_CONTENT_MAX_BYTES:
+        return jsonify({"error": "file too large", "max_bytes": _SCRIPT_CONTENT_MAX_BYTES}), 413
+    try:
+        text = answerfile_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return jsonify({"error": "unreadable"}), 500
+    return jsonify({"name": answerfile_path.name, "content": text})
 
 
 @app.route("/api/automation/scripts/<path:name>/params")
