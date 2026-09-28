@@ -1,13 +1,14 @@
 """Guest Software staging and install walk over WinRM (#474).
 
 Stages ``platforms/{os}/{arch}/`` payload contents into ``software_package(id)``,
-then runs pre_install → install → post_install. Deep offline/remote Nest upload
-polish tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
+then runs pre_install → install → post_install → detect (verify). Deep
+offline/remote Nest upload polish tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 import time
 from collections.abc import Callable
@@ -21,11 +22,11 @@ from lib.guest_paths import GuestPaths, clutch_os_to_platform_key, guest_paths_f
 
 log = logging.getLogger(__name__)
 
-# Raw bytes per WinRM upload call. pywinrm sends PowerShell as -EncodedCommand
-# (UTF-16LE → base64); Windows caps that command line at ~8191 chars. ~1 KiB raw
-# keeps the encoded script comfortably under the limit (24 KiB chunks caused
-# ERROR_FILENAME_EXCED_RANGE / "filename or extension is too long" on guests).
-_UPLOAD_CHUNK = 1024
+# Raw bytes per WinRM Send (stdin), not EncodedCommand. Putting payload in
+# -EncodedCommand blows past Windows' ~8191 CreateProcess limit; streaming via
+# stdin is required. Stay under default WinRM MaxEnvelopeSizekb (500) after
+# double base64 + SOAP overhead.
+_UPLOAD_CHUNK = 128_000
 
 _ARCH_MAP = {
     "amd64": "x64",
@@ -82,6 +83,39 @@ def _ensure_guest_dir(ip: str, admin_username: str, admin_password: str, remote_
         raise RuntimeError(f"failed to create guest directory {remote_dir}: {out}")
 
 
+def _upload_receiver_script(remote_path: str) -> str:
+    """Small PowerShell that reads base64 lines from stdin and writes the file.
+
+    Prints lowercase SHA-256 hex of the written bytes on success (integrity check).
+    """
+    # begin/process/end: each WinRM Send is one pipeline object ($_).
+    # Use $_ (not $input): $input in process can consume the enumerator incorrectly.
+    # console_mode_stdin=False is required on run_command so stdin reaches the script.
+    return (
+        "begin {\n"
+        f"  $path = {_ps_quote(remote_path)}\n"
+        '  $ErrorActionPreference = "Stop"\n'
+        "  $parent = Split-Path -Parent $path\n"
+        "  if ($parent) { $null = New-Item -Path $parent -ItemType Directory -Force }\n"
+        "  if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }\n"
+        "  $fd = [System.IO.File]::Create($path)\n"
+        "  $sha = [System.Security.Cryptography.SHA256]::Create()\n"
+        "  $bytes = [byte[]]::new(0)\n"
+        "}\n"
+        "process {\n"
+        "  $bytes = [System.Convert]::FromBase64String([string]$_)\n"
+        "  [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $bytes, 0)\n"
+        "  $fd.Write($bytes, 0, $bytes.Length)\n"
+        "}\n"
+        "end {\n"
+        "  [void]$sha.TransformFinalBlock([byte[]]::new(0), 0, 0)\n"
+        "  $fd.Close()\n"
+        "  $hash = [System.BitConverter]::ToString($sha.Hash).Replace('-', '').ToLowerInvariant()\n"
+        "  Write-Output $hash\n"
+        "}\n"
+    )
+
+
 def _upload_file(
     ip: str,
     admin_username: str,
@@ -89,41 +123,75 @@ def _upload_file(
     local_path: Path,
     remote_path: str,
 ) -> None:
-    """Write a local file to the guest via chunked base64 WinRM."""
-    data = local_path.read_bytes()
-    # Controller may be Linux/macOS: use PureWindowsPath so backslash guests parse.
-    parent = str(PureWindowsPath(remote_path).parent)
-    # Ensure parent exists; truncate/create empty target.
-    prep = (
-        f"$parent = {_ps_quote(parent)}\n"
-        "$null = New-Item -Path $parent -ItemType Directory -Force\n"
-        f"$path = {_ps_quote(remote_path)}\n"
-        "if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }\n"
-        "$null = New-Item -Path $path -ItemType File -Force\n"
-    )
-    code, out = _run_ps(ip, admin_username, admin_password, prep, timeout=60)
-    if code != 0:
-        raise RuntimeError(f"failed to prepare guest file {remote_path}: {out}")
+    """Write a local file to the guest via WinRM stdin (chunked base64).
 
-    if not data:
-        return
-
-    offset = 0
-    while offset < len(data):
-        chunk = data[offset : offset + _UPLOAD_CHUNK]
-        b64 = base64.b64encode(chunk).decode("ascii")
-        append = (
-            f"$path = {_ps_quote(remote_path)}\n"
-            f"$b64 = {_ps_quote(b64)}\n"
-            "$bytes = [Convert]::FromBase64String($b64)\n"
-            "$fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Append, "
-            "[System.IO.FileAccess]::Write)\n"
-            "try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }\n"
+    Payload rides the WinRM Send stream, not -EncodedCommand, so chunks can be
+    large without hitting the Windows command-line length limit. Verifies the
+    remote SHA-256 against the local file before returning.
+    """
+    size = local_path.stat().st_size
+    local_hash = hashlib.sha256(local_path.read_bytes()).hexdigest()
+    script = _upload_receiver_script(remote_path)
+    encoded_ps = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    # Receiver stays small; EncodedCommand must remain under ~8191 chars.
+    if len(encoded_ps) >= 8191:
+        raise RuntimeError(
+            f"upload receiver EncodedCommand too long ({len(encoded_ps)}) for {remote_path}"
         )
-        code, out = _run_ps(ip, admin_username, admin_password, append, timeout=120)
-        if code != 0:
-            raise RuntimeError(f"failed uploading {local_path.name} to {remote_path}: {out}")
-        offset += len(chunk)
+    command = f"powershell -encodedcommand {encoded_ps}"
+
+    session = provision_lib._make_session(ip, admin_username, admin_password, timeout=600)
+    protocol = session.protocol
+    shell_id = protocol.open_shell()
+    try:
+        # WINRS_CONSOLEMODE_STDIN must be false when feeding the receiver via Send.
+        command_id = protocol.run_command(shell_id, command, console_mode_stdin=False)
+        try:
+            if size == 0:
+                protocol.send_command_input(shell_id, command_id, b"", end=True)
+            else:
+                offset = 0
+                with local_path.open("rb") as fh:
+                    while offset < size:
+                        chunk = fh.read(_UPLOAD_CHUNK)
+                        if not chunk:
+                            break
+                        offset += len(chunk)
+                        # Double-encode: SOAP Send base64-wraps stdin; guest PS
+                        # still expects base64 text on its stdin pipe.
+                        payload = base64.b64encode(chunk) + b"\r\n"
+                        protocol.send_command_input(
+                            shell_id,
+                            command_id,
+                            payload,
+                            end=(offset >= size),
+                        )
+            stdout, stderr, status = protocol.get_command_output(shell_id, command_id)
+        finally:
+            protocol.cleanup_command(shell_id, command_id)
+    finally:
+        protocol.close_shell(shell_id)
+
+    out = provision_lib._strip_clixml(
+        (stdout or b"").decode("utf-8", errors="replace")
+        + "\n"
+        + (stderr or b"").decode("utf-8", errors="replace")
+    ).strip()
+    if status != 0:
+        raise RuntimeError(f"failed uploading {local_path.name} to {remote_path}: {out}")
+
+    remote_hash = ""
+    for line in out.splitlines():
+        token = line.strip().lower()
+        if len(token) == 64 and all(c in "0123456789abcdef" for c in token):
+            remote_hash = token
+            break
+    if remote_hash != local_hash:
+        raise RuntimeError(
+            f"upload integrity check failed for {local_path.name}: "
+            f"remote sha256 {remote_hash or '(missing)'} != local {local_hash} "
+            f"(guest path {remote_path})"
+        )
 
 
 def stage_payload(
@@ -176,20 +244,22 @@ def run_in_package(
     pkg = _ps_quote(guest_package_dir)
     if command and script_rel:
         raise ValueError("pass exactly one of command or script_rel")
+    # Never treat a missing $LASTEXITCODE as success: msiexec and other native
+    # tools sometimes leave it $null even after a failed run; defaulting to 0
+    # made truncated payloads look like a successful install.
+    exit_tail = (
+        "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+        "if (-not $?) { exit 1 }\n"
+        "exit 0\n"
+    )
     if command:
-        body = (
-            f"Set-Location -LiteralPath {pkg}\n"
-            f"{command}\n"
-            "if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE } else { exit 0 }\n"
-        )
+        body = f"Set-Location -LiteralPath {pkg}\n$LASTEXITCODE = $null\n{command}\n{exit_tail}"
     elif script_rel:
         # Relative path under staged payload; use guest path separators.
         rel = script_rel.replace("/", "\\").lstrip(".\\")
         script_path = _ps_quote(guest_package_dir.rstrip("\\") + "\\" + rel)
         body = (
-            f"Set-Location -LiteralPath {pkg}\n"
-            f"& {script_path}\n"
-            "if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE } else { exit 0 }\n"
+            f"Set-Location -LiteralPath {pkg}\n$LASTEXITCODE = $null\n& {script_path}\n{exit_tail}"
         )
     else:
         raise ValueError("command or script_rel is required")
@@ -311,6 +381,25 @@ def run_software_entry(
             raise RuntimeError("WinRM did not return after install reboot")
 
     run_hooks("post_install", unit.post_install)
+
+    # Verify product presence via the package detect command. Hatch does not yet
+    # use detect for skip-if-present; this is post-install integrity only.
+    emit("INFO", "Running detect (verify install)")
+    det_code, det_out = run_in_package(
+        ip,
+        admin_username,
+        admin_password,
+        guest_package_dir=guest_pkg,
+        command=unit.detect.command,
+        timeout=300,
+    )
+    outputs.append(f"[detect exit={det_code}]\n{det_out}")
+    if not _exit_ok(det_code, unit.detect.success_exit_codes):
+        raise RuntimeError(
+            f"detect failed after install with exit {det_code} "
+            f"(allowed {unit.detect.success_exit_codes}); "
+            "install reported success but the product was not detected"
+        )
 
     if clean_payload_on_success:
         emit("INFO", f"Cleaning staged package {guest_pkg}")

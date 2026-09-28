@@ -230,7 +230,7 @@ automations:
 | `parameters` | yes (existing) | no (v1) |
 | `clean_payload_on_success` | n/a | yes (default true) - remove `software_package(id)` after install OK |
 
-Hatch lifecycle: `script` → today’s script runner; `software` → stage payload → `pre_install` → `install` → `post_install` → reboot/exit → optional clean.
+Hatch lifecycle: `script` → today’s script runner; `software` → stage payload → `pre_install` → `install` → `post_install` → `detect` (verify present) → reboot/exit → optional clean.
 
 <br>
 
@@ -267,8 +267,9 @@ Clutch ordered automations
        → load software.yaml
        → stage platforms/{os}/{arch}/ contents → software_package(id)
        → pre_install[] → install → post_install[]
+       → detect (verify present after install)
        → optional remove software_package(id) (#474)
-       → detect (status / skip-if-present)
+       → detect also reserved for status / skip-if-present (follow-on)
 ```
 
 Nest cache gains an `automation/software` artifact kind for definition + selected OS payload tree. Guest paths always go through the role map above.

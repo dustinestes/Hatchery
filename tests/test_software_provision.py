@@ -101,8 +101,47 @@ def test_run_software_entry_happy_path(tmp_path, monkeypatch):
     assert code == 0
     assert reboot is False
     assert "echo install" in calls
+    assert "echo detect" in calls
     assert cleaned
     assert any("Staging" in m for _, m in events)
+    assert any("detect" in m.lower() for _, m in events)
+
+
+def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
+    pkg = tmp_path / "Pkg.1.0.0"
+    pkg.mkdir()
+    (pkg / "software.yaml").write_text(
+        "hatchery:\n  publisher: P\n  product: Prod\n  version: '1.0.0'\n"
+        "platforms:\n  windows:\n    any:\n"
+        "      install:\n        command: echo install\n"
+        "      uninstall:\n        command: echo u\n"
+        "      detect:\n        command: echo detect\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "detect" in command:
+            return 1, "not installed"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    monkeypatch.setattr(soft_prov, "remove_guest_package", lambda *a, **k: None)
+
+    try:
+        soft_prov.run_software_entry(
+            "10.0.0.1",
+            "a",
+            "b",
+            package_id="Pkg.1.0.0",
+            guest_os="win11",
+            clean_payload_on_success=True,
+        )
+        raise AssertionError("expected detect failure")
+    except RuntimeError as exc:
+        assert "detect failed after install" in str(exc)
 
 
 def test_run_in_package_command_and_script(monkeypatch):
@@ -122,6 +161,8 @@ def test_run_in_package_command_and_script(monkeypatch):
     )
     assert code == 0
     assert "echo hi" in seen[0]
+    assert "$LASTEXITCODE = $null" in seen[0]
+    assert "exit [int]$LASTEXITCODE" in seen[0]
     soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -132,50 +173,95 @@ def test_run_in_package_command_and_script(monkeypatch):
     assert "pre.ps1" in seen[1]
 
 
-def test_upload_file_chunks(tmp_path, monkeypatch):
+def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
+    import base64
+    import hashlib
+
+    local = tmp_path / "blob.bin"
+    data = b"abcdefghij"
+    local.write_bytes(data)
+    monkeypatch.setattr(soft_prov, "_UPLOAD_CHUNK", 4)
+    digest = hashlib.sha256(data).hexdigest().encode()
+
+    sends: list[tuple[bytes, bool]] = []
+    protocol = MagicMock()
+    protocol.open_shell.return_value = "shell-1"
+    protocol.run_command.return_value = "cmd-1"
+    protocol.get_command_output.return_value = (digest + b"\r\n", b"", 0)
+
+    def capture_send(shell_id, command_id, stdin_input, end=False):
+        sends.append((stdin_input, end))
+
+    protocol.send_command_input.side_effect = capture_send
+    session = MagicMock()
+    session.protocol = protocol
+    monkeypatch.setattr(soft_prov.provision_lib, "_make_session", lambda *a, **k: session)
+
+    remote = r"C:\Program Files\Hatchery\software\Pkg\blob.bin"
+    soft_prov._upload_file("10.0.0.1", "a", "b", local, remote)
+
+    # 3 chunks (4+4+2); last Send closes stdin.
+    assert len(sends) == 3
+    assert sends[-1][1] is True
+    assert all(s[0].endswith(b"\r\n") for s in sends)
+    assert base64.b64decode(sends[0][0].strip()) == b"abcd"
+    # Receiver script uses EncodedCommand; payload is not in the command line.
+    run_cmd = protocol.run_command.call_args[0][1]
+    assert "powershell -encodedcommand" in run_cmd
+    assert protocol.run_command.call_args.kwargs.get("console_mode_stdin") is False
+    assert "abcdefghij" not in run_cmd
+    assert "FromBase64String" in soft_prov._upload_receiver_script(remote)
+    protocol.close_shell.assert_called_once_with("shell-1")
+
+
+def test_upload_rejects_hash_mismatch(tmp_path, monkeypatch):
     local = tmp_path / "blob.bin"
     local.write_bytes(b"abcdefghij")
-    monkeypatch.setattr(soft_prov, "_UPLOAD_CHUNK", 4)
-    codes: list[str] = []
+    protocol = MagicMock()
+    protocol.open_shell.return_value = "shell-1"
+    protocol.run_command.return_value = "cmd-1"
+    protocol.get_command_output.return_value = (b"0" * 64 + b"\n", b"", 0)
+    session = MagicMock()
+    session.protocol = protocol
+    monkeypatch.setattr(soft_prov.provision_lib, "_make_session", lambda *a, **k: session)
 
-    def fake_run_ps(ip, user, pw, code, timeout=300):
-        codes.append(code)
-        return 0, ""
-
-    monkeypatch.setattr(soft_prov, "_run_ps", fake_run_ps)
-    soft_prov._upload_file(
-        "10.0.0.1",
-        "a",
-        "b",
-        local,
-        r"C:\Program Files\Hatchery\software\Pkg\blob.bin",
-    )
-    # prep + 3 chunks (4+4+2)
-    assert len(codes) == 4
-    assert "FromBase64String" in codes[1]
-    # Parent dir must stay a Windows path on a Linux Controller (not '.').
-    assert r"C:\Program Files\Hatchery\software\Pkg" in codes[0]
+    try:
+        soft_prov._upload_file("10.0.0.1", "a", "b", local, r"C:\Pkg\blob.bin")
+        raise AssertionError("expected integrity failure")
+    except RuntimeError as exc:
+        assert "integrity check failed" in str(exc)
 
 
-def test_upload_chunk_keeps_encoded_command_under_windows_limit():
-    """WinRM EncodedCommand must stay under CreateProcess ~8191 char limit."""
+def test_upload_receiver_encoded_command_under_windows_limit():
+    """Receiver script (not payload) must stay under CreateProcess ~8191 chars."""
     import base64
 
     remote = (
         r"C:\Program Files\Hatchery\software\Hatchery.SoftwareExample.1.0.0"
         r"\Hatchery.SoftwareExample.1.0.0-x64.msi"
     )
-    b64 = base64.b64encode(b"x" * soft_prov._UPLOAD_CHUNK).decode("ascii")
-    script = (
-        f"$path = '{remote}'\n"
-        f"$b64 = '{b64}'\n"
-        "$bytes = [Convert]::FromBase64String($b64)\n"
-        "$fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Append, "
-        "[System.IO.FileAccess]::Write)\n"
-        "try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }\n"
-    )
+    script = soft_prov._upload_receiver_script(remote)
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     assert len(encoded) < 8191, f"EncodedCommand length {len(encoded)} exceeds Windows limit"
+
+
+def test_upload_empty_file_closes_stdin(tmp_path, monkeypatch):
+    import hashlib
+
+    local = tmp_path / "empty.bin"
+    local.write_bytes(b"")
+    digest = hashlib.sha256(b"").hexdigest().encode()
+    protocol = MagicMock()
+    protocol.open_shell.return_value = "shell-1"
+    protocol.run_command.return_value = "cmd-1"
+    protocol.get_command_output.return_value = (digest, b"", 0)
+    session = MagicMock()
+    session.protocol = protocol
+    monkeypatch.setattr(soft_prov.provision_lib, "_make_session", lambda *a, **k: session)
+
+    soft_prov._upload_file("10.0.0.1", "a", "b", local, r"C:\Pkg\empty.bin")
+    protocol.send_command_input.assert_called_once_with("shell-1", "cmd-1", b"", end=True)
+    assert protocol.run_command.call_args.kwargs.get("console_mode_stdin") is False
 
 
 def test_remove_guest_package_runs_ps(monkeypatch):
@@ -207,7 +293,17 @@ def test_run_software_entry_honors_success_exit_codes(tmp_path, monkeypatch):
     monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
     monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
     monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
-    monkeypatch.setattr(soft_prov, "run_in_package", lambda *a, **k: (3010, "reboot pending"))
+
+    n = {"i": 0}
+
+    def fake_run(*args, command=None, **kwargs):
+        n["i"] += 1
+        # install then detect
+        if n["i"] == 1:
+            return 3010, "reboot pending"
+        return 0, "present"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
     monkeypatch.setattr(soft_prov, "remove_guest_package", lambda *a, **k: None)
 
     code, _, _ = soft_prov.run_software_entry(
