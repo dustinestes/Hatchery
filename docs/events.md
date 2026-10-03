@@ -155,7 +155,11 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 | `INFO` | `WinRM stable after reboot (N consecutive probes)` | `<name>.ps1` | Settle complete; safe to continue |
 | `WARN` | `WinRM probe failed during settle - resetting stability count…` | `<name>.ps1` | Transient remoting flake during settle |
 | `INFO` | `Raised guest WinRM MaxEnvelopeSizekb for Software staging (…)` | Software id | Guest envelope raised before payload Send |
+| `INFO` | `Running detect (pre-install)` | Software id | Pre-stage detect; present skips transfer/install |
+| `INFO` | `Software already present - skipping stage/install` | Software id | Pre-install detect present; step succeeds without staging |
+| `INFO` | `Running install: {os}.{arch}.install.command` | Software id | Resolved ``software.yaml`` unit path (not the command body) |
 | `INFO` | `Install finished with exit N` | Software id | Install command completed (authored ``software.yaml`` exit) |
+| `INFO` | `Running detect (verify install)` | Software id | Post-install detect; fail step if missing |
 | `INFO` | `WinRM upload of <file> succeeded on attempt i/n` | Software id | Staging recovered after a transient fault |
 | `INFO` | `All scripts succeeded - VM is fledged` | null | All scripts completed successfully; VM status set to `fledged` |
 

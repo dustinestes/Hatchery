@@ -1,8 +1,9 @@
 """Guest Software staging and install walk over WinRM (#474).
 
-Stages ``platforms/{os}/{arch}/`` payload contents into ``software_package(id)``,
-then runs pre_install → install → post_install → detect (verify). Deep
-offline/remote Nest upload polish tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
+Runs detect (skip-if-present), else stages ``platforms/{os}/{arch}/`` into
+``software_package(id)``, then pre_install → install → post_install → detect
+(verify). Deep offline/remote Nest upload polish tracks
+[#475](https://github.com/dustinestes/Hatchery/issues/475).
 """
 
 from __future__ import annotations
@@ -351,6 +352,7 @@ def run_in_package(
     command: str | None = None,
     script_rel: str | None = None,
     timeout: int = 600,
+    require_cwd: bool = True,
 ) -> tuple[int, str]:
     """Run a package ``command`` or relative ``script`` with cwd = staged package dir.
 
@@ -358,30 +360,38 @@ def run_in_package(
     code + output. No installer heuristics, path rewriting, or cmd.exe wrapping.
     Guest instructions live in ``software.yaml`` (ADR-0025). Reserved path env
     vars for authors are tracked in #501.
+
+    When ``require_cwd`` is False (pre-detect / skip-if-present), Set-Location
+    only if the package dir already exists so registry/ARP detects work before
+    staging.
     """
     pkg = _ps_quote(guest_package_dir)
     if command and script_rel:
         raise ValueError("pass exactly one of command or script_rel")
+    if require_cwd:
+        cwd_prefix = f"Set-Location -LiteralPath {pkg}\n"
+    else:
+        cwd_prefix = f"if (Test-Path -LiteralPath {pkg}) {{ Set-Location -LiteralPath {pkg} }}\n"
     if command:
         body = (
-            f"Set-Location -LiteralPath {pkg}\n"
-            "$LASTEXITCODE = $null\n"
-            f"{command.rstrip()}\n"
-            "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
-            "if (-not $?) { exit 1 }\n"
-            "exit 0\n"
+            cwd_prefix
+            + "$LASTEXITCODE = $null\n"
+            + f"{command.rstrip()}\n"
+            + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+            + "if (-not $?) { exit 1 }\n"
+            + "exit 0\n"
         )
     elif script_rel:
         # Relative path under staged payload; use guest path separators.
         rel = script_rel.replace("/", "\\").lstrip(".\\")
         script_path = _ps_quote(guest_package_dir.rstrip("\\") + "\\" + rel)
         body = (
-            f"Set-Location -LiteralPath {pkg}\n"
-            "$LASTEXITCODE = $null\n"
-            f"& {script_path}\n"
-            "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
-            "if (-not $?) { exit 1 }\n"
-            "exit 0\n"
+            cwd_prefix
+            + "$LASTEXITCODE = $null\n"
+            + f"& {script_path}\n"
+            + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+            + "if (-not $?) { exit 1 }\n"
+            + "exit 0\n"
         )
     else:
         raise ValueError("command or script_rel is required")
@@ -412,11 +422,13 @@ def run_software_entry(
 ) -> tuple[int, str, bool]:
     """Execute one Software automation entry.
 
-    Returns ``(exit_code, output, install_requested_reboot)``.
-    When the install step sets ``reboot_after``, this function restarts the guest
-    and waits for WinRM before ``post_install``. The third tuple value is True
-    when that mid-walk reboot already happened (caller should not double-reboot
-    for install alone; clutch-level ``reboot_after`` is still the caller's job).
+    Walk: detect (skip-if-present) → else stage → pre_install → install →
+    post_install → detect (verify). Returns ``(exit_code, output,
+    install_requested_reboot)``. When install sets ``reboot_after``, restarts the
+    guest and waits for WinRM before ``post_install``. The third tuple value is
+    True when that mid-walk reboot already happened (caller should not
+    double-reboot for install alone; clutch-level ``reboot_after`` is still the
+    caller's job). Skip-if-present returns reboot False.
     """
 
     def emit(level: str, message: str) -> None:
@@ -442,6 +454,24 @@ def run_software_entry(
     arch_used, unit = resolved
     payload_rel = f"{platform}/{arch_used}"
     guest_pkg = paths.software_package(package_id)
+    outputs: list[str] = []
+
+    # Skip-if-present (#502): detect before staging so retries avoid payload transfer.
+    unit_path = f"{platform}.{arch_used}"
+    emit("INFO", "Running detect (pre-install)")
+    pre_code, pre_out = run_in_package(
+        ip,
+        admin_username,
+        admin_password,
+        guest_package_dir=guest_pkg,
+        command=unit.detect.command,
+        timeout=300,
+        require_cwd=False,
+    )
+    outputs.append(f"[detect pre-install exit={pre_code}]\n{pre_out}")
+    if _exit_ok(pre_code, unit.detect.success_exit_codes):
+        emit("INFO", "Software already present - skipping stage/install")
+        return 0, "\n".join(outputs), False
 
     emit("INFO", f"Staging payload {payload_rel} → {guest_pkg}")
     uploaded = stage_payload(
@@ -455,11 +485,9 @@ def run_software_entry(
     )
     emit("INFO", f"Staged {len(uploaded)} file(s)")
 
-    outputs: list[str] = []
-
     def run_hooks(label: str, hooks: list) -> None:
         for i, hook in enumerate(hooks):
-            emit("INFO", f"Running {label}[{i}]")
+            emit("INFO", f"Running {unit_path}.{label}[{i}]")
             code, out = run_in_package(
                 ip,
                 admin_username,
@@ -476,7 +504,7 @@ def run_software_entry(
 
     run_hooks("pre_install", unit.pre_install)
 
-    emit("INFO", f"Running install: {unit.install.command}")
+    emit("INFO", f"Running install: {unit_path}.install.command")
     code, out = run_in_package(
         ip,
         admin_username,
@@ -501,8 +529,6 @@ def run_software_entry(
 
     run_hooks("post_install", unit.post_install)
 
-    # Verify product presence via the package detect command. Hatch does not yet
-    # use detect for skip-if-present; this is post-install integrity only.
     emit("INFO", "Running detect (verify install)")
     det_code, det_out = run_in_package(
         ip,
@@ -512,7 +538,7 @@ def run_software_entry(
         command=unit.detect.command,
         timeout=300,
     )
-    outputs.append(f"[detect exit={det_code}]\n{det_out}")
+    outputs.append(f"[detect verify exit={det_code}]\n{det_out}")
     if not _exit_ok(det_code, unit.detect.success_exit_codes):
         raise RuntimeError(
             f"detect failed after install with exit {det_code} "
