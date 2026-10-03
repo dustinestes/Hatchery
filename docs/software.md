@@ -175,7 +175,7 @@ fails with pipe/transport faults on MSI-sized files, treat that as a known WinRM
 limit and use guest SSH file copy when [#497](https://github.com/dustinestes/Hatchery/issues/497)
 lands - do not rely on 1 KiB EncodedCommand append as a product path.
 
-Install and hook commands are relative to that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`.
+Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, **`msiexec` often returns before the Installer finishes** when invoked as a bare native command; package authors should wait explicitly in `install.command` / `uninstall.command` (for example `Start-Process -Wait -PassThru` and `exit` the process exit code) and may add MSI `/l*v` to a path under `{logs}\software\` (hardcoded today; reserved env vars in [#501](https://github.com/dustinestes/Hatchery/issues/501)). Hatchery does not wrap msiexec in the Controller.
 
 Controller/Nest stores optional `{os}/{arch}/` trees under the package id (mirrors `platforms` in `software.yaml`). Example:
 
@@ -216,7 +216,7 @@ Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutc
 | `software` | `{root}\software` | `{root}/software` | `{root}/software` |
 | `software_package(id)` | `{software}\{id}` | `{software}/{id}` | `{software}/{id}` |
 
-Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error.
+Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error. Sample packages may write MSI logs under `{logs}\software\{id}.log` via `/l*v` in `software.yaml` until reserved path env vars land in [#501](https://github.com/dustinestes/Hatchery/issues/501).
 
 Windows example after staging `Microsoft.VisualStudioCode.1.96.0` (guest arch `x64`):
 
@@ -257,7 +257,7 @@ automations:
 | `parameters` | yes (existing) | no (v1) |
 | `clean_payload_on_success` | n/a | yes (default true) - remove `software_package(id)` after install OK |
 
-Hatch lifecycle: `script` → today’s script runner; `software` → stage payload → `pre_install` → `install` → `post_install` → `detect` (verify present) → reboot/exit → optional clean.
+Hatch lifecycle: `script` → today’s script runner; `software` → detect (skip-if-present) → else stage → `pre_install` → `install` → `post_install` → `detect` (verify) → reboot/exit → optional clean when staged.
 
 <br>
 
@@ -277,7 +277,9 @@ Library domain **`software`** (migrated from reserved `packages`). Fresh Control
 
 ## Detection
 
-Detection runs the platform `detect.command` over Controller/Nest remoting (WinRM today; SSH later) with the same slim contract as install (cwd = package dir; authored snippet; exit 0 = present). Prefer compact ARP scans (Publisher + DisplayName + DisplayVersion) over ProductCode-only checks when the product writes standard Uninstall keys. There is no in-guest agent daemon and no guest login UI requirement for detect. Hatch skip-if-present and Nest/VM present/missing UI land in child issues.
+Detection runs the platform `detect.command` over Controller/Nest remoting (WinRM today; SSH later) with the same slim contract as install (authored snippet; exit 0 = present). Prefer compact ARP scans (Publisher + DisplayName + DisplayVersion) over ProductCode-only checks when the product writes standard Uninstall keys.
+
+**Skip-if-present ([#502](https://github.com/dustinestes/Hatchery/issues/502)):** hatch runs detect **before** staging. If present, the step succeeds without payload transfer or install. If absent, Hatchery stages, installs, then runs detect again to verify. Pre-detect does not require the package staging directory to exist (registry/ARP detects). Nest/VM present/missing UI status rails land in [#477](https://github.com/dustinestes/Hatchery/issues/477). There is no in-guest agent daemon and no guest login UI requirement for detect.
 
 <br>
 
@@ -292,11 +294,11 @@ Clutch ordered automations
   → type: script  → provision.run_script
   → type: software
        → load software.yaml
-       → stage platforms/{os}/{arch}/ contents → software_package(id)
+       → detect (skip-if-present; no stage if already present)
+       → else stage platforms/{os}/{arch}/ → software_package(id)
        → pre_install[] → install → post_install[]
        → detect (verify present after install)
-       → optional remove software_package(id) (#474)
-       → detect also reserved for status / skip-if-present (follow-on)
+       → optional remove software_package(id) when staged (#474)
 ```
 
 Nest cache gains an `automation/software` artifact kind for definition + selected OS payload tree. Guest paths always go through the role map above.

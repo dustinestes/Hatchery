@@ -73,12 +73,23 @@ def test_run_software_entry_happy_path(tmp_path, monkeypatch):
         lambda package_id: pkg if package_id == "Hatchery.SoftwareExample.1.0.0" else None,
     )
     monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
-    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: ["a.msi"])
+    staged: list[str] = []
+    monkeypatch.setattr(
+        soft_prov,
+        "stage_payload",
+        lambda *a, **k: staged.append("staged") or ["a.msi"],
+    )
 
     calls: list[str] = []
+    detect_n = {"n": 0}
 
     def fake_run_in_package(*args, command=None, script_rel=None, **kwargs):
         calls.append(command or script_rel or "")
+        if command and "detect" in command:
+            detect_n["n"] += 1
+            if detect_n["n"] == 1:
+                return 1, "absent"
+            return 0, "present"
         return 0, "ok"
 
     monkeypatch.setattr(soft_prov, "run_in_package", fake_run_in_package)
@@ -101,11 +112,71 @@ def test_run_software_entry_happy_path(tmp_path, monkeypatch):
     )
     assert code == 0
     assert reboot is False
+    assert staged
     assert "echo install" in calls
-    assert "echo detect" in calls
+    assert calls.count("echo detect") == 2
     assert cleaned
+    assert any("detect (pre-install)" in m for _, m in events)
+    assert any("Running install: windows.x64.install.command" in m for _, m in events)
     assert any("Staging" in m for _, m in events)
-    assert any("detect" in m.lower() for _, m in events)
+    assert any("verify install" in m for _, m in events)
+
+
+def test_run_software_entry_skips_when_already_present(tmp_path, monkeypatch):
+    pkg = tmp_path / "Pkg.1.0.0"
+    pkg.mkdir()
+    (pkg / "software.yaml").write_text(
+        "hatchery:\n  publisher: P\n  product: Prod\n  version: '1.0.0'\n"
+        "platforms:\n  windows:\n    any:\n"
+        "      install:\n        command: echo install\n"
+        "      uninstall:\n        command: echo u\n"
+        "      detect:\n        command: echo detect\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+
+    staged: list[str] = []
+
+    def boom_stage(*a, **k):
+        staged.append("nope")
+        raise AssertionError("stage_payload must not run when already present")
+
+    monkeypatch.setattr(soft_prov, "stage_payload", boom_stage)
+
+    calls: list[tuple[str | None, bool]] = []
+
+    def fake_run(*args, command=None, require_cwd=True, **kwargs):
+        calls.append((command, require_cwd))
+        return 0, "present"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    cleaned: list[str] = []
+    monkeypatch.setattr(
+        soft_prov,
+        "remove_guest_package",
+        lambda *a, **k: cleaned.append("cleaned"),
+    )
+
+    events: list[tuple[str, str]] = []
+    code, out, reboot = soft_prov.run_software_entry(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_id="Pkg.1.0.0",
+        guest_os="win11",
+        clean_payload_on_success=True,
+        on_event=lambda level, msg: events.append((level, msg)),
+    )
+    assert code == 0
+    assert reboot is False
+    assert not staged
+    assert not cleaned
+    assert len(calls) == 1
+    assert calls[0][0] == "echo detect"
+    assert calls[0][1] is False
+    assert "echo install" not in out
+    assert any("already present" in m for _, m in events)
 
 
 def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
@@ -123,8 +194,11 @@ def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
     monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
     monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
 
+    detect_n = {"n": 0}
+
     def fake_run(*args, command=None, **kwargs):
         if command and "detect" in command:
+            detect_n["n"] += 1
             return 1, "not installed"
         return 0, "ok"
 
@@ -143,6 +217,7 @@ def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
         raise AssertionError("expected detect failure")
     except RuntimeError as exc:
         assert "detect failed after install" in str(exc)
+    assert detect_n["n"] == 2
 
 
 def test_run_in_package_command_and_script(monkeypatch):
@@ -153,7 +228,7 @@ def test_run_in_package_command_and_script(monkeypatch):
         return 0, "ok"
 
     monkeypatch.setattr(soft_prov, "_run_ps", fake_run_ps)
-    # Slim contract: cwd + authored command (no cmd.exe / Start-Process wrapping)
+    # Slim contract: cwd + authored command (no cmd.exe wrapping)
     code, out = soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -164,8 +239,17 @@ def test_run_in_package_command_and_script(monkeypatch):
     assert code == 0
     assert "Set-Location" in seen[0]
     assert r"msiexec.exe /i .\foo.msi /qn" in seen[0]
-    assert "Start-Process" not in seen[0]
     assert "cmd.exe" not in seen[0]
+    soft_prov.run_in_package(
+        "10.0.0.1",
+        "a",
+        "b",
+        guest_package_dir=r"C:\pkg",
+        command="exit 1",
+        require_cwd=False,
+    )
+    assert "Test-Path" in seen[1]
+    assert "Set-Location -LiteralPath" in seen[1]
     soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -173,8 +257,8 @@ def test_run_in_package_command_and_script(monkeypatch):
         guest_package_dir=r"C:\pkg",
         command="$pub='Hatchery'; exit 0",
     )
-    assert "Set-Location" in seen[1]
-    assert "$pub='Hatchery'" in seen[1]
+    assert "Set-Location" in seen[2]
+    assert "$pub='Hatchery'" in seen[2]
     soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -182,9 +266,9 @@ def test_run_in_package_command_and_script(monkeypatch):
         guest_package_dir=r"C:\pkg",
         script_rel="hooks/pre.ps1",
     )
-    assert "pre.ps1" in seen[2]
-    assert "& " in seen[2]
-    assert "Set-Location" in seen[2]
+    assert "pre.ps1" in seen[3]
+    assert "& " in seen[3]
+    assert "Set-Location" in seen[3]
 
 
 def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
@@ -393,14 +477,17 @@ def test_run_software_entry_honors_success_exit_codes(tmp_path, monkeypatch):
     monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
     monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
 
-    n = {"i": 0}
+    detect_n = {"n": 0}
 
     def fake_run(*args, command=None, **kwargs):
-        n["i"] += 1
-        # install then detect
-        if n["i"] == 1:
+        if command and "echo d" in command:
+            detect_n["n"] += 1
+            if detect_n["n"] == 1:
+                return 1, "absent"
+            return 0, "present"
+        if command == "msiexec":
             return 3010, "reboot pending"
-        return 0, "present"
+        return 0, "ok"
 
     monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
     monkeypatch.setattr(soft_prov, "remove_guest_package", lambda *a, **k: None)
@@ -414,3 +501,4 @@ def test_run_software_entry_honors_success_exit_codes(tmp_path, monkeypatch):
         clean_payload_on_success=False,
     )
     assert code == 0
+    assert detect_n["n"] == 2
