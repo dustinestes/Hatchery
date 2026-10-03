@@ -214,11 +214,11 @@ class VMConfig(BaseModel):
             return []
         # Flat map shorthand: KEY: value → structured entries with defaults.
         if isinstance(v, dict):
-            return [{"name": str(k), "value": "" if val is None else str(val)} for k, val in v.items()]
+            return [
+                {"name": str(k), "value": "" if val is None else str(val)} for k, val in v.items()
+            ]
         if not isinstance(v, list):
-            raise ValueError(
-                "environment must be a list of entries or a mapping of name to value"
-            )
+            raise ValueError("environment must be a list of entries or a mapping of name to value")
         return v
 
     @field_validator("providers", mode="before")

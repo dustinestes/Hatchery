@@ -132,7 +132,12 @@ def reserved_env_catalog(guest_os: GuestOS | str) -> list[dict[str, str]]:
         {"name": "HATCHERY_ROOT", "value": gp.root, "scope": "always", "persist": "machine"},
         {"name": "HATCHERY_LOGS", "value": gp.logs, "scope": "always", "persist": "machine"},
         {"name": "HATCHERY_TEMP", "value": gp.temp, "scope": "always", "persist": "machine"},
-        {"name": "HATCHERY_SOFTWARE", "value": gp.software, "scope": "always", "persist": "machine"},
+        {
+            "name": "HATCHERY_SOFTWARE",
+            "value": gp.software,
+            "scope": "always",
+            "persist": "machine",
+        },
         {
             "name": "HATCHERY_SOFTWARE_PACKAGE",
             "value": gp.software_package("{Publisher.Product.Version}"),
@@ -190,7 +195,7 @@ def powershell_persist_script(
         "    else { $next = ($existing.TrimEnd(';') + ';' + $Value) }\n",
         "  } else { $next = $Value }\n",
         "  [Environment]::SetEnvironmentVariable($Name, $next, $Target)\n",
-        "  Set-Item -Path \"Env:$Name\" -Value $next\n",
+        '  Set-Item -Path "Env:$Name" -Value $next\n',
         "}\n",
     ]
     for key, value in reserved.items():
@@ -213,7 +218,7 @@ def powershell_persist_script(
     lines.append(
         "try {\n"
         "  Add-Type -Namespace HatcheryWin32 -Name Native -MemberDefinition @'\n"
-        "    [System.Runtime.InteropServices.DllImport(\"user32.dll\", "
+        '    [System.Runtime.InteropServices.DllImport("user32.dll", '
         "SetLastError=true, CharSet=System.Runtime.InteropServices.CharSet.Auto)]\n"
         "    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, "
         "UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);\n"
@@ -247,11 +252,7 @@ def persist_guest_environment(
     body = powershell_persist_script(reserved=reserved_base, entries=list(entries))
     session = provision_lib._make_session(ip, admin_username, admin_password, timeout)
     result = session.run_ps(body)
-    stdout = provision_lib._strip_clixml(
-        result.std_out.decode("utf-8", errors="replace").strip()
-    )
-    stderr = provision_lib._strip_clixml(
-        result.std_err.decode("utf-8", errors="replace").strip()
-    )
+    stdout = provision_lib._strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
+    stderr = provision_lib._strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
     body_out = "\n".join(filter(None, [stdout, stderr]))
     return result.status_code, body_out

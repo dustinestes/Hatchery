@@ -154,7 +154,9 @@ class TestRenderUserAnswerFile:
 
 class TestValidateVmAnswerFile:
     def test_requires_answer_file_for_windows(self, tmp_path):
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
+        )
         errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
         assert any("Answer File is required" in e for e in errors)
 

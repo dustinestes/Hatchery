@@ -34,9 +34,7 @@ class TestReservedAndMerge:
         assert "HATCHERY_SOFTWARE_LOG" not in env
 
     def test_software_scoped(self):
-        env = guest_env.reserved_environment(
-            "win11", package_id="Hatchery.SoftwareExample.1.0.0"
-        )
+        env = guest_env.reserved_environment("win11", package_id="Hatchery.SoftwareExample.1.0.0")
         assert env["HATCHERY_SOFTWARE_PACKAGE"].endswith(
             r"\software\Hatchery.SoftwareExample.1.0.0"
         )

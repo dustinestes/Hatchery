@@ -209,11 +209,7 @@ def _provision_vm_thread(
         guest_os = vm_record.get("guest_os") or GuestOS.WINDOWS.value
         clutch_vm = _clutch_vm_for_session(session_id, vm_name)
         user_entries = list(clutch_vm.environment) if clutch_vm else []
-        user_env = (
-            clutch_vm.environment_as_process_map()
-            if clutch_vm
-            else {}
-        )
+        user_env = clutch_vm.environment_as_process_map() if clutch_vm else {}
         script_env = guest_env_lib.merge_guest_environment(
             guest_env_lib.reserved_environment(guest_os),
             user_env,

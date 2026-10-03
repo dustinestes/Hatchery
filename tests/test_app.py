@@ -2653,7 +2653,9 @@ class TestRunHatchSession:
     def test_calls_create_vm_for_each_vm(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2682,7 +2684,9 @@ class TestRunHatchSession:
         import lib.hatch as hatch_lib
 
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         observed = []
 
         def fake_create_vm(vm_cfg, admin_password=None, storage_path=None):
@@ -2698,7 +2702,9 @@ class TestRunHatchSession:
     def test_marks_vm_failed_on_error(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2708,7 +2714,9 @@ class TestRunHatchSession:
     def test_permission_error_records_alert(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
@@ -2722,7 +2730,9 @@ class TestRunHatchSession:
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2737,8 +2747,12 @@ class TestRunHatchSession:
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_vm(sid, "ws01")
         vms = [
-            VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
-            VMConfig(name="ws01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
+            VMConfig(
+                name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+            ),
+            VMConfig(
+                name="ws01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+            ),
         ]
         call_count = 0
 
@@ -2762,7 +2776,9 @@ class TestRunHatchSession:
     def test_boot_key_started_in_background_thread(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with (
             patch("lib.hatch_lifecycle.get_provider") as mock_prov,
             patch("lib.hatch_lifecycle.threading.Thread") as mock_thread_cls,
@@ -2783,7 +2799,9 @@ class TestRunHatchSession:
     def test_boot_key_thread_started_before_create_vm(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         call_order = []
         with (
             patch("lib.hatch_lifecycle.get_provider") as mock_prov,
@@ -2801,7 +2819,9 @@ class TestRunHatchSession:
     def test_tags_vm_session_metadata_on_success(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session = MagicMock()
@@ -2811,7 +2831,9 @@ class TestRunHatchSession:
     def test_tag_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session.side_effect = RuntimeError("virsh failed")
@@ -2823,7 +2845,9 @@ class TestRunHatchSession:
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.return_value = "test-uuid-1234"
@@ -2836,7 +2860,9 @@ class TestRunHatchSession:
     def test_uuid_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
+        )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")

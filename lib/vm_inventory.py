@@ -93,9 +93,7 @@ def _resolved_environment(
                     entry.scope.value if entry and hasattr(entry.scope, "value") else "machine"
                 ),
                 "persist": "yes" if (entry is None or entry.persist) else "no",
-                "mode": (
-                    entry.mode.value if entry and hasattr(entry.mode, "value") else "replace"
-                ),
+                "mode": (entry.mode.value if entry and hasattr(entry.mode, "value") else "replace"),
             }
         )
     for item in guest_env_lib.reserved_env_catalog(guest_os):

@@ -3084,7 +3084,9 @@ def api_clutch_detail(filename):
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
                     "firmware": (
-                        v.firmware.value if v.firmware and hasattr(v.firmware, "value") else v.firmware
+                        v.firmware.value
+                        if v.firmware and hasattr(v.firmware, "value")
+                        else v.firmware
                     )
                     or "",
                     "tpm": bool(v.tpm) if v.tpm is not None else False,
