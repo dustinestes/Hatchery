@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
 
+from lib import guest_env as guest_env_lib
 from lib import provision as provision_lib
 from lib import software as software_lib
 from lib.clutch import GuestOS
@@ -353,28 +354,30 @@ def run_in_package(
     script_rel: str | None = None,
     timeout: int = 600,
     require_cwd: bool = True,
+    env: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Run a package ``command`` or relative ``script`` with cwd = staged package dir.
 
-    Slim transport contract: set location, run the authored snippet, return exit
-    code + output. No installer heuristics, path rewriting, or cmd.exe wrapping.
-    Guest instructions live in ``software.yaml`` (ADR-0025). Reserved path env
-    vars for authors are tracked in #501.
+    Slim transport contract: set env + location, run the authored snippet, return
+    exit code + output. No installer heuristics or cmd.exe wrapping. Guest
+    instructions live in ``software.yaml`` (ADR-0025). Env contract: #501.
 
-    When ``require_cwd`` is False (pre-detect / skip-if-present), Set-Location
-    only if the package dir already exists so registry/ARP detects work before
-    staging.
+    When ``require_cwd`` is False (pre-detect), Set-Location only if the package
+    dir already exists so registry/ARP detects work before staging.
     """
     pkg = _ps_quote(guest_package_dir)
     if command and script_rel:
         raise ValueError("pass exactly one of command or script_rel")
+    # Windows WinRM today: PowerShell assignments. POSIX export helper exists for
+    # future SSH / Linux / macOS remoting (same env names, different shell).
+    prefix = guest_env_lib.powershell_env_assignments(env or {})
     if require_cwd:
-        cwd_prefix = f"Set-Location -LiteralPath {pkg}\n"
+        prefix += f"Set-Location -LiteralPath {pkg}\n"
     else:
-        cwd_prefix = f"if (Test-Path -LiteralPath {pkg}) {{ Set-Location -LiteralPath {pkg} }}\n"
+        prefix += f"if (Test-Path -LiteralPath {pkg}) {{ Set-Location -LiteralPath {pkg} }}\n"
     if command:
         body = (
-            cwd_prefix
+            prefix
             + "$LASTEXITCODE = $null\n"
             + f"{command.rstrip()}\n"
             + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
@@ -386,7 +389,7 @@ def run_in_package(
         rel = script_rel.replace("/", "\\").lstrip(".\\")
         script_path = _ps_quote(guest_package_dir.rstrip("\\") + "\\" + rel)
         body = (
-            cwd_prefix
+            prefix
             + "$LASTEXITCODE = $null\n"
             + f"& {script_path}\n"
             + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
@@ -419,6 +422,7 @@ def run_software_entry(
     guest_os: GuestOS | str,
     clean_payload_on_success: bool = True,
     on_event: Callable[[str, str], None] | None = None,
+    user_environment: dict[str, str] | None = None,
 ) -> tuple[int, str, bool]:
     """Execute one Software automation entry.
 
@@ -454,16 +458,35 @@ def run_software_entry(
     arch_used, unit = resolved
     payload_rel = f"{platform}/{arch_used}"
     guest_pkg = paths.software_package(package_id)
+    guest_env = guest_env_lib.merge_guest_environment(
+        guest_env_lib.reserved_environment(guest_os, package_id=package_id, paths=paths),
+        user_environment,
+    )
     outputs: list[str] = []
+
+    def run_pkg(
+        *,
+        command: str | None = None,
+        script_rel: str | None = None,
+        timeout: int = 600,
+        require_cwd: bool = True,
+    ) -> tuple[int, str]:
+        return run_in_package(
+            ip,
+            admin_username,
+            admin_password,
+            guest_package_dir=guest_pkg,
+            command=command,
+            script_rel=script_rel,
+            timeout=timeout,
+            require_cwd=require_cwd,
+            env=guest_env,
+        )
 
     # Skip-if-present (#502): detect before staging so retries avoid payload transfer.
     unit_path = f"{platform}.{arch_used}"
     emit("INFO", "Running detect (pre-install)")
-    pre_code, pre_out = run_in_package(
-        ip,
-        admin_username,
-        admin_password,
-        guest_package_dir=guest_pkg,
+    pre_code, pre_out = run_pkg(
         command=unit.detect.command,
         timeout=300,
         require_cwd=False,
@@ -488,14 +511,7 @@ def run_software_entry(
     def run_hooks(label: str, hooks: list) -> None:
         for i, hook in enumerate(hooks):
             emit("INFO", f"Running {unit_path}.{label}[{i}]")
-            code, out = run_in_package(
-                ip,
-                admin_username,
-                admin_password,
-                guest_package_dir=guest_pkg,
-                command=hook.command,
-                script_rel=hook.script,
-            )
+            code, out = run_pkg(command=hook.command, script_rel=hook.script)
             outputs.append(f"[{label}[{i}] exit={code}]\n{out}")
             if not _exit_ok(code, hook.success_exit_codes):
                 raise RuntimeError(
@@ -505,14 +521,7 @@ def run_software_entry(
     run_hooks("pre_install", unit.pre_install)
 
     emit("INFO", f"Running install: {unit_path}.install.command")
-    code, out = run_in_package(
-        ip,
-        admin_username,
-        admin_password,
-        guest_package_dir=guest_pkg,
-        command=unit.install.command,
-        timeout=900,
-    )
+    code, out = run_pkg(command=unit.install.command, timeout=900)
     outputs.append(f"[install exit={code}]\n{out}")
     emit("INFO", f"Install finished with exit {code}")
     if not _exit_ok(code, unit.install.success_exit_codes):
@@ -530,14 +539,7 @@ def run_software_entry(
     run_hooks("post_install", unit.post_install)
 
     emit("INFO", "Running detect (verify install)")
-    det_code, det_out = run_in_package(
-        ip,
-        admin_username,
-        admin_password,
-        guest_package_dir=guest_pkg,
-        command=unit.detect.command,
-        timeout=300,
-    )
+    det_code, det_out = run_pkg(command=unit.detect.command, timeout=300)
     outputs.append(f"[detect verify exit={det_code}]\n{det_out}")
     if not _exit_ok(det_code, unit.detect.success_exit_codes):
         raise RuntimeError(

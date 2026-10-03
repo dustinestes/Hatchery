@@ -66,6 +66,9 @@
 </div>
 
 {% include '_vm_row_template.html' %}
+{% if form_vms %}
+<script type="application/json" id="edit-form-vms">{{ form_vms | tojson }}</script>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -77,17 +80,28 @@
   var rows = hatchery.vmRows.init('vm-rows', 'vm-row-template');
   if (!rows) return;
 
-  var existingFile = document.getElementById('existing-filename').value;
-  if (existingFile) {
-    fetch('/api/clutch/' + encodeURIComponent(existingFile))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.error) return;
-        data.vms.forEach(function (vm) { rows.addRow(vm); });
-        rows.updateDependsOnAll();
-        rows.applyPendingDepends();
-        rows.markClean();
-      });
+  var expandOnLoad = !!document.querySelector('.alert-error');
+  var fvEl = document.getElementById('edit-form-vms');
+  if (fvEl) {
+    JSON.parse(fvEl.textContent).forEach(function (vm) {
+      rows.addRow(vm, { expanded: expandOnLoad });
+    });
+    rows.updateDependsOnAll();
+    rows.applyPendingDepends();
+    rows.markDirty();
+  } else {
+    var existingFile = document.getElementById('existing-filename').value;
+    if (existingFile) {
+      fetch('/api/clutch/' + encodeURIComponent(existingFile))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) return;
+          data.vms.forEach(function (vm) { rows.addRow(vm); });
+          rows.updateDependsOnAll();
+          rows.applyPendingDepends();
+          rows.markClean();
+        });
+    }
   }
 
   document.getElementById('add-vm-btn').addEventListener('click', function () {
@@ -105,6 +119,11 @@
     rows.serializeDependsOn();
     rows.serializeAutomations();
     rows.serializeAnswerFileParameters();
+    if (!rows.validateEnvironment()) {
+      e.preventDefault();
+      return;
+    }
+    rows.serializeEnvironment();
     rows.markClean();
   });
 

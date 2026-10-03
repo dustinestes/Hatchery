@@ -45,7 +45,7 @@ class TestMediaUsedBy:
                 vms=[
                     VMConfig(
                         name="dc01",
-                        os="win11",
+                        os="windows",
                         vcpus=2,
                         ram_gb=4,
                         disk_gb=40,

@@ -5,6 +5,9 @@
 # for example, a domain controller and a joined client.
 #
 # Loaded and validated by: lib/clutch.py
+# Guest OS family + firmware/TPM: ADR-0027 / #501
+# Environment persist/scope/mode: ADR-0026 / #501
+# Nest provider overlays: epic #504 (stub shape here)
 
 # ── Top-level fields ───────────────────────────────────────────────────────────
 
@@ -12,7 +15,7 @@
 name: win-dev-lab
 
 # description (optional): free-form description of this environment
-description: Windows 11 development environment
+description: Windows development environment
 
 # vms (required): list of one or more VM definitions
 vms:
@@ -20,12 +23,20 @@ vms:
   # ── VM fields ───────────────────────────────────────────────────────────────
 
   - # name (required): unique identifier for this VM within the Clutch
-    name: win11-dev
+    name: win-dev
 
-    # os (required): guest OS type
-    # Accepted values: win10 | win11 | server2022 | server2025
-    # Controls: Answer File / UEFI/TPM requirements (see docs/answer-files.md)
-    os: win11
+    # os (required): guest OS family
+    # Accepted values: windows | linux | macos
+    # Legacy SKUs (win10/win11/server2022/server2025) migrate on load (ADR-0027).
+    os: windows
+
+    # firmware (optional): portable create policy - bios | uefi
+    # Windows default when omitted: uefi
+    firmware: uefi
+
+    # tpm (optional): TPM 2.0 emulator when true. Requires firmware: uefi.
+    # Windows default when omitted: true
+    tpm: true
 
     # vcpus (required): number of virtual CPUs - must be >= 1
     vcpus: 4
@@ -43,21 +54,15 @@ vms:
 
     # virtio_drivers (optional): VirtIO driver package
     # Filename relative to the media/ data directory, or an absolute path.
-    # Enables high-performance VirtIO disk and network adapters on Windows guests.
-    # Omit to fall back to standard IDE/e1000 adapters (no extra setup required).
     virtio_drivers: virtio-win.iso
 
     # admin_username (required for Windows guests): administrator account for unattended
     # install / hatch→fledged. Injected as reserved system tokens into the selected Answer File
-    # (ADR-0024 / #465). Password is supplied at hatch time. Hatch-scoped through fledged -
-    # rotate after fledged if the guest outlives setup (#455). Hidden / not required for
-    # non-Windows Guest OS (#453).
+    # (ADR-0024 / #465). Password is supplied at hatch time.
     admin_username: admin
 
     # answer_file (required for Windows guests): Answer File under automation/answerfiles/
     # Legacy Clutch key ``os_config`` is still accepted on load (ADR-0024 / #448).
-    # Windows: Autounattend Jinja template rendered with system tokens + declared params.
-    # Linux (future): cloud-init / kickstart / preseed Answer File.
     answer_file: win11-autounattend.xml.j2
 
     # answer_file_parameters: map of user-declared Answer File parameters (#451)
@@ -65,10 +70,31 @@ vms:
       input_locale: en-US
       system_locale: en-US
 
+    # environment (optional): user guest env vars (#501 / ADR-0026).
+    # Structured list (preferred) or flat map shorthand (loads with defaults).
+    # Defaults on load: scope=machine, persist=true, mode=replace.
+    # Saves always emit scope/persist/mode (explicit YAML; no default-hiding).
+    # Reserved HATCHERY_* names are rejected. Software-scoped reserved vars stay job-only.
+    environment:
+      - name: MY_LAB_ROLE
+        value: dc
+        scope: machine
+        persist: true
+        mode: replace
+      - name: PATH
+        value: 'C:\Tools'
+        scope: machine
+        persist: true
+        mode: append
+
+    # providers (optional): Nest-native overlays (#504). Only the active Nest bag is applied.
+    # Unknown keys in a bag fail validate. Stub fields until inventories land (#505–#507).
+    providers:
+      libvirt:
+        os_variant: win11   # optional virt-install pin; default win11 for os: windows
+
     # automations (optional): ordered typed post-boot steps (#473 / ADR-0025).
     # Every entry requires type: script|software and name. Bare strings rejected.
-    # script name = basename under automation/scripts/
-    # software name = package id under automation/software/
     automations:
       - type: script
         name: install-chocolatey.ps1
@@ -79,7 +105,6 @@ vms:
 
     # depends_on (optional): VM names in this Clutch that must be fully fledged
     # before this VM is hatched. VMs with no dependencies hatch in parallel.
-    # Omit or leave empty for no dependency.
     depends_on: []
 
 
@@ -90,7 +115,9 @@ vms:
 #
 # vms:
 #   - name: dc01
-#     os: server2022
+#     os: windows
+#     firmware: bios
+#     tpm: false
 #     vcpus: 2
 #     ram_gb: 4
 #     disk_gb: 60
@@ -101,7 +128,9 @@ vms:
 #         name: promote-domain-controller.ps1
 #
 #   - name: client01
-#     os: win11
+#     os: windows
+#     firmware: uefi
+#     tpm: true
 #     vcpus: 4
 #     ram_gb: 8
 #     disk_gb: 80
@@ -111,4 +140,4 @@ vms:
 #       - type: script
 #         name: join-domain.ps1
 #     depends_on:
-#       - dc01    # hatches only after dc01 is fledged
+#       - dc01

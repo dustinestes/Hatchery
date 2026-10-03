@@ -556,7 +556,7 @@ class TestAddVmScripts:
 
     def test_stores_mixed_script_and_software_order(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
-        hatch_lib.add_vm(sid, "dc01", guest_os="win11")
+        hatch_lib.add_vm(sid, "dc01", guest_os="windows")
         hatch_lib.add_vm_scripts(
             sid,
             "dc01",
@@ -574,7 +574,7 @@ class TestAddVmScripts:
         ]
         assert [r["entry_type"] for r in rows] == ["script", "software", "script"]
         assert rows[1]["clean_payload_on_success"] is True
-        assert hatch_lib.get_vm_record(sid, "dc01")["guest_os"] == "win11"
+        assert hatch_lib.get_vm_record(sid, "dc01")["guest_os"] == "windows"
 
     def test_noop_for_empty_list(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
@@ -957,7 +957,7 @@ class TestAnswerFileAttachErrors:
 
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -973,7 +973,7 @@ class TestAnswerFileAttachErrors:
 
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,

@@ -70,6 +70,8 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0023](0023-settings-sqlite-revision-reload.md) | Settings SQLite revision reload across processes | Accepted |
 | [0024](0024-answer-files-product-model.md) | Answer Files product model (install-time templates) | Accepted |
 | [0025](0025-software-product-model.md) | Software product model (post-boot packages) | Accepted |
+| [0026](0026-guest-clutch-environment.md) | Guest and Clutch environment variables for hatch jobs | Accepted |
+| [0027](0027-clutch-guest-os-family-firmware-tpm.md) | Clutch Guest OS is family + explicit firmware/TPM | Accepted |
 
 <br>
 

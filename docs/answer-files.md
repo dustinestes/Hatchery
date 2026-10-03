@@ -82,7 +82,7 @@ Injected from the Clutch VM / hatch session. Do **not** declare these as user pa
 | `admin_username` | Admin Username on the VM (when Guest OS needs hatch creds) |
 | `admin_password` | Admin password supplied at hatch time |
 
-Admin Username / Password remain first-class Clutch / hatch fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username** and **Answer File** only for Windows guests (`win10`, `win11`, `server2022`, `server2025`); both are required when that section is visible. Other Guest OS values hide those fields and strip them on save.
+Admin Username / Password remain first-class Clutch / hatch fields when the selected Guest OS needs them for hatch through fledged. The Clutch Build/Edit form shows **Admin Username**, **Answer File**, **Firmware**, and **TPM** only for `os: windows` guests; Admin Username and Answer File are required when that section is visible. Other Guest OS families (`linux`, `macos`) hide those fields and strip Windows hatch fields on save. See ADR-0027.
 
 ### Hatch-scoped through fledged
 
@@ -178,7 +178,7 @@ For Windows samples, Autounattend `FirstLogonCommands` should launch the compani
 
 ## Windows
 
-Supported Guest OS values today: `win10`, `win11`, `server2022`, `server2025`.
+Supported Guest OS family values: `windows`, `linux`, `macos`. Legacy SKUs (`win10`, `win11`, `server2022`, `server2025`) migrate on Clutch load (ADR-0027).
 
 ### What the installer expects
 

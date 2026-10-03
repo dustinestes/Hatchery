@@ -106,7 +106,7 @@ def test_run_software_entry_happy_path(tmp_path, monkeypatch):
         "admin",
         "pw",
         package_id="Hatchery.SoftwareExample.1.0.0",
-        guest_os="win11",
+        guest_os="windows",
         clean_payload_on_success=True,
         on_event=lambda level, msg: events.append((level, msg)),
     )
@@ -164,7 +164,7 @@ def test_run_software_entry_skips_when_already_present(tmp_path, monkeypatch):
         "a",
         "b",
         package_id="Pkg.1.0.0",
-        guest_os="win11",
+        guest_os="windows",
         clean_payload_on_success=True,
         on_event=lambda level, msg: events.append((level, msg)),
     )
@@ -211,7 +211,7 @@ def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
             "a",
             "b",
             package_id="Pkg.1.0.0",
-            guest_os="win11",
+            guest_os="windows",
             clean_payload_on_success=True,
         )
         raise AssertionError("expected detect failure")
@@ -269,6 +269,24 @@ def test_run_in_package_command_and_script(monkeypatch):
     assert "pre.ps1" in seen[3]
     assert "& " in seen[3]
     assert "Set-Location" in seen[3]
+    soft_prov.run_in_package(
+        "10.0.0.1",
+        "a",
+        "b",
+        guest_package_dir=r"C:\pkg",
+        command="msiexec.exe /i .\\foo.msi /l*v $env:HATCHERY_SOFTWARE_LOG",
+        env={
+            "HATCHERY_SOFTWARE_PACKAGE": r"C:\Program Files\Hatchery\software\Pkg.1.0.0",
+            "HATCHERY_SOFTWARE_LOG": r"C:\Program Files\Hatchery\logs\software\Pkg.1.0.0.log",
+            "MY_FLAG": "1",
+        },
+    )
+    assert "$env:HATCHERY_SOFTWARE_LOG = " in seen[4]
+    assert "$env:MY_FLAG = '1'" in seen[4]
+    assert "Set-Location" in seen[4]
+    # Env assignments precede cwd / command (slim runner; no cmd.exe wrap)
+    assert seen[4].index("$env:HATCHERY_SOFTWARE_LOG") < seen[4].index("Set-Location")
+    assert "cmd.exe" not in seen[4]
 
 
 def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
@@ -497,7 +515,7 @@ def test_run_software_entry_honors_success_exit_codes(tmp_path, monkeypatch):
         "a",
         "b",
         package_id="Pkg.1.0.0",
-        guest_os="win11",
+        guest_os="windows",
         clean_payload_on_success=False,
     )
     assert code == 0

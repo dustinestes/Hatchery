@@ -10,12 +10,14 @@ from pathlib import PurePosixPath, PureWindowsPath
 
 from lib.clutch import GuestOS
 
+# Legacy SKUs still accepted for path resolution during migration windows.
 _WINDOWS_OS = frozenset(
     {
-        GuestOS.WIN10.value,
-        GuestOS.WIN11.value,
-        GuestOS.SERVER2022.value,
-        GuestOS.SERVER2025.value,
+        GuestOS.WINDOWS.value,
+        "win10",
+        "win11",
+        "server2022",
+        "server2025",
     }
 )
 
@@ -30,8 +32,7 @@ class GuestPaths:
     software: str
     family: str  # windows | linux | macos
 
-    def software_package(self, package_id: str) -> str:
-        """Return ``software_package(id)`` for a sanitized package id."""
+    def _safe_package_id(self, package_id: str) -> str:
         safe = (
             PureWindowsPath(package_id).name
             if self.family == "windows"
@@ -39,9 +40,27 @@ class GuestPaths:
         )
         if not safe or safe in (".", ".."):
             raise ValueError("package id is required")
+        return safe
+
+    def software_package(self, package_id: str) -> str:
+        """Return ``software_package(id)`` for a sanitized package id."""
+        safe = self._safe_package_id(package_id)
         if self.family == "windows":
             return rf"{self.software}\{safe}"
         return f"{self.software}/{safe}"
+
+    def software_logs_dir(self) -> str:
+        """Parent directory for per-package Software installer logs."""
+        if self.family == "windows":
+            return rf"{self.logs}\software"
+        return f"{self.logs}/software"
+
+    def software_log(self, package_id: str) -> str:
+        """Return ``logs/software/{id}.log`` for MSI/setup logging (#501)."""
+        safe = self._safe_package_id(package_id)
+        if self.family == "windows":
+            return rf"{self.software_logs_dir()}\{safe}.log"
+        return f"{self.software_logs_dir()}/{safe}.log"
 
 
 def guest_paths_for(guest_os: GuestOS | str) -> GuestPaths:

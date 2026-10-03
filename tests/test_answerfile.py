@@ -154,14 +154,16 @@ class TestRenderUserAnswerFile:
 
 class TestValidateVmAnswerFile:
     def test_requires_answer_file_for_windows(self, tmp_path):
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm = VMConfig(
+            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"
+        )
         errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
         assert any("Answer File is required" in e for e in errors)
 
     def test_missing_file(self, tmp_path):
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -185,7 +187,7 @@ class TestValidateVmAnswerFile:
         )
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -203,7 +205,7 @@ class TestValidateVmAnswerFile:
         )
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -218,7 +220,7 @@ class TestValidateVmAnswerFile:
         (tmp_path / "hatchery-setup.ps1").write_text("# setup\n", encoding="utf-8")
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -229,19 +231,14 @@ class TestValidateVmAnswerFile:
         assert answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path) == []
 
     def test_requires_answer_file_helper(self):
-        assert answerfile.requires_answer_file(GuestOS.WIN11) is True
+        assert answerfile.requires_answer_file(GuestOS.WINDOWS) is True
         assert answerfile.requires_answer_file("win10") is True
 
     def test_needs_windows_hatch_fields_matches_answer_file_set(self):
         for os_val in answerfile.windows_hatch_os_values():
             assert answerfile.needs_windows_hatch_fields(os_val) is True
         assert answerfile.needs_windows_hatch_fields("linux") is False
-        assert answerfile.windows_hatch_os_values() == (
-            "server2022",
-            "server2025",
-            "win10",
-            "win11",
-        )
+        assert answerfile.windows_hatch_os_values() == ("windows",)
 
 
 class TestCompanionNames:

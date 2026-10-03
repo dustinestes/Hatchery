@@ -37,6 +37,106 @@ class NestProviderUnavailableError(VmInventoryError):
         super().__init__(message, code="unavailable")
 
 
+def _resolved_environment(
+    guest_os: str,
+    *,
+    clutch_file: str | None,
+    vm_name: str,
+) -> list[dict[str, str]]:
+    """Return resolved guest env rows (reserved base + Clutch user) for VM details."""
+    from pathlib import Path
+
+    from lib import clutch as clutch_lib
+    from lib import guest_env as guest_env_lib
+
+    user_entries = []
+    if clutch_file:
+        path = config.data_dir() / "clutches" / Path(clutch_file).name
+        try:
+            clutch = clutch_lib.load(path)
+            for vm in clutch.vms:
+                if vm.name == vm_name:
+                    user_entries = list(vm.environment or [])
+                    break
+        except Exception:
+            user_entries = []
+    try:
+        user_env = guest_env_lib.entries_to_process_map(user_entries)
+        merged = guest_env_lib.merge_guest_environment(
+            guest_env_lib.reserved_environment(guest_os),
+            user_env,
+        )
+    except ValueError:
+        return []
+    reserved = set(guest_env_lib.RESERVED_BASE)
+    rows: list[dict[str, str]] = []
+    for key, value in merged.items():
+        if key in reserved:
+            rows.append(
+                {
+                    "name": key,
+                    "value": value,
+                    "source": "reserved",
+                    "scope": "machine",
+                    "persist": "yes",
+                    "mode": "replace",
+                }
+            )
+            continue
+        entry = next((e for e in user_entries if e.name == key), None)
+        rows.append(
+            {
+                "name": key,
+                "value": value,
+                "source": "clutch",
+                "scope": (
+                    entry.scope.value if entry and hasattr(entry.scope, "value") else "machine"
+                ),
+                "persist": "yes" if (entry is None or entry.persist) else "no",
+                "mode": (entry.mode.value if entry and hasattr(entry.mode, "value") else "replace"),
+            }
+        )
+    for item in guest_env_lib.reserved_env_catalog(guest_os):
+        if item["scope"] == "software":
+            rows.append(
+                {
+                    "name": item["name"],
+                    "value": item["value"],
+                    "source": "software",
+                    "scope": "",
+                    "persist": "job",
+                    "mode": "",
+                }
+            )
+    return rows
+
+
+def _clutch_vm_create_policy(
+    *,
+    clutch_file: str | None,
+    vm_name: str,
+) -> dict[str, Any]:
+    """Return firmware/tpm from the Clutch VM when available."""
+    from pathlib import Path
+
+    from lib import clutch as clutch_lib
+
+    out: dict[str, Any] = {"firmware": None, "tpm": None}
+    if not clutch_file:
+        return out
+    path = config.data_dir() / "clutches" / Path(clutch_file).name
+    try:
+        clutch = clutch_lib.load(path)
+        for vm in clutch.vms:
+            if vm.name == vm_name:
+                out["firmware"] = vm.firmware.value if vm.firmware else None
+                out["tpm"] = vm.tpm
+                break
+    except Exception:
+        pass
+    return out
+
+
 def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> list[dict[str, Any]]:
     """Return enriched VM rows for one Nest.
 
@@ -72,6 +172,9 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
             "admin_username": None,
             "admin_password": None,
             "os": None,
+            "firmware": None,
+            "tpm": None,
+            "environment": [],
             "scripts": [],
         }
 
@@ -106,6 +209,20 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
                 record["admin_username"] = db_row.get("admin_username")
                 if show_passwords:
                     record["admin_password"] = db_row.get("admin_password")
+                guest_os = db_row.get("guest_os")
+                if guest_os:
+                    record["os"] = guest_os
+                    record["environment"] = _resolved_environment(
+                        guest_os,
+                        clutch_file=record.get("clutch_file"),
+                        vm_name=name,
+                    )
+                policy = _clutch_vm_create_policy(
+                    clutch_file=record.get("clutch_file"),
+                    vm_name=name,
+                )
+                record["firmware"] = policy.get("firmware")
+                record["tpm"] = policy.get("tpm")
             scripts = hatch_lib.get_vm_scripts(sid, name)
             last_events = hatch_lib.get_last_script_event_messages(sid, name)
             for script in scripts:

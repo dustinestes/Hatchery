@@ -2341,6 +2341,38 @@ def _parse_answer_file_parameters(raw: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items() if v is not None and str(v).strip() != ""}
 
 
+def _parse_environment(raw: str) -> list[dict]:
+    """Parse vm_environment[] JSON: list of entries or legacy flat map."""
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(data, dict):
+        return [{"name": str(k), "value": "" if v is None else str(v)} for k, v in data.items()]
+    if not isinstance(data, list):
+        return []
+    out = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        out.append(
+            {
+                "name": name,
+                "value": "" if item.get("value") is None else str(item.get("value")),
+                "scope": str(item.get("scope") or "machine"),
+                "persist": bool(item.get("persist", True)),
+                "mode": str(item.get("mode") or "replace"),
+            }
+        )
+    return out
+
+
 def _vm_dicts_from_form(form) -> list[dict]:
     """Extract raw VM dicts from form fields without validation, used for error re-renders."""
     names = form.getlist("vm_name[]")
@@ -2350,8 +2382,11 @@ def _vm_dicts_from_form(form) -> list[dict]:
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
+    firmware_list = form.getlist("vm_firmware[]")
+    tpm_list = form.getlist("vm_tpm[]")
     answer_file_list = form.getlist("vm_answer_file[]")
     answer_file_params_list = form.getlist("vm_answer_file_parameters[]")
+    environment_list = form.getlist("vm_environment[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2360,6 +2395,8 @@ def _vm_dicts_from_form(form) -> list[dict]:
         dep_raw = depends_list[i] if i < len(depends_list) else ""
         auto_raw = automations_list[i] if i < len(automations_list) else ""
         afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
+        env_raw = environment_list[i] if i < len(environment_list) else ""
+        tpm_raw = tpm_list[i] if i < len(tpm_list) else ""
         result.append(
             {
                 "name": name,
@@ -2369,8 +2406,11 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "disk_gb": disk_list[i] if i < len(disk_list) else "60",
                 "os_media": os_medias[i] if i < len(os_medias) else "",
                 "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
+                "firmware": firmware_list[i] if i < len(firmware_list) else "",
+                "tpm": tpm_raw in ("1", "true", "on", "yes"),
                 "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
                 "answer_file_parameters": _parse_answer_file_parameters(afp_raw),
+                "environment": _parse_environment(env_raw),
                 "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
                 "automations": _parse_automations(auto_raw),
                 "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
@@ -2390,8 +2430,11 @@ def _vm_list_from_form(form):
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
     virtio_list = form.getlist("vm_virtio_drivers[]")
+    firmware_list = form.getlist("vm_firmware[]")
+    tpm_list = form.getlist("vm_tpm[]")
     answer_file_list = form.getlist("vm_answer_file[]")
     answer_file_params_list = form.getlist("vm_answer_file_parameters[]")
+    environment_list = form.getlist("vm_environment[]")
     admin_username_list = form.getlist("vm_admin_username[]")
     automations_list = form.getlist("vm_automations[]")
     depends_list = form.getlist("vm_depends_on[]")
@@ -2406,10 +2449,17 @@ def _vm_list_from_form(form):
         auto_raw = automations_list[i] if i < len(automations_list) else ""
         automations = _parse_automations(auto_raw)
         afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
+        env_raw = environment_list[i] if i < len(environment_list) else ""
         os_val = oses[i] if i < len(oses) else ""
         answer_file = (answer_file_list[i] or None) if i < len(answer_file_list) else None
         admin_username = (admin_username_list[i] or None) if i < len(admin_username_list) else None
         answer_file_parameters = _parse_answer_file_parameters(afp_raw)
+        environment = _parse_environment(env_raw)
+        firmware = (firmware_list[i] or None) if i < len(firmware_list) else None
+        if firmware is not None:
+            firmware = firmware.strip() or None
+        tpm_raw = tpm_list[i] if i < len(tpm_list) else ""
+        tpm = tpm_raw in ("1", "true", "on", "yes") if tpm_raw != "" else None
         # Non-Windows guests: strip Windows hatch fields even if the form posted them.
         if not answerfile_lib.needs_windows_hatch_fields(os_val):
             answer_file = None
@@ -2432,8 +2482,11 @@ def _vm_list_from_form(form):
                 disk_gb=int(disk_list[i] or 20) if i < len(disk_list) else 20,
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
                 virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
+                firmware=firmware,
+                tpm=tpm,
                 answer_file=answer_file,
                 answer_file_parameters=answer_file_parameters,
+                environment=environment,
                 admin_username=admin_username,
                 automations=automations,
                 depends_on=depends_on,
@@ -2444,11 +2497,13 @@ def _vm_list_from_form(form):
 
 def _build_template_ctx(*, page_title: str | None = None):
     from lib import answerfile as answerfile_lib
+    from lib import guest_env as guest_env_lib
 
     ctx = dict(
         active_pane="clutches",
         os_types=[e.value for e in GuestOS],
         windows_hatch_os_types=list(answerfile_lib.windows_hatch_os_values()),
+        reserved_env_names=sorted(guest_env_lib.RESERVED_ALL),
         media_files=_scan_dir("media/iso"),
         virtio_files=_scan_dir("media/virtio"),
         answer_file_files=_scan_dir("automation/answerfiles", extensions=[".j2"]),
@@ -2575,7 +2630,9 @@ def edit_post():
             form_error=error,
             form_name=new_name,
             form_filename=new_filename_raw,
+            form_storage_path=request.form.get("storage_path", "").strip(),
             current_filename=old_filename,
+            form_vms=_vm_dicts_from_form(request.form),
             **ctx,
         )
 
@@ -3020,14 +3077,34 @@ def api_clutch_detail(filename):
             "vms": [
                 {
                     "name": v.name,
-                    "os": v.os,
+                    "os": v.os.value if hasattr(v.os, "value") else v.os,
                     "vcpus": v.vcpus,
                     "ram_gb": v.ram_gb,
                     "disk_gb": v.disk_gb,
                     "os_media": v.os_media,
                     "virtio_drivers": v.virtio_drivers or "",
+                    "firmware": (
+                        v.firmware.value
+                        if v.firmware and hasattr(v.firmware, "value")
+                        else v.firmware
+                    )
+                    or "",
+                    "tpm": bool(v.tpm) if v.tpm is not None else False,
                     "answer_file": v.answer_file or "",
                     "answer_file_parameters": v.answer_file_parameters or {},
+                    "environment": [
+                        {
+                            "name": e.name,
+                            "value": e.value,
+                            "scope": e.scope.value if hasattr(e.scope, "value") else e.scope,
+                            "persist": e.persist,
+                            "mode": e.mode.value if hasattr(e.mode, "value") else e.mode,
+                        }
+                        for e in (v.environment or [])
+                    ],
+                    "providers": v.providers.model_dump(mode="json", exclude_none=True)
+                    if v.providers
+                    else {},
                     "admin_username": v.admin_username or "",
                     "automations": [
                         {
@@ -3053,6 +3130,20 @@ def api_clutch_detail(filename):
             ],
         }
     )
+
+
+@app.route("/api/guest-env/reserved")
+def api_guest_env_reserved():
+    """Reserved Hatchery guest path env catalog for a Clutch Guest OS (#501)."""
+    from lib import guest_env as guest_env_lib
+
+    os_key = (request.args.get("os") or "").strip()
+    if not os_key:
+        return jsonify({"error": "os query parameter is required"}), 400
+    try:
+        return jsonify(guest_env_lib.reserved_env_catalog(os_key))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.route("/clutch/<filename>/delete", methods=["POST"])

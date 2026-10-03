@@ -27,7 +27,7 @@ EventEmit = Callable[[str, str], None]
 _TRANSPORT = "ntlm"
 
 # Windows guest path roles (ADR-0025 / #474). Prefer guest_paths_for(GuestOS) in new code.
-_WINDOWS_PATHS = guest_paths_for(GuestOS.WIN11)
+_WINDOWS_PATHS = guest_paths_for(GuestOS.WINDOWS)
 HATCHERY_GUEST_DIR = _WINDOWS_PATHS.root
 
 # Written as the last step of hatchery-setup.ps1.
@@ -179,12 +179,19 @@ def run_script(
     script_path: str | Path,
     parameters: dict[str, str] | None = None,
     timeout: int = 300,
+    environment: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Execute a PowerShell script on a remote Windows guest via WinRM.
+
+    ``environment`` is already-merged guest env (reserved + user; #501).
+    Windows path today: PowerShell ``$env:`` assignments. POSIX export helper
+    lives in ``lib.guest_env`` for future SSH / Linux / macOS remoting.
 
     Returns (exit_code, output) where output combines stdout and stderr.
     Raises an exception if the WinRM connection cannot be established.
     """
+    from lib import guest_env as guest_env_lib
+
     script_path = Path(script_path)
     content = script_path.read_text(encoding="utf-8")
     params = parameters or {}
@@ -198,7 +205,8 @@ def run_script(
         f"[Hatchery] ---\n"
     )
 
-    inject = _build_injection(script_path.name)
+    env_prefix = guest_env_lib.powershell_env_assignments(environment or {})
+    inject = env_prefix + _build_injection(script_path.name)
     ps_code = _build_ps_invocation(content, params, inject)
     session = _make_session(ip, admin_username, admin_password, timeout)
     result = session.run_ps(ps_code)

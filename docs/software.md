@@ -152,7 +152,7 @@ platforms:
 | `install.reboot_after` | Optional bool; default `false` |
 | Order | Hook array index order; stop the software step on first non-success exit |
 | cwd | `software_package(id)` (same as install) |
-| Runner | Hatchery sets cwd, runs the authored `command`/`script`, waits for exit. No installer-specific rewriting. Reserved guest path env vars: [#501](https://github.com/dustinestes/Hatchery/issues/501) |
+| Runner | Hatchery sets reserved + Clutch user env, sets cwd, runs the authored `command`/`script`, waits for exit. No installer-specific rewriting. Env contract: [ADR-0026](adr/0026-guest-clutch-environment.md) / [#501](https://github.com/dustinestes/Hatchery/issues/501) |
 
 There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch keys are rejected. Inventory and the package content API surface load-time validation errors without failing the rail list (missing/invalid YAML still appears as a package).
 
@@ -175,7 +175,7 @@ fails with pipe/transport faults on MSI-sized files, treat that as a known WinRM
 limit and use guest SSH file copy when [#497](https://github.com/dustinestes/Hatchery/issues/497)
 lands - do not rely on 1 KiB EncodedCommand append as a product path.
 
-Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, **`msiexec` often returns before the Installer finishes** when invoked as a bare native command; package authors should wait explicitly in `install.command` / `uninstall.command` (for example `Start-Process -Wait -PassThru` and `exit` the process exit code) and may add MSI `/l*v` to a path under `{logs}\software\` (hardcoded today; reserved env vars in [#501](https://github.com/dustinestes/Hatchery/issues/501)). Hatchery does not wrap msiexec in the Controller.
+Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller.
 
 Controller/Nest stores optional `{os}/{arch}/` trees under the package id (mirrors `platforms` in `software.yaml`). Example:
 
@@ -200,13 +200,14 @@ On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest a
 
 Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutch Guest OS** (guest plane), never Controller OS, via `guest_paths_for(GuestOS)` (or equivalent).
 
-| Role | Meaning |
-|---|---|
-| `root` | Hatchery-managed guest root |
-| `logs` | First-boot + per-script audit (`Write-HatchEvent`) |
-| `temp` | Ephemeral handoff (e.g. setup-complete flag) |
-| `software` | Parent of staged installer payloads |
-| `software_package(id)` | `{software}/{Publisher.Product.Version}` |
+| Role | Meaning | Env var |
+|---|---|---|
+| `root` | Hatchery-managed guest root | `HATCHERY_ROOT` |
+| `logs` | First-boot + per-script audit (`Write-HatchEvent`) | `HATCHERY_LOGS` |
+| `temp` | Ephemeral handoff (e.g. setup-complete flag) | `HATCHERY_TEMP` |
+| `software` | Parent of staged installer payloads | `HATCHERY_SOFTWARE` |
+| `software_package(id)` | `{software}/{Publisher.Product.Version}` | `HATCHERY_SOFTWARE_PACKAGE` (Software jobs) |
+| per-package installer log | `{logs}/software/{id}.log` | `HATCHERY_SOFTWARE_LOG` (Software jobs) |
 
 | Role | Windows (locked) | Linux | macOS |
 |---|---|---|---|
@@ -216,7 +217,9 @@ Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutc
 | `software` | `{root}\software` | `{root}/software` | `{root}/software` |
 | `software_package(id)` | `{software}\{id}` | `{software}/{id}` | `{software}/{id}` |
 
-Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error. Sample packages may write MSI logs under `{logs}\software\{id}.log` via `/l*v` in `software.yaml` until reserved path env vars land in [#501](https://github.com/dustinestes/Hatchery/issues/501).
+Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error.
+
+**Env inject + persist ([ADR-0026](adr/0026-guest-clutch-environment.md)):** Hatchery sets the reserved vars (plus optional Clutch `environment:` user entries) before Script and Software remoting. Reserved base vars also persist as Machine env on Windows before automations; software-scoped package vars stay job-only. Names are identical on every guest OS; values come from `guest_paths_for(GuestOS)` (never Controller OS). Windows units use `$env:NAME`; future POSIX units use `$NAME` / `export`. User keys must not collide with reserved `HATCHERY_*` names.
 
 Windows example after staging `Microsoft.VisualStudioCode.1.96.0` (guest arch `x64`):
 

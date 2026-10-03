@@ -169,6 +169,27 @@ def _reboot_guest_after_automation(
     provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
 
 
+def _clutch_vm_for_session(session_id: str, vm_name: str):
+    """Load the Clutch VMConfig for a hatch session VM, or None."""
+    from pathlib import Path
+
+    from lib import clutch as clutch_lib
+
+    session = hatch_lib.get_session(session_id) or {}
+    clutch_file = (session.get("clutch_file") or "").strip()
+    if not clutch_file:
+        return None
+    path = config.data_dir() / "clutches" / Path(clutch_file).name
+    try:
+        clutch = clutch_lib.load(path)
+    except Exception:
+        return None
+    for vm in clutch.vms:
+        if vm.name == vm_name:
+            return vm
+    return None
+
+
 def _provision_vm_thread(
     session_id: str,
     vm_name: str,
@@ -177,13 +198,75 @@ def _provision_vm_thread(
     admin_password: str,
 ) -> None:
     """Run pending automations (script|software) sequentially, updating DB per step."""
+    from lib import guest_env as guest_env_lib
     from lib import software_provision as software_provision_lib
+    from lib.clutch import GuestOS
 
     try:
         scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
         data_dir = config.data_dir()
         vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
-        guest_os = vm_record.get("guest_os") or "win11"
+        guest_os = vm_record.get("guest_os") or GuestOS.WINDOWS.value
+        clutch_vm = _clutch_vm_for_session(session_id, vm_name)
+        user_entries = list(clutch_vm.environment) if clutch_vm else []
+        user_env = clutch_vm.environment_as_process_map() if clutch_vm else {}
+        script_env = guest_env_lib.merge_guest_environment(
+            guest_env_lib.reserved_environment(guest_os),
+            user_env,
+        )
+
+        # Persist reserved base + user persist entries once before automations (#501).
+        # Hatch jobs also get process inject per step; persist is for the guest after that.
+        os_key = guest_os.value if hasattr(guest_os, "value") else str(guest_os)
+        if os_key in ("windows", "win10", "win11", "server2022", "server2025"):
+            plan = guest_env_lib.persist_plan_summary(guest_os, user_entries)
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                "Persisting guest environment before automations "
+                "(Machine/User store; jobs also get process inject)",
+            )
+            for line in plan:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    f"Persist: {line}",
+                )
+            persist_code, persist_out = guest_env_lib.persist_guest_environment(
+                ip,
+                admin_username,
+                admin_password,
+                guest_os=guest_os,
+                entries=user_entries,
+            )
+            if persist_code != 0:
+                detail = (persist_out or "").strip()
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "ERROR",
+                    f"Failed to persist guest environment (exit {persist_code})"
+                    + (f": {detail}" if detail else ""),
+                )
+                hatch_lib.set_vm_status(
+                    session_id,
+                    vm_name,
+                    "failed",
+                    error=f"persist env failed: {persist_out or persist_code}",
+                )
+                return
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                f"Guest environment persisted ({len(plan)} variable(s)); starting automations",
+            )
 
         for script in scripts:
             if script["status"] == "succeeded":
@@ -223,6 +306,7 @@ def _provision_vm_thread(
                         guest_os=guest_os,
                         clean_payload_on_success=bool(script.get("clean_payload_on_success", True)),
                         on_event=_on_sw_event,
+                        user_environment=user_env,
                     )
                 else:
                     script_path = data_dir / "automation" / "scripts" / sname
@@ -232,6 +316,7 @@ def _provision_vm_thread(
                         admin_password,
                         script_path,
                         parameters=script.get("parameters") or {},
+                        environment=script_env,
                     )
             except Exception as exc:
                 hatch_lib.add_event(

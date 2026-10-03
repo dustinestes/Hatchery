@@ -162,16 +162,17 @@ def _check_media_accessible(path: Path) -> None:
         )
 
 
-# OS types that require UEFI firmware and TPM 2.0 emulation
-_UEFI_REQUIRED = {GuestOS.WIN11, GuestOS.SERVER2025}
-
-# virt-install --os-variant values per guest OS
-_OS_VARIANT: dict[GuestOS, str] = {
-    GuestOS.WIN10: "win10",
-    GuestOS.WIN11: "win11",
-    GuestOS.SERVER2022: "win2k22",
-    GuestOS.SERVER2025: "win2k25",
-}
+def _os_variant_for(config: VMConfig) -> str:
+    """Resolve virt-install --os-variant from providers.libvirt or Windows default."""
+    overlays = getattr(config, "providers", None)
+    libvirt = getattr(overlays, "libvirt", None) if overlays else None
+    pin = getattr(libvirt, "os_variant", None) if libvirt else None
+    if pin and str(pin).strip():
+        return str(pin).strip()
+    if config.os == GuestOS.WINDOWS:
+        return "win11"
+    # linux/macos: generic until provider inventories land (#504 / #505).
+    return "generic"
 
 
 class LibvirtProvider(BaseProvider):
@@ -289,7 +290,7 @@ class LibvirtProvider(BaseProvider):
             "--cdrom",
             str(os_media),
             "--os-variant",
-            _OS_VARIANT[config.os],
+            _os_variant_for(config),
             "--network",
             "network=default",
             "--graphics",
@@ -297,8 +298,13 @@ class LibvirtProvider(BaseProvider):
             "--noautoconsole",
         ]
 
-        if config.os in _UEFI_REQUIRED:
+        from lib.clutch import Firmware
+
+        firmware = getattr(config, "firmware", None)
+        tpm = getattr(config, "tpm", None)
+        if firmware == Firmware.UEFI or (isinstance(firmware, str) and firmware == "uefi"):
             cmd += ["--boot", "uefi"]
+        if tpm:
             cmd += ["--tpm", "emulator,model=tpm-crb,version=2.0"]
 
         if virtio:

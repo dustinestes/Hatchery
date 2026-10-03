@@ -12,6 +12,12 @@ hatchery.vmRows = (function () {
       .split(',')
       .map(function (s) { return s.trim(); })
       .filter(Boolean);
+    var reservedEnvNames = {};
+    (template.getAttribute('data-reserved-env') || '').split(',').forEach(function (name) {
+      var key = name.trim().toUpperCase();
+      if (key) reservedEnvNames[key] = true;
+    });
+    var envNameRe = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
     function osNeedsWindowsHatchFields(osValue) {
       return windowsHatchOs.indexOf(osValue) !== -1;
@@ -34,11 +40,16 @@ hatchery.vmRows = (function () {
       var adminInput = row.querySelector('[name="vm_admin_username[]"]');
       var answerReqMark = row.querySelector('.vm-answer-file-required');
       var adminReqMark = row.querySelector('.vm-admin-username-required');
+      var firmwareSelect = row.querySelector('[name="vm_firmware[]"]');
+      var tpmSelect = row.querySelector('[name="vm_tpm[]"]');
       if (show) {
         if (answerSelect) answerSelect.required = true;
         if (adminInput) adminInput.required = true;
         if (answerReqMark) answerReqMark.hidden = false;
         if (adminReqMark) adminReqMark.hidden = false;
+        if (firmwareSelect && !firmwareSelect.value) firmwareSelect.value = 'uefi';
+        if (tpmSelect && !tpmSelect.value) tpmSelect.value = 'true';
+        syncEnvAdvancedControls(row, true);
         return;
       }
       if (answerSelect) {
@@ -52,6 +63,34 @@ hatchery.vmRows = (function () {
       }
       if (adminReqMark) adminReqMark.hidden = true;
       clearAnswerFileParams(row);
+      syncEnvAdvancedControls(row, false);
+    }
+
+    function syncEnvAdvancedControls(row, enabled) {
+      var section = row.querySelector('.vm-environment-section');
+      if (section) {
+        section.classList.toggle('vm-env--windows', enabled);
+      }
+      var hint = row.querySelector('.vm-env-nonwindows-hint');
+      if (hint) hint.hidden = enabled;
+      row.querySelectorAll('.vm-env-advanced').forEach(function (el) {
+        el.hidden = !enabled;
+        if (el.tagName === 'SELECT') {
+          el.disabled = !enabled;
+        } else {
+          el.querySelectorAll('select').forEach(function (sel) {
+            sel.disabled = !enabled;
+          });
+        }
+      });
+      syncEnvUserHeader(row);
+    }
+
+    function syncEnvUserHeader(row) {
+      var header = row.querySelector('.vm-env-user-header');
+      if (!header) return;
+      var hasRows = !!row.querySelector('.vm-env-user .vm-env-row');
+      header.hidden = !hasRows;
     }
 
     // ── Automation row helpers (shared across initAutomationList and addRow) ──
@@ -140,6 +179,320 @@ hatchery.vmRows = (function () {
       if (select.value) {
         loadAnswerFileParams(row, select.value, savedParams || null);
       }
+    }
+
+    function renderReservedEnv(mount, catalog) {
+      mount.innerHTML = '';
+      if (!catalog || !catalog.length) {
+        var empty = document.createElement('p');
+        empty.className = 'form-hint';
+        empty.textContent = 'Reserved path env is unavailable for this Guest OS yet.';
+        mount.appendChild(empty);
+        return;
+      }
+      catalog.forEach(function (item) {
+        var fieldRow = document.createElement('div');
+        fieldRow.className = 'script-param-row vm-env-row';
+        var label = document.createElement('label');
+        label.className = 'script-param-label';
+        var persistLabel = item.persist === 'job' ? 'job-only' : 'persist Machine';
+        label.textContent = item.name + (item.scope === 'software' ? ' (software)' : '');
+        label.title = item.scope === 'software'
+          ? 'Set only during Software hatch jobs for the current package id (not persisted)'
+          : 'Injected for Script and Software jobs; persisted as Machine env on Windows';
+        var input = document.createElement('input');
+        input.className = 'script-param-input vm-env-reserved-input';
+        input.type = 'text';
+        input.value = item.value || '';
+        input.readOnly = true;
+        input.disabled = true;
+        input.setAttribute('aria-readonly', 'true');
+        var tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = persistLabel;
+        fieldRow.appendChild(label);
+        fieldRow.appendChild(input);
+        fieldRow.appendChild(tag);
+        mount.appendChild(fieldRow);
+      });
+    }
+
+    function makeEnvSelect(className, ariaLabel, options, selected) {
+      var sel = document.createElement('select');
+      sel.className = className.indexOf('form-select') !== -1 ? className : ('form-select ' + className);
+      sel.setAttribute('aria-label', ariaLabel);
+      options.forEach(function (opt) {
+        var o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt;
+        if (opt === selected) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', function () { isDirty = true; });
+      return sel;
+    }
+
+    function addUserEnvRow(mount, entry) {
+      entry = entry || {};
+      var key = entry.name || entry.key || '';
+      var value = entry.value != null ? entry.value : '';
+      var scope = entry.scope || 'machine';
+      var persist = entry.persist !== false;
+      var mode = entry.mode || 'replace';
+      var fieldRow = document.createElement('div');
+      fieldRow.className = 'script-param-row vm-env-row';
+      var keyInput = document.createElement('input');
+      keyInput.className = 'script-param-input vm-env-user-key';
+      keyInput.type = 'text';
+      keyInput.placeholder = 'NAME';
+      keyInput.setAttribute('aria-label', 'Environment variable name');
+      keyInput.value = key || '';
+      keyInput.autocomplete = 'off';
+      var valInput = document.createElement('input');
+      valInput.className = 'script-param-input vm-env-user-value';
+      valInput.type = 'text';
+      valInput.placeholder = 'value';
+      valInput.setAttribute('aria-label', 'Environment variable value');
+      valInput.value = value || '';
+      valInput.autocomplete = 'off';
+      var scopeSel = makeEnvSelect(
+        'form-select vm-env-scope vm-env-advanced',
+        'Scope: machine or user',
+        ['machine', 'user'],
+        scope
+      );
+      var persistSel = makeEnvSelect(
+        'form-select vm-env-persist vm-env-advanced',
+        'Persist on guest: true or false',
+        ['true', 'false'],
+        persist ? 'true' : 'false'
+      );
+      var modeSel = makeEnvSelect(
+        'form-select vm-env-mode vm-env-advanced',
+        'Mode: replace or append',
+        ['replace', 'append'],
+        mode
+      );
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn-icon vm-env-remove';
+      removeBtn.title = 'Remove variable';
+      removeBtn.setAttribute('aria-label', 'Remove environment variable');
+      removeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      removeBtn.addEventListener('click', function () {
+        fieldRow.remove();
+        isDirty = true;
+        var parentRow = rowForEnvMount(mount);
+        clearEnvErrors(parentRow);
+        if (parentRow) syncEnvUserHeader(parentRow);
+      });
+      keyInput.addEventListener('input', function () {
+        isDirty = true;
+        clearEnvErrors(rowForEnvMount(mount));
+      });
+      valInput.addEventListener('input', function () {
+        isDirty = true;
+        clearEnvErrors(rowForEnvMount(mount));
+      });
+      fieldRow.appendChild(keyInput);
+      fieldRow.appendChild(valInput);
+      fieldRow.appendChild(scopeSel);
+      fieldRow.appendChild(persistSel);
+      fieldRow.appendChild(modeSel);
+      fieldRow.appendChild(removeBtn);
+      mount.appendChild(fieldRow);
+      var row = rowForEnvMount(mount);
+      if (row) {
+        var osSelect = row.querySelector('[name="vm_os[]"]');
+        syncEnvAdvancedControls(row, osSelect ? osNeedsWindowsHatchFields(osSelect.value) : false);
+      }
+    }
+
+    function rowForEnvMount(mount) {
+      return mount ? mount.closest('.vm-row') : null;
+    }
+
+    function clearEnvErrors(row) {
+      if (!row) return;
+      var err = row.querySelector('.vm-env-error');
+      if (err) {
+        err.hidden = true;
+        err.textContent = '';
+      }
+      row.querySelectorAll('.vm-env-row--error').forEach(function (el) {
+        el.classList.remove('vm-env-row--error');
+      });
+      row.querySelectorAll('.vm-env-user-key[aria-invalid="true"]').forEach(function (el) {
+        el.removeAttribute('aria-invalid');
+      });
+    }
+
+    function expandVmRow(row) {
+      if (!row) return;
+      var body = row.querySelector('.vm-row-body');
+      var toggle = row.querySelector('.vm-row-toggle');
+      if (body) body.hidden = false;
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function validateEnvironment() {
+      var ok = true;
+      var focusEl = null;
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        clearEnvErrors(row);
+        var messages = [];
+        var seen = {};
+        row.querySelectorAll('.vm-env-user .vm-env-row').forEach(function (fieldRow) {
+          var keyEl = fieldRow.querySelector('.vm-env-user-key');
+          var valEl = fieldRow.querySelector('.vm-env-user-value');
+          if (!keyEl) return;
+          var key = keyEl.value.trim();
+          var val = valEl ? valEl.value : '';
+          if (!key && !val) return;
+          function markBad(msg) {
+            messages.push(msg);
+            fieldRow.classList.add('vm-env-row--error');
+            keyEl.setAttribute('aria-invalid', 'true');
+            if (!focusEl) focusEl = keyEl;
+          }
+          if (!key) {
+            markBad('Environment variable name is required when a value is set.');
+            return;
+          }
+          if (!envNameRe.test(key)) {
+            markBad(
+              '"' + key + '" must be a portable identifier '
+              + '(letters, digits, underscore; not starting with a digit).'
+            );
+            return;
+          }
+          if (reservedEnvNames[key.toUpperCase()]) {
+            markBad('"' + key + '" is reserved for Hatchery path roles. Choose a different name.');
+            return;
+          }
+          var upper = key.toUpperCase();
+          if (seen[upper]) {
+            markBad('"' + key + '" is defined more than once. Use each name only once.');
+            seen[upper].classList.add('vm-env-row--error');
+            var firstKey = seen[upper].querySelector('.vm-env-user-key');
+            if (firstKey) firstKey.setAttribute('aria-invalid', 'true');
+            return;
+          }
+          seen[upper] = fieldRow;
+        });
+        if (!messages.length) return;
+        ok = false;
+        expandVmRow(row);
+        var err = row.querySelector('.vm-env-error');
+        if (err) {
+          // De-dupe while preserving order
+          var unique = [];
+          messages.forEach(function (m) {
+            if (unique.indexOf(m) === -1) unique.push(m);
+          });
+          err.textContent = unique.join(' ');
+          err.hidden = false;
+        }
+      });
+      if (focusEl) {
+        try { focusEl.focus(); } catch (e) { /* ignore */ }
+        var badRow = focusEl.closest('.vm-row');
+        if (badRow && badRow.scrollIntoView) {
+          badRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+      return ok;
+    }
+
+    function loadReservedEnv(row) {
+      var mount = row.querySelector('.vm-env-reserved');
+      var osSelect = row.querySelector('[name="vm_os[]"]');
+      if (!mount || !osSelect) return;
+      var osValue = osSelect.value;
+      if (!osValue) {
+        mount.innerHTML = '';
+        return;
+      }
+      fetch('/api/guest-env/reserved?os=' + encodeURIComponent(osValue))
+        .then(function (r) {
+          if (!r.ok) return r.json().then(function (body) {
+            throw new Error((body && body.error) || 'unavailable');
+          });
+          return r.json();
+        })
+        .then(function (catalog) {
+          renderReservedEnv(mount, catalog);
+        })
+        .catch(function () {
+          renderReservedEnv(mount, []);
+        });
+    }
+
+    function initEnvironment(row, savedEnv) {
+      var userMount = row.querySelector('.vm-env-user');
+      var addBtn = row.querySelector('.vm-env-add');
+      var osSelect = row.querySelector('[name="vm_os[]"]');
+      var reservedToggle = row.querySelector('.vm-env-reserved-toggle');
+      var reservedMount = row.querySelector('.vm-env-reserved');
+      if (!userMount) return;
+      userMount.innerHTML = '';
+      if (Array.isArray(savedEnv)) {
+        savedEnv.forEach(function (entry) {
+          if (!entry || !entry.name) return;
+          addUserEnvRow(userMount, entry);
+        });
+      } else if (savedEnv && typeof savedEnv === 'object') {
+        Object.keys(savedEnv).forEach(function (key) {
+          addUserEnvRow(userMount, { name: key, value: savedEnv[key] });
+        });
+      }
+      if (addBtn) {
+        addBtn.addEventListener('click', function () {
+          addUserEnvRow(userMount, {});
+          isDirty = true;
+        });
+      }
+      if (reservedToggle && reservedMount) {
+        reservedToggle.addEventListener('click', function () {
+          var open = reservedToggle.getAttribute('aria-expanded') === 'true';
+          reservedToggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+          reservedMount.hidden = open;
+        });
+      }
+      if (osSelect) {
+        osSelect.addEventListener('change', function () {
+          loadReservedEnv(row);
+          syncEnvAdvancedControls(row, osNeedsWindowsHatchFields(osSelect.value));
+        });
+      }
+      loadReservedEnv(row);
+      syncEnvAdvancedControls(row, osSelect ? osNeedsWindowsHatchFields(osSelect.value) : false);
+    }
+
+    function serializeEnvironment() {
+      container.querySelectorAll('.vm-row').forEach(function (row) {
+        var hidden = row.querySelector('.vm-environment-hidden');
+        if (!hidden) return;
+        var env = [];
+        row.querySelectorAll('.vm-env-user .vm-env-row').forEach(function (fieldRow) {
+          var keyEl = fieldRow.querySelector('.vm-env-user-key');
+          var valEl = fieldRow.querySelector('.vm-env-user-value');
+          if (!keyEl) return;
+          var key = keyEl.value.trim();
+          if (!key) return;
+          var scopeEl = fieldRow.querySelector('.vm-env-scope');
+          var persistEl = fieldRow.querySelector('.vm-env-persist');
+          var modeEl = fieldRow.querySelector('.vm-env-mode');
+          env.push({
+            name: key,
+            value: valEl ? valEl.value : '',
+            scope: scopeEl ? scopeEl.value : 'machine',
+            persist: persistEl ? persistEl.value === 'true' : true,
+            mode: modeEl ? modeEl.value : 'replace',
+          });
+        });
+        hidden.value = env.length ? JSON.stringify(env) : '';
+      });
     }
 
     function automationAlreadyInList(list, type, name) {
@@ -295,7 +648,8 @@ hatchery.vmRows = (function () {
       }
     }
 
-    function addRow(vmData) {
+    function addRow(vmData, opts) {
+      opts = opts || {};
       var clone = template.content.cloneNode(true);
       var row = clone.querySelector('.vm-row');
       row.dataset.vmIndex = rowIdx++;
@@ -346,6 +700,12 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_disk_gb[]"]', vmData.disk_gb);
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
         set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
+        set(row, '[name="vm_firmware[]"]', vmData.firmware || 'uefi');
+        set(
+          row,
+          '[name="vm_tpm[]"]',
+          vmData.tpm === false || vmData.tpm === 'false' ? 'false' : 'true'
+        );
         set(row, '[name="vm_admin_username[]"]', vmData.admin_username || '');
         set(row, '[name="vm_answer_file[]"]', vmData.answer_file || vmData.os_config || '');
         if (vmData.automations && vmData.automations.length) {
@@ -367,11 +727,14 @@ hatchery.vmRows = (function () {
         }
         syncWindowsHatchFields(row);
         initAnswerFileParams(row, vmData.answer_file_parameters || null);
+        initEnvironment(row, vmData.environment || null);
+        if (opts.expanded) expandVmRow(row);
       } else {
         body.hidden = false;
         toggleBtn.setAttribute('aria-expanded', 'true');
         syncWindowsHatchFields(row);
         initAnswerFileParams(row, null);
+        initEnvironment(row, null);
       }
 
       container.appendChild(clone);
@@ -500,6 +863,8 @@ hatchery.vmRows = (function () {
       serializeDependsOn: serializeDependsOn,
       serializeAutomations: serializeAutomations,
       serializeAnswerFileParameters: serializeAnswerFileParameters,
+      serializeEnvironment: serializeEnvironment,
+      validateEnvironment: validateEnvironment,
       expandInvalidRows: expandInvalidRows,
       markDirty: function () { isDirty = true; },
       markClean: function () { isDirty = false; },

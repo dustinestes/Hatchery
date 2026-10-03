@@ -1,4 +1,4 @@
-<template id="vm-row-template" data-windows-hatch-os="{{ windows_hatch_os_types | join(',') }}">
+<template id="vm-row-template" data-windows-hatch-os="{{ windows_hatch_os_types | join(',') }}" data-reserved-env="{{ reserved_env_names | join(',') }}">
   <div class="vm-row" data-vm-index="">
     <div class="vm-row-header">
       <button type="button" class="vm-row-toggle" aria-expanded="false">
@@ -75,14 +75,32 @@
           </select>
         </div>
       </div>
-      {# Admin + Answer File: shown for Windows hatch guests (#453 / ADR-0024) #}
+      {# Create policy + Admin/Answer File: Windows hatch guests (#453 / #501) #}
       <div class="vm-windows-hatch-fields">
-        <div class="form-grid">
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Firmware</label>
+            <select name="vm_firmware[]" class="form-select vm-firmware-select" aria-label="Firmware">
+              <option value="uefi">uefi</option>
+              <option value="bios">bios</option>
+            </select>
+            <p class="form-hint">Portable create policy. Nest providers that cannot honor it fail hatch.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">TPM 2.0</label>
+            <select name="vm_tpm[]" class="form-select vm-tpm-select" aria-label="TPM 2.0">
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+            <p class="form-hint">Requires firmware uefi when true.</p>
+          </div>
           <div class="form-group">
             <label class="form-label">Admin Username <span class="required vm-admin-username-required" hidden>*</span></label>
             <input type="text" name="vm_admin_username[]" class="form-input" placeholder="e.g. admin" autocomplete="off">
-            <p class="form-hint">Required for Windows hatch through fledged. Injected as a reserved Answer File token. Rotate after fledged if the guest outlives setup.</p>
+            <p class="form-hint">Required for Windows hatch through fledged. Injected as a reserved Answer File token.</p>
           </div>
+        </div>
+        <div class="form-grid">
           <div class="form-group">
             <div class="form-label-row">
               <label class="form-label">Answer File <span class="required vm-answer-file-required" hidden>*</span></label>
@@ -100,6 +118,34 @@
             <input type="hidden" name="vm_answer_file_parameters[]" class="vm-answer-file-parameters-hidden" value="">
           </div>
         </div>
+      </div>
+      <div class="form-group vm-environment-section">
+        <div class="form-label-row">
+          <label class="form-label">Guest Environment Variables</label>
+          <span class="form-help-icon" data-tip="Reserved Hatchery path variables are injected for Script and Software jobs and persisted on Windows (Machine). User vars may inject and optionally persist with scope and mode. Software-scoped vars stay job-only.">i</span>
+          <button type="button" class="btn-icon vm-env-add" title="Add variable" aria-label="Add environment variable">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <p class="form-hint vm-env-nonwindows-hint" hidden>Scope, persist, and mode apply on Windows guests. Other Guest OS families get name/value inject when remoting lands.</p>
+        <div class="vm-env-reserved-block">
+          <button type="button" class="vm-env-reserved-toggle" aria-expanded="false">
+            <svg class="vm-env-reserved-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="vm-env-reserved-title">Reserved Hatchery variables</span>
+          </button>
+          <div class="vm-env-reserved script-params" role="group" aria-label="Reserved Hatchery environment variables" hidden></div>
+        </div>
+        <div class="vm-env-user-header" role="row" hidden>
+          <span class="vm-env-col-name" title="Portable environment variable name">Name</span>
+          <span class="vm-env-col-value" title="Value set for inject and optional persist">Value</span>
+          <span class="vm-env-col-scope vm-env-advanced" title="Windows target: Machine (system) or User">Scope</span>
+          <span class="vm-env-col-persist vm-env-advanced" title="Write to the guest environment (true) or inject for hatch jobs only (false)">Persist</span>
+          <span class="vm-env-col-mode vm-env-advanced" title="Replace existing value, or append with a semicolon separator">Mode</span>
+          <span class="vm-env-col-actions" aria-hidden="true"></span>
+        </div>
+        <div class="vm-env-user script-params" role="group" aria-label="User environment variables"></div>
+        <p class="vm-env-error" role="alert" hidden></p>
+        <input type="hidden" name="vm_environment[]" class="vm-environment-hidden" value="">
       </div>
       <div class="form-group">
         <div class="form-label-row">

@@ -246,6 +246,46 @@
     providerEmpty.style.display = 'none';
   }
 
+  function renderEnvironment(vm) {
+    if (!vm.environment || !vm.environment.length) return '';
+    const colHeader = `<div class="vm-env-cols-header" role="row">
+      <span>Name</span>
+      <span>Value</span>
+      <span>Source</span>
+      <span>Scope</span>
+      <span>Persist</span>
+      <span>Mode</span>
+    </div>`;
+    const rows = vm.environment.map(item => {
+      const source = item.source === 'clutch' || item.source === 'user'
+        ? 'clutch'
+        : (item.source === 'software' ? 'software' : 'reserved');
+      const persist = item.persist === 'yes' || item.persist === true
+        ? 'yes'
+        : (item.persist === 'no' || item.persist === false
+          ? 'no'
+          : (item.persist === 'job' ? 'job' : '—'));
+      const scope = item.scope ? escHtml(item.scope) : '—';
+      const mode = item.mode ? escHtml(item.mode) : '—';
+      return `<div class="vm-env-detail-row" role="row">
+        <span class="vm-env-col-name" title="${escHtml(source)}">${escHtml(item.name)}</span>
+        <span class="vm-env-col-value">${escHtml(item.value || '')}</span>
+        <span class="vm-env-col-source">${escHtml(source)}</span>
+        <span class="vm-env-col-scope">${scope}</span>
+        <span class="vm-env-col-persist">${persist}</span>
+        <span class="vm-env-col-mode">${mode}</span>
+      </div>`;
+    }).join('');
+    return `<div class="vm-environment-detail">
+      <div class="vm-scripts-header">
+        <span class="vm-scripts-title">Guest environment</span>
+      </div>
+      ${colHeader}
+      <div class="vm-env-detail-body" role="table" aria-label="Guest environment variables">${rows}</div>
+      <p class="form-hint">Reserved base vars persist on Windows (Machine) before automations. Software-scoped vars are job-only. Clutch vars follow persist/scope/mode. Hatch jobs also get process inject each step.</p>
+    </div>`;
+  }
+
   function renderScripts(vm) {
     if (!vm.scripts || !vm.scripts.length) return '';
 
@@ -332,6 +372,18 @@
               <span class="vm-field-value">${vm.ip ? escHtml(vm.ip) : '<span class="vm-field-muted">—</span>'}</span>
             </div>
             <div class="vm-field">
+              <span class="vm-field-label">Guest OS</span>
+              <span class="vm-field-value">${vm.os ? escHtml(vm.os) : '<span class="vm-field-muted">—</span>'}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">Firmware</span>
+              <span class="vm-field-value">${vm.firmware ? escHtml(vm.firmware) : '<span class="vm-field-muted">—</span>'}</span>
+            </div>
+            <div class="vm-field">
+              <span class="vm-field-label">TPM</span>
+              <span class="vm-field-value">${vm.tpm === true ? 'true' : (vm.tpm === false ? 'false' : '<span class="vm-field-muted">—</span>')}</span>
+            </div>
+            <div class="vm-field">
               <span class="vm-field-label">Clutch</span>
               <span class="vm-field-value">${vm.clutch_file ? escHtml(vm.clutch_file) : '<span class="vm-field-muted">—</span>'}</span>
             </div>
@@ -351,6 +403,7 @@
           ${vm.admin_username
             ? '<p class="form-hint">Hatch-scoped through fledged. Rotate after fledged if the guest outlives setup.</p>'
             : ''}
+          ${renderEnvironment(vm)}
           ${renderScripts(vm)}
         </div>
       </div>`;
