@@ -21,7 +21,7 @@ from lib.nest_transport import NestConnectionConfig, NestSshConfig
 def _clutch_with_media(**kwargs) -> Clutch:
     vm = VMConfig(
         name="dc01",
-        os="win11",
+        os="windows",
         vcpus=2,
         ram_gb=4,
         disk_gb=60,
@@ -88,8 +88,8 @@ class TestCollectArtifacts:
 
     def test_dedupes_shared_iso_across_vms(self):
         vms = [
-            VMConfig(name="a", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"),
-            VMConfig(name="b", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"),
+            VMConfig(name="a", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"),
+            VMConfig(name="b", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso"),
         ]
         arts = collect_clutch_artifacts(Clutch(name="lab", vms=vms))
         assert len(arts) == 1

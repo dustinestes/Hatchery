@@ -36,7 +36,7 @@ def isolate_db(tmp_path):
 VALID_BUILD_FORM = {
     "clutch_filename": "test-lab",
     "vm_name[]": "dc01",
-    "vm_os[]": "win11",
+    "vm_os[]": "windows",
     "vm_vcpus[]": "2",
     "vm_ram_gb[]": "4",
     "vm_disk_gb[]": "60",
@@ -1991,9 +1991,15 @@ class TestBuildRoute:
         html = client.get("/build").data.decode()
         assert 'class="vm-windows-hatch-fields"' in html
         assert 'data-windows-hatch-os="' in html
-        assert "win11" in html
+        assert "windows" in html
         assert 'name="vm_admin_username[]"' in html
         assert 'name="vm_answer_file[]"' in html
+        assert 'name="vm_firmware[]"' in html
+        assert 'name="vm_tpm[]"' in html
+        assert "vm-env-user-header" in html
+        assert ">Scope<" in html
+        assert ">Persist<" in html
+        assert ">Mode<" in html
 
     def test_build_get_contains_build_form(self, client):
         html = client.get("/build").data.decode()
@@ -2018,7 +2024,7 @@ class TestBuildRoute:
             "clutch_name": "Test Lab",
             "clutch_filename": "test-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2036,7 +2042,7 @@ class TestBuildRoute:
         form = {
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2054,7 +2060,7 @@ class TestBuildRoute:
         form = {
             "clutch_filename": "test-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2074,7 +2080,7 @@ class TestBuildRoute:
             "clutch_name": "Cycle Lab",
             "clutch_filename": "cycle-lab",
             "vm_name[]": ["dc01", "client01"],
-            "vm_os[]": ["win11", "win11"],
+            "vm_os[]": ["windows", "windows"],
             "vm_vcpus[]": ["2", "2"],
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
@@ -2097,7 +2103,7 @@ class TestBuildRoute:
             "clutch_name": "My Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": ["dc01", "client01"],
-            "vm_os[]": ["win11", "win11"],
+            "vm_os[]": ["windows", "windows"],
             "vm_vcpus[]": ["2", "2"],
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
@@ -2192,7 +2198,7 @@ class TestEditRoute:
             "clutch_name": "Updated Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2212,7 +2218,7 @@ class TestEditRoute:
             "clutch_name": "Renamed Lab",
             "clutch_filename": "renamed-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2234,7 +2240,7 @@ class TestEditRoute:
             "clutch_name": "Other",
             "clutch_filename": "other-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2255,7 +2261,7 @@ class TestEditRoute:
             "clutch_name": "Attempted Name",
             "clutch_filename": "other-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2275,7 +2281,7 @@ class TestEditRoute:
             "clutch_name": "",
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2304,7 +2310,7 @@ class TestEditRoute:
             "clutch_name": "My Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": ["dc01", "client01"],
-            "vm_os[]": ["win11", "win11"],
+            "vm_os[]": ["windows", "windows"],
             "vm_vcpus[]": ["2", "2"],
             "vm_ram_gb[]": ["4", "4"],
             "vm_disk_gb[]": ["60", "60"],
@@ -2327,7 +2333,7 @@ class TestEditRoute:
             "clutch_name": "My Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2362,7 +2368,7 @@ class TestEditRoute:
             "clutch_name": "My Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2381,9 +2387,9 @@ class TestEditRoute:
         clutches_dir.mkdir()
         (clutches_dir / "cycle.yaml").write_text(
             "name: cycle-lab\nvms:\n"
-            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-a, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-b]}\n"
-            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-b, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         resp = client.get("/edit?clutch=cycle.yaml")
@@ -2402,7 +2408,7 @@ class TestEditRoute:
             "clutch_name": "My Lab",
             "clutch_filename": "my-lab",
             "vm_name[]": "dc01",
-            "vm_os[]": "win11",
+            "vm_os[]": "windows",
             "vm_vcpus[]": "2",
             "vm_ram_gb[]": "4",
             "vm_disk_gb[]": "60",
@@ -2425,7 +2431,7 @@ def _make_clutch(tmp_path, name="my-lab", vm_name="dc01"):
     (answer_dir / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
     vm = VMConfig(
         name=vm_name,
-        os="win11",
+        os="windows",
         vcpus=2,
         ram_gb=4,
         disk_gb=60,
@@ -2468,7 +2474,7 @@ class TestHatchClutchRoute:
         (iso_dir / "win11.iso").write_bytes(b"x")
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -2521,7 +2527,7 @@ class TestHatchClutchRoute:
         (iso_dir / "win11.iso").write_bytes(b"x")
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -2546,7 +2552,7 @@ class TestHatchClutchRoute:
         (answer_dir / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -2572,7 +2578,7 @@ class TestHatchClutchRoute:
         (iso_dir / "win11.iso").write_bytes(b"x")
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -2647,7 +2653,7 @@ class TestRunHatchSession:
     def test_calls_create_vm_for_each_vm(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2658,7 +2664,7 @@ class TestRunHatchSession:
         sid = self._setup_session(tmp_path)
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -2676,7 +2682,7 @@ class TestRunHatchSession:
         import lib.hatch as hatch_lib
 
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         observed = []
 
         def fake_create_vm(vm_cfg, admin_password=None, storage_path=None):
@@ -2692,7 +2698,7 @@ class TestRunHatchSession:
     def test_marks_vm_failed_on_error(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = FileNotFoundError("no egg")
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2702,7 +2708,7 @@ class TestRunHatchSession:
     def test_permission_error_records_alert(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm.side_effect = PermissionError(
                 "cannot access: win11.iso"
@@ -2716,7 +2722,7 @@ class TestRunHatchSession:
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
@@ -2731,8 +2737,8 @@ class TestRunHatchSession:
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_vm(sid, "ws01")
         vms = [
-            VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
-            VMConfig(name="ws01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
+            VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
+            VMConfig(name="ws01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"),
         ]
         call_count = 0
 
@@ -2756,7 +2762,7 @@ class TestRunHatchSession:
     def test_boot_key_started_in_background_thread(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with (
             patch("lib.hatch_lifecycle.get_provider") as mock_prov,
             patch("lib.hatch_lifecycle.threading.Thread") as mock_thread_cls,
@@ -2777,7 +2783,7 @@ class TestRunHatchSession:
     def test_boot_key_thread_started_before_create_vm(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         call_order = []
         with (
             patch("lib.hatch_lifecycle.get_provider") as mock_prov,
@@ -2795,7 +2801,7 @@ class TestRunHatchSession:
     def test_tags_vm_session_metadata_on_success(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session = MagicMock()
@@ -2805,7 +2811,7 @@ class TestRunHatchSession:
     def test_tag_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.tag_vm_session.side_effect = RuntimeError("virsh failed")
@@ -2817,7 +2823,7 @@ class TestRunHatchSession:
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.return_value = "test-uuid-1234"
@@ -2830,7 +2836,7 @@ class TestRunHatchSession:
     def test_uuid_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_session(tmp_path)
-        vm = VMConfig(name="dc01", os="win11", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
+        vm = VMConfig(name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso")
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
             mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")
@@ -2842,7 +2848,7 @@ class TestRunHatchSession:
         sid = self._setup_session(tmp_path)
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -3366,7 +3372,7 @@ class TestAPIClutchDetail:
         clutches_dir.mkdir()
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -3389,7 +3395,7 @@ class TestAPIClutchDetail:
         clutches_dir.mkdir()
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -3430,9 +3436,9 @@ class TestAPIClutchDetail:
         clutches_dir.mkdir()
         (clutches_dir / "cycle.yaml").write_text(
             "name: cycle-lab\nvms:\n"
-            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-a, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-b]}\n"
-            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-b, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         resp = client.get("/api/clutch/cycle.yaml")
@@ -3881,9 +3887,9 @@ class TestClutchesSync:
         clutches_dir.mkdir()
         (clutches_dir / "bad.yaml").write_text(
             "name: cycle\nvms:\n"
-            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-a, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-b]}\n"
-            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-b, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         app_module._sync_clutches()
@@ -3898,9 +3904,9 @@ class TestClutchesSync:
         clutches_dir.mkdir()
         (clutches_dir / "bad.yaml").write_text(
             "name: cycle\nvms:\n"
-            "  - {name: vm-a, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-a, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-b]}\n"
-            "  - {name: vm-b, os: win11, vcpus: 2, ram_gb: 4, disk_gb: 40,"
+            "  - {name: vm-b, os: windows, vcpus: 2, ram_gb: 4, disk_gb: 40,"
             " os_media: win11.iso, depends_on: [vm-a]}\n"
         )
         app_module._sync_clutches()
@@ -4366,6 +4372,77 @@ class TestAPIRoutes:
         saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
         assert saved.vms[0].answer_file_parameters == {"input_locale": "en-GB"}
 
+    def test_build_saves_environment(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir(parents=True)
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_environment[]": '{"MY_LAB_ROLE": "dc"}',
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
+        assert saved.vms[0].environment_as_process_map() == {"MY_LAB_ROLE": "dc"}
+        assert saved.vms[0].environment[0].persist is True
+        raw = (tmp_path / "clutches" / "test-lab.yaml").read_text()
+        assert "scope: machine" in raw
+        assert "persist: true" in raw
+        assert "mode: replace" in raw
+
+    def test_build_rejects_reserved_environment_key(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir(parents=True)
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_environment[]": '{"HATCHERY_ROOT": "nope"}',
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 200
+        assert b"reserved" in resp.data.lower()
+        # Preserve posted VM state so a failed save does not wipe the editor.
+        assert b'id="build-form-vms"' in resp.data
+        assert b"HATCHERY_ROOT" in resp.data
+
+    def test_edit_preserves_vms_on_environment_validation_error(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        _make_clutch(tmp_path)
+        form = {
+            "existing_filename": "my-lab.yaml",
+            "clutch_name": "Updated Lab",
+            "clutch_filename": "my-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "windows",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
+            "vm_answer_file[]": "win11.xml.j2",
+            "vm_depends_on[]": "",
+            "vm_environment[]": '{"MY_FLAG": "1", "HATCHERY_LOGS": "nope"}',
+        }
+        resp = client.post("/edit", data=form, follow_redirects=False)
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert "reserved" in html.lower()
+        assert 'id="edit-form-vms"' in html
+        assert "MY_FLAG" in html
+        assert "HATCHERY_LOGS" in html
+
+    def test_api_guest_env_reserved(self, client):
+        resp = client.get("/api/guest-env/reserved?os=win11")
+        assert resp.status_code == 200
+        rows = resp.get_json()
+        names = {r["name"] for r in rows}
+        assert "HATCHERY_ROOT" in names
+        assert "HATCHERY_SOFTWARE_LOG" in names
+
+    def test_api_guest_env_reserved_requires_os(self, client):
+        resp = client.get("/api/guest-env/reserved")
+        assert resp.status_code == 400
+
     def test_api_clutches_returns_json(self, client):
         resp = client.get("/api/clutches")
         assert resp.status_code == 200
@@ -4412,7 +4489,7 @@ class TestAutomationScriptsPane:
             vms=[
                 VMConfig(
                     name="dc01",
-                    os="win11",
+                    os="windows",
                     vcpus=2,
                     ram_gb=4,
                     disk_gb=60,
@@ -4490,7 +4567,7 @@ class TestAutomationScriptsPane:
                 vms=[
                     VMConfig(
                         name="web01",
-                        os="win11",
+                        os="windows",
                         vcpus=2,
                         ram_gb=4,
                         disk_gb=40,
@@ -4547,7 +4624,7 @@ class TestAutomationAnswerfilesPane:
             vms=[
                 VMConfig(
                     name="dc01",
-                    os="win11",
+                    os="windows",
                     vcpus=2,
                     ram_gb=4,
                     disk_gb=60,
@@ -4638,7 +4715,7 @@ class TestAutomationAnswerfilesPane:
                 vms=[
                     VMConfig(
                         name="web01",
-                        os="win11",
+                        os="windows",
                         vcpus=2,
                         ram_gb=4,
                         disk_gb=40,
@@ -4840,7 +4917,7 @@ class TestMediaPanes:
                 vms=[
                     VMConfig(
                         name="dc01",
-                        os="win11",
+                        os="windows",
                         vcpus=2,
                         ram_gb=4,
                         disk_gb=60,
@@ -5259,11 +5336,24 @@ class TestApiRetryVm:
 
 
 class TestProvisionVmThread:
+    @pytest.fixture(autouse=True)
+    def _mock_persist_env(self, monkeypatch):
+        monkeypatch.setattr(
+            "lib.guest_env.persist_guest_environment",
+            lambda *a, **k: (0, ""),
+        )
+
     def _setup(self, tmp_path):
         import lib.hatch as hatch_lib
 
         sid = hatch_lib.create_session("lab.yaml", "Lab")
-        hatch_lib.add_vm(sid, "dc01", admin_username="admin", admin_password="pass")
+        hatch_lib.add_vm(
+            sid,
+            "dc01",
+            admin_username="admin",
+            admin_password="pass",
+            guest_os="windows",
+        )
         return sid
 
     def _script(self, tmp_path, name="setup.ps1"):
@@ -5271,6 +5361,63 @@ class TestProvisionVmThread:
         p = tmp_path / "automation" / "scripts" / name
         p.write_text("echo hi")
         return name
+
+    def test_persists_guest_env_once_before_scripts(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+        calls = []
+
+        def _persist(*a, **k):
+            calls.append(1)
+            return (0, "")
+
+        monkeypatch.setattr("lib.guest_env.persist_guest_environment", _persist)
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("lib.hatch_lifecycle.get_provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+        assert len(calls) == 1
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
+        messages = [e["message"] for e in hatch_lib.get_events(sid, "dc01")]
+        assert any("Persisting guest environment before automations" in m for m in messages)
+        assert any(m.startswith("Persist: HATCHERY_ROOT") for m in messages)
+        assert any("Guest environment persisted" in m for m in messages)
+
+    def test_sets_failed_when_persist_env_fails(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import hatchery as app_module
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup(tmp_path)
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+        monkeypatch.setattr(
+            "lib.guest_env.persist_guest_environment",
+            lambda *a, **k: (1, "denied"),
+        )
+        with patch("lib.hatch_lifecycle.provision_lib.run_script") as run_script:
+            with patch("lib.hatch_lifecycle.get_provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+        run_script.assert_not_called()
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
 
     def test_sets_fledged_on_all_success(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib

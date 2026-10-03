@@ -257,7 +257,7 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 | `admin_username` | `TEXT` | | Admin account username configured in the answer file; stored for post-install automation and Nests inventory display |
 | `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation - see [Credential storage](#credential-storage) |
 | `error` | `TEXT` | | Error message if the VM failed to hatch; `NULL` on success |
-| `guest_os` | `TEXT` | | Clutch Guest OS value (`win11`, …) for Software guest path / platform resolution (#474) |
+| `guest_os` | `TEXT` | | Clutch Guest OS family (`windows`, `linux`, `macos`) for Software guest path / platform resolution (#474 / #501) |
 
 #### Managed by
 

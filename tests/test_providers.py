@@ -209,7 +209,7 @@ class TestCreateVM:
     def test_calls_virt_install(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm = _vm(name="test-vm", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -221,7 +221,7 @@ class TestCreateVM:
     def test_sets_memory_from_ram_gb(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=8, disk_gb=40, os_media="win11.iso")
+        vm = _vm(name="test-vm", os="windows", vcpus=2, ram_gb=8, disk_gb=40, os_media="win11.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -229,10 +229,19 @@ class TestCreateVM:
         idx = cmd.index("--memory")
         assert cmd[idx + 1] == "8192"
 
-    def test_win11_adds_uefi_and_tpm(self, tmp_path, provider):
+    def test_uefi_tpm_from_create_policy(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
-        vm = _vm(name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm = _vm(
+            name="test-vm",
+            os="windows",
+            firmware="uefi",
+            tpm=True,
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+        )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -240,11 +249,22 @@ class TestCreateVM:
         assert "--boot" in cmd
         assert "uefi" in cmd
         assert "--tpm" in cmd
+        assert "--os-variant" in cmd
+        assert cmd[cmd.index("--os-variant") + 1] == "win11"
 
-    def test_win10_no_uefi(self, tmp_path, provider):
+    def test_bios_no_uefi_tpm(self, tmp_path, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        vm = _vm(name="test-vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm = _vm(
+            name="test-vm",
+            os="windows",
+            firmware="bios",
+            tpm=False,
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win10.iso",
+        )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
@@ -252,18 +272,25 @@ class TestCreateVM:
         assert "--boot" not in cmd
         assert "--tpm" not in cmd
 
-    def test_server2025_adds_uefi_and_tpm(self, tmp_path, provider):
-        iso = provider.iso_dir / "server2025.iso"
+    def test_os_variant_provider_pin(self, tmp_path, provider):
+        iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = _vm(
-            name="srv", os="server2025", vcpus=2, ram_gb=4, disk_gb=60, os_media="server2025.iso"
+            name="srv",
+            os="windows",
+            firmware="uefi",
+            tpm=True,
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            providers={"libvirt": {"os_variant": "win10"}},
         )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
         cmd = mock_run.call_args[0][0]
-        assert "--boot" in cmd
-        assert "--tpm" in cmd
+        assert cmd[cmd.index("--os-variant") + 1] == "win10"
 
     def test_virtio_adds_cdrom(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
@@ -272,7 +299,7 @@ class TestCreateVM:
         virtio.touch()
         vm = _vm(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -294,7 +321,7 @@ class TestCreateVM:
         img_path.touch()
         vm = VMConfig(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -318,7 +345,7 @@ class TestCreateVM:
         img_path.touch()
         vm = VMConfig(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -340,7 +367,7 @@ class TestCreateVM:
         img_path.touch()
         vm = VMConfig(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -357,7 +384,7 @@ class TestCreateVM:
 
     def test_missing_egg_raises(self, tmp_path, provider):
         vm = VMConfig(
-            name="test-vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="missing.iso"
+            name="test-vm", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="missing.iso"
         )
         with pytest.raises(FileNotFoundError, match="missing.iso"):
             provider.create_vm(vm)
@@ -367,7 +394,7 @@ class TestCreateVM:
         iso.touch()
         vm = VMConfig(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -474,7 +501,7 @@ class TestAnswerFileAttachCapability:
 
         vm = VMConfig(
             name="test-vm",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -912,7 +939,7 @@ class TestCreateCommandDescription:
         assert "8192" in desc
 
     def test_win11_includes_uefi(self, provider):
-        vm = VMConfig(name="vm", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm = VMConfig(name="vm", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
         desc = provider.create_command_description(vm)
         assert "--boot uefi" in desc
 

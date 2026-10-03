@@ -8,6 +8,7 @@ import yaml
 from pydantic import (
     AliasChoices,
     BaseModel,
+    ConfigDict,
     Field,
     ValidationError,
     field_validator,
@@ -16,10 +17,35 @@ from pydantic import (
 
 
 class GuestOS(str, Enum):
-    WIN10 = "win10"
-    WIN11 = "win11"
-    SERVER2022 = "server2022"
-    SERVER2025 = "server2025"
+    """Guest OS family (#501). Legacy SKUs migrate on load."""
+
+    WINDOWS = "windows"
+    LINUX = "linux"
+    MACOS = "macos"
+
+
+class Firmware(str, Enum):
+    BIOS = "bios"
+    UEFI = "uefi"
+
+
+class EnvScope(str, Enum):
+    MACHINE = "machine"
+    USER = "user"
+
+
+class EnvMode(str, Enum):
+    REPLACE = "replace"
+    APPEND = "append"
+
+
+# Legacy Clutch os values → (family, firmware, tpm)
+_LEGACY_OS_MIGRATE: dict[str, tuple[str, str, bool]] = {
+    "win11": ("windows", "uefi", True),
+    "server2025": ("windows", "uefi", True),
+    "win10": ("windows", "bios", False),
+    "server2022": ("windows", "bios", False),
+}
 
 
 class AutomationEntry(BaseModel):
@@ -74,6 +100,68 @@ class AutomationEntry(BaseModel):
 AutomationScript = AutomationEntry
 
 
+class EnvironmentEntry(BaseModel):
+    """Clutch user guest environment variable (#501 / ADR-0026)."""
+
+    name: str
+    value: str = ""
+    scope: EnvScope = EnvScope.MACHINE
+    persist: bool = True
+    mode: EnvMode = EnvMode.REPLACE
+
+    @field_validator("name")
+    @classmethod
+    def name_portable(cls, v: str) -> str:
+        from lib.guest_env import RESERVED_ALL, is_reserved_name
+
+        key = (v or "").strip()
+        if not key:
+            raise ValueError("environment name must not be empty")
+        import re
+
+        if not re.fullmatch(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+            raise ValueError(
+                f"environment name {key!r} must be a portable identifier "
+                "(letters, digits, underscore; not starting with a digit)"
+            )
+        if is_reserved_name(key):
+            raise ValueError(
+                f"environment name {key!r} is reserved for Hatchery path roles "
+                f"({', '.join(sorted(RESERVED_ALL))})"
+            )
+        return key
+
+
+class LibvirtProviderSettings(BaseModel):
+    """Stub for ``providers.libvirt`` (#504 / #505). Unknown keys rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    os_variant: str | None = None
+
+
+class HyperVProviderSettings(BaseModel):
+    """Stub for ``providers.hyperv`` (#504 / #506). Unknown keys rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UtmProviderSettings(BaseModel):
+    """Stub for ``providers.utm`` (#504 / #507). Unknown keys rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProviderOverlays(BaseModel):
+    """Keyed Nest provider overlays (#504). Only the active Nest's bag is applied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    libvirt: LibvirtProviderSettings | None = None
+    hyperv: HyperVProviderSettings | None = None
+    utm: UtmProviderSettings | None = None
+
+
 class VMConfig(BaseModel):
     name: str
     os: GuestOS
@@ -82,15 +170,35 @@ class VMConfig(BaseModel):
     disk_gb: int
     os_media: str
     virtio_drivers: str | None = None
+    firmware: Firmware | None = None
+    tpm: bool | None = None
     answer_file: str | None = Field(
         default=None,
         validation_alias=AliasChoices("answer_file", "os_config"),
     )
     answer_file_parameters: dict[str, str] = {}
+    environment: list[EnvironmentEntry] = Field(default_factory=list)
+    providers: ProviderOverlays = Field(default_factory=ProviderOverlays)
     admin_username: str | None = None
     automations: list[AutomationEntry] = []
     parallel: bool = False
     depends_on: list[str] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_os(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        os_raw = out.get("os")
+        os_key = os_raw.value if isinstance(os_raw, Enum) else str(os_raw or "").strip()
+        migrated = _LEGACY_OS_MIGRATE.get(os_key.lower() if os_key else "")
+        if migrated:
+            family, fw, tpm = migrated
+            out["os"] = family
+            out.setdefault("firmware", fw)
+            out.setdefault("tpm", tpm)
+        return out
 
     @field_validator("automations", mode="before")
     @classmethod
@@ -98,6 +206,27 @@ class VMConfig(BaseModel):
         if not isinstance(v, list):
             return []
         return [AutomationEntry.coerce(item) for item in v]
+
+    @field_validator("environment", mode="before")
+    @classmethod
+    def coerce_environment(cls, v: Any) -> list[dict[str, Any]]:
+        if v is None:
+            return []
+        # Flat map shorthand: KEY: value → structured entries with defaults.
+        if isinstance(v, dict):
+            return [{"name": str(k), "value": "" if val is None else str(val)} for k, val in v.items()]
+        if not isinstance(v, list):
+            raise ValueError(
+                "environment must be a list of entries or a mapping of name to value"
+            )
+        return v
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def coerce_providers(cls, v: Any) -> Any:
+        if v is None:
+            return {}
+        return v
 
     @field_validator("vcpus")
     @classmethod
@@ -112,6 +241,34 @@ class VMConfig(BaseModel):
         if v < 1:
             raise ValueError("must be at least 1")
         return v
+
+    @model_validator(mode="after")
+    def defaults_firmware_tpm_and_env_dupes(self) -> VMConfig:
+        if self.os == GuestOS.WINDOWS:
+            if self.firmware is None:
+                self.firmware = Firmware.UEFI
+            if self.tpm is None:
+                self.tpm = True
+        if self.tpm and self.firmware != Firmware.UEFI:
+            raise ValueError("tpm: true requires firmware: uefi")
+        seen: set[str] = set()
+        for entry in self.environment:
+            upper = entry.name.upper()
+            if upper in seen:
+                raise ValueError(
+                    f"environment name {entry.name!r} is defined more than once "
+                    "(names are compared case-insensitively)"
+                )
+            seen.add(upper)
+        return self
+
+    def environment_as_process_map(self) -> dict[str, str]:
+        """Name→value map for job process injection (all user entries)."""
+        return {e.name: e.value for e in self.environment}
+
+    def environment_persist_entries(self) -> list[EnvironmentEntry]:
+        """User entries marked persist=true."""
+        return [e for e in self.environment if e.persist]
 
 
 class Clutch(BaseModel):
@@ -299,10 +456,37 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
                     entry["clean_payload_on_success"] = False
                 compacted.append(entry)
             vm["automations"] = compacted
-        # Omit empty answer_file_parameters (same compactness as empty script params)
         if not vm.get("answer_file_parameters"):
             vm.pop("answer_file_parameters", None)
-        # Omit parallel when False (default)
+        env = vm.get("environment") or []
+        if not env:
+            vm.pop("environment", None)
+        else:
+            # Always emit scope/persist/mode (no default-hiding) so Clutch YAML is explicit.
+            compacted_env = []
+            for e in env:
+                compacted_env.append(
+                    {
+                        "name": e["name"],
+                        "value": e.get("value", ""),
+                        "scope": e.get("scope") or "machine",
+                        "persist": bool(e.get("persist", True)),
+                        "mode": e.get("mode") or "replace",
+                    }
+                )
+            vm["environment"] = compacted_env
+        providers = vm.get("providers") or {}
+        if not any(providers.get(k) for k in ("libvirt", "hyperv", "utm")):
+            vm.pop("providers", None)
+        else:
+            cleaned: dict[str, Any] = {}
+            for key in ("libvirt", "hyperv", "utm"):
+                bag = providers.get(key)
+                if bag:
+                    cleaned[key] = {k: v for k, v in bag.items() if v is not None}
+            vm["providers"] = cleaned if cleaned else None
+            if not vm.get("providers"):
+                vm.pop("providers", None)
         if not vm.get("parallel"):
             vm.pop("parallel", None)
     with open(path, "w") as f:

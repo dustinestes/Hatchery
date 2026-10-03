@@ -76,9 +76,12 @@
   var rows = hatchery.vmRows.init('vm-rows', 'vm-row-template');
   if (!rows) return;
 
+  var expandOnLoad = !!document.querySelector('.alert-error');
   var fvEl = document.getElementById('build-form-vms');
   if (fvEl) {
-    JSON.parse(fvEl.textContent).forEach(function (vm) { rows.addRow(vm); });
+    JSON.parse(fvEl.textContent).forEach(function (vm) {
+      rows.addRow(vm, { expanded: expandOnLoad });
+    });
     rows.updateDependsOnAll();
     rows.applyPendingDepends();
   } else {
@@ -100,6 +103,11 @@
     rows.serializeDependsOn();
     rows.serializeAutomations();
     rows.serializeAnswerFileParameters();
+    if (!rows.validateEnvironment()) {
+      e.preventDefault();
+      return;
+    }
+    rows.serializeEnvironment();
     rows.markClean();
   });
 

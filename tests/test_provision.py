@@ -317,6 +317,26 @@ class TestRunScriptWithParameters:
             _, output = provision_lib.run_script("1.2.3.4", "admin", "pass", script)
         assert "params   : none" in output
 
+    def test_environment_injected_before_script(self, tmp_path):
+        script = tmp_path / "setup.ps1"
+        script.write_text("Write-Host $env:MY_FLAG")
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0)
+            provision_lib.run_script(
+                "1.2.3.4",
+                "admin",
+                "pass",
+                script,
+                environment={
+                    "HATCHERY_ROOT": r"C:\Program Files\Hatchery",
+                    "MY_FLAG": "1",
+                },
+            )
+        sent = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "$env:HATCHERY_ROOT = 'C:\\Program Files\\Hatchery'" in sent
+        assert "$env:MY_FLAG = '1'" in sent
+        assert sent.index("$env:HATCHERY_ROOT") < sent.index("Write-Host $env:MY_FLAG")
+
 
 class TestShutdownGuest:
     def test_sends_stop_computer(self):

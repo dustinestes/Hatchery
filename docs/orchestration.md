@@ -181,11 +181,11 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 
 ### Hatchery guest directory
 
-`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` on first boot. Path roles (`root`, `logs`, `temp`, `software`, `software_package(id)`) are the cross-platform vocabulary; Windows absolute values are locked today. See [Software - Guest path roles](software.md#guest-path-roles) and [ADR-0025](adr/0025-software-product-model.md).
+`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` on first boot. Path roles (`root`, `logs`, `temp`, `software`, `software_package(id)`) are the cross-platform vocabulary; Windows absolute values are locked today. See [Software - Guest path roles](software.md#guest-path-roles), [ADR-0025](adr/0025-software-product-model.md), and guest env inject + persist [ADR-0026](adr/0026-guest-clutch-environment.md).
 
 | Subdirectory | Contents |
 |---|---|
-| `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script) |
+| `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script); `software\{id}.log` (installer logs via `HATCHERY_SOFTWARE_LOG`) |
 | `temp\` | Ephemeral files - currently only `hatchery-ready` (deleted immediately on detection) |
 | `software\` | Staged installer payloads under `{package-id}\` when Software steps run ([Software](software.md)) |
 
@@ -203,13 +203,17 @@ If you want to remove all Hatchery artifacts from the guest after provisioning c
 
 Once the setup-complete handoff occurs, Hatchery transitions the VM to `provisioning` and spawns a dedicated thread (`_provision_vm_thread`) to run the automation scripts.
 
+### Guest environment persist (Windows)
+
+Before the first automation runs, Hatchery persists reserved base Machine env vars (`HATCHERY_ROOT`, `HATCHERY_LOGS`, `HATCHERY_TEMP`, `HATCHERY_SOFTWARE`) plus Clutch user entries with `persist: true` (scope/mode per entry). Software-scoped vars stay job-only. Persist failure fails the hatch. Hatch events log the plan (`Persist: NAME → Machine|User (…)`) and a completion line before automations start. Each Script/Software job also gets process inject of reserved + Clutch vars for that job. See [ADR-0026](adr/0026-guest-clutch-environment.md).
+
 ### Script execution
 
 Scripts run **sequentially** in the order they are declared in the Clutch file. For each script:
 
 1. Status is set to `running` in the database
 2. The script file is read from `~/.local/share/hatchery/automation/scripts/`
-3. If the script has configured parameters, the content is wrapped in a PowerShell scriptblock: `& { param(...) <inject> <rest> } -Param 'value'`. The `param()` block is placed first (required by PowerShell), the `Write-HatchEvent` helper is injected after it, then the rest of the script body follows. Scripts without parameters receive the injection prepended directly with no wrapping.
+3. If the script has configured parameters, the content is wrapped in a PowerShell scriptblock: `& { param(...) <inject> <rest> } -Param 'value'`. The `param()` block is placed first (required by PowerShell), the `Write-HatchEvent` helper is injected after it, then the rest of the script body follows. Scripts without parameters receive the injection prepended directly with no wrapping. Reserved + Clutch user env are process-injected for the job.
 4. The script is executed on the guest over WinRM via `pywinrm`
 5. All stdout and stderr output is captured and stored against the script record
 6. The exit code determines what happens next:

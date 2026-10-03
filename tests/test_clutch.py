@@ -20,7 +20,7 @@ MINIMAL_VM = """\
     name: test-lab
     vms:
       - name: vm1
-        os: win11
+        os: windows
         vcpus: 2
         ram_gb: 4
         disk_gb: 40
@@ -32,7 +32,7 @@ FULL_VM = """\
     description: Full example
     vms:
       - name: vm1
-        os: win11
+        os: windows
         vcpus: 4
         ram_gb: 8
         disk_gb: 80
@@ -64,7 +64,7 @@ class TestValidSingleVM:
         result = clutch.load(write_clutch(tmp_path, MINIMAL_VM))
         vm = result.vms[0]
         assert vm.name == "vm1"
-        assert vm.os == GuestOS.WIN11
+        assert vm.os == GuestOS.WINDOWS
         assert vm.vcpus == 2
         assert vm.ram_gb == 4
         assert vm.disk_gb == 40
@@ -95,7 +95,7 @@ class TestValidSingleVM:
 name: legacy-lab
 vms:
   - name: vm1
-    os: win11
+    os: windows
     vcpus: 2
     ram_gb: 4
     disk_gb: 40
@@ -108,7 +108,7 @@ vms:
     def test_answer_file_parameters_round_trip(self, tmp_path):
         vm = VMConfig(
             name="vm1",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -130,7 +130,7 @@ vms:
     def test_empty_answer_file_parameters_omitted_from_yaml(self, tmp_path):
         vm = VMConfig(
             name="vm1",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=40,
@@ -142,11 +142,137 @@ vms:
         clutch.save(Clutch(name="lab", vms=[vm]), path)
         assert "answer_file_parameters" not in path.read_text()
 
-    def test_all_os_types_accepted(self, tmp_path):
-        for os_val in ("win10", "win11", "server2022", "server2025"):
-            content = MINIMAL_VM.replace("os: win11", f"os: {os_val}")
+    def test_environment_round_trip(self, tmp_path):
+        vm = VMConfig(
+            name="vm1",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            environment={"MY_LAB_ROLE": "dc", "FEATURE_FLAG": "1"},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        raw = path.read_text()
+        assert "environment:" in raw
+        assert "MY_LAB_ROLE" in raw
+        assert "scope: machine" in raw
+        assert "persist: true" in raw
+        assert "mode: replace" in raw
+        loaded = clutch.load(path)
+        assert loaded.vms[0].environment_as_process_map() == {
+            "MY_LAB_ROLE": "dc",
+            "FEATURE_FLAG": "1",
+        }
+        assert all(e.persist for e in loaded.vms[0].environment)
+        assert all(e.scope.value == "machine" for e in loaded.vms[0].environment)
+
+    def test_empty_environment_omitted_from_yaml(self, tmp_path):
+        vm = VMConfig(
+            name="vm1",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            environment={},
+        )
+        path = tmp_path / "lab.yaml"
+        clutch.save(Clutch(name="lab", vms=[vm]), path)
+        assert "environment" not in path.read_text()
+
+    def test_reserved_environment_key_rejected(self, tmp_path):
+        with pytest.raises(Exception, match="reserved"):
+            VMConfig(
+                name="vm1",
+                os="windows",
+                vcpus=2,
+                ram_gb=4,
+                disk_gb=40,
+                os_media="win11.iso",
+                answer_file="win11.xml.j2",
+                environment={"HATCHERY_ROOT": "nope"},
+            )
+
+    def test_os_families_accepted(self, tmp_path):
+        for os_val in ("windows", "linux", "macos"):
+            content = MINIMAL_VM.replace("os: windows", f"os: {os_val}")
             result = clutch.load(write_clutch(tmp_path, content))
             assert result.vms[0].os == GuestOS(os_val)
+
+    def test_legacy_sku_migrates_firmware_tpm(self, tmp_path):
+        cases = {
+            "win11": ("uefi", True),
+            "server2025": ("uefi", True),
+            "win10": ("bios", False),
+            "server2022": ("bios", False),
+        }
+        for sku, (fw, tpm) in cases.items():
+            content = MINIMAL_VM.replace("os: windows", f"os: {sku}")
+            result = clutch.load(write_clutch(tmp_path, content))
+            vm = result.vms[0]
+            assert vm.os == GuestOS.WINDOWS
+            assert vm.firmware.value == fw
+            assert vm.tpm is tpm
+            path = tmp_path / f"migrated-{sku}.yaml"
+            clutch.save(result, path)
+            saved = path.read_text()
+            assert "os: windows" in saved
+            assert f"firmware: {fw}" in saved
+            assert f"tpm: {str(tpm).lower()}" in saved
+
+    def test_tpm_requires_uefi(self):
+        with pytest.raises(Exception, match="tpm"):
+            VMConfig(
+                name="vm1",
+                os="windows",
+                vcpus=2,
+                ram_gb=4,
+                disk_gb=40,
+                os_media="win11.iso",
+                firmware="bios",
+                tpm=True,
+            )
+
+    def test_windows_defaults_firmware_tpm(self):
+        vm = VMConfig(
+            name="vm1",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+        )
+        assert vm.firmware.value == "uefi"
+        assert vm.tpm is True
+
+    def test_structured_environment_persist_fields(self, tmp_path):
+        content = """\
+        name: env-lab
+        vms:
+          - name: vm1
+            os: windows
+            vcpus: 2
+            ram_gb: 4
+            disk_gb: 40
+            os_media: win11.iso
+            environment:
+              - name: PATH
+                value: 'C:\\Tools'
+                scope: machine
+                persist: true
+                mode: append
+              - name: JOB_ONLY
+                value: '1'
+                persist: false
+        """
+        result = clutch.load(write_clutch(tmp_path, content))
+        assert len(result.vms[0].environment) == 2
+        assert result.vms[0].environment[0].mode.value == "append"
+        assert [e.name for e in result.vms[0].environment_persist_entries()] == ["PATH"]
 
 
 class TestValidMultiVM:
@@ -154,13 +280,13 @@ class TestValidMultiVM:
         name: ad-lab
         vms:
           - name: dc01
-            os: server2022
+            os: windows
             vcpus: 2
             ram_gb: 4
             disk_gb: 60
             os_media: server2022.iso
           - name: client01
-            os: win11
+            os: windows
             vcpus: 4
             ram_gb: 8
             disk_gb: 80
@@ -188,7 +314,7 @@ class TestMissingRequiredFields:
             clutch.load(write_clutch(tmp_path, content))
 
     def test_missing_os(self, tmp_path):
-        content = MINIMAL_VM.replace("        os: win11\n", "")
+        content = MINIMAL_VM.replace("        os: windows\n", "")
         with pytest.raises(ValueError, match="os"):
             clutch.load(write_clutch(tmp_path, content))
 
@@ -205,7 +331,7 @@ class TestMissingRequiredFields:
 
 class TestInvalidFieldValues:
     def test_unknown_os_type(self, tmp_path):
-        content = MINIMAL_VM.replace("os: win11", "os: windows-xp")
+        content = MINIMAL_VM.replace("os: windows", "os: windows-xp")
         with pytest.raises(ValueError, match="os"):
             clutch.load(write_clutch(tmp_path, content))
 
@@ -259,14 +385,14 @@ class TestCrossVMValidation:
             name: cycle-lab
             vms:
               - name: vm-a
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
                 depends_on: [vm-b]
               - name: vm-b
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
@@ -281,21 +407,21 @@ class TestCrossVMValidation:
             name: three-cycle
             vms:
               - name: vm-a
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
                 depends_on: [vm-b]
               - name: vm-b
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
                 depends_on: [vm-c]
               - name: vm-c
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
@@ -310,14 +436,14 @@ class TestCrossVMValidation:
             name: cycle-lab
             vms:
               - name: dc01
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
                 depends_on: [client01]
               - name: client01
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
@@ -333,20 +459,20 @@ class TestCrossVMValidation:
             name: chain-lab
             vms:
               - name: vm-a
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
               - name: vm-b
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
                 os_media: win11.iso
                 depends_on: [vm-a]
               - name: vm-c
-                os: win11
+                os: windows
                 vcpus: 2
                 ram_gb: 4
                 disk_gb: 40
@@ -362,14 +488,14 @@ class TestLoadRaw:
         name: cycle-lab
         vms:
           - name: vm-a
-            os: win11
+            os: windows
             vcpus: 2
             ram_gb: 4
             disk_gb: 40
             os_media: win11.iso
             depends_on: [vm-b]
           - name: vm-b
-            os: win11
+            os: windows
             vcpus: 2
             ram_gb: 4
             disk_gb: 40
@@ -423,19 +549,19 @@ class TestFileErrors:
 
 class TestVMConfigModel:
     def test_valid_construction(self):
-        vm = VMConfig(name="vm1", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
-        assert vm.os == GuestOS.WIN11
+        vm = VMConfig(name="vm1", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        assert vm.os == GuestOS.WINDOWS
 
     def test_negative_vcpus_rejected(self):
         with pytest.raises(Exception):
-            VMConfig(name="vm1", os="win11", vcpus=-1, ram_gb=4, disk_gb=40, os_media="win11.iso")
+            VMConfig(name="vm1", os="windows", vcpus=-1, ram_gb=4, disk_gb=40, os_media="win11.iso")
 
 
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
 def make_clutch(name="my-lab"):
-    vm = VMConfig(name="vm1", os="win11", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+    vm = VMConfig(name="vm1", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
     return clutch.Clutch(name=name, vms=[vm])
 
 
@@ -664,7 +790,7 @@ class TestAutomationEntry:
             name: lab
             vms:
               - name: dc01
-                os: win10
+                os: windows
                 vcpus: 1
                 ram_gb: 2
                 disk_gb: 20
@@ -740,7 +866,7 @@ class TestAnswerFileParameters:
     def test_yaml_round_trip(self, tmp_path):
         vm = VMConfig(
             name="dc01",
-            os="win11",
+            os="windows",
             vcpus=2,
             ram_gb=4,
             disk_gb=60,
@@ -773,7 +899,7 @@ class TestAnswerFileParameters:
             name: lab
             vms:
               - name: dc01
-                os: win10
+                os: windows
                 vcpus: 1
                 ram_gb: 2
                 disk_gb: 20

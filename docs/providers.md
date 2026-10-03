@@ -119,8 +119,8 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 
 | Guest / Nest | libvirt local | Notes |
 |---|---|---|
-| Windows 10 / 11 / Server 2022 / 2025 | Works | Win11 / Server 2025 need UEFI + TPM (`swtpm` on the Nest) |
-| Linux guests | Planned | Phase D of epic #202 |
+| Windows guests (`os: windows`) | Works | Create policy from Clutch `firmware` / `tpm` (ADR-0027). UEFI + TPM needs `swtpm` on the Nest. Optional `providers.libvirt.os_variant` (#505) |
+| Linux / macOS guests | Planned | Family values accepted in Clutch; remoting / persist under #482 / #202 |
 | Hatchery Controller OS | Linux / macOS / Windows | Portable Controller checks vs Nest tools: [#208](https://github.com/dustinestes/Hatchery/issues/208) |
 
 Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator - not as Controller requirements. On **Remote** Nests, capability is gated by Nest reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)): if the Nest is unreachable (or not yet probed), capability does not invent missing-tool Alerts. UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
