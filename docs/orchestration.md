@@ -147,7 +147,7 @@ This is the **stable contract** between the answer file and the orchestrator. If
 | `[+]` | Succeeded |
 | `[!]` | Failed |
 
-The nine steps it executes, in order:
+The steps it executes, in order (OpenSSH path per [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md)):
 
 | Step | Action | Purpose |
 |---|---|---|
@@ -155,25 +155,27 @@ The nine steps it executes, in order:
 | 2 | `Enable-PSRemoting -Force` (+ raise `MaxEnvelopeSizekb` to 8192 when lower) | Start the WinRM service and configure listeners; envelope headroom for Software staging |
 | 3 | `New-ItemProperty … LocalAccountTokenFilterPolicy … 1` | Allow non-built-in admin accounts to authenticate over WinRM |
 | 4 | `New-NetFirewallRule … -LocalPort 5985` | Open WinRM HTTP port |
-| 5 | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0` | Install the OpenSSH Server capability |
+| 5 | Download **latest** Win64 OpenSSH Server MSI from [PowerShell/Win32-OpenSSH](https://github.com/PowerShell/Win32-OpenSSH) and `msiexec … ADDLOCAL=Server` | Install OpenSSH Server under `C:\Program Files\OpenSSH` (not Windows Update FoD) |
 | 6 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
 | 7 | `Start-Service -Name sshd` | Start SSH immediately |
 | 8 | `New-NetFirewallRule … -LocalPort 22` | Open SSH port |
 | 9 | `New-Item -Path 'C:\Program Files\Hatchery\temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
 
+**OpenSSH source (locked):** Hatchery does **not** use `Add-WindowsCapability -Online` / FoD for the default hatch path. Lab evidence: FoD often took ~15–20 minutes; the GitHub MSI completed download + install + service bring-up in ~9 seconds. Implementation resolves **latest** Win64 Server MSI at first boot. After early semver, Win32-OpenSSH has only shipped Beta then Preview tags (often ~a year old and still labeled Preview); Hatchery still tracks latest and documents that channel oddity here and in ADR-0029. Offline MSI staging is [#475](https://github.com/dustinestes/Hatchery/issues/475) / [#131](https://github.com/dustinestes/Hatchery/issues/131); Library release-asset → Software transform is [#517](https://github.com/dustinestes/Hatchery/issues/517). Guest Controller keys / `authorized_keys` are a follow-on; hatch auth for now remains admin password.
+
 If any step fails, it is marked `[!]`, the failure message is displayed, and a "Press any key to close..." prompt is shown before the script exits with code 1. The console window remains open so the operator can read the error.
 
 ### The race condition and why the flag exists
 
-WinRM becomes available as soon as step 2 completes - but steps 5 through 9 (notably the SSH capability install, which can take over a minute) are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
+WinRM becomes available as soon as step 2 completes - but OpenSSH install and later steps are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
 
-The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It cannot exist until every preceding step has completed. Hatchery's polling loop:
+The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It means first-boot finished with OpenSSH installed, `sshd` listening, and TCP 22 open (ADR-0029). Until Guest transport ([#497](https://github.com/dustinestes/Hatchery/issues/497)) lands, Hatchery's polling loop still:
 
 1. Confirms WinRM TCP port 5985 is open (cheap socket check)
 2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over WinRM (actual command execution)
 3. Only advances to the next phase when the flag is present
 
-The flag is **deleted immediately** upon detection - `Remove-Item` is called before any scripts run.
+After #497, prefer SSH for ready-probe and provision; WinRM remains a Windows-only fallback. The flag is **deleted immediately** upon detection - `Remove-Item` is called before any scripts run.
 
 ### Log file
 
