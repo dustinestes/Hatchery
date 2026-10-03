@@ -18,13 +18,14 @@ CREATE TABLE IF NOT EXISTS clutch_instances (
 );
 
 CREATE TABLE IF NOT EXISTS hatch_sessions (
-    id           TEXT PRIMARY KEY,
-    nest         TEXT NOT NULL DEFAULT 'local',
-    clutch_file  TEXT NOT NULL,
-    clutch_name  TEXT NOT NULL,
-    hatched_at   TEXT NOT NULL,
-    completed_at TEXT,
-    archived_at  TEXT
+    id              TEXT PRIMARY KEY,
+    nest            TEXT NOT NULL DEFAULT 'local',
+    clutch_file     TEXT NOT NULL,
+    clutch_name     TEXT NOT NULL,
+    hatched_at      TEXT NOT NULL,
+    completed_at    TEXT,
+    archived_at     TEXT,
+    clutch_snapshot TEXT
 );
 
 CREATE TABLE IF NOT EXISTS hatch_vm_status (
@@ -219,6 +220,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_library_software_domain(conn)
     _migrate_hatch_vm_scripts_typed(conn)
     _migrate_hatch_vm_status_guest_os(conn)
+    _migrate_hatch_sessions_clutch_snapshot(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -959,6 +961,18 @@ def _migrate_hatch_vm_status_guest_os(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_vm_status)").fetchall()}
     if "guest_os" not in cols:
         conn.execute("ALTER TABLE hatch_vm_status ADD COLUMN guest_os TEXT")
+
+
+def _migrate_hatch_sessions_clutch_snapshot(conn: sqlite3.Connection) -> None:
+    """Immutable Clutch JSON at hatch start so mid-hatch edits cannot alter the session (#514)."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='hatch_sessions'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_sessions)").fetchall()}
+    if "clutch_snapshot" not in cols:
+        conn.execute("ALTER TABLE hatch_sessions ADD COLUMN clutch_snapshot TEXT")
 
 
 def _migrate_nests_columns(conn: sqlite3.Connection) -> None:

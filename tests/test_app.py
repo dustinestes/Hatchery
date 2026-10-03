@@ -5420,6 +5420,86 @@ class TestProvisionVmThread:
         assert any(m.startswith("Persist: HATCHERY_ROOT") for m in messages)
         assert any("Guest environment persisted" in m for m in messages)
 
+    def test_persist_uses_snapshot_after_live_clutch_edit(self, tmp_path, monkeypatch):
+        """Mid-hatch Clutch YAML edits must not change env persist (#514)."""
+        import lib.hatch as hatch_lib
+        import lib.config as cfg
+        import lib.clutch as clutch_lib
+        import hatchery as app_module
+        from lib.clutch import Clutch, VMConfig
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches = tmp_path / "clutches"
+        clutches.mkdir(parents=True)
+        original = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="windows",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    environment={"KEEP_ME": "1"},
+                )
+            ],
+        )
+        clutch_lib.save(original, clutches / "lab.yaml")
+        sid = hatch_lib.create_session(
+            "lab.yaml",
+            "Lab",
+            clutch_snapshot=hatch_lib.clutch_snapshot_json(original),
+        )
+        hatch_lib.add_vm(
+            sid,
+            "dc01",
+            admin_username="admin",
+            admin_password="pass",
+            guest_os="windows",
+        )
+        script_name = self._script(tmp_path)
+
+        class _S:
+            name = script_name
+            reboot_after = False
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
+        hatch_lib.set_vm_status(sid, "dc01", "provisioning")
+
+        # Operator edits the live Clutch mid-hatch (removes KEEP_ME).
+        edited = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="windows",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    environment={},
+                )
+            ],
+        )
+        clutch_lib.save(edited, clutches / "lab.yaml")
+
+        seen_entries = []
+
+        def _persist(*a, **k):
+            seen_entries.append(list(k.get("entries") or []))
+            return (0, "")
+
+        monkeypatch.setattr("lib.guest_env.persist_guest_environment", _persist)
+        with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
+            with patch("lib.hatch_lifecycle.get_provider"):
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        assert len(seen_entries) == 1
+        names = {e.name for e in seen_entries[0]}
+        assert "KEEP_ME" in names
+        assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
+
     def test_sets_failed_when_persist_env_fails(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
         import lib.config as cfg

@@ -37,29 +37,53 @@ class NestProviderUnavailableError(VmInventoryError):
         super().__init__(message, code="unavailable")
 
 
+def _vm_from_clutch_source(
+    *,
+    session_id: str | None,
+    clutch_file: str | None,
+    vm_name: str,
+):
+    """Resolve VMConfig from hatch session snapshot (#514), else live Clutch file."""
+    from pathlib import Path
+
+    from lib import clutch as clutch_lib
+    from lib import hatch as hatch_lib
+
+    if session_id:
+        snap_vm = hatch_lib.load_session_vm_config(session_id, vm_name)
+        if snap_vm is not None:
+            return snap_vm
+    if not clutch_file:
+        return None
+    path = config.data_dir() / "clutches" / Path(clutch_file).name
+    try:
+        clutch = clutch_lib.load(path)
+    except Exception:
+        return None
+    for vm in clutch.vms:
+        if vm.name == vm_name:
+            return vm
+    return None
+
+
 def _resolved_environment(
     guest_os: str,
     *,
     clutch_file: str | None,
     vm_name: str,
+    session_id: str | None = None,
 ) -> list[dict[str, str]]:
     """Return resolved guest env rows (reserved base + Clutch user) for VM details."""
-    from pathlib import Path
-
-    from lib import clutch as clutch_lib
     from lib import guest_env as guest_env_lib
 
     user_entries = []
-    if clutch_file:
-        path = config.data_dir() / "clutches" / Path(clutch_file).name
-        try:
-            clutch = clutch_lib.load(path)
-            for vm in clutch.vms:
-                if vm.name == vm_name:
-                    user_entries = list(vm.environment or [])
-                    break
-        except Exception:
-            user_entries = []
+    vm = _vm_from_clutch_source(
+        session_id=session_id,
+        clutch_file=clutch_file,
+        vm_name=vm_name,
+    )
+    if vm is not None:
+        user_entries = list(vm.environment or [])
     try:
         user_env = guest_env_lib.entries_to_process_map(user_entries)
         merged = guest_env_lib.merge_guest_environment(
@@ -115,25 +139,19 @@ def _clutch_vm_create_policy(
     *,
     clutch_file: str | None,
     vm_name: str,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """Return firmware/tpm from the Clutch VM when available."""
-    from pathlib import Path
-
-    from lib import clutch as clutch_lib
-
     out: dict[str, Any] = {"firmware": None, "tpm": None}
-    if not clutch_file:
+    vm = _vm_from_clutch_source(
+        session_id=session_id,
+        clutch_file=clutch_file,
+        vm_name=vm_name,
+    )
+    if vm is None:
         return out
-    path = config.data_dir() / "clutches" / Path(clutch_file).name
-    try:
-        clutch = clutch_lib.load(path)
-        for vm in clutch.vms:
-            if vm.name == vm_name:
-                out["firmware"] = vm.firmware.value if vm.firmware else None
-                out["tpm"] = vm.tpm
-                break
-    except Exception:
-        pass
+    out["firmware"] = vm.firmware.value if vm.firmware else None
+    out["tpm"] = vm.tpm
     return out
 
 
@@ -216,10 +234,12 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
                         guest_os,
                         clutch_file=record.get("clutch_file"),
                         vm_name=name,
+                        session_id=sid,
                     )
                 policy = _clutch_vm_create_policy(
                     clutch_file=record.get("clutch_file"),
                     vm_name=name,
+                    session_id=sid,
                 )
                 record["firmware"] = policy.get("firmware")
                 record["tpm"] = policy.get("tpm")
