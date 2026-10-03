@@ -190,7 +190,7 @@ Typical content in Hatchery’s samples:
 - `ComputerName` from `{{ vm_name }}`
 - Local admin account and AutoLogon from `{{ admin_username }}` / `{{ admin_password }}`
 - Locale settings (user params in samples; hard-coded `en-US` in older shadow templates)
-- Single FirstLogonCommand that runs `hatchery-setup.ps1` (WinRM, OpenSSH, `hatchery-ready` flag)
+- Single FirstLogonCommand that runs `hatchery-setup.ps1` (WinRM, OpenSSH via latest GitHub MSI per [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md), `hatchery-ready` flag)
 
 UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/providers.md`](providers.md)).
 
