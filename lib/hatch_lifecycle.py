@@ -145,19 +145,28 @@ def _mark_remaining_skipped(
             hatch_lib.set_script_status(session_id, vm_name, s["run_order"], "skipped")
 
 
-def _wait_winrm_after_reboot(session_id: str, vm_name: str, ip: str, *, script_name: str) -> None:
-    for _ in range(120):
-        time.sleep(5)
-        if check_winrm(ip):
-            hatch_lib.add_event(
-                session_id,
-                vm_name,
-                "hatchery",
-                "INFO",
-                "WinRM reconnected after reboot",
-                script_name=script_name,
-            )
-            return
+def _reboot_guest_after_automation(
+    session_id: str,
+    vm_name: str,
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    script_name: str,
+) -> None:
+    """Restart the guest and wait until LastBootUpTime changes (#499)."""
+
+    def on_event(level: str, message: str) -> None:
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            level if level in ("INFO", "WARN", "ERROR") else "INFO",
+            message,
+            script_name=script_name,
+        )
+
+    provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
 
 
 def _provision_vm_thread(
@@ -305,8 +314,14 @@ def _provision_vm_thread(
                     f"Rebooting VM after {kind_label}: {sname}",
                     script_name=sname,
                 )
-                provision_lib.restart_guest(ip, admin_username, admin_password)
-                _wait_winrm_after_reboot(session_id, vm_name, ip, script_name=sname)
+                _reboot_guest_after_automation(
+                    session_id,
+                    vm_name,
+                    ip,
+                    admin_username,
+                    admin_password,
+                    script_name=sname,
+                )
 
         hatch_lib.add_event(
             session_id,

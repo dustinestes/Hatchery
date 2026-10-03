@@ -346,6 +346,113 @@ class TestRestartGuest:
             provision_lib.restart_guest("192.168.1.1", "admin", "pass")  # must not raise
 
 
+class TestLastBootUpTimeRebootWait:
+    def _boot_result(self, filetime: str):
+        r = MagicMock()
+        r.status_code = 0
+        r.std_out = f"{filetime}\r\n".encode()
+        r.std_err = b""
+        return r
+
+    def test_get_last_boot_uptime_parses_filetime(self):
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._boot_result("133012345678901234")
+            assert provision_lib.get_last_boot_uptime("10.0.0.1", "a", "b") == "133012345678901234"
+        cmd = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "LastBootUpTime" in cmd
+
+    def test_wait_for_boot_uptime_change_ignores_same_boot_id(self, monkeypatch):
+        boots = iter(["111", "111", "222"])
+        monkeypatch.setattr(provision_lib, "check_winrm", lambda *a, **k: True)
+        monkeypatch.setattr(provision_lib, "get_last_boot_uptime", lambda *a, **k: next(boots))
+        monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
+        assert (
+            provision_lib.wait_for_boot_uptime_change(
+                "10.0.0.1", "a", "b", "111", poll_interval_sec=0, timeout_sec=60
+            )
+            == "222"
+        )
+
+    def test_wait_for_boot_uptime_change_times_out(self, monkeypatch):
+        monkeypatch.setattr(provision_lib, "check_winrm", lambda *a, **k: True)
+        monkeypatch.setattr(provision_lib, "get_last_boot_uptime", lambda *a, **k: "111")
+        monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
+        # Force deadline immediately after first iteration.
+        ticks = iter([0.0, 0.0, 1000.0])
+        monkeypatch.setattr(provision_lib.time, "monotonic", lambda: next(ticks))
+        try:
+            provision_lib.wait_for_boot_uptime_change(
+                "10.0.0.1", "a", "b", "111", poll_interval_sec=0, timeout_sec=1
+            )
+            raise AssertionError("expected timeout")
+        except RuntimeError as exc:
+            assert "did not report a new LastBootUpTime" in str(exc)
+
+    def test_reboot_guest_and_wait_orders_capture_restart_wait(self, monkeypatch):
+        calls: list[str] = []
+
+        def fake_get(*a, **k):
+            calls.append("get")
+            return "before"
+
+        def fake_restart(*a, **k):
+            calls.append("restart")
+
+        def fake_wait_boot(*a, **k):
+            calls.append("wait")
+            return "134350310025000000"
+
+        monkeypatch.setattr(provision_lib, "get_last_boot_uptime", fake_get)
+        monkeypatch.setattr(provision_lib, "restart_guest", fake_restart)
+        monkeypatch.setattr(provision_lib, "wait_for_boot_uptime_change", fake_wait_boot)
+        monkeypatch.setattr(provision_lib, "wait_for_winrm_stable", lambda *a, **k: None)
+        events: list[tuple[str, str]] = []
+        assert (
+            provision_lib.reboot_guest_and_wait(
+                "10.0.0.1", "a", "b", on_event=lambda lvl, msg: events.append((lvl, msg))
+            )
+            == "134350310025000000"
+        )
+        assert calls == ["get", "restart", "wait"]
+        assert events[0][0] == "INFO"
+        assert "Guest reboot confirmed: 2026-09-28T01:03:22+00:00" in events[0][1]
+
+    def test_wait_for_winrm_stable_emits_start_and_success(self, monkeypatch):
+        events: list[tuple[str, str]] = []
+        probes = {"n": 0}
+
+        class _Sess:
+            def run_ps(self, *_a, **_k):
+                probes["n"] += 1
+                r = MagicMock()
+                r.status_code = 0
+                return r
+
+        monkeypatch.setattr(provision_lib, "_make_session", lambda *a, **k: _Sess())
+        monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
+        provision_lib.wait_for_winrm_stable(
+            "10.0.0.1",
+            "a",
+            "b",
+            consecutive=2,
+            poll_interval_sec=0,
+            on_event=lambda lvl, msg: events.append((lvl, msg)),
+        )
+        assert probes["n"] == 2
+        assert events[0][1].startswith("Waiting for WinRM to stabilize")
+        assert events[-1][1].startswith("WinRM stable after reboot")
+
+    def test_format_guest_reboot_confirmed_matches_event_timestamps(self):
+        msg = provision_lib.format_guest_reboot_confirmed("134350310025000000")
+        assert msg == (
+            "Guest reboot confirmed: 2026-09-28T01:03:22+00:00 (LastBootUpTime=134350310025000000)"
+        )
+
+    def test_filetime_to_utc_round_trip_seconds(self):
+        dt = provision_lib.filetime_to_utc("134350310025000000")
+        assert dt.isoformat(timespec="seconds") == "2026-09-28T01:03:22+00:00"
+
+
 class TestCheckSetupComplete:
     def _make_result(self, stdout: str):
         r = MagicMock()

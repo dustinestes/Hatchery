@@ -17,16 +17,27 @@ from pathlib import Path, PureWindowsPath
 from lib import provision as provision_lib
 from lib import software as software_lib
 from lib.clutch import GuestOS
-from lib.guest_health import check_winrm
 from lib.guest_paths import GuestPaths, clutch_os_to_platform_key, guest_paths_for
 
 log = logging.getLogger(__name__)
 
 # Raw bytes per WinRM Send (stdin), not EncodedCommand. Putting payload in
-# -EncodedCommand blows past Windows' ~8191 CreateProcess limit; streaming via
-# stdin is required. Stay under default WinRM MaxEnvelopeSizekb (500) after
-# double base64 + SOAP overhead.
-_UPLOAD_CHUNK = 128_000
+# -EncodedCommand blows past Windows' ~8191 CreateProcess limit; stream via
+# WinRM Send instead. After raising guest MaxEnvelopeSizekb to 8192, ~256 KiB
+# raw fits comfortably under double-base64 + SOAP overhead.
+_UPLOAD_CHUNK = 256_000
+_UPLOAD_ATTEMPTS = 3
+_WINRM_MAX_ENVELOPE_KB = 8192
+_POWERSHELL_EXE = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+_TRANSIENT_UPLOAD_MARKERS = (
+    "pipe has been ended",
+    "wsmanfault_code': 109",
+    'wsmanfault_code": 109',
+    "connection reset",
+    "connection aborted",
+    "broken pipe",
+)
 
 _ARCH_MAP = {
     "amd64": "x64",
@@ -83,54 +94,86 @@ def _ensure_guest_dir(ip: str, admin_username: str, admin_password: str, remote_
         raise RuntimeError(f"failed to create guest directory {remote_dir}: {out}")
 
 
-def _upload_receiver_script(remote_path: str) -> str:
-    """Small PowerShell that reads base64 lines from stdin and writes the file.
+def _ensure_winrm_envelope_size(
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    on_event: Callable[[str, str], None] | None = None,
+) -> None:
+    """Raise guest MaxEnvelopeSizekb when below the Software staging floor."""
+    code = (
+        f"$need = {_WINRM_MAX_ENVELOPE_KB}\n"
+        "$cur = [int](Get-Item -Path 'WSMan:\\localhost\\MaxEnvelopeSizekb').Value\n"
+        "if ($cur -lt $need) {\n"
+        "  Set-Item -Path 'WSMan:\\localhost\\MaxEnvelopeSizekb' -Value $need\n"
+        '  Write-Output "raised:$cur->$need"\n'
+        "} else {\n"
+        '  Write-Output "ok:$cur"\n'
+        "}\n"
+    )
+    status, out = _run_ps(ip, admin_username, admin_password, code, timeout=60)
+    if status != 0:
+        raise RuntimeError(f"failed to ensure WinRM MaxEnvelopeSizekb: {out}")
+    if on_event and out.startswith("raised:"):
+        on_event(
+            "INFO",
+            f"Raised guest WinRM MaxEnvelopeSizekb for Software staging ({out})",
+        )
 
-    Prints lowercase SHA-256 hex of the written bytes on success (integrity check).
+
+def _upload_receiver_script(remote_path: str) -> str:
+    """PowerShell that blocks on stdin lines (base64) until EOF, then writes the file.
+
+    Uses StreamReader.ReadLine on [Console]::OpenStandardInput so the process stays
+    alive until WinRM closes stdin. begin/process/end + bare ``powershell -encodedcommand``
+    through cmd.exe exited early (WinRM fault 109 / 0-byte guest files).
     """
-    # begin/process/end: each WinRM Send is one pipeline object ($_).
-    # Use $_ (not $input): $input in process can consume the enumerator incorrectly.
-    # console_mode_stdin=False is required on run_command so stdin reaches the script.
     return (
-        "begin {\n"
-        f"  $path = {_ps_quote(remote_path)}\n"
-        '  $ErrorActionPreference = "Stop"\n'
-        "  $parent = Split-Path -Parent $path\n"
-        "  if ($parent) { $null = New-Item -Path $parent -ItemType Directory -Force }\n"
-        "  if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }\n"
-        "  $fd = [System.IO.File]::Create($path)\n"
-        "  $sha = [System.Security.Cryptography.SHA256]::Create()\n"
-        "  $bytes = [byte[]]::new(0)\n"
-        "}\n"
-        "process {\n"
-        "  $bytes = [System.Convert]::FromBase64String([string]$_)\n"
-        "  [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $bytes, 0)\n"
-        "  $fd.Write($bytes, 0, $bytes.Length)\n"
-        "}\n"
-        "end {\n"
+        "$ErrorActionPreference = 'Stop'\n"
+        f"$path = {_ps_quote(remote_path)}\n"
+        "$parent = Split-Path -Parent $path\n"
+        "if ($parent) { $null = New-Item -Path $parent -ItemType Directory -Force }\n"
+        "if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }\n"
+        "$fd = [System.IO.File]::Create($path)\n"
+        "$sha = [System.Security.Cryptography.SHA256]::Create()\n"
+        "$stdin = [Console]::OpenStandardInput()\n"
+        "$reader = New-Object System.IO.StreamReader("
+        "$stdin, [System.Text.Encoding]::ASCII, $false)\n"
+        "try {\n"
+        "  while ($null -ne ($line = $reader.ReadLine())) {\n"
+        "    $line = $line.Trim()\n"
+        "    if (-not $line) { continue }\n"
+        "    $bytes = [System.Convert]::FromBase64String($line)\n"
+        "    [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $bytes, 0)\n"
+        "    $fd.Write($bytes, 0, $bytes.Length)\n"
+        "  }\n"
+        "} finally {\n"
+        "  $reader.Dispose()\n"
         "  [void]$sha.TransformFinalBlock([byte[]]::new(0), 0, 0)\n"
         "  $fd.Close()\n"
-        "  $hash = [System.BitConverter]::ToString($sha.Hash).Replace('-', '').ToLowerInvariant()\n"
-        "  Write-Output $hash\n"
         "}\n"
+        "$hash = [System.BitConverter]::ToString($sha.Hash)"
+        ".Replace('-', '').ToLowerInvariant()\n"
+        "Write-Output $hash\n"
     )
 
 
-def _upload_file(
+def _is_transient_winrm_upload_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _TRANSIENT_UPLOAD_MARKERS)
+
+
+def _upload_file_once(
     ip: str,
     admin_username: str,
     admin_password: str,
     local_path: Path,
     remote_path: str,
+    *,
+    local_hash: str,
+    size: int,
 ) -> None:
-    """Write a local file to the guest via WinRM stdin (chunked base64).
-
-    Payload rides the WinRM Send stream, not -EncodedCommand, so chunks can be
-    large without hitting the Windows command-line length limit. Verifies the
-    remote SHA-256 against the local file before returning.
-    """
-    size = local_path.stat().st_size
-    local_hash = hashlib.sha256(local_path.read_bytes()).hexdigest()
     script = _upload_receiver_script(remote_path)
     encoded_ps = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     # Receiver stays small; EncodedCommand must remain under ~8191 chars.
@@ -138,14 +181,19 @@ def _upload_file(
         raise RuntimeError(
             f"upload receiver EncodedCommand too long ({len(encoded_ps)}) for {remote_path}"
         )
-    command = f"powershell -encodedcommand {encoded_ps}"
 
     session = provision_lib._make_session(ip, admin_username, admin_password, timeout=600)
     protocol = session.protocol
-    shell_id = protocol.open_shell()
+    # UTF-8 shell; skip cmd.exe so stdin reaches powershell.exe directly.
+    shell_id = protocol.open_shell(codepage=65001)
     try:
-        # WINRS_CONSOLEMODE_STDIN must be false when feeding the receiver via Send.
-        command_id = protocol.run_command(shell_id, command, console_mode_stdin=False)
+        command_id = protocol.run_command(
+            shell_id,
+            _POWERSHELL_EXE,
+            ("-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_ps),
+            console_mode_stdin=False,
+            skip_cmd_shell=True,
+        )
         try:
             if size == 0:
                 protocol.send_command_input(shell_id, command_id, b"", end=True)
@@ -158,7 +206,7 @@ def _upload_file(
                             break
                         offset += len(chunk)
                         # Double-encode: SOAP Send base64-wraps stdin; guest PS
-                        # still expects base64 text on its stdin pipe.
+                        # still expects base64 text lines on its stdin pipe.
                         payload = base64.b64encode(chunk) + b"\r\n"
                         protocol.send_command_input(
                             shell_id,
@@ -194,6 +242,66 @@ def _upload_file(
         )
 
 
+def _upload_file(
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    local_path: Path,
+    remote_path: str,
+    *,
+    on_event: Callable[[str, str], None] | None = None,
+) -> None:
+    """Write a local file to the guest via WinRM stdin (chunked base64).
+
+    Payload rides the WinRM Send stream, not -EncodedCommand, so chunks can be
+    large without hitting the Windows command-line length limit. Verifies the
+    remote SHA-256 against the local file before returning. Retries transient
+    WinRM pipe/reset faults common right after guest reboot.
+    """
+    size = local_path.stat().st_size
+    local_hash = hashlib.sha256(local_path.read_bytes()).hexdigest()
+    last_exc: BaseException | None = None
+    for attempt in range(1, _UPLOAD_ATTEMPTS + 1):
+        try:
+            _upload_file_once(
+                ip,
+                admin_username,
+                admin_password,
+                local_path,
+                remote_path,
+                local_hash=local_hash,
+                size=size,
+            )
+            if attempt > 1 and on_event:
+                on_event(
+                    "INFO",
+                    f"WinRM upload of {local_path.name} succeeded on attempt "
+                    f"{attempt}/{_UPLOAD_ATTEMPTS}",
+                )
+            return
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= _UPLOAD_ATTEMPTS or not _is_transient_winrm_upload_error(exc):
+                raise
+            brief = str(exc).split("(extended fault")[0].strip().rstrip(".")
+            if on_event:
+                on_event(
+                    "WARN",
+                    f"WinRM upload of {local_path.name} failed "
+                    f"(attempt {attempt}/{_UPLOAD_ATTEMPTS}): {brief}; retrying",
+                )
+            log.warning(
+                "transient WinRM upload failure for %s (attempt %s/%s): %s",
+                local_path.name,
+                attempt,
+                _UPLOAD_ATTEMPTS,
+                exc,
+            )
+            time.sleep(5 * attempt)
+    assert last_exc is not None
+    raise last_exc
+
+
 def stage_payload(
     ip: str,
     admin_username: str,
@@ -202,11 +310,13 @@ def stage_payload(
     package_dir: Path,
     payload_rel: str | None,
     guest_package_dir: str,
+    on_event: Callable[[str, str], None] | None = None,
 ) -> list[str]:
     """Copy payload tree contents into ``guest_package_dir`` (no nested os/arch).
 
     Returns relative paths uploaded (posix-style). Empty when there is no payload dir.
     """
+    _ensure_winrm_envelope_size(ip, admin_username, admin_password, on_event=on_event)
     _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
     if not payload_rel:
         return []
@@ -221,7 +331,9 @@ def stage_payload(
             continue
         rel = path.relative_to(src).as_posix()
         remote = str(PureWindowsPath(guest_package_dir).joinpath(*rel.split("/")))
-        _upload_file(ip, admin_username, admin_password, path, remote)
+        if on_event:
+            on_event("INFO", f"Uploading {rel} ({path.stat().st_size} bytes)")
+        _upload_file(ip, admin_username, admin_password, path, remote, on_event=on_event)
         uploaded.append(rel)
     return uploaded
 
@@ -240,26 +352,36 @@ def run_in_package(
     script_rel: str | None = None,
     timeout: int = 600,
 ) -> tuple[int, str]:
-    """Run a command or relative script with cwd = staged package dir."""
+    """Run a package ``command`` or relative ``script`` with cwd = staged package dir.
+
+    Slim transport contract: set location, run the authored snippet, return exit
+    code + output. No installer heuristics, path rewriting, or cmd.exe wrapping.
+    Guest instructions live in ``software.yaml`` (ADR-0025). Reserved path env
+    vars for authors are tracked in #501.
+    """
     pkg = _ps_quote(guest_package_dir)
     if command and script_rel:
         raise ValueError("pass exactly one of command or script_rel")
-    # Never treat a missing $LASTEXITCODE as success: msiexec and other native
-    # tools sometimes leave it $null even after a failed run; defaulting to 0
-    # made truncated payloads look like a successful install.
-    exit_tail = (
-        "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
-        "if (-not $?) { exit 1 }\n"
-        "exit 0\n"
-    )
     if command:
-        body = f"Set-Location -LiteralPath {pkg}\n$LASTEXITCODE = $null\n{command}\n{exit_tail}"
+        body = (
+            f"Set-Location -LiteralPath {pkg}\n"
+            "$LASTEXITCODE = $null\n"
+            f"{command.rstrip()}\n"
+            "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+            "if (-not $?) { exit 1 }\n"
+            "exit 0\n"
+        )
     elif script_rel:
         # Relative path under staged payload; use guest path separators.
         rel = script_rel.replace("/", "\\").lstrip(".\\")
         script_path = _ps_quote(guest_package_dir.rstrip("\\") + "\\" + rel)
         body = (
-            f"Set-Location -LiteralPath {pkg}\n$LASTEXITCODE = $null\n& {script_path}\n{exit_tail}"
+            f"Set-Location -LiteralPath {pkg}\n"
+            "$LASTEXITCODE = $null\n"
+            f"& {script_path}\n"
+            "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+            "if (-not $?) { exit 1 }\n"
+            "exit 0\n"
         )
     else:
         raise ValueError("command or script_rel is required")
@@ -329,6 +451,7 @@ def run_software_entry(
         package_dir=pkg_path,
         payload_rel=payload_rel if (pkg_path / payload_rel).is_dir() else None,
         guest_package_dir=guest_pkg,
+        on_event=emit,
     )
     emit("INFO", f"Staged {len(uploaded)} file(s)")
 
@@ -353,7 +476,7 @@ def run_software_entry(
 
     run_hooks("pre_install", unit.pre_install)
 
-    emit("INFO", "Running install")
+    emit("INFO", f"Running install: {unit.install.command}")
     code, out = run_in_package(
         ip,
         admin_username,
@@ -363,22 +486,18 @@ def run_software_entry(
         timeout=900,
     )
     outputs.append(f"[install exit={code}]\n{out}")
+    emit("INFO", f"Install finished with exit {code}")
     if not _exit_ok(code, unit.install.success_exit_codes):
+        detail = (out or "").strip()
         raise RuntimeError(
             f"install failed with exit {code} (allowed {unit.install.success_exit_codes})"
+            + (f": {detail}" if detail else "")
         )
 
     install_reboot = bool(unit.install.reboot_after)
     if install_reboot:
-        emit("INFO", "Install requested reboot - restarting guest before post_install")
-        provision_lib.restart_guest(ip, admin_username, admin_password)
-        for _ in range(120):
-            time.sleep(5)
-            if check_winrm(ip):
-                emit("INFO", "WinRM reconnected after install reboot")
-                break
-        else:
-            raise RuntimeError("WinRM did not return after install reboot")
+        emit("INFO", "Install requested reboot - waiting for LastBootUpTime change")
+        provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=emit)
 
     run_hooks("post_install", unit.post_install)
 

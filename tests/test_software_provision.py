@@ -34,9 +34,10 @@ def test_stage_payload_uploads_files(tmp_path, monkeypatch):
 
     uploaded: list[tuple[str, str]] = []
 
-    def fake_upload(ip, user, pw, local_path, remote_path):
+    def fake_upload(ip, user, pw, local_path, remote_path, **kwargs):
         uploaded.append((Path(local_path).name, remote_path))
 
+    monkeypatch.setattr(soft_prov, "_ensure_winrm_envelope_size", lambda *a, **k: None)
     monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
     monkeypatch.setattr(soft_prov, "_upload_file", fake_upload)
 
@@ -152,17 +153,28 @@ def test_run_in_package_command_and_script(monkeypatch):
         return 0, "ok"
 
     monkeypatch.setattr(soft_prov, "_run_ps", fake_run_ps)
+    # Slim contract: cwd + authored command (no cmd.exe / Start-Process wrapping)
     code, out = soft_prov.run_in_package(
         "10.0.0.1",
         "a",
         "b",
         guest_package_dir=r"C:\pkg",
-        command="echo hi",
+        command=r"msiexec.exe /i .\foo.msi /qn",
     )
     assert code == 0
-    assert "echo hi" in seen[0]
-    assert "$LASTEXITCODE = $null" in seen[0]
-    assert "exit [int]$LASTEXITCODE" in seen[0]
+    assert "Set-Location" in seen[0]
+    assert r"msiexec.exe /i .\foo.msi /qn" in seen[0]
+    assert "Start-Process" not in seen[0]
+    assert "cmd.exe" not in seen[0]
+    soft_prov.run_in_package(
+        "10.0.0.1",
+        "a",
+        "b",
+        guest_package_dir=r"C:\pkg",
+        command="$pub='Hatchery'; exit 0",
+    )
+    assert "Set-Location" in seen[1]
+    assert "$pub='Hatchery'" in seen[1]
     soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -170,7 +182,9 @@ def test_run_in_package_command_and_script(monkeypatch):
         guest_package_dir=r"C:\pkg",
         script_rel="hooks/pre.ps1",
     )
-    assert "pre.ps1" in seen[1]
+    assert "pre.ps1" in seen[2]
+    assert "& " in seen[2]
+    assert "Set-Location" in seen[2]
 
 
 def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
@@ -205,13 +219,81 @@ def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
     assert sends[-1][1] is True
     assert all(s[0].endswith(b"\r\n") for s in sends)
     assert base64.b64decode(sends[0][0].strip()) == b"abcd"
-    # Receiver script uses EncodedCommand; payload is not in the command line.
-    run_cmd = protocol.run_command.call_args[0][1]
-    assert "powershell -encodedcommand" in run_cmd
-    assert protocol.run_command.call_args.kwargs.get("console_mode_stdin") is False
-    assert "abcdefghij" not in run_cmd
-    assert "FromBase64String" in soft_prov._upload_receiver_script(remote)
+    # powershell.exe + EncodedCommand args; payload not on the command line.
+    assert protocol.open_shell.call_args.kwargs.get("codepage") == 65001
+    run_args = protocol.run_command.call_args
+    assert run_args[0][1] == soft_prov._POWERSHELL_EXE
+    assert "-EncodedCommand" in run_args[0][2]
+    assert run_args.kwargs.get("console_mode_stdin") is False
+    assert run_args.kwargs.get("skip_cmd_shell") is True
+    assert "OpenStandardInput" in soft_prov._upload_receiver_script(remote)
     protocol.close_shell.assert_called_once_with("shell-1")
+
+
+def test_stage_payload_ensures_envelope(tmp_path, monkeypatch):
+    pkg = tmp_path / "Pkg"
+    payload = pkg / "windows" / "x64"
+    payload.mkdir(parents=True)
+    (payload / "a.bin").write_bytes(b"x")
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        soft_prov,
+        "_ensure_winrm_envelope_size",
+        lambda *a, **k: calls.append("envelope"),
+    )
+    monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: calls.append("dir"))
+    monkeypatch.setattr(
+        soft_prov,
+        "_upload_file",
+        lambda *a, **k: calls.append("upload"),
+    )
+    soft_prov.stage_payload(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_dir=pkg,
+        payload_rel="windows/x64",
+        guest_package_dir=r"C:\pkg",
+    )
+    assert calls == ["envelope", "dir", "upload"]
+
+
+def test_upload_retries_transient_pipe_error(tmp_path, monkeypatch):
+    import hashlib
+
+    local = tmp_path / "blob.bin"
+    data = b"abcdefghij"
+    local.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    attempts = {"n": 0}
+    events: list[tuple[str, str]] = []
+
+    def fake_once(*args, **kwargs):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise RuntimeError(
+                "The pipe has been ended. (extended fault data: {'wsmanfault_code': 109})"
+            )
+        return None
+
+    monkeypatch.setattr(soft_prov, "_upload_file_once", fake_once)
+    monkeypatch.setattr(soft_prov.time, "sleep", lambda *_: None)
+    soft_prov._upload_file(
+        "10.0.0.1",
+        "a",
+        "b",
+        local,
+        r"C:\Pkg\blob.bin",
+        on_event=lambda lvl, msg: events.append((lvl, msg)),
+    )
+    assert attempts["n"] == 2
+    assert len(digest) == 64
+    assert events[0][0] == "WARN"
+    assert "attempt 1/3" in events[0][1]
+    assert "retrying" in events[0][1]
+    assert events[1][0] == "INFO"
+    assert "succeeded on attempt 2/3" in events[1][1]
 
 
 def test_upload_rejects_hash_mismatch(tmp_path, monkeypatch):
@@ -262,9 +344,26 @@ def test_upload_empty_file_closes_stdin(tmp_path, monkeypatch):
     soft_prov._upload_file("10.0.0.1", "a", "b", local, r"C:\Pkg\empty.bin")
     protocol.send_command_input.assert_called_once_with("shell-1", "cmd-1", b"", end=True)
     assert protocol.run_command.call_args.kwargs.get("console_mode_stdin") is False
+    assert protocol.run_command.call_args.kwargs.get("skip_cmd_shell") is True
+    assert protocol.open_shell.call_args.kwargs.get("codepage") == 65001
 
 
-def test_remove_guest_package_runs_ps(monkeypatch):
+def test_ensure_winrm_envelope_raises_when_low(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    def fake_run_ps(ip, user, pw, code, timeout=300):
+        assert "MaxEnvelopeSizekb" in code
+        return 0, "raised:500->8192"
+
+    monkeypatch.setattr(soft_prov, "_run_ps", fake_run_ps)
+    soft_prov._ensure_winrm_envelope_size(
+        "10.0.0.1",
+        "a",
+        "b",
+        on_event=lambda lvl, msg: events.append((lvl, msg)),
+    )
+    assert events[0][0] == "INFO"
+    assert "MaxEnvelopeSizekb" in events[0][1]
     calls: list[str] = []
 
     def fake_run_ps(ip, user, pw, code, timeout=300):

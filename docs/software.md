@@ -120,7 +120,22 @@ platforms:
         command: '...'
         success_exit_codes: [0]
       detect:
-        command: 'powershell -NoProfile -Command "..."'   # exit 0 = present
+        # Inline PowerShell (not nested powershell -Command). Exit 0 = present.
+        # Typical Win32 ARP: Publisher + DisplayName + DisplayVersion under Uninstall.
+        command: |
+          $pub='Microsoft'; $name='Visual Studio Code'; $ver='1.96.0'
+          foreach ($root in @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+          )) {
+            Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object {
+              $i = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+              if ($i.Publisher -like $pub -and $i.DisplayName -like $name -and "$($i.DisplayVersion)" -eq $ver) {
+                exit 0
+              }
+            }
+          }
+          exit 1
 ```
 
 | Key | Meaning |
@@ -137,6 +152,7 @@ platforms:
 | `install.reboot_after` | Optional bool; default `false` |
 | Order | Hook array index order; stop the software step on first non-success exit |
 | cwd | `software_package(id)` (same as install) |
+| Runner | Hatchery sets cwd, runs the authored `command`/`script`, waits for exit. No installer-specific rewriting. Reserved guest path env vars: [#501](https://github.com/dustinestes/Hatchery/issues/501) |
 
 There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch keys are rejected. Inventory and the package content API surface load-time validation errors without failing the rail list (missing/invalid YAML still appears as a package).
 
@@ -147,6 +163,19 @@ There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch ke
 <br>
 
 ## Offline payloads
+
+Offline installer trees under `platforms/{os}/{arch}/` are staged into the guest
+`software_package(id)` directory before install hooks run.
+
+**Windows (WinRM today):** Hatchery streams each file over WinRM stdin (not
+`-EncodedCommand` payload bytes). Before staging it raises guest
+`MaxEnvelopeSizekb` to at least 8192 when lower, invokes `powershell.exe` with
+`WINRS_SKIP_CMD_SHELL`, and verifies SHA-256 after transfer. If staging still
+fails with pipe/transport faults on MSI-sized files, treat that as a known WinRM
+limit and use guest SSH file copy when [#497](https://github.com/dustinestes/Hatchery/issues/497)
+lands - do not rely on 1 KiB EncodedCommand append as a product path.
+
+Install and hook commands are relative to that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`.
 
 Controller/Nest stores optional `{os}/{arch}/` trees under the package id (mirrors `platforms` in `software.yaml`). Example:
 
@@ -160,8 +189,6 @@ automation/software/Microsoft.VisualStudioCode.1.96.0/
 ```
 
 On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest arch, or `any` when that unit exists) into the resolved `software_package(id)` path. It does not create nested `windows/` or `x64/` on the guest and does not stage sibling OS or arch trees.
-
-Install and hook commands are relative to that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`.
 
 <br>
 
@@ -250,7 +277,7 @@ Library domain **`software`** (migrated from reserved `packages`). Fresh Control
 
 ## Detection
 
-Detection runs the platform `detect.command` over Controller/Nest remoting (WinRM today; SSH later). Exit 0 means present. There is no in-guest agent daemon and no guest login UI requirement for detect. Hatch skip-if-present and Nest/VM present/missing UI land in child issues.
+Detection runs the platform `detect.command` over Controller/Nest remoting (WinRM today; SSH later) with the same slim contract as install (cwd = package dir; authored snippet; exit 0 = present). Prefer compact ARP scans (Publisher + DisplayName + DisplayVersion) over ProductCode-only checks when the product writes standard Uninstall keys. There is no in-guest agent daemon and no guest login UI requirement for detect. Hatch skip-if-present and Nest/VM present/missing UI land in child issues.
 
 <br>
 

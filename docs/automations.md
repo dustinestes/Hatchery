@@ -70,7 +70,7 @@ All script output (stdout and stderr) is captured and stored per-script in the d
 
 The actual non-zero exit code is stored and shown in the Nests panel, so you can use specific codes (e.g. `exit 2`, `exit 99`) for diagnostic purposes.
 
-If `reboot_after: true` is set for a script, Hatchery reboots the VM after the script succeeds and waits for WinRM to become available again before running the next script. This is required for operations like computer rename that only take effect after a restart.
+If `reboot_after: true` is set for a script, Hatchery reboots the VM after the script succeeds and waits until the guest reports a new `LastBootUpTime` (not merely TCP WinRM) before running the next script. This is required for operations like computer rename that only take effect after a restart.
 
 <br>
 

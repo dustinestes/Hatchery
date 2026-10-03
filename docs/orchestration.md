@@ -152,7 +152,7 @@ The nine steps it executes, in order:
 | Step | Action | Purpose |
 |---|---|---|
 | 1 | `Get-NetConnectionProfile \| Set-NetConnectionProfile -NetworkCategory Private` | Set network profile to Private (required for PSRemoting) |
-| 2 | `Enable-PSRemoting -Force` | Start the WinRM service and configure listeners |
+| 2 | `Enable-PSRemoting -Force` (+ raise `MaxEnvelopeSizekb` to 8192 when lower) | Start the WinRM service and configure listeners; envelope headroom for Software staging |
 | 3 | `New-ItemProperty … LocalAccountTokenFilterPolicy … 1` | Allow non-built-in admin accounts to authenticate over WinRM |
 | 4 | `New-NetFirewallRule … -LocalPort 5985` | Open WinRM HTTP port |
 | 5 | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0` | Install the OpenSSH Server capability |
@@ -223,7 +223,7 @@ If a WinRM connection error occurs (e.g. the VM rebooted unexpectedly), the scri
 
 ### Reboot after
 
-If a script has `reboot_after: true`, Hatchery issues `Restart-Computer -Force` over WinRM after the script succeeds. The WinRM connection drops immediately (this is expected). Hatchery then polls WinRM TCP (`lib.guest_health.check_winrm`) up to 120 times at 5-second intervals (10 minutes maximum) until the VM's WinRM port is reachable again before continuing to the next script.
+If a script has `reboot_after: true`, Hatchery captures the guest's `Win32_OperatingSystem.LastBootUpTime`, issues `Restart-Computer -Force` over WinRM, then polls until WinRM accepts an authenticated probe **and** `LastBootUpTime` differs from the pre-reboot value (`lib.provision.reboot_guest_and_wait`; [#499](https://github.com/dustinestes/Hatchery/issues/499)). After the boot identity changes, Hatchery requires several consecutive successful WinRM probes so the next step does not hit a half-ready remoting stack (common cause of WinRM "pipe has been ended" during Software staging). TCP alone is not enough: the pre-reboot OS often still accepts port 5985 before the restart completes. Timeout is 10 minutes for the boot-identity wait; failure aborts the hatch (no silent continue). Software `install.reboot_after` uses the same helper.
 
 ### Completion
 
