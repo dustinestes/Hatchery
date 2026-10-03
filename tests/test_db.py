@@ -179,7 +179,19 @@ class TestInitDb:
                 "admin_username",
                 "admin_password",
                 "error",
+                "guest_os",
             ]
+        finally:
+            conn.close()
+
+    def test_hatch_vm_scripts_typed_columns(self):
+        conn = db_module.get_connection()
+        try:
+            cols = {
+                r["name"] for r in conn.execute("PRAGMA table_info(hatch_vm_scripts)").fetchall()
+            }
+            assert "entry_type" in cols
+            assert "clean_payload_on_success" in cols
         finally:
             conn.close()
 

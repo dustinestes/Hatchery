@@ -257,6 +257,7 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 | `admin_username` | `TEXT` | | Admin account username configured in the answer file; stored for post-install automation and Nests inventory display |
 | `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation - see [Credential storage](#credential-storage) |
 | `error` | `TEXT` | | Error message if the VM failed to hatch; `NULL` on success |
+| `guest_os` | `TEXT` | | Clutch Guest OS value (`win11`, …) for Software guest path / platform resolution (#474) |
 
 #### Managed by
 
@@ -266,22 +267,24 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 
 ### hatch_vm_scripts
 
-One row per automation script per VM per session. Records the declared scripts at hatch time (before any run) and is updated as each script executes. This allows the Nests panel to display the full script queue immediately after hatching, before provisioning begins.
+One row per typed automation (`script` or `software`) per VM per session (#474). Records the Clutch-ordered list at hatch time and is updated as each step executes so the Nests panel can show the full queue before provisioning begins.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
 | `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
 | `vm_name` | `TEXT` | `NOT NULL` | VM name; kept in sync with `hatch_vm_status.vm_name` |
-| `script_name` | `TEXT` | `NOT NULL` | Filename of the script in `automation/scripts/` |
-| `run_order` | `INTEGER` | `NOT NULL` | Zero-based execution order within this VM's script list |
-| `reboot_after` | `INTEGER` | `NOT NULL DEFAULT 0` | `1` if Hatchery should reboot the VM after this script succeeds |
-| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `running` → `succeeded` or `failed`; `skipped` if a prior script failed |
-| `exit_code` | `INTEGER` | | Exit code returned by the script; `NULL` until the script completes |
-| `output` | `TEXT` | | Combined stdout + stderr from the script run; `NULL` until complete |
-| `parameters` | `TEXT` | | JSON-encoded map of named parameter values passed to this script; `NULL` if no parameters |
+| `script_name` | `TEXT` | `NOT NULL` | Script basename under `automation/scripts/`, or Software package id under `automation/software/` |
+| `run_order` | `INTEGER` | `NOT NULL` | Zero-based execution order within this VM's automation list |
+| `reboot_after` | `INTEGER` | `NOT NULL DEFAULT 0` | `1` if Hatchery should reboot the VM after this step succeeds |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `running` → `succeeded` or `failed`; `skipped` if a prior step failed |
+| `exit_code` | `INTEGER` | | Exit code returned by the step; `NULL` until complete |
+| `output` | `TEXT` | | Combined stdout + stderr; `NULL` until complete |
+| `parameters` | `TEXT` | | JSON map for script parameters; `NULL` for software |
 | `started_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `running` |
 | `completed_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `succeeded`, `failed`, or `skipped` |
+| `entry_type` | `TEXT` | `NOT NULL DEFAULT 'script'` | `script` or `software` |
+| `clean_payload_on_success` | `INTEGER` | `NOT NULL DEFAULT 1` | Software only: remove staged `software_package(id)` after success |
 
 #### Constraints
 

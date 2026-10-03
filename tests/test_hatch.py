@@ -520,11 +520,14 @@ class TestGetVmRecord:
 
 
 class _Script:
-    """Minimal stand-in for AutomationScript in tests."""
+    """Minimal stand-in for AutomationEntry in tests."""
 
-    def __init__(self, name, reboot_after=False):
+    def __init__(self, name, reboot_after=False, type="script", clean_payload_on_success=True):
         self.name = name
         self.reboot_after = reboot_after
+        self.type = type
+        self.clean_payload_on_success = clean_payload_on_success
+        self.parameters = {}
 
 
 class TestAddVmScripts:
@@ -550,6 +553,28 @@ class TestAddVmScripts:
         hatch_lib.add_vm_scripts(sid, "dc01", [_Script("a.ps1", reboot_after=True)])
         rows = hatch_lib.get_vm_scripts(sid, "dc01")
         assert rows[0]["reboot_after"] == 1
+
+    def test_stores_mixed_script_and_software_order(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01", guest_os="win11")
+        hatch_lib.add_vm_scripts(
+            sid,
+            "dc01",
+            [
+                _Script("a.ps1"),
+                _Script("Hatchery.SoftwareExample.1.0.0", type="software"),
+                _Script("b.ps1"),
+            ],
+        )
+        rows = hatch_lib.get_vm_scripts(sid, "dc01")
+        assert [r["script_name"] for r in rows] == [
+            "a.ps1",
+            "Hatchery.SoftwareExample.1.0.0",
+            "b.ps1",
+        ]
+        assert [r["entry_type"] for r in rows] == ["script", "software", "script"]
+        assert rows[1]["clean_payload_on_success"] is True
+        assert hatch_lib.get_vm_record(sid, "dc01")["guest_os"] == "win11"
 
     def test_noop_for_empty_list(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")

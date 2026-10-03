@@ -3032,7 +3032,7 @@ class TestSyncHatchStatus:
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
                                 app_module._sync_hatch_status()
         events = hatch_lib.get_events(sid, "dc01")
-        assert any("no automation scripts" in e["message"].lower() for e in events)
+        assert any("no automations" in e["message"].lower() for e in events)
 
     def test_no_change_when_setup_flag_not_present(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -5405,7 +5405,7 @@ class TestProvisionVmThread:
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "failed"
         assert hatch_lib.get_vm_scripts(sid, "dc01")[0]["exit_code"] == -1
 
-    def test_reboot_after_calls_restart_guest_and_waits_for_winrm(self, tmp_path, monkeypatch):
+    def test_reboot_after_waits_for_last_boot_uptime(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
         import lib.config as cfg
         import hatchery as app_module
@@ -5422,13 +5422,42 @@ class TestProvisionVmThread:
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
 
         with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
-            with patch("lib.hatch_lifecycle.provision_lib.restart_guest") as mock_restart:
-                with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
-                    with patch("lib.hatch_lifecycle.time.sleep"):
-                        app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
 
-        mock_restart.assert_called_once_with("192.168.1.1", "admin", "pass")
+            def fake_reboot(ip, user, pw, **kwargs):
+                on_event = kwargs.get("on_event")
+                if on_event:
+                    on_event(
+                        "INFO",
+                        "Guest reboot confirmed: 2026-09-28T01:03:22+00:00 "
+                        "(LastBootUpTime=134350310025000000)",
+                    )
+                    on_event(
+                        "INFO",
+                        "Waiting for WinRM to stabilize after reboot (3 consecutive probes)",
+                    )
+                    on_event(
+                        "INFO",
+                        "WinRM stable after reboot (3 consecutive probes)",
+                    )
+                return "134350310025000000"
+
+            with patch(
+                "lib.hatch_lifecycle.provision_lib.reboot_guest_and_wait",
+                side_effect=fake_reboot,
+            ) as mock_reboot:
+                app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
+
+        mock_reboot.assert_called_once()
+        assert mock_reboot.call_args.kwargs.get("on_event") is not None
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
+        events = [e["message"] for e in hatch_lib.get_events(sid, "dc01")]
+        assert any(
+            m.startswith("Guest reboot confirmed: 2026-09-28T01:03:22+00:00")
+            and "LastBootUpTime=134350310025000000" in m
+            for m in events
+        )
+        assert any("Waiting for WinRM to stabilize" in m for m in events)
+        assert any("WinRM stable after reboot" in m for m in events)
 
     def test_removes_from_provisioning_set_on_completion(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib

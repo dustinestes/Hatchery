@@ -57,7 +57,7 @@ class TestCollectArtifacts:
             "automation/scripts",
         }
 
-    def test_skips_software_automations_until_hatch_software(self):
+    def test_collects_software_package_dirs(self):
         arts = collect_clutch_artifacts(
             _clutch_with_media(
                 automations=[
@@ -66,8 +66,25 @@ class TestCollectArtifacts:
                 ],
             )
         )
-        assert [a.basename for a in arts if a.kind == "automation/scripts"] == ["setup.ps1"]
-        assert not any("SoftwareExample" in (a.basename or "") for a in arts)
+        by_kind = {}
+        for a in arts:
+            by_kind.setdefault(a.kind, []).append(a.basename)
+        assert by_kind.get("automation/scripts") == ["setup.ps1"]
+        assert by_kind.get("automation/software") == ["Hatchery.SoftwareExample.1.0.0"]
+
+    def test_verify_software_package_directory(self, tmp_path):
+        pkg = tmp_path / "automation" / "software" / "Hatchery.SoftwareExample.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text("hatchery: {}\nplatforms: {}\n", encoding="utf-8")
+        arts = collect_clutch_artifacts(
+            _clutch_with_media(
+                automations=[{"type": "software", "name": "Hatchery.SoftwareExample.1.0.0"}],
+            )
+        )
+        # Drop ISO so we only assert software verify (ISO still required by collect)
+        soft = [a for a in arts if a.kind == "automation/software"]
+        result = verify_local(soft, nest_root=tmp_path)
+        assert result.ok
 
     def test_dedupes_shared_iso_across_vms(self):
         vms = [

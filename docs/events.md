@@ -150,7 +150,13 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 | `ERROR` | `Script failed: <name>.ps1 - Exit Code: <n>` | `<name>.ps1` | Script returned a non-zero exit code |
 | `ERROR` | `Script failed: WinRM connection error - <detail>` | `<name>.ps1` | WinRM connection raised an exception before or during script execution |
 | `INFO` | `Rebooting VM after script: <name>.ps1` | `<name>.ps1` | Script has `reboot_after: true`; guest restart initiated |
-| `INFO` | `WinRM reconnected after reboot` | `<name>.ps1` | WinRM connection re-established after the `reboot_after` restart |
+| `INFO` | `Guest reboot confirmed: <UTC ISO> (LastBootUpTime=<FILETIME>)` | `<name>.ps1` | Guest boot time changed after `reboot_after`; ISO matches event log timestamps ([#499](https://github.com/dustinestes/Hatchery/issues/499)) |
+| `INFO` | `Waiting for WinRM to stabilize after reboot (N consecutive probes)` | `<name>.ps1` | Post-reboot settle before the next automation |
+| `INFO` | `WinRM stable after reboot (N consecutive probes)` | `<name>.ps1` | Settle complete; safe to continue |
+| `WARN` | `WinRM probe failed during settle - resetting stability count…` | `<name>.ps1` | Transient remoting flake during settle |
+| `INFO` | `Raised guest WinRM MaxEnvelopeSizekb for Software staging (…)` | Software id | Guest envelope raised before payload Send |
+| `INFO` | `Install finished with exit N` | Software id | Install command completed (authored ``software.yaml`` exit) |
+| `INFO` | `WinRM upload of <file> succeeded on attempt i/n` | Software id | Staging recovered after a transient fault |
 | `INFO` | `All scripts succeeded - VM is fledged` | null | All scripts completed successfully; VM status set to `fledged` |
 
 When a script fails (non-zero exit code or WinRM error), all remaining scripts in the queue are marked `skipped` and provisioning halts. The VM is set to `failed` state and can be retried from the Nests panel.

@@ -40,15 +40,16 @@ def add_vm(
     vm_name: str,
     admin_username: str | None = None,
     admin_password: str | None = None,
+    guest_os: str | None = None,
 ) -> None:
     """Add a VM to a session in pending state, storing credentials for post-install automation."""
     conn = db.get_connection()
     try:
         conn.execute(
             """INSERT INTO hatch_vm_status
-               (session_id, vm_name, status, admin_username, admin_password)
-               VALUES (?, ?, 'pending', ?, ?)""",
-            (session_id, vm_name, admin_username, admin_password),
+               (session_id, vm_name, status, admin_username, admin_password, guest_os)
+               VALUES (?, ?, 'pending', ?, ?, ?)""",
+            (session_id, vm_name, admin_username, admin_password, guest_os),
         )
         conn.commit()
     finally:
@@ -131,7 +132,8 @@ def get_vm_record(session_id: str, vm_name: str) -> dict | None:
     conn = db.get_connection()
     try:
         row = conn.execute(
-            """SELECT vm_name, status, started_at, fledged_at, admin_username, admin_password
+            """SELECT vm_name, status, started_at, fledged_at, admin_username, admin_password,
+                      guest_os
                FROM hatch_vm_status WHERE session_id=? AND vm_name=?""",
             (session_id, vm_name),
         ).fetchone()
@@ -219,30 +221,35 @@ def archive_if_terminal(session_id: str) -> dict | None:
 
 
 def add_vm_scripts(session_id: str, vm_name: str, scripts: list) -> None:
-    """Record declared script automations for a VM at hatch time.
+    """Record declared automations (script|software) for a VM at hatch time.
 
-    Each typed ``script`` entry is stored as a pending row in run_order. Software
-    entries are not inserted here (hatch Software steps: #474). Called before the
-    VM is created so the Nests panel can show the script list after hatching.
+    Every typed Clutch entry is stored in Clutch ``run_order`` so the Nest detail
+    pane and provision walk keep mixed lists intact (#474).
     """
     if not scripts:
         return
     conn = db.get_connection()
     try:
         for i, script in enumerate(scripts):
-            if getattr(script, "type", "script") != "script":
-                continue
+            entry_type = getattr(script, "type", None) or "script"
+            if entry_type not in ("script", "software"):
+                entry_type = "script"
+            clean = getattr(script, "clean_payload_on_success", True)
+            params = getattr(script, "parameters", None) if entry_type == "script" else None
             conn.execute(
                 """INSERT INTO hatch_vm_scripts
-                   (session_id, vm_name, script_name, run_order, reboot_after, parameters, status)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
+                   (session_id, vm_name, script_name, run_order, reboot_after, parameters,
+                    status, entry_type, clean_payload_on_success)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
                 (
                     session_id,
                     vm_name,
                     script.name,
                     i,
                     int(script.reboot_after),
-                    json.dumps(p) if (p := getattr(script, "parameters", None)) else None,
+                    json.dumps(params) if params else None,
+                    entry_type,
+                    1 if clean else 0,
                 ),
             )
         conn.commit()
@@ -251,12 +258,12 @@ def add_vm_scripts(session_id: str, vm_name: str, scripts: list) -> None:
 
 
 def get_vm_scripts(session_id: str, vm_name: str) -> list[dict]:
-    """Return all script rows for a VM in run_order, newest-first within the session."""
+    """Return all automation rows for a VM in run_order."""
     conn = db.get_connection()
     try:
         rows = conn.execute(
             """SELECT script_name, run_order, reboot_after, status, exit_code, output,
-                      parameters, started_at, completed_at
+                      parameters, started_at, completed_at, entry_type, clean_payload_on_success
                FROM hatch_vm_scripts WHERE session_id=? AND vm_name=?
                ORDER BY run_order""",
             (session_id, vm_name),
@@ -265,6 +272,8 @@ def get_vm_scripts(session_id: str, vm_name: str) -> list[dict]:
         for r in rows:
             row = dict(r)
             row["parameters"] = json.loads(row["parameters"]) if row["parameters"] else {}
+            row["entry_type"] = row.get("entry_type") or "script"
+            row["clean_payload_on_success"] = bool(row.get("clean_payload_on_success", 1))
             result.append(row)
         return result
     finally:
