@@ -19,20 +19,81 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def create_session(clutch_file: str, clutch_name: str, nest: str = "local") -> str:
-    """Insert a new hatch session and return its ID."""
+def create_session(
+    clutch_file: str,
+    clutch_name: str,
+    nest: str = "local",
+    *,
+    clutch_snapshot: str | None = None,
+) -> str:
+    """Insert a new hatch session and return its ID.
+
+    ``clutch_snapshot`` is optional JSON of the Clutch at hatch start (#514).
+    When set, mid-hatch edits to the live Clutch file must not affect this session.
+    """
     session_id = str(uuid.uuid4())
     conn = db.get_connection()
     try:
         conn.execute(
-            """INSERT INTO hatch_sessions (id, nest, clutch_file, clutch_name, hatched_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (session_id, nest, clutch_file, clutch_name, _now()),
+            """INSERT INTO hatch_sessions
+               (id, nest, clutch_file, clutch_name, hatched_at, clutch_snapshot)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (session_id, nest, clutch_file, clutch_name, _now(), clutch_snapshot),
         )
         conn.commit()
     finally:
         conn.close()
     return session_id
+
+
+def set_session_clutch_snapshot(session_id: str, clutch_snapshot: str) -> None:
+    """Store or replace the immutable Clutch JSON snapshot for a session (#514)."""
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "UPDATE hatch_sessions SET clutch_snapshot=? WHERE id=?",
+            (clutch_snapshot, session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clutch_snapshot_json(clutch_obj) -> str:
+    """Serialize a Clutch model to JSON for ``hatch_sessions.clutch_snapshot``."""
+    return json.dumps(clutch_obj.model_dump(mode="json"), separators=(",", ":"))
+
+
+def load_session_clutch(session_id: str):
+    """Return the Clutch frozen at hatch start, or None if missing/invalid.
+
+    Prefer this over re-reading the live Clutch YAML during an active hatch (#514).
+    """
+    from lib.clutch import Clutch
+
+    session = get_session(session_id) or {}
+    raw = session.get("clutch_snapshot")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    try:
+        return Clutch.model_validate(data)
+    except Exception:
+        return None
+
+
+def load_session_vm_config(session_id: str, vm_name: str):
+    """Return the snapshotted VMConfig for ``vm_name``, or None."""
+    clutch = load_session_clutch(session_id)
+    if clutch is None:
+        return None
+    for vm in clutch.vms:
+        if vm.name == vm_name:
+            return vm
+    return None
 
 
 def add_vm(

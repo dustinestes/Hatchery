@@ -61,6 +61,64 @@ class TestCreateSession:
         sid2 = hatch_lib.create_session("lab.yaml", "Lab")
         assert sid1 != sid2
 
+    def test_stores_clutch_snapshot(self):
+        from lib.clutch import Clutch, VMConfig
+
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="windows",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    environment={"KEEP_ME": "1"},
+                )
+            ],
+        )
+        snap = hatch_lib.clutch_snapshot_json(clutch)
+        sid = hatch_lib.create_session("lab.yaml", "Lab", clutch_snapshot=snap)
+        row = hatch_lib.get_session(sid)
+        assert row["clutch_snapshot"] == snap
+        loaded = hatch_lib.load_session_clutch(sid)
+        assert loaded is not None
+        assert loaded.vms[0].environment_as_process_map() == {"KEEP_ME": "1"}
+        assert hatch_lib.load_session_vm_config(sid, "dc01").name == "dc01"
+        assert hatch_lib.load_session_vm_config(sid, "missing") is None
+
+    def test_create_and_start_hatch_stores_snapshot(self, monkeypatch):
+        from lib.clutch import Clutch, VMConfig
+        import lib.hatch_lifecycle as lifecycle
+
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="windows",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    environment={"KEEP_ME": "1"},
+                )
+            ],
+        )
+        monkeypatch.setattr(lifecycle, "run_hatch_session", lambda *a, **k: None)
+        sid = lifecycle.create_and_start_hatch(
+            clutch_file="lab.yaml",
+            clutch_obj=clutch,
+            nest_id="local",
+            passwords={"dc01": "pass"},
+            background=False,
+        )
+        row = hatch_lib.get_session(sid)
+        assert row["clutch_snapshot"]
+        loaded = hatch_lib.load_session_clutch(sid)
+        assert loaded.vms[0].environment_as_process_map() == {"KEEP_ME": "1"}
+
 
 # ── add_vm ────────────────────────────────────────────────────────────────────
 

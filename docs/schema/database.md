@@ -234,6 +234,7 @@ One row per Clutch hatch initiated by the user. Groups the VMs hatched together 
 | `hatched_at` | `TEXT` | `NOT NULL` | ISO 8601 timestamp (UTC) when the session was initiated |
 | `completed_at` | `TEXT` | | Set when all VMs in the session reach `fledged`; `NULL` otherwise |
 | `archived_at` | `TEXT` | | Set when the session is auto-archived or manually dismissed; archived sessions are excluded from the active Nests view. Archiving also deletes child rows (`hatch_events`, `hatch_vm_scripts`, `hatch_vm_status`) for the session |
+| `clutch_snapshot` | `TEXT` | | JSON of the resolved Clutch at hatch start (#514). Mid-hatch edits to the live Clutch file must not change this session; Nest details and provision prefer the snapshot when present |
 
 #### Managed by
 

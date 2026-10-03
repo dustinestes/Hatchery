@@ -50,6 +50,72 @@ def test_list_enriched_vms_marks_hatchery_sourced(client):
     assert "resources" not in by_name["hatched"]
 
 
+def test_list_enriched_vms_prefers_clutch_snapshot(client, tmp_path, monkeypatch):
+    """Nest details use hatch-start snapshot, not a mid-hatch live edit (#514)."""
+    from lib import hatch as hatch_lib
+    from lib import clutch as clutch_lib
+    from lib import vm_inventory as inv
+    from lib.clutch import Clutch, VMConfig
+
+    monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+    clutches = tmp_path / "clutches"
+    clutches.mkdir(parents=True)
+    original = Clutch(
+        name="Lab",
+        vms=[
+            VMConfig(
+                name="dc01",
+                os="windows",
+                vcpus=2,
+                ram_gb=4,
+                disk_gb=40,
+                os_media="win.iso",
+                firmware="uefi",
+                tpm=True,
+                environment={"KEEP_ME": "1"},
+            )
+        ],
+    )
+    clutch_lib.save(original, clutches / "lab.yaml")
+    sid = hatch_lib.create_session(
+        "lab.yaml",
+        "Lab",
+        clutch_snapshot=hatch_lib.clutch_snapshot_json(original),
+    )
+    hatch_lib.add_vm(sid, "dc01", guest_os="windows")
+
+    edited = Clutch(
+        name="Lab",
+        vms=[
+            VMConfig(
+                name="dc01",
+                os="windows",
+                vcpus=2,
+                ram_gb=4,
+                disk_gb=40,
+                os_media="win.iso",
+                firmware="bios",
+                tpm=False,
+                environment={},
+            )
+        ],
+    )
+    clutch_lib.save(edited, clutches / "lab.yaml")
+
+    prov = MagicMock()
+    prov.list_vms.return_value = [{"name": "dc01", "status": "running"}]
+    prov.get_vm_ip.return_value = None
+    prov.get_vm_session_tag.return_value = {"session_id": sid, "clutch_file": "lab.yaml"}
+
+    with patch("lib.vm_inventory.get_provider", return_value=prov):
+        rows = inv.list_enriched_vms("local")
+    row = rows[0]
+    env_names = {e["name"] for e in row["environment"]}
+    assert "KEEP_ME" in env_names
+    assert row["firmware"] == "uefi"
+    assert row["tpm"] is True
+
+
 def test_filter_external():
     from lib import vm_inventory as inv
 

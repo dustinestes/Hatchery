@@ -203,6 +203,10 @@ If you want to remove all Hatchery artifacts from the guest after provisioning c
 
 Once the setup-complete handoff occurs, Hatchery transitions the VM to `provisioning` and spawns a dedicated thread (`_provision_vm_thread`) to run the automation scripts.
 
+### Clutch snapshot at hatch start
+
+When a hatch session is created, Hatchery stores an immutable JSON copy of the Clutch on `hatch_sessions.clutch_snapshot` (#514). Automations were already copied into session DB rows; env persist, job inject, and Nest details for that session also read the snapshot. Editing the Clutch YAML (Build/Edit) during an active hatch affects only the **next** hatch, not the in-flight session. Legacy sessions without a snapshot still fall back to the live file.
+
 ### Guest environment persist (Windows)
 
 Before the first automation runs, Hatchery persists reserved base Machine env vars (`HATCHERY_ROOT`, `HATCHERY_LOGS`, `HATCHERY_TEMP`, `HATCHERY_SOFTWARE`) plus Clutch user entries with `persist: true` (scope/mode per entry). Software-scoped vars stay job-only. Persist failure fails the hatch. Hatch events log the plan (`Persist: NAME → Machine|User (…)`) and a completion line before automations start. Each Script/Software job also gets process inject of reserved + Clutch vars for that job. See [ADR-0026](adr/0026-guest-clutch-environment.md).

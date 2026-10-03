@@ -170,10 +170,18 @@ def _reboot_guest_after_automation(
 
 
 def _clutch_vm_for_session(session_id: str, vm_name: str):
-    """Load the Clutch VMConfig for a hatch session VM, or None."""
+    """Load the Clutch VMConfig for a hatch session VM, or None.
+
+    Prefers the session ``clutch_snapshot`` frozen at hatch start (#514). Falls
+    back to the live Clutch file only for legacy sessions without a snapshot.
+    """
     from pathlib import Path
 
     from lib import clutch as clutch_lib
+
+    snap_vm = hatch_lib.load_session_vm_config(session_id, vm_name)
+    if snap_vm is not None:
+        return snap_vm
 
     session = hatch_lib.get_session(session_id) or {}
     clutch_file = (session.get("clutch_file") or "").strip()
@@ -667,7 +675,12 @@ def create_and_start_hatch(
     When ``background`` is True, create runs on a daemon thread (UI). When
     False, create runs inline (CLI) before the caller polls for fledged.
     """
-    session_id = hatch_lib.create_session(clutch_file, clutch_obj.name, nest=nest_id)
+    session_id = hatch_lib.create_session(
+        clutch_file,
+        clutch_obj.name,
+        nest=nest_id,
+        clutch_snapshot=hatch_lib.clutch_snapshot_json(clutch_obj),
+    )
     for vm in clutch_obj.vms:
         hatch_lib.add_vm(
             session_id,

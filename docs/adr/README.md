@@ -72,6 +72,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0025](0025-software-product-model.md) | Software product model (post-boot packages) | Accepted |
 | [0026](0026-guest-clutch-environment.md) | Guest and Clutch environment variables for hatch jobs | Accepted |
 | [0027](0027-clutch-guest-os-family-firmware-tpm.md) | Clutch Guest OS is family + explicit firmware/TPM | Accepted |
+| [0028](0028-hatch-session-clutch-snapshot.md) | Hatch session Clutch snapshot (ignore mid-hatch edits) | Accepted |
 
 <br>
 
