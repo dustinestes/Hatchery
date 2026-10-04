@@ -132,14 +132,13 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 ## Remote Nest SSH (quick start)
 
-Hatchery talks to remote Nests as an **SSH client**. Keys stay on the Hatchery host; Nests trust Hatchery’s public key.
+Hatchery talks to remote Nests as an **SSH client**. Private keys stay on the Controller (remoting identities catalog); Nests trust the matching **public** key.
 
-1. Create (or reuse) an OpenSSH key pair on the machine running Hatchery
-2. Install the **public** key in the Nest’s `authorized_keys` (or equivalent)
-3. Settings → **Nests** → add a remote Nest → set **Identity file** to the private key path (e.g. `~/.ssh/id_ed25519`)
-4. Use **Test Nest connection**
+1. Settings → **Security** → copy the Hatchery remoting identity **public** key (or `hatchery remoting-identity show hatchery`)
+2. On the Nest: authorize that pubkey and enable the Nest hypervisor (Windows Hyper-V Library scripts: [`authorize-hatchery-nest-ssh-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/authorize-hatchery-nest-ssh-windows.ps1) + [`enable-hyperv-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-hyperv-windows.ps1))
+3. **Nests → Connections** → add a remote Nest → bind the same remoting identity → **Test Nest connection**
 
-Best effort today: Hatchery stores **paths only** (never private key bytes). WinRM Nest passwords are entered for tests only and not persisted. Deeper setup and troubleshooting → [#260](https://github.com/dustinestes/Hatchery/issues/260).
+Full steps and paste-ready snippets → [Getting Started - Add a Remote Nest](docs/getting-started.md#add-a-remote-nest). Trust model and troubleshooting → [Nest SSH](docs/nest-ssh.md).
 
 ---
 
