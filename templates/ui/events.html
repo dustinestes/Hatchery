@@ -125,14 +125,17 @@
 
   function renderRows(events) {
     tbody.textContent = '';
-    if (!events.length) {
+    const ordered = (events || []).slice().sort(function (a, b) {
+      return (b.id || 0) - (a.id || 0);
+    });
+    if (!ordered.length) {
       table.hidden = true;
       empty.hidden = false;
       return;
     }
     empty.hidden = true;
     table.hidden = false;
-    events.forEach(function (ev) {
+    ordered.forEach(function (ev) {
       const level = String(ev.level || 'INFO');
       const tr = document.createElement('tr');
       tr.setAttribute('data-event-id', String(ev.id));

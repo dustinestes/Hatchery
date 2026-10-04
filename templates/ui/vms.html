@@ -93,6 +93,14 @@
     return 'other';
   }
 
+  function powerDotClass(status) {
+    const bucket = powerBucket(status);
+    if (bucket === 'running') return 'nest-status-dot--green';
+    if (bucket === 'paused') return 'nest-status-dot--amber';
+    if (bucket === 'shut off') return 'nest-status-dot--muted';
+    return 'nest-status-dot--red';
+  }
+
   function currentFilters() {
     return {
       q: (filterQ.value || '').trim().toLowerCase(),
@@ -146,11 +154,15 @@
       const power = POWER_LABEL[vm.status] || (vm.status || 'Unknown');
       const href = '/vms/' + encodeURIComponent(vm.nest || '') + '/' + encodeURIComponent(vm.name || '');
       const external = vm.hatchery_sourced ? '' : ' · External';
+      const dot = powerDotClass(vm.status);
       li.innerHTML =
         '<a class="inventory-tile" href="' + esc(href) + '"' +
         ' title="' + esc(vm.name) + '"' +
         ' aria-label="' + esc(vm.name) + ' on ' + esc(vm.nest) + ', ' + esc(power) + esc(external) + '">' +
-        '<span class="inventory-tile-title">' + esc(vm.name) + '</span>' +
+        '<span class="inventory-tile-header">' +
+          '<span class="inventory-tile-title">' + esc(vm.name) + '</span>' +
+          '<span class="nest-status-dot ' + dot + '" title="' + esc(power) + '" aria-label="' + esc(power) + '"></span>' +
+        '</span>' +
         '<span class="inventory-tile-meta">' + esc(vm.nest) + ' · ' + esc(power) + '</span>' +
         '<span class="inventory-tile-meta">' +
           esc(vm.hatch_status || '—') +

@@ -600,11 +600,14 @@ def nests_detail(nest_id: str):
     nest = dict(nest)
     nest["reachability_label"] = nr.nest_reachability_label(nest["id"])
     nest["reachability_dot"] = nr.nest_dot_class(nest["id"])
+    snap_entry = (nr.get_snapshot().get("nests") or {}).get(nest["id"]) or {}
+    last_checked = snap_entry.get("checked_at") if isinstance(snap_entry, dict) else None
     return render_template(
         "nests_detail.html",
         active_pane="nests_detail",
         page_title=nest["name"],
         nest=nest,
+        last_checked_at=last_checked if isinstance(last_checked, str) else None,
     )
 
 
@@ -2439,7 +2442,7 @@ def hatch_clutch_post():
         background=True,
     )
 
-    return redirect(url_for("nests"))
+    return redirect(url_for("vms_pane"))
 
 
 # ── Clutch builder ───────────────────────────────────────────────────────────

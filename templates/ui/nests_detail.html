@@ -5,44 +5,86 @@
 {% block content_classes %} content--sticky-detail{% endblock %}
 
 {% block content %}
-<div class="sticky-detail-shell" id="nest-detail"
+<div class="sticky-detail-shell detail-tile-stack" id="nest-detail"
      data-nest-id="{{ nest.id }}"
      data-nest-name="{{ nest.name }}">
-  {% from "_inventory_toolbar.html" import inventory_toolbar %}
-  {% call inventory_toolbar(nest.name) %}{% endcall %}
 
-  <div class="scripts-detail">
-    <dl class="scripts-meta-list" id="nest-detail-meta">
-      <div class="scripts-meta-row"><dt>Nest id</dt><dd><code>{{ nest.id }}</code></dd></div>
-      <div class="scripts-meta-row"><dt>Location</dt><dd>{{ nest.location }}</dd></div>
-      <div class="scripts-meta-row"><dt>Provider</dt><dd>{{ nest.provider_type }}</dd></div>
-      {% if nest.host %}
-      <div class="scripts-meta-row"><dt>Host</dt><dd>{{ nest.host }}{% if nest.port %}:{{ nest.port }}{% endif %}</dd></div>
-      {% endif %}
-      <div class="scripts-meta-row"><dt>Transport</dt><dd>{{ nest.transport or '—' }}</dd></div>
-      <div class="scripts-meta-row">
-        <dt>Reachability</dt>
-        <dd>
+  <section class="detail-hero-tile" aria-labelledby="nest-detail-name">
+    <div class="detail-hero-header">
+      <div class="detail-hero-title-wrap">
+        <h2 class="detail-hero-title" id="nest-detail-name">{{ nest.name }}</h2>
+        <span class="detail-hero-cues" id="nest-detail-cues">
           <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
-          {{ nest.reachability_label }}
-        </dd>
+          <span class="hatch-status-badge">{{ nest.reachability_label }}</span>
+        </span>
       </div>
-    </dl>
-
-    <div class="vms-lifecycle-actions" style="margin-top: 12px">
-      <button type="button" class="btn btn-secondary btn-sm" id="nest-test-connection">Test Nest connection</button>
-      <p class="library-browser-status" id="nest-test-status" role="status" aria-live="polite"></p>
+      <p class="detail-hero-validated" id="nest-health-validated" aria-live="polite">
+        {% if last_checked_at %}
+        Last checked: <time datetime="{{ last_checked_at }}">{{ last_checked_at }}</time>
+        {% else %}
+        Last checked: not yet
+        {% endif %}
+      </p>
+      <div class="detail-hero-actions" role="toolbar" aria-label="Nest actions">
+        <button type="button" class="detail-hero-action" id="nest-test-connection"
+                title="Test Nest connection" aria-label="Test Nest connection">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </button>
+      </div>
     </div>
+    <div class="detail-hero-body">
+      <div class="vm-row-fields" id="nest-detail-fields">
+        <div class="vm-field">
+          <span class="vm-field-label">Nest id</span>
+          <span class="vm-field-value"><code>{{ nest.id }}</code></span>
+        </div>
+        <div class="vm-field">
+          <span class="vm-field-label">Location</span>
+          <span class="vm-field-value">{{ nest.location }}</span>
+        </div>
+        <div class="vm-field">
+          <span class="vm-field-label">Provider</span>
+          <span class="vm-field-value">{{ nest.provider_type }}</span>
+        </div>
+        {% if nest.host %}
+        <div class="vm-field">
+          <span class="vm-field-label">Host</span>
+          <span class="vm-field-value">{{ nest.host }}{% if nest.port %}:{{ nest.port }}{% endif %}</span>
+        </div>
+        {% endif %}
+        <div class="vm-field">
+          <span class="vm-field-label">Transport</span>
+          <span class="vm-field-value">{% if nest.transport %}{{ nest.transport }}{% else %}<span class="vm-field-muted">—</span>{% endif %}</span>
+        </div>
+        <div class="vm-field">
+          <span class="vm-field-label">Reachability</span>
+          <span class="vm-field-value">
+            <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
+            {{ nest.reachability_label }}
+          </span>
+        </div>
+        <div class="vm-field">
+          <span class="vm-field-label">VMs</span>
+          <span class="vm-field-value" id="nest-vm-count">…</span>
+        </div>
+        <div class="vm-field">
+          <span class="vm-field-label">Active sessions</span>
+          <span class="vm-field-value" id="nest-session-count">…</span>
+        </div>
+      </div>
+      <div class="vm-detail-health" id="nest-test-status" role="status" aria-live="polite"></div>
+    </div>
+  </section>
 
-    <section class="vm-detail-snaps" aria-labelledby="nest-rollups-heading" style="margin-top: 1.5rem">
-      <h2 class="scripts-section-title" id="nest-rollups-heading">Rollups</h2>
-      <dl class="scripts-meta-list">
-        <div class="scripts-meta-row"><dt>VMs on Nest</dt><dd id="nest-vm-count">…</dd></div>
-        <div class="scripts-meta-row"><dt>Active hatch sessions</dt><dd id="nest-session-count">…</dd></div>
-      </dl>
-      <ul class="vm-snap-list" id="nest-session-list" aria-label="Active hatch sessions"></ul>
-    </section>
-  </div>
+  <section class="detail-section-tile" aria-labelledby="nest-sessions-heading">
+    <div class="detail-section-header">
+      <h2 class="scripts-section-title" id="nest-sessions-heading">Hatch sessions</h2>
+    </div>
+    <div id="nest-sessions-body"></div>
+  </section>
 </div>
 {% endblock %}
 
@@ -54,9 +96,11 @@
   const nestName = root.dataset.nestName || nestId;
   const testBtn = document.getElementById('nest-test-connection');
   const testStatus = document.getElementById('nest-test-status');
+  const validated = document.getElementById('nest-health-validated');
   const vmCount = document.getElementById('nest-vm-count');
   const sessionCount = document.getElementById('nest-session-count');
-  const sessionList = document.getElementById('nest-session-list');
+  const sessionsBody = document.getElementById('nest-sessions-body');
+  let resolvedTimezone = 'UTC';
 
   if (window.hatchery && hatchery.stickyNav) {
     hatchery.stickyNav.open({
@@ -75,6 +119,69 @@
     );
   }
 
+  function fmtChecked(iso) {
+    if (!iso) return 'Last checked: not yet';
+    try {
+      const stamp = new Intl.DateTimeFormat(undefined, {
+        timeZone: resolvedTimezone,
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date(iso));
+      return 'Last checked: ' + stamp;
+    } catch (e) {
+      return 'Last checked: ' + new Date(iso).toLocaleString();
+    }
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        timeZone: resolvedTimezone,
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(iso));
+    } catch (e) {
+      return new Date(iso).toLocaleString();
+    }
+  }
+
+  function renderSessions(list) {
+    if (!list.length) {
+      sessionsBody.innerHTML =
+        '<p class="detail-section-empty" role="status">No active hatch sessions on this Nest.</p>';
+      return;
+    }
+    const rows = list.map(function (s) {
+      const vmNames = (s.vms || []).map(function (v) { return v.vm_name; }).join(', ') || '—';
+      const sid = (s.id || '').slice(0, 8) || '—';
+      return '<div class="script-row nest-session-row">' +
+        '<span class="script-col-name" title="' + esc(s.id || '') + '">' +
+          esc(s.clutch_name || s.clutch_file || sid) + '</span>' +
+        '<span class="script-col-status">' + esc(s.status || '—') + '</span>' +
+        '<span class="script-col-last-output" title="' + esc(vmNames) + '">' + esc(vmNames) + '</span>' +
+        '<span class="script-col-elapsed">' + esc(fmtTime(s.hatched_at)) + '</span>' +
+        '<span class="script-col-exit" title="' + esc(s.id || '') + '">' + esc(sid) + '</span>' +
+        '</div>';
+    }).join('');
+    sessionsBody.innerHTML =
+      '<div class="script-cols-header nest-session-cols">' +
+      '<span>Clutch</span><span>Status</span><span>VMs</span><span>Hatched</span><span>Session</span>' +
+      '</div>' + rows;
+  }
+
+  if (validated) {
+    const existing = validated.querySelector('time');
+    if (existing && existing.getAttribute('datetime')) {
+      validated.textContent = fmtChecked(existing.getAttribute('datetime'));
+    }
+  }
+
   async function loadRollups() {
     try {
       const [vmsResp, sessResp] = await Promise.all([
@@ -83,7 +190,7 @@
       ]);
       const vmsBody = await vmsResp.json().catch(() => ({}));
       if (vmsResp.ok) {
-        const vms = vmsBody.vms || [];
+        const vms = Array.isArray(vmsBody) ? vmsBody : (vmsBody.vms || []);
         vmCount.textContent = String(vms.length);
       } else {
         vmCount.textContent = vmsBody.error || 'Unavailable';
@@ -91,21 +198,12 @@
       const sessions = sessResp.ok ? (await sessResp.json()) : [];
       const list = Array.isArray(sessions) ? sessions : [];
       sessionCount.textContent = String(list.length);
-      if (!list.length) {
-        sessionList.innerHTML = '<li>No active hatch sessions</li>';
-        return;
-      }
-      sessionList.innerHTML = list.map(function (s) {
-        const vmNames = (s.vms || []).map(function (v) { return v.vm_name; }).join(', ');
-        return '<li class="vm-snap-item"><span class="vm-snap-label">' +
-          esc(s.clutch_name || s.clutch_file || s.id) +
-          ' · ' + esc(s.status || '—') +
-          (vmNames ? ' · ' + esc(vmNames) : '') +
-          '</span></li>';
-      }).join('');
+      renderSessions(list);
     } catch (e) {
       vmCount.textContent = 'Unavailable';
       sessionCount.textContent = 'Unavailable';
+      sessionsBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Unable to load hatch sessions.</p>';
     }
   }
 
@@ -118,8 +216,10 @@
         body: JSON.stringify({ nest_id: nestId }),
       });
       const body = await resp.json().catch(() => ({}));
+      const checkedAt = new Date().toISOString();
+      if (validated) validated.textContent = fmtChecked(checkedAt);
       if (!resp.ok) {
-        testStatus.textContent = body.error || 'Connection test failed';
+        testStatus.textContent = body.message || body.error || 'Connection test failed';
         return;
       }
       testStatus.textContent = body.message || (body.ok ? 'Reachable' : 'Unreachable');
@@ -128,8 +228,22 @@
     }
   });
 
-  loadRollups();
-  setInterval(loadRollups, 10000);
+  fetch('/api/config')
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      if (cfg && cfg.resolved_timezone) resolvedTimezone = cfg.resolved_timezone;
+      if (validated) {
+        const existing = validated.querySelector('time');
+        if (existing && existing.getAttribute('datetime')) {
+          validated.textContent = fmtChecked(existing.getAttribute('datetime'));
+        }
+      }
+    })
+    .catch(function () {})
+    .finally(function () {
+      loadRollups();
+      setInterval(loadRollups, 10000);
+    });
 })();
 </script>
 {% endblock %}

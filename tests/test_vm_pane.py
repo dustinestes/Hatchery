@@ -259,15 +259,43 @@ def test_vms_detail_markers(client):
     assert 'data-vm-action="destroy"' in html
     assert 'aria-label="Destroy"' in html
     assert 'btn btn-ghost btn-sm">Inventory' not in html
-    assert 'id="vms-content-header"' in html
+    assert "detail-hero-tile" in html
+    assert "detail-section-tile" in html
     assert "vms-lifecycle-actions" in html
-    assert "inventory-toolbar" in html
+    assert 'id="vms-health-validated"' in html
+    assert 'id="vms-guest-health-fields"' in html
+    assert "Guest Health" in html
+    assert "Health check: not yet" in html
+    assert 'id="vms-detail-cues"' in html
+    assert 'id="vms-detail-fields"' in html
+    assert 'id="vms-env-section"' in html
+    assert 'id="vms-scripts-section"' in html
+    assert 'id="vms-software-section"' in html
+    assert 'id="vms-scripts-retry-btn"' in html
+    assert 'id="vms-software-add-btn"' in html
+    assert 'id="vms-software-retry-btn"' in html
+    assert "detail-hero-action" in html
+    assert "External VM (not Hatchery-sourced)" in html
     assert 'id="vms-modal-backdrop"' in html
     assert "vms-scoped-events" in html or "vm-scoped-events" in html
+    assert 'id="vms-events-filter-q"' in html
+    assert 'id="vms-events-filter-level"' in html
+    assert 'id="vms-events-filter-scope"' in html
+    assert 'id="vms-events-filter-vm"' not in html
+    assert "detail-section-header" in html
     assert "Notifications → Events" not in html
     assert "syncLifecycleButtons" in html
     assert "content--sticky-detail" in html
     assert "sticky_nav.js" in html
+
+
+def test_inventory_tiles_status_dot_right(client):
+    nests_html = client.get("/nests").get_data(as_text=True)
+    assert "inventory-tile-header" in nests_html
+    assert "nest-status-dot" in nests_html
+    vms_html = client.get("/vms").get_data(as_text=True)
+    assert "powerDotClass" in vms_html
+    assert "inventory-tile-header" in vms_html
 
 
 def test_nests_pane_inventory_chrome(client):
@@ -292,8 +320,18 @@ def test_nests_detail_markers(client):
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert "content--sticky-detail" in html
-    assert "Test Nest connection" in html
-    assert "Rollups" in html
+    assert "detail-hero-tile" in html
+    assert "detail-hero-title-wrap" in html
+    assert 'id="nest-detail-fields"' in html
+    assert "vm-row-fields" in html
+    assert "detail-section-header" in html
+    assert "detail-section-tile" in html
+    assert 'aria-label="Test Nest connection"' in html
+    assert "Last checked:" in html
+    assert "Hatch sessions" in html
+    assert 'id="nest-sessions-body"' in html
+    assert 'id="nest-vm-count"' in html
+    assert 'id="nest-session-count"' in html
 
 
 def test_settings_display_has_external_vms_toggle(client):

@@ -2619,7 +2619,7 @@ class TestHatchClutchRoute:
         assert "Answer File is required" in resp.data.decode()
         mock_run.assert_not_called()
 
-    def test_post_creates_session_and_redirects_to_nests(self, client, tmp_path, monkeypatch):
+    def test_post_creates_session_and_redirects_to_vms(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="my-lab", vm_name="dc01")
         with patch("lib.hatch_lifecycle.run_hatch_session"):
@@ -2627,7 +2627,7 @@ class TestHatchClutchRoute:
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/nests")
+        assert resp.headers["Location"].endswith("/vms")
 
     def test_post_creates_session_with_vms_pending(self, client, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -2652,7 +2652,7 @@ class TestHatchClutchRoute:
                 "/hatch-clutch", data={"clutch_file": "my-lab.yaml"}, follow_redirects=False
             )
         assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/nests")
+        assert resp.headers["Location"].endswith("/vms")
 
 
 class TestRunHatchSession:

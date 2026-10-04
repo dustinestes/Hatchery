@@ -57,9 +57,11 @@
          href="{{ url_for('nests_detail', nest_id=nest.id) }}"
          title="{{ nest.name }} ({{ nest.id }})"
          aria-label="{{ nest.name }} ({{ nest.id }}, {{ nest.location }} {{ nest.provider_type }}, {{ nest.reachability_label }})">
-        <span class="inventory-tile-row">
-          <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
+        <span class="inventory-tile-header">
           <span class="inventory-tile-title">{{ nest.name }}</span>
+          <span class="nest-status-dot {{ nest.reachability_dot }}"
+                title="{{ nest.reachability_label }}"
+                aria-label="{{ nest.reachability_label }}"></span>
         </span>
         <span class="inventory-tile-meta">{{ nest.id }} · {{ nest.location }} · {{ nest.provider_type }}</span>
         <span class="inventory-tile-meta">{{ nest.reachability_label }}</span>

@@ -544,6 +544,198 @@ html.sidebar-collapsed-init .topbar-name {
   width: 100%;
 }
 
+/* Detail hero + outline section tiles (VM / Nest sticky detail) */
+.detail-tile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.detail-hero-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.detail-hero-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
+}
+
+.detail-hero-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-hero-validated {
+  margin: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.detail-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Gold icon actions (match dashboard-tile-link) */
+.detail-hero-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+}
+
+.detail-hero-action:hover:not(:disabled) {
+  color: var(--gold-light);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.detail-hero-action:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.detail-hero-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.detail-hero-body {
+  min-width: 0;
+}
+
+.detail-hero-body .scripts-meta-list {
+  margin: 0;
+}
+
+.detail-hero-body .vm-row-fields,
+.detail-section-tile .vm-row-fields {
+  border-top: none;
+  padding: 0;
+}
+
+.detail-hero-subsection {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-hero-subhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.detail-hero-subtitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.detail-hero-subhead .detail-hero-validated {
+  flex-shrink: 1;
+}
+
+.detail-hero-cues .nest-status-dot {
+  flex-shrink: 0;
+}
+
+.detail-section-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.detail-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
+}
+
+.detail-section-tile .scripts-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-section-filters {
+  margin: 0;
+}
+
+/* Compact empty row for detail section tiles (not the large dashed .stub) */
+.detail-section-empty {
+  display: block;
+  margin: 0;
+  padding: 6px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  list-style: none;
+}
+
 /* Inventory tile grids (VMs / Nests) */
 .inventory-tile-shell {
   display: flex;
@@ -585,12 +777,25 @@ html.sidebar-collapsed-init .topbar-name {
   outline: none;
 }
 
+.inventory-tile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .inventory-tile-title {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
   font-size: 0.95rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.inventory-tile-header .nest-status-dot {
+  flex-shrink: 0;
 }
 
 .inventory-tile-meta {
@@ -601,11 +806,23 @@ html.sidebar-collapsed-init .topbar-name {
   white-space: nowrap;
 }
 
-.inventory-tile-row {
+.detail-hero-title-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
   min-width: 0;
+}
+
+.detail-hero-title-wrap .detail-hero-title {
+  flex: 0 1 auto;
+}
+
+.detail-hero-cues {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .events-console .events-console-body {
@@ -633,8 +850,14 @@ html.sidebar-collapsed-init .topbar-name {
 }
 
 .vm-scoped-events .events-console-body {
-  min-height: 12rem;
+  min-height: 0;
   max-height: 20rem;
+}
+
+.vm-scoped-events .list-shell-body .detail-section-empty {
+  margin: 0;
+  min-height: 0;
+  height: auto;
 }
 
 /* ── Sidebar toggle button ── */
@@ -2196,6 +2419,8 @@ html.sidebar-collapsed-init .topbar-name {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 55%, var(--color-border));
 }
 
 .dashboard-tile-title {
@@ -3608,14 +3833,20 @@ html.sidebar-collapsed-init .topbar-name {
   /* label inside .vm-scripts-toggle — inherits font styles from parent */
 }
 
-/* grid columns: name | elapsed | exit | last output | status */
+/* grid columns: name | elapsed | exit | last output | status | actions */
 .script-cols-header,
 .script-row {
   display: grid;
-  grid-template-columns: minmax(140px, 2fr) 70px 44px minmax(80px, 3fr) 90px;
+  grid-template-columns: minmax(140px, 2fr) 70px 44px minmax(80px, 3fr) 90px minmax(72px, auto);
   align-items: center;
   gap: 8px;
   font-size: 12px;
+}
+
+/* Nest detail: Clutch | Status | VMs | Hatched | Session */
+.nest-session-cols,
+.nest-session-row {
+  grid-template-columns: minmax(140px, 2fr) 90px minmax(100px, 2fr) 110px 80px;
 }
 
 .script-cols-header {
@@ -3664,6 +3895,15 @@ html.sidebar-collapsed-init .topbar-name {
 
 .script-col-status {
   justify-self: start;
+}
+
+.script-col-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  justify-self: end;
+  min-height: 1.5rem;
 }
 
 .script-status {
