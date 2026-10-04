@@ -330,7 +330,7 @@ def test_nests_detail_markers(client):
     assert "detail-section-tile" in html
     assert 'aria-label="Test Nest connection"' in html
     assert "Last checked:" in html
-    assert "Hatch sessions" in html
+    assert "Hatch Sessions" in html
     assert 'id="nest-sessions-body"' in html
     assert 'id="nest-vm-count"' in html
     assert 'id="nest-session-count"' in html
