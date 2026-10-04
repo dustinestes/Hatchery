@@ -255,7 +255,7 @@ Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific, g
 |---|---|
 | libvirt local | Floppy image with Autounattend.xml (+ companion) - works today |
 | libvirt remote | Planned |
-| Hyper-V | Planned - Gen2 often uses a second DVD/ISO, not floppy |
+| Hyper-V | Works (local Nest) - second DVD/ISO with Autounattend + companions; remote Planned (#215) |
 | UTM | Planned / N/A depending on guest |
 
 Hatch (UI and CLI) fails early when a Clutch needs Answer File attach and the selected Nest

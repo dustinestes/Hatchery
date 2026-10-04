@@ -87,6 +87,8 @@ class TestGetProvider:
         assert isinstance(provider, HyperVProvider)
         assert provider.nest_id == "local"
         assert provider._transport is None
+        assert provider.iso_dir.name == "iso"
+        assert provider.automation_dir.name == "answerfiles"
 
     def test_hyperv_remote_ssh(self):
         nests_lib.replace_nests(

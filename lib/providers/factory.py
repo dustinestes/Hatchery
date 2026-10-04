@@ -85,7 +85,14 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
                 raise UnsupportedProviderError(
                     f"Remote Nest '{nid}' (hyperv) has no Nest transport"
                 )
-        return HyperVProvider(nid, transport=transport)
+        data = data_dir or config.data_dir()
+        return HyperVProvider(
+            nid,
+            transport=transport,
+            iso_dir=data / "media" / "iso",
+            virtio_dir=data / "media" / "virtio",
+            automation_dir=data / "automation" / "answerfiles",
+        )
 
     raise UnsupportedProviderError(
         f"Nest provider '{provider_type}' is not implemented yet for Nest '{nid}'"

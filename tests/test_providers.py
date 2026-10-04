@@ -496,6 +496,11 @@ class TestAnswerFileAttachCapability:
     def test_libvirt_supports_attach(self):
         assert LibvirtProvider.supports_answer_file_attach is True
 
+    def test_hyperv_supports_attach(self):
+        from lib.providers.hyperv import HyperVProvider
+
+        assert HyperVProvider.supports_answer_file_attach is True
+
     def test_base_prepare_raises_when_guest_needs_attach(self):
         from lib.providers.base import BaseProvider
 
