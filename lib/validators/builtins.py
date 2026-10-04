@@ -127,7 +127,8 @@ class RemotingIdentitiesValidator(BaseValidator):
     title = "Remoting identities"
     description = (
         "Check Controller remoting identity catalog: key file exists, "
-        "permissions, and pubkey derivable (ADR-0030 / #522)."
+        "permissions, pubkey derivable, and Nest bindings resolve "
+        "(ADR-0030 / #522 / #523)."
     )
     scope = "controller"
     default_interval_seconds = 120
@@ -135,11 +136,10 @@ class RemotingIdentitiesValidator(BaseValidator):
 
     def run(self, ctx: ValidatorContext) -> str:
         identities = remoting_identities_lib.list_identities()
+        known_ids = {i.id for i in identities}
         if not identities:
             # No catalog rows yet is OK (generate on first use / CLI).
             ctx.resolve_alerts_by_prefix(_REMOTING_IDENTITY_ALERT_PREFIX)
-            return "No remoting identities registered"
-
         failed = 0
         for ident in identities:
             check = remoting_identities_lib.check_identity(ident)
@@ -155,9 +155,37 @@ class RemotingIdentitiesValidator(BaseValidator):
             else:
                 ctx.note_finding("alert")
 
-        if failed:
-            return f"{failed} of {len(identities)} remoting identity(ies) unhealthy"
-        return f"{len(identities)} remoting identity(ies) OK"
+        bind_failed = 0
+        bind_prefix = f"{_REMOTING_IDENTITY_ALERT_PREFIX} Nest binding"
+        for nest in nests_lib.list_nests():
+            rid = (nest.get("remoting_identity_id") or "").strip()
+            if not rid:
+                continue
+            nest_id = nest.get("id") or "?"
+            nest_name = nest.get("name") or nest_id
+            prefix = f"{bind_prefix} '{nest_name}' ({nest_id})"
+            if rid in known_ids:
+                ctx.resolve_alerts_by_prefix(prefix)
+                continue
+            bind_failed += 1
+            msg = f"{prefix} - unknown remoting_identity_id {rid!r}"
+            if not ctx.has_active_alert(msg):
+                ctx.resolve_alerts_by_prefix(prefix)
+                ctx.record_alert(msg)
+            else:
+                ctx.note_finding("alert")
+
+        if not identities and not bind_failed:
+            return "No remoting identities registered"
+        parts: list[str] = []
+        if identities:
+            if failed:
+                parts.append(f"{failed} of {len(identities)} remoting identity(ies) unhealthy")
+            else:
+                parts.append(f"{len(identities)} remoting identity(ies) OK")
+        if bind_failed:
+            parts.append(f"{bind_failed} Nest binding(s) unresolved")
+        return "; ".join(parts) if parts else "Remoting identities OK"
 
 
 class NestCapabilityValidator(BaseValidator):

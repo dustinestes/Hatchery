@@ -740,9 +740,13 @@ def _settings_template(
 
     remoting_hatchery = None
     remoting_path_identities: list = []
+    remoting_identity_options: list = []
+    if section in ("security", "nests"):
+        remoting_identity_options = [
+            remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
+        ]
     if section == "security":
-        for ident in remoting_identities_lib.list_identities():
-            row = remoting_identities_lib.to_dict(ident)
+        for row in remoting_identity_options:
             if row.get("kind") == "hatchery":
                 remoting_hatchery = row
             else:
@@ -767,6 +771,7 @@ def _settings_template(
         validators_run_retention=validators_run_retention,
         remoting_hatchery=remoting_hatchery,
         remoting_path_identities=remoting_path_identities,
+        remoting_identity_options=remoting_identity_options,
     )
 
 
@@ -1042,9 +1047,7 @@ def settings_section_post(section: str):
         nest_hosts = request.form.getlist("nest_host")
         nest_ports = request.form.getlist("nest_port")
         nest_ssh_users = request.form.getlist("nest_ssh_user")
-        nest_identity_files = request.form.getlist("nest_identity_file")
-        nest_cert_paths = request.form.getlist("nest_cert_path")
-        nest_identity_expires = request.form.getlist("nest_identity_expires_at")
+        nest_remoting_ids = request.form.getlist("nest_remoting_identity_id")
         nest_known_hosts = request.form.getlist("nest_known_hosts")
         nest_winrm_users = request.form.getlist("nest_winrm_user")
         nest_credential_refs = request.form.getlist("nest_credential_ref")
@@ -1060,10 +1063,8 @@ def settings_section_post(section: str):
                     "host": nest_hosts[i] if i < len(nest_hosts) else "",
                     "port": nest_ports[i] if i < len(nest_ports) else "",
                     "ssh_user": nest_ssh_users[i] if i < len(nest_ssh_users) else "",
-                    "identity_file": nest_identity_files[i] if i < len(nest_identity_files) else "",
-                    "cert_path": nest_cert_paths[i] if i < len(nest_cert_paths) else "",
-                    "identity_expires_at": nest_identity_expires[i]
-                    if i < len(nest_identity_expires)
+                    "remoting_identity_id": nest_remoting_ids[i]
+                    if i < len(nest_remoting_ids)
                     else "",
                     "known_hosts": nest_known_hosts[i] if i < len(nest_known_hosts) else "default",
                     "winrm_user": nest_winrm_users[i] if i < len(nest_winrm_users) else "",

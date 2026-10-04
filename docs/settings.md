@@ -78,7 +78,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 
 Library **connections**, **kinds**, and **bindings** live in first-class tables (`library_connections`, `library_connection_kinds`, `library_bindings`) - see [ADR-0017](adr/0017-library-connections-bindings-tables.md) and [schema/database.md](schema/database.md). They are not Settings keys and are not included in Settings YAML export/import.
 
-Nest **connections** (including legacy SSH identity file path, optional cert path, and optional identity expiry) live in the `nests` table - see [schema/database.md - nests](schema/database.md#nests). Security also manages the Controller **remoting identities** catalog ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522); Nest `remoting_identity_id` binding is [#523](https://github.com/dustinestes/Hatchery/issues/523)) and Nest SSH **alert tiers**.
+Nest **connections** live in the `nests` table - see [schema/database.md - nests](schema/database.md#nests). Remote SSH Nests bind a remoting identity via `remoting_identity_id` (dropdown). Security manages the Controller **remoting identities** catalog ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522) / [#523](https://github.com/dustinestes/Hatchery/issues/523)) and Nest SSH **alert tiers**.
 
 Managed by `lib/config.py` after `db.init_db` via `bind_db()` / `save()` / `update_settings()`. Long-lived processes call `ensure_settings_fresh()` from `get()` so another process’s Settings write (same data dir) is visible without restart ([ADR-0023](adr/0023-settings-sqlite-revision-reload.md); [#439](https://github.com/dustinestes/Hatchery/issues/439)).
 
@@ -99,7 +99,7 @@ Existing installs keep their Settings without manual edits.
 ## Settings UI
 
 - **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
-- **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility, remoting identity catalog management, and Nest SSH **alert tiers** (per-Nest identity paths remain on Nest rows until [#523](https://github.com/dustinestes/Hatchery/issues/523)).
+- **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility, remoting identity catalog management, and Nest SSH **alert tiers**. Nest rows bind catalog ids under Settings → Nests.
 - **Nests** - Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
 
 Library connections and bindings are **not** a Settings section. When Library is enabled, configure them under **Library → Connections** (see [library.md](library.md)). `/settings/library` redirects there.
