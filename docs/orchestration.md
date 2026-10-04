@@ -196,7 +196,7 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 
 Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
 
-If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). That script restores UAC from the first-boot backup (or Windows defaults if the backup is missing), then removes the Hatchery guest directory. If omitted, the directory remains on the guest as a local audit record and UAC stays at Never notify.
+If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). That script restores UAC from the first-boot backup (or Windows defaults if the backup is missing), removes the Hatchery guest directory, and clears persisted reserved Machine env vars. If omitted, the directory remains on the guest as a local audit record and UAC stays at Never notify.
 
 **Cached Answer Files / Scripts:** Controllers that already pulled Library content keep the previous companion and cleanup scripts until they pull again. Re-pull Answer Files (for `hatchery-setup-windows.ps1`) and Scripts (for `hatchery-cleanup-windows.ps1`) after the Library ships the UAC change ([#543](https://github.com/dustinestes/Hatchery/issues/543)).
 

@@ -96,7 +96,7 @@ They are **not** Hatchery’s long-term manage credential for the guest after fl
 | After fledged | Guidance |
 |---|---|
 | Rotate / harden the hatch admin | Add a final Clutch automation (or out-of-band change) that sets a new password and records it in your secrets store |
-| Hatchery-Library cleanup scripts | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) restores UAC from first-boot backup ([#543](https://github.com/dustinestes/Hatchery/issues/543)), then removes guest Hatchery artifacts under `C:\Program Files\Hatchery\`; it does **not** rotate the admin password |
+| Hatchery-Library cleanup scripts | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) restores UAC from first-boot backup ([#543](https://github.com/dustinestes/Hatchery/issues/543)), removes guest Hatchery artifacts under `C:\Program Files\Hatchery\`, and clears persisted reserved Machine env; it does **not** rotate the admin password |
 | Inventory Username / Password | May still show the hatch values (password display is opt-in in Settings) until the hatch session is archived - treat that as hatch history, not the guest’s ongoing secret of record |
 | Encrypted credential storage | Out of scope here; tracked in [#110](https://github.com/dustinestes/Hatchery/issues/110) |
 
