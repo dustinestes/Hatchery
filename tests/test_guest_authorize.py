@@ -147,10 +147,13 @@ class TestInjectAndDisable:
 class TestVerifyKeySsh:
     def test_verify_ok(self):
         ssh = MagicMock(spec=ga.SshGuestTransport)
-        ssh.test_connection.return_value = True
-        with patch("lib.guest_authorize.get_guest_transport", return_value=ssh):
+        ssh.run_ps.return_value = (0, "hatchery-guest-ok")
+        with (
+            patch("lib.guest_authorize.get_guest_transport", return_value=ssh),
+            patch("lib.guest_authorize.isinstance", return_value=True),
+        ):
             ga.verify_key_ssh("10.0.0.1", "admin", "/tmp/key")
-        ssh.test_connection.assert_called_once()
+        ssh.run_ps.assert_called_once()
 
     def test_verify_transport_error(self):
         with patch(
@@ -168,9 +171,12 @@ class TestVerifyKeySsh:
 
     def test_verify_probe_fails(self):
         ssh = MagicMock(spec=ga.SshGuestTransport)
-        ssh.test_connection.return_value = False
-        with patch("lib.guest_authorize.get_guest_transport", return_value=ssh):
-            with pytest.raises(ga.GuestAuthorizeError, match="key SSH verify failed"):
+        ssh.run_ps.return_value = (255, "Permission denied (publickey)")
+        with (
+            patch("lib.guest_authorize.get_guest_transport", return_value=ssh),
+            patch("lib.guest_authorize.isinstance", return_value=True),
+        ):
+            with pytest.raises(ga.GuestAuthorizeError, match="Permission denied"):
                 ga.verify_key_ssh("10.0.0.1", "admin", "/tmp/key", ssh_port=2222)
 
 

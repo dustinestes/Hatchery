@@ -206,14 +206,17 @@ class RemotingIdentitiesValidator(BaseValidator):
             return "No remoting identities registered"
         parts: list[str] = []
         if identities:
+            noun = "identity" if len(identities) == 1 else "identities"
             if failed:
-                parts.append(f"{failed} of {len(identities)} remoting identity(ies) unhealthy")
+                parts.append(f"{failed} of {len(identities)} remoting {noun} unhealthy")
             else:
-                parts.append(f"{len(identities)} remoting identity(ies) OK")
+                parts.append(f"{len(identities)} remoting {noun} OK")
         if bind_failed:
-            parts.append(f"{bind_failed} Nest binding(s) unresolved")
+            bind_noun = "binding" if bind_failed == 1 else "bindings"
+            parts.append(f"{bind_failed} Nest {bind_noun} unresolved")
         if clutch_bind_failed:
-            parts.append(f"{clutch_bind_failed} Clutch authorize binding(s) unresolved")
+            clutch_noun = "binding" if clutch_bind_failed == 1 else "bindings"
+            parts.append(f"{clutch_bind_failed} Clutch authorize {clutch_noun} unresolved")
         return "; ".join(parts) if parts else "Remoting identities OK"
 
 

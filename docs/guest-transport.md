@@ -23,6 +23,8 @@ Controller remoting identities ([ADR-0030](adr/0030-controller-remoting-identiti
 
 Empty `authorize` is invalid. Nest `remoting_identity_id` is **never** auto-copied into guest authorize. WinRM may still use hatch password until [#156](https://github.com/dustinestes/Hatchery/issues/156). Password SSH (sshpass / `SSH_ASKPASS`) remains only for the pre-authorize window and WinRM fallback.
 
+Inject uses pubkey material that matches the Controller private key on disk (`.pub` / `ssh-keygen -y`), not a stale `remoting_identities.pubkey` catalog column. The Remoting identities validator alerts when catalog and disk diverge ([#537](https://github.com/dustinestes/Hatchery/issues/537)).
+
 ### Public key distribution
 
 Private keys stay on the Controller disk (path references only). Matching **public** keys must be installed where SSH servers accept them:

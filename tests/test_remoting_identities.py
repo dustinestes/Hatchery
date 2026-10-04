@@ -113,6 +113,36 @@ class TestHatcheryManaged:
         with pytest.raises(ri.RemotingIdentityError, match="unknown"):
             ri.resolve("missing")
 
+    def test_identity_pubkey_repairs_stale_catalog(self, isolated_config):
+        """Inject must use key material that matches the private key (#537)."""
+        ident = ri.ensure_hatchery_identity()
+        priv = isolated_config / "remoting" / "hatchery_ed25519"
+        real_pub = (isolated_config / "remoting" / "hatchery_ed25519.pub").read_text().strip()
+        ri._upsert(
+            identity_id="hatchery",
+            name=ident.name,
+            kind="hatchery",
+            identity_file=ident.identity_file,
+            pubkey=(
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "
+                "stale"
+            ),
+            cert_path=None,
+            identity_expires_at=None,
+        )
+        stale = ri.get_identity("hatchery")
+        assert stale is not None
+        assert stale.pubkey != real_pub
+        check = ri.check_identity(stale)
+        assert not check.ok
+        assert "does not match" in check.detail
+        repaired = ri.identity_pubkey("hatchery")
+        assert ri._pubkey_material(repaired) == ri._pubkey_material(real_pub)
+        synced = ri.get_identity("hatchery")
+        assert synced is not None
+        assert ri._pubkey_material(synced.pubkey or "") == ri._pubkey_material(real_pub)
+        assert priv.is_file()
+
 
 class TestPathIdentity:
     def test_add_path_and_check(self, isolated_config, tmp_path):
