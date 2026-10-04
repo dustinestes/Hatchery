@@ -43,7 +43,7 @@ Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × 
 | **libvirt local** | KVM/QEMU on the same machine as Hatchery (`LibvirtProvider`) - v1 |
 | **libvirt remote** | libvirt Nest reached over Nest transport |
 | **UTM local / remote** | macOS UTM Nest ([#210](https://github.com/dustinestes/Hatchery/issues/210)–[#212](https://github.com/dustinestes/Hatchery/issues/212)) |
-| **Hyper-V local / remote** | Windows Hyper-V Nest ([#213](https://github.com/dustinestes/Hatchery/issues/213); stub `lib/providers/hyperv.py`) |
+| **Hyper-V local / remote** | Windows Hyper-V Nest ([#213](https://github.com/dustinestes/Hatchery/issues/213); `HyperVProvider` via local PowerShell or Nest transport) |
 
 Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md).
 
@@ -54,13 +54,13 @@ Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.m
 | Feature | libvirt local | libvirt remote | UTM local | UTM remote | Hyper-V local | Hyper-V remote |
 |---|---|---|---|---|---|---|
 | Hatch (`create_vm`) | Works | Planned | Planned | Planned | Planned | Planned |
-| Cull (`destroy_vm`) | Works | Planned | Planned | Planned | Planned | Planned |
-| List / status | Works | Planned | Planned | Planned | Planned | Planned |
-| Start / Stop / Force stop | Works | Planned | Planned | Planned | Planned | Planned |
-| Pause / Resume | Works | Planned | Planned | Planned | Planned | Planned |
-| Snapshot / list | Works | Planned | Planned | Planned | Planned | Planned |
-| Revert snapshot | Works | Planned | Planned | Planned | Planned | Planned |
-| Delete snapshot | Works | Planned | Planned | Planned | Planned | Planned |
+| Destroy (`destroy_vm`) | Works | Planned | Planned | Planned | Works | Works |
+| List / status | Works | Planned | Planned | Planned | Works | Works |
+| Start / Stop / Force stop | Works | Planned | Planned | Planned | Works | Works |
+| Pause / Resume | Works | Planned | Planned | Planned | Works | Works |
+| Snapshot / list | Works | Planned | Planned | Planned | Works | Works |
+| Revert snapshot | Works | Planned | Planned | Planned | Works | Works |
+| Delete snapshot | Works | Planned | Planned | Planned | Works | Works |
 
 Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local libvirt). Operator CLI: `hatchery vm pause|resume` ([#424](https://github.com/dustinestes/Hatchery/issues/424)). UI wiring: VMs pane (#418).
 
@@ -72,12 +72,12 @@ Resource metrics (configured vs actual; Nest push vs Controller pull) are deferr
 
 | Feature | libvirt local | libvirt remote | UTM local | UTM remote | Hyper-V local | Hyper-V remote |
 |---|---|---|---|---|---|---|
-| IP discovery (`get_vm_ip`) | Works | Planned | Planned | Planned | Planned | Planned |
-| UUID / rename lookup | Works | Planned | Planned | Planned | Planned | Planned |
+| IP discovery (`get_vm_ip`) | Works | Planned | Planned | Planned | Works | Works |
+| UUID / rename lookup | Works | Planned | Planned | Planned | Works | Works |
 | Send key (console) | Works | Planned | Planned | Planned | Planned | Planned |
-| Session tags | Works | Planned | Planned | Planned | Planned | Planned |
+| Session tags | Works | Planned | Planned | Planned | Works (VM Notes) | Works (VM Notes) |
 | Guest health check | Planned | Planned | Planned | Planned | Planned | Planned |
-| OOBE poweroff patch (`set_poweroff_action`) | Works | Planned | N/A | N/A | Planned | Planned |
+| OOBE poweroff patch (`set_poweroff_action`) | Works | Planned | N/A | N/A | Partial (`AutomaticStopAction`) | Partial (`AutomaticStopAction`) |
 
 Guest health check is available via operator CLI `hatchery vm health` and the VMs pane (#418). Nest connectivity check (Test Nest connection) lives in Nest transport, not the hypervisor provider.
 
@@ -111,7 +111,7 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 | Nest connection registry | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Nests → Connections / [ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)) |
 | Provider factory by Nest id | Works ([#206](https://github.com/dustinestes/Hatchery/issues/206); `lib/providers/factory.py`) |
 
-`get_provider(nest_id)` returns `LibvirtProvider` for the local Nest. Remote / UTM / Hyper-V Nests raise `UnsupportedProviderError` (API inventory returns 501; Hatch Clutch surfaces the error) until those adapters land.
+`get_provider(nest_id)` returns `LibvirtProvider` for a local libvirt Nest, or `HyperVProvider` for Hyper-V (local PowerShell or remote Nest transport SSH/WinRM). Remote libvirt and UTM still raise `UnsupportedProviderError` (API inventory returns 501; Hatch Clutch surfaces the error) until those adapters land. Hyper-V hatch / Answer File attach remain Planned.
 
 <br>
 

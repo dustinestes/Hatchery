@@ -1,8 +1,8 @@
 """Nest id → BaseProvider factory.
 
-Routes VM lifecycle through the Nest registry (#207). Today only local libvirt
-is instantiable; remote / UTM / Hyper-V raise UnsupportedProviderError until
-those adapters land.
+Routes VM lifecycle through the Nest registry (#207). Local libvirt and
+Hyper-V (local or remote over Nest transport) are instantiable; UTM and
+remote libvirt raise UnsupportedProviderError until those adapters land.
 """
 
 from __future__ import annotations
@@ -11,7 +11,9 @@ from pathlib import Path
 
 from lib import config
 from lib import nests as nests_lib
+from lib.nest_transport import get_nest_transport
 from lib.providers.base import BaseProvider
+from lib.providers.hyperv import HyperVProvider
 from lib.providers.libvirt import LibvirtProvider
 
 
@@ -49,7 +51,7 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     Raises:
         NoNestSelectedError: Nest id omitted and zero or many Nests registered.
         UnknownNestError: Nest id is not registered.
-        UnsupportedProviderError: Nest is remote or provider_type is not wired yet.
+        UnsupportedProviderError: Nest provider / location is not wired yet.
     """
     explicit = (nest_id or "").strip()
     nid = explicit or nests_lib.default_nest_id()
@@ -62,18 +64,28 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     provider_type = nest["provider_type"]
     location = nest["location"]
 
-    if location == "remote":
-        raise UnsupportedProviderError(
-            f"Remote Nest '{nid}' ({provider_type}) is registered but VM ops are not available yet"
-        )
-
     if provider_type == "libvirt":
+        if location == "remote":
+            raise UnsupportedProviderError(
+                f"Remote Nest '{nid}' (libvirt) is registered but VM ops are not available yet"
+            )
         data = data_dir or config.data_dir()
         return LibvirtProvider(
             iso_dir=data / "media" / "iso",
             virtio_dir=data / "media" / "virtio",
             automation_dir=data / "automation" / "answerfiles",
         )
+
+    if provider_type == "hyperv":
+        transport = None
+        if location == "remote":
+            connection = nests_lib.to_connection_config(nest)
+            transport = get_nest_transport(connection)
+            if transport is None:
+                raise UnsupportedProviderError(
+                    f"Remote Nest '{nid}' (hyperv) has no Nest transport"
+                )
+        return HyperVProvider(nid, transport=transport)
 
     raise UnsupportedProviderError(
         f"Nest provider '{provider_type}' is not implemented yet for Nest '{nid}'"

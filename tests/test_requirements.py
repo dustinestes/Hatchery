@@ -155,6 +155,37 @@ class TestNestToolsLocal:
         assert not results[0].present
         assert "apt install" in results[0].install_hint or results[0].install_hint
 
+    def test_hyperv_specs_evaluate(self):
+        from lib.providers.hyperv import HyperVProvider
+        from lib.requirements import nest_tool_specs_for_provider
+
+        specs = nest_tool_specs_for_provider("hyperv")
+        assert specs == HyperVProvider.nest_tool_specs()
+        assert specs[0].check == "hyperv_get_vm"
+
+        with patch("lib.requirements._check_hyperv_get_vm_local", return_value=True):
+            results = check_nest_tools_local(specs)
+        assert len(results) == 1
+        assert results[0].present is True
+        assert results[0].name == "Get-VM"
+
+    def test_hyperv_remote_probe(self):
+        from lib.requirements import check_nest_tools_remote
+
+        specs = [
+            NestToolSpec(
+                name="Get-VM",
+                required_for="ops",
+                packages={"windows": "Hyper-V"},
+                check="hyperv_get_vm",
+            )
+        ]
+        transport = MagicMock()
+        with patch("lib.requirements._remote_hyperv_get_vm", return_value=True) as probe:
+            results = check_nest_tools_remote(transport, specs)
+        probe.assert_called_once_with(transport)
+        assert results[0].present is True
+
 
 class TestInstallHint:
     def test_linux_apt(self):
