@@ -15,9 +15,7 @@ from lib import db as db_module
 from lib import remoting_identities as ri
 
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("ssh-keygen") is None, reason="ssh-keygen required"
-)
+pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="ssh-keygen required")
 
 
 @pytest.fixture
