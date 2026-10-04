@@ -48,7 +48,7 @@ uv run hatchery remoting-identity show hatchery
 uv run hatchery --json remoting-identity show hatchery
 ```
 
-Copy the **public** key line from the UI (expanded Hatchery identity row) or from `show` / JSON `pubkey`. The private key stays on the Controller under the data dir (managed) or an operator path (path identities).
+Copy the **public** key line from the UI: Settings → **Security** → Hatchery-managed identity header → **Copy** → **Public key** (or expand the row). CLI: `show` / JSON `pubkey`. The private key stays on the Controller under the data dir (managed) or an operator path (path identities). Use **Copy** → **Path** for the private key path only (never key bytes).
 
 <br>
 

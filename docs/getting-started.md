@@ -211,7 +211,7 @@ Use this when the hypervisor host is **not** the same machine as the Controller 
 
 ### 1. Copy the Controller public key
 
-Settings → **Security** → expand the Hatchery remoting identity → copy the **public** key line.
+Settings → **Security** → Hatchery-managed remoting identity → **Copy** → **Public key** (or expand the row and copy the public key line).
 
 Or from the CLI:
 
