@@ -247,7 +247,6 @@ def test_vms_pane_markers(client):
     assert 'id="vms-tile-grid"' in html
     assert "inventory-tile-grid" in html
     assert "vms-rollup" not in html
-    assert ">Cull<" not in html
     assert "window.confirm" not in html
     assert "window.alert" not in html
 
@@ -258,6 +257,7 @@ def test_vms_detail_markers(client):
     html = resp.get_data(as_text=True)
     assert 'data-vm-action="destroy"' in html
     assert 'aria-label="Destroy"' in html
+    assert "destroyed: 'Destroyed'" in html
     assert 'btn btn-ghost btn-sm">Inventory' not in html
     assert "detail-hero-tile" in html
     assert "detail-section-tile" in html

@@ -22,18 +22,20 @@ Use Hatchery terms where they clarify product concepts. Prefer **clear, universa
 |---|---|
 | Clutch | stack / blueprint / compose file |
 | Hatch | deploy / provision (for create+boot) |
-| Cull | destroy / delete / terminate (VM remove) |
+| Destroy | Cull (retired brand verb) / delete / terminate (VM remove) |
 | Snapshot | Freeze (retired brand verb) |
 | Revert (to snapshot) | Thaw (retired brand verb) |
 | Delete snapshot | - |
 | Health check / connectivity check | Chirp (retired as primary UI label) |
 | Fledged | ready / healthy (post-provision) |
 
-Power actions stay plain: Start, Stop, Force Stop, Pause, Resume.
+Power actions stay plain: Start, Stop, Force Stop, Pause, Resume, Destroy.
+
+Hatch session VM status uses `destroyed` (not `culled`) when the guest is gone (#552).
 
 ```
-❌ "Delete the VM and remove its disk"
-✅ "Cull the VM"
+❌ "Cull the VM" / "Culled" as primary UI labels or status tokens
+✅ "Destroy the VM" / hatch status **Destroyed** (`destroyed`)
 
 ❌ "Freeze" / "Thaw" / "Chirp" as primary button labels
 ✅ Snapshot / Revert / Delete snapshot; "Test Nest connection" or "Guest health check"

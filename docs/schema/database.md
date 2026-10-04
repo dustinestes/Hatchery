@@ -277,8 +277,8 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned |
 | `session_id` | `TEXT` | `NOT NULL REFERENCES hatch_sessions(id)` | Parent session |
 | `vm_name` | `TEXT` | `NOT NULL` | VM name as known to the hypervisor; updated if renamed |
-| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `hatching` → `fledged` or `failed`; may transition to `culled` if the VM is removed from the host |
-| `libvirt_uuid` | `TEXT` | | Hypervisor UUID assigned at creation; authoritative identity for rename and cull detection |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'pending'` | `pending` → `hatching` → `fledged` or `failed`; may transition to `destroyed` if the VM is destroyed or disappears from the Nest |
+| `libvirt_uuid` | `TEXT` | | Hypervisor UUID assigned at creation; authoritative identity for rename and destroy/gone detection |
 | `started_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `hatching` |
 | `fledged_at` | `TEXT` | | ISO 8601 timestamp (UTC) set when status transitions to `fledged` |
 | `admin_username` | `TEXT` | | Admin account username configured in the answer file; stored for post-install automation and Nests inventory display |

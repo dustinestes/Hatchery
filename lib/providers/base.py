@@ -85,7 +85,7 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def destroy_vm(self, name: str) -> None:
-        """Cull a VM — undefine it and remove its allocated storage."""
+        """Destroy a VM: undefine it and remove its allocated storage."""
 
     @abstractmethod
     def create_snapshot(self, name: str, label: str) -> None:

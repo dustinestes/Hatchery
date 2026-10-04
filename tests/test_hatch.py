@@ -318,14 +318,14 @@ class TestComputeSessionStatus:
     def test_blocked_with_no_active_is_failed(self):
         assert self._status("blocked") == "failed"
 
-    def test_culled_only_is_degraded(self):
-        assert self._status("culled") == "degraded"
+    def test_destroyed_only_is_degraded(self):
+        assert self._status("destroyed") == "degraded"
 
-    def test_fledged_and_culled_is_degraded(self):
-        assert self._status("fledged", "culled") == "degraded"
+    def test_fledged_and_destroyed_is_degraded(self):
+        assert self._status("fledged", "destroyed") == "degraded"
 
-    def test_failed_takes_priority_over_culled(self):
-        assert self._status("failed", "culled") == "failed"
+    def test_failed_takes_priority_over_destroyed(self):
+        assert self._status("failed", "destroyed") == "failed"
 
 
 # ── list_sessions ─────────────────────────────────────────────────────────────
@@ -439,7 +439,7 @@ class TestArchiveIfTerminal:
     def _degraded_session(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
-        hatch_lib.set_vm_status(sid, "dc01", "culled")
+        hatch_lib.set_vm_status(sid, "dc01", "destroyed")
         return sid
 
     def _failed_session(self):
@@ -507,12 +507,12 @@ class TestArchiveIfTerminal:
         result = hatch_lib.archive_if_terminal("nonexistent-id")
         assert result is None
 
-    def test_mixed_fledged_culled_is_archived(self):
+    def test_mixed_fledged_destroyed_is_archived(self):
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_vm(sid, "ws01")
         hatch_lib.set_vm_status(sid, "dc01", "fledged")
-        hatch_lib.set_vm_status(sid, "ws01", "culled")
+        hatch_lib.set_vm_status(sid, "ws01", "destroyed")
         result = hatch_lib.archive_if_terminal(sid)
         assert result is not None
 

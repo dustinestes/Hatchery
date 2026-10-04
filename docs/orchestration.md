@@ -259,7 +259,7 @@ When all scripts have succeeded, the VM is marked `fledged` and a hatch event is
 | `provisioning` | OS install is complete; automation scripts are running |
 | `fledged` | All scripts succeeded (or no scripts were configured); VM is ready to use |
 | `failed` | A script exited non-zero, a WinRM error occurred, or VM creation failed; retryable from the Nests panel |
-| `culled` | The VM was destroyed (or disappeared from the host) while the session was active |
+| `destroyed` | The VM was destroyed (or disappeared from the Nest) while the session was active |
 
 <br>
 

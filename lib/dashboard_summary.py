@@ -105,7 +105,7 @@ def vm_summary() -> dict[str, Any]:
         "provisioning": 0,
         "fledged": 0,
         "failed": 0,
-        "culled": 0,
+        "destroyed": 0,
         "none": 0,
     }
     total = 0

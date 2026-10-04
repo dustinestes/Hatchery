@@ -73,7 +73,7 @@ Operators need clear correction paths when the source is missing (**Re-attach** 
 | Action | Role |
 |---|---|
 | **Re-attach** | Primary when the source moved. Same-basename lock ([#364](https://github.com/dustinestes/Hatchery/issues/364)); basename rename → re-import. After a successful re-attach, evaluate may reach `ok` and then Sync applies only if `out_of_sync` |
-| **Remove** | Drop provenance (optional cull Cached file). Distinct from Library soft-disable ([#379](https://github.com/dustinestes/Hatchery/issues/379)) |
+| **Remove** | Drop provenance (optional delete Cached file). Distinct from Library soft-disable ([#379](https://github.com/dustinestes/Hatchery/issues/379)) |
 
 **Sync is not a `missing` action.** With `source_status != ok`, `sync_state` is `unevaluated` - there is no comparable tip to pull from.
 

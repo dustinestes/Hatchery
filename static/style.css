@@ -3773,7 +3773,7 @@ html.sidebar-collapsed-init .topbar-name {
   border: 1px solid color-mix(in srgb, #D97706 30%, var(--color-surface));
 }
 
-.hatch-status-badge--culled,
+.hatch-status-badge--destroyed,
 .hatch-status-badge--degraded {
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
