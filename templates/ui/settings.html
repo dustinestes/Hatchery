@@ -346,11 +346,7 @@
                  aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
             <span class="nest-conn-title">
               <span class="library-conn-summary remoting-identity-summary">
-                {% if hatchery_ready %}
-                Hatchery · hatchery · {{ remoting_hatchery.resolved_path or remoting_hatchery.identity_file }}
-                {% else %}
-                Hatchery · hatchery · not generated
-                {% endif %}
+                {% if hatchery_ready %}Hatchery · managed{% else %}Hatchery · not generated{% endif %}
               </span>
               <span class="nest-conn-id remoting-identity-id-badge" title="Stable identity id">hatchery</span>
             </span>
