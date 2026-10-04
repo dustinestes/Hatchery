@@ -8,7 +8,7 @@ import yaml
 
 from lib.clutch import GuestOS, VMConfig
 
-SETUP_SCRIPT_NAME = "hatchery-setup.ps1"
+SETUP_SCRIPT_NAME = "hatchery-setup-windows.ps1"
 
 # Injected from the Clutch VM / hatch session - never exposed as user params.
 RESERVED_SYSTEM_TOKENS = frozenset({"vm_name", "admin_username", "admin_password"})

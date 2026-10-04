@@ -3068,7 +3068,7 @@ class TestSyncHatchStatus:
         mock_read.assert_called_once_with("192.168.122.40", "", "")
         mock_del_log.assert_called_once_with("192.168.122.40", "", "")
         events = hatch_lib.get_events(sid, "dc01")
-        setup_events = [e for e in events if e.get("script_name") == "hatchery-setup.ps1"]
+        setup_events = [e for e in events if e.get("script_name") == "hatchery-setup-windows.ps1"]
         assert len(setup_events) == 2
         assert setup_events[0]["component"] == "setup"
         assert setup_events[0]["received_at"] == "2026-07-20T12:00:00+00:00"
@@ -4362,7 +4362,7 @@ class TestAPIRoutes:
         answerfiles = tmp_path / "automation" / "answerfiles"
         answerfiles.mkdir(parents=True)
         (answerfiles / "win11-autounattend.xml.j2").write_text("{{ vm_name }}")
-        (answerfiles / "hatchery-setup.ps1").write_text("# companion")
+        (answerfiles / "hatchery-setup-windows.ps1").write_text("# companion")
         (answerfiles / "notes.txt").write_text("not selectable")
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
 
@@ -4372,7 +4372,7 @@ class TestAPIRoutes:
 
         html = client.get("/build").data.decode()
         assert "win11-autounattend.xml.j2" in html
-        assert "hatchery-setup.ps1" not in html
+        assert "hatchery-setup-windows.ps1" not in html
         assert "notes.txt" not in html
 
     def test_api_automation_scripts_returns_json(self, client):

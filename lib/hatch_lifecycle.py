@@ -689,7 +689,7 @@ def sync_hatch_status(
                         "script",
                         event["level"],
                         event["message"],
-                        script_name="hatchery-setup.ps1",
+                        script_name="hatchery-setup-windows.ps1",
                         component=event["component"],
                         received_at=event["received_at"],
                     )

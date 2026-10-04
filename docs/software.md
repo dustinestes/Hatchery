@@ -176,6 +176,8 @@ large offline trees; do not rely on 1 KiB EncodedCommand append as a product pat
 
 Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller.
 
+**Windows UAC (lab/dev posture):** Guest transport runs Software `install.command` via `run_ps` as the hatch admin with no elevated/SYSTEM wrapper. Default UAC can make silent MSI installs exit 0 without product registration. Library `hatchery-setup-windows.ps1` therefore sets UAC to Never notify at first boot ([#543](https://github.com/dustinestes/Hatchery/issues/543)); that is weaker than the Windows default slider and is intentional for reliable silent installs. `LocalAccountTokenFilterPolicy` is unrelated (WinRM token filter only). `hatchery-cleanup-windows.ps1` restores prior/default UAC when operators run cleanup. See [orchestration - first-boot steps](orchestration.md#the-orchestrator-script-hatchery-setup-windowsps1).
+
 Controller/Nest stores optional `{os}/{arch}/` trees under the package id (mirrors `platforms` in `software.yaml`). Example:
 
 ```text

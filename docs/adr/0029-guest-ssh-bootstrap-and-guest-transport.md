@@ -21,7 +21,7 @@ Nest remoting is already SSH-primary ([`lib/nest_transport.py`](../../lib/nest_t
 
 ### 2. Windows OpenSSH install (reject FoD default)
 
-Default first-boot path (`hatchery-setup.ps1`):
+Default first-boot path (`hatchery-setup-windows.ps1`):
 
 1. Resolve the **latest** Win64 Server MSI from PowerShell/Win32-OpenSSH (`/releases/latest` or equivalent → `OpenSSH-Win64-*.msi`).
 2. `msiexec /i … ADDLOCAL=Server /qn` → `C:\Program Files\OpenSSH` (not FoD under System32).

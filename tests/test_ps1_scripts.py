@@ -3,7 +3,7 @@
 Uses pwsh's built-in AST parser (ParseFile) - no execution, just parse.
 Tests are skipped automatically when pwsh is not available on the host.
 
-Windows Answer File companions (e.g. hatchery-setup.ps1) live in Hatchery-Library
+Windows Answer File companions (e.g. hatchery-setup-windows.ps1) live in Hatchery-Library
 and the operator automation/answerfiles/ cache - not under Controller templates/.
 """
 
