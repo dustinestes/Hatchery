@@ -211,7 +211,18 @@ See [automations.md](automations.md#write-hatchevent) for `Write-HatchEvent` usa
 
 ## API
 
-Events are exposed at:
+Global Events console (#527):
+
+```
+GET /api/events?limit=50&offset=0&scope=active&vm=&session_id=&level=&q=
+```
+
+Returns newest-first pages: `{ "events": [...], "total", "limit", "offset" }`.
+Each row includes `session_id`, `vm_name`, and `clutch_name`. `scope=active`
+limits to non-archived sessions; `scope=all` includes archived session rows
+that still remain (archived sessions normally delete child events on archive).
+
+Per-VM transcript (sticky VM detail / automation):
 
 ```
 GET /api/sessions/<session_id>/vms/<vm_name>/events
@@ -253,7 +264,12 @@ Returns a JSON object with an `events` array in insertion order:
 }
 ```
 
-The **Events** pane (`/notifications/events`) polls this endpoint for the selected VM (alongside `GET /api/sessions` for the picker) and formats `received_at` using `resolved_timezone` from `/api/config`. The log remains viewable after a VM reaches `fledged` or `failed` for as long as the hatch session is active (not archived).
+The **Events** pane (`/notifications/events`) is a flat paginated console over
+`GET /api/events` (search, VM, session, level, active/all). VM-scoped filtering
+lives on the sticky VM detail page (`GET /api/sessions/.../events`). Timestamps
+use `resolved_timezone` from `/api/config`. The transcript remains viewable after
+a VM reaches `fledged` or `failed` for as long as the hatch session is active
+(not archived).
 
 `received_at` is always stored in UTC. **Settings → Display** lets you choose whether timestamps are shown in UTC or host local time - conversion happens in the UI using the `resolved_timezone` value from `/api/config`.
 

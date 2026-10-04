@@ -244,19 +244,30 @@ def test_vms_pane_markers(client):
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert 'aria-label="Filter VMs"' in html
-    assert 'id="vms-nav"' in html
-    assert 'data-vm-action="destroy"' in html
-    assert ">Destroy<" in html
-    assert ">Cull<" not in html
-    assert 'id="vms-content-header"' in html
-    assert "vms-lifecycle-actions" in html
+    assert 'id="vms-tile-grid"' in html
+    assert "inventory-tile-grid" in html
     assert "vms-rollup" not in html
-    assert 'id="vms-modal-backdrop"' in html
-    assert "vms-external-cue-icon" in html
-    assert "External VM (not Hatchery-sourced)" in html
+    assert ">Cull<" not in html
     assert "window.confirm" not in html
     assert "window.alert" not in html
+
+
+def test_vms_detail_markers(client):
+    resp = client.get("/vms/local/dc01")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'data-vm-action="destroy"' in html
+    assert 'aria-label="Destroy"' in html
+    assert 'btn btn-ghost btn-sm">Inventory' not in html
+    assert 'id="vms-content-header"' in html
+    assert "vms-lifecycle-actions" in html
+    assert "inventory-toolbar" in html
+    assert 'id="vms-modal-backdrop"' in html
+    assert "vms-scoped-events" in html or "vm-scoped-events" in html
+    assert "Notifications → Events" not in html
     assert "syncLifecycleButtons" in html
+    assert "content--sticky-detail" in html
+    assert "sticky_nav.js" in html
 
 
 def test_nests_pane_inventory_chrome(client):
@@ -269,11 +280,20 @@ def test_nests_pane_inventory_chrome(client):
     assert 'id="nests-filter-location"' in html
     assert 'id="nests-filter-provider"' in html
     assert "btn btn-primary btn-sm" in html
-    assert "Manage Nests" in html
+    assert "Manage Connections" in html
     assert "Open VMs pane" not in html
-    assert "scripts-layout" in html
-    assert "Select a Nest to inspect" in html
-    assert 'aria-pressed="true"' not in html
+    assert 'id="nests-tile-grid"' in html
+    assert "inventory-tile-grid" in html
+    assert "Select a Nest to inspect" not in html
+
+
+def test_nests_detail_markers(client):
+    resp = client.get("/nests/local")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "content--sticky-detail" in html
+    assert "Test Nest connection" in html
+    assert "Rollups" in html
 
 
 def test_settings_display_has_external_vms_toggle(client):

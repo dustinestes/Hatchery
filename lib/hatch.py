@@ -535,6 +535,79 @@ def get_events(session_id: str, vm_name: str) -> list[dict]:
         conn.close()
 
 
+def query_events(
+    *,
+    vm_name: str | None = None,
+    session_id: str | None = None,
+    level: str | None = None,
+    q: str | None = None,
+    scope: str = "active",
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Flat hatch_events query for the Events console (#527).
+
+    Returns newest-first pages with ``events``, ``total``, ``limit``, ``offset``.
+    ``scope`` is ``active`` (non-archived sessions) or ``all``.
+    """
+    lim = max(1, min(int(limit or 50), 200))
+    off = max(0, int(offset or 0))
+    clauses: list[str] = ["1=1"]
+    params: list[object] = []
+
+    scope_key = (scope or "active").strip().lower()
+    if scope_key != "all":
+        clauses.append("s.archived_at IS NULL")
+
+    if session_id:
+        clauses.append("e.session_id = ?")
+        params.append(session_id)
+    if vm_name:
+        clauses.append("e.vm_name = ?")
+        params.append(vm_name)
+    if level:
+        clauses.append("UPPER(e.level) = ?")
+        params.append(str(level).strip().upper())
+    if q:
+        needle = f"%{str(q).strip()}%"
+        clauses.append(
+            "(e.message LIKE ? OR IFNULL(e.script_name, '') LIKE ?"
+            " OR IFNULL(e.component, '') LIKE ? OR e.vm_name LIKE ?"
+            " OR e.session_id LIKE ? OR IFNULL(s.clutch_name, '') LIKE ?)"
+        )
+        params.extend([needle, needle, needle, needle, needle, needle])
+
+    where = " AND ".join(clauses)
+    conn = db.get_connection()
+    try:
+        total = conn.execute(
+            f"""SELECT COUNT(*) AS n
+                FROM hatch_events e
+                JOIN hatch_sessions s ON s.id = e.session_id
+                WHERE {where}""",
+            params,
+        ).fetchone()["n"]
+        rows = conn.execute(
+            f"""SELECT e.id, e.session_id, e.vm_name, e.context, e.level,
+                       e.script_name, e.component, e.message, e.received_at,
+                       s.clutch_name, s.archived_at
+                FROM hatch_events e
+                JOIN hatch_sessions s ON s.id = e.session_id
+                WHERE {where}
+                ORDER BY e.id DESC
+                LIMIT ? OFFSET ?""",
+            [*params, lim, off],
+        ).fetchall()
+        return {
+            "events": [dict(r) for r in rows],
+            "total": int(total),
+            "limit": lim,
+            "offset": off,
+        }
+    finally:
+        conn.close()
+
+
 def get_last_script_event_messages(session_id: str, vm_name: str) -> dict[str, str]:
     """Return the latest script-context event message keyed by script_name.
 

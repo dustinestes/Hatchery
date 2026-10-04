@@ -99,7 +99,7 @@ Existing installs keep their Settings without manual edits.
 ## Settings UI
 
 - **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
-- **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility, remoting identity catalog management, and Nest SSH **alert tiers**. Nest rows bind catalog ids under Settings → Nests.
+- **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility, remoting identity catalog management, and Nest SSH **alert tiers**. Nest rows bind catalog ids under **Nests → Connections** ([ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)).
 - **Nests** - Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
 
 Library connections and bindings are **not** a Settings section. When Library is enabled, configure them under **Library → Connections** (see [library.md](library.md)). `/settings/library` redirects there.

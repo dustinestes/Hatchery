@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}{{ nest.name }} - Nest - Hatchery{% endblock %}
+
+{% block content_classes %} content--sticky-detail{% endblock %}
+
+{% block content %}
+<div class="sticky-detail-shell" id="nest-detail"
+     data-nest-id="{{ nest.id }}"
+     data-nest-name="{{ nest.name }}">
+  {% from "_inventory_toolbar.html" import inventory_toolbar %}
+  {% call inventory_toolbar(nest.name) %}{% endcall %}
+
+  <div class="scripts-detail">
+    <dl class="scripts-meta-list" id="nest-detail-meta">
+      <div class="scripts-meta-row"><dt>Nest id</dt><dd><code>{{ nest.id }}</code></dd></div>
+      <div class="scripts-meta-row"><dt>Location</dt><dd>{{ nest.location }}</dd></div>
+      <div class="scripts-meta-row"><dt>Provider</dt><dd>{{ nest.provider_type }}</dd></div>
+      {% if nest.host %}
+      <div class="scripts-meta-row"><dt>Host</dt><dd>{{ nest.host }}{% if nest.port %}:{{ nest.port }}{% endif %}</dd></div>
+      {% endif %}
+      <div class="scripts-meta-row"><dt>Transport</dt><dd>{{ nest.transport or '—' }}</dd></div>
+      <div class="scripts-meta-row">
+        <dt>Reachability</dt>
+        <dd>
+          <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
+          {{ nest.reachability_label }}
+        </dd>
+      </div>
+    </dl>
+
+    <div class="vms-lifecycle-actions" style="margin-top: 12px">
+      <button type="button" class="btn btn-secondary btn-sm" id="nest-test-connection">Test Nest connection</button>
+      <p class="library-browser-status" id="nest-test-status" role="status" aria-live="polite"></p>
+    </div>
+
+    <section class="vm-detail-snaps" aria-labelledby="nest-rollups-heading" style="margin-top: 1.5rem">
+      <h2 class="scripts-section-title" id="nest-rollups-heading">Rollups</h2>
+      <dl class="scripts-meta-list">
+        <div class="scripts-meta-row"><dt>VMs on Nest</dt><dd id="nest-vm-count">…</dd></div>
+        <div class="scripts-meta-row"><dt>Active hatch sessions</dt><dd id="nest-session-count">…</dd></div>
+      </dl>
+      <ul class="vm-snap-list" id="nest-session-list" aria-label="Active hatch sessions"></ul>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById('nest-detail');
+  const nestId = root.dataset.nestId;
+  const nestName = root.dataset.nestName || nestId;
+  const testBtn = document.getElementById('nest-test-connection');
+  const testStatus = document.getElementById('nest-test-status');
+  const vmCount = document.getElementById('nest-vm-count');
+  const sessionCount = document.getElementById('nest-session-count');
+  const sessionList = document.getElementById('nest-session-list');
+
+  if (window.hatchery && hatchery.stickyNav) {
+    hatchery.stickyNav.open({
+      nav: 'nests',
+      under: 'connections',
+      id: nestId,
+      label: nestName,
+      href: '/nests/' + encodeURIComponent(nestId),
+    });
+    hatchery.stickyNav.activate('nests', 'connections', nestId);
+  }
+
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  async function loadRollups() {
+    try {
+      const [vmsResp, sessResp] = await Promise.all([
+        fetch('/api/nests/' + encodeURIComponent(nestId) + '/vms'),
+        fetch('/api/sessions?nest=' + encodeURIComponent(nestId)),
+      ]);
+      const vmsBody = await vmsResp.json().catch(() => ({}));
+      if (vmsResp.ok) {
+        const vms = vmsBody.vms || [];
+        vmCount.textContent = String(vms.length);
+      } else {
+        vmCount.textContent = vmsBody.error || 'Unavailable';
+      }
+      const sessions = sessResp.ok ? (await sessResp.json()) : [];
+      const list = Array.isArray(sessions) ? sessions : [];
+      sessionCount.textContent = String(list.length);
+      if (!list.length) {
+        sessionList.innerHTML = '<li>No active hatch sessions</li>';
+        return;
+      }
+      sessionList.innerHTML = list.map(function (s) {
+        const vmNames = (s.vms || []).map(function (v) { return v.vm_name; }).join(', ');
+        return '<li class="vm-snap-item"><span class="vm-snap-label">' +
+          esc(s.clutch_name || s.clutch_file || s.id) +
+          ' · ' + esc(s.status || '—') +
+          (vmNames ? ' · ' + esc(vmNames) : '') +
+          '</span></li>';
+      }).join('');
+    } catch (e) {
+      vmCount.textContent = 'Unavailable';
+      sessionCount.textContent = 'Unavailable';
+    }
+  }
+
+  testBtn.addEventListener('click', async function () {
+    testStatus.textContent = 'Testing…';
+    try {
+      const resp = await fetch('/api/nests/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nest_id: nestId }),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        testStatus.textContent = body.error || 'Connection test failed';
+        return;
+      }
+      testStatus.textContent = body.message || (body.ok ? 'Reachable' : 'Unreachable');
+    } catch (e) {
+      testStatus.textContent = 'Connection test failed';
+    }
+  });
+
+  loadRollups();
+  setInterval(loadRollups, 10000);
+})();
+</script>
+{% endblock %}

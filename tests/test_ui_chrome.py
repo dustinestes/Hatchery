@@ -46,6 +46,7 @@ def test_pane_titles_cover_sidebar_leaves():
         "settings_general",
         "settings_security",
         "settings_display",
-        "settings_nests",
+        "nests_connections",
+        "vms",
     }
     assert required <= set(PANE_TITLES)

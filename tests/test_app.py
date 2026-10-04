@@ -143,9 +143,10 @@ class TestActivePane:
         open_tag = html.split('id="sidebar-nav-library"', 1)[1].split(">", 1)[0]
         assert "hidden" not in open_tag
 
-    def test_settings_nests_nav_always_present(self, client):
+    def test_nests_connections_nav_present(self, client):
         html = client.get("/settings/general").data.decode()
-        assert 'href="/settings/nests"' in html
+        assert 'href="/nests/connections"' in html
+        assert 'href="/settings/nests"' not in html
 
     def test_nests_pane_lists_local_nest(self, client):
         html = client.get("/nests").data.decode()
@@ -160,14 +161,19 @@ class TestActivePane:
         assert "No Nests registered" in html
         assert 'data-nest="local"' not in html
 
-    def test_settings_nests_allows_empty_and_add_local_control(self, client):
+    def test_nests_connections_allows_empty_and_add_local_control(self, client):
         import lib.nests as nests_lib
 
         nests_lib.replace_nests([])
-        html = client.get("/settings/nests").data.decode()
+        html = client.get("/nests/connections").data.decode()
         assert "No Nests registered" in html
         assert 'id="add-local-nest-btn"' in html
         assert "Add Local Nest" in html
+
+    def test_settings_nests_redirects_to_connections(self, client):
+        resp = client.get("/settings/nests")
+        assert resp.status_code == 302
+        assert "/nests/connections" in resp.headers["Location"]
 
     def test_settings_security_marks_group_and_child(self, client):
         html = client.get("/settings/security").data.decode()
@@ -517,13 +523,15 @@ class TestPageTitles:
             "/notifications/validators",
         ):
             html = client.get(path).data.decode()
-            assert 'class="list-shell"' in html
+            assert "list-shell" in html
             assert "list-shell-body" in html
             assert "notif-filters" in html
 
-    def test_events_uses_vm_filter_not_side_nav(self, client):
+    def test_events_uses_flat_filters_not_side_nav(self, client):
         html = client.get("/notifications/events").data.decode()
         assert 'id="events-filter-vm"' in html
+        assert 'id="events-filter-q"' in html
+        assert 'id="events-pager"' in html
         assert "events-nav" not in html
         assert 'id="events-table"' in html
 
@@ -870,13 +878,14 @@ class TestSettingsRoute:
 
 
 class TestNestSettings:
-    def test_nests_settings_returns_200(self, client):
-        resp = client.get("/settings/nests")
+    def test_nests_connections_returns_200(self, client):
+        resp = client.get("/nests/connections")
         assert resp.status_code == 200
         html = resp.data.decode()
         assert "Connections" in html
         assert 'name="nest_id"' in html
         assert "Test Nest connection" in html
+        assert "sticky_nav.js" in client.get("/nests").data.decode()
 
     def test_nests_post_adds_remote(self, client, tmp_path):
         import os
@@ -900,7 +909,7 @@ class TestNestSettings:
         ri.add_path_identity(identity_id="lab-key", identity_file=str(key), name="Lab")
 
         resp = client.post(
-            "/settings/nests",
+            "/nests/connections",
             data={
                 "nest_id": ["local", "lab1"],
                 "nest_name": ["Local", "Lab"],
@@ -917,12 +926,12 @@ class TestNestSettings:
             },
         )
         assert resp.status_code == 302
-        assert "/settings/nests" in resp.headers["Location"]
+        assert "/nests/connections" in resp.headers["Location"]
         nest = nests_lib.get_nest("lab1")
         assert nest["host"] == "nest.example"
         assert nest["remoting_identity_id"] == "lab-key"
         assert nest["identity_file"] is None
-        assert "nest_remoting_identity_id" in client.get("/settings/nests").data.decode()
+        assert "nest_remoting_identity_id" in client.get("/nests/connections").data.decode()
 
     def test_api_test_local_nest(self, client):
         with patch("lib.requirements.check_nest", return_value=[]):
@@ -4073,8 +4082,10 @@ class TestEventsRoute:
 
     def test_shows_events_layout(self, client):
         html = client.get("/notifications/events").data.decode()
-        assert 'class="list-shell"' in html
+        assert 'class="list-shell' in html
         assert 'id="events-filter-vm"' in html
+        assert 'id="events-filter-q"' in html
+        assert 'id="events-pager"' in html
         assert 'id="events-table"' in html
         assert "events-nav" not in html
         assert "Events content coming soon" not in html
@@ -4110,6 +4121,35 @@ class TestApiVmEvents:
         hatch_lib.add_vm(sid, "dc01")
         data = client.get(f"/api/sessions/{sid}/vms/dc01/events").get_json()
         assert data == {"events": []}
+
+
+class TestApiEventsFlat:
+    def test_paginates_and_filters(self, client):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.add_vm(sid, "web01")
+        hatch_lib.add_event(sid, "dc01", "hatchery", "INFO", "Creating VM")
+        hatch_lib.add_event(sid, "web01", "hatchery", "ERROR", "Boom")
+        hatch_lib.add_event(sid, "dc01", "script", "WARN", "Almost", script_name="a.ps1")
+
+        all_resp = client.get("/api/events?limit=2&offset=0")
+        assert all_resp.status_code == 200
+        body = all_resp.get_json()
+        assert body["total"] == 3
+        assert body["limit"] == 2
+        assert len(body["events"]) == 2
+        assert body["events"][0]["id"] > body["events"][1]["id"]
+
+        err = client.get("/api/events?level=ERROR").get_json()
+        assert err["total"] == 1
+        assert err["events"][0]["vm_name"] == "web01"
+
+        vm = client.get("/api/events?vm=dc01").get_json()
+        assert vm["total"] == 2
+
+        q = client.get("/api/events?q=Boom").get_json()
+        assert q["total"] == 1
+        assert q["events"][0]["message"] == "Boom"
 
 
 class TestBackgroundThread:

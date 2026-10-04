@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+
+{% block title %}{{ vm_name }} - VM - Hatchery{% endblock %}
+
+{% block content_classes %} content--sticky-detail{% endblock %}
+
+{% block content %}
+<div class="sticky-detail-shell" id="vms-detail-root"
+     data-nest="{{ nest_id }}"
+     data-name="{{ vm_name }}"
+     data-session-id="{{ session_id or '' }}">
+  {% from "_inventory_toolbar.html" import inventory_toolbar %}
+  {% call inventory_toolbar(vm_name) %}
+    <div class="vms-lifecycle-actions" id="vms-detail-actions"
+         data-nest="{{ nest_id }}" data-name="{{ vm_name }}" role="toolbar" aria-label="VM power actions">
+      <button type="button" class="btn-icon" data-vm-action="start" data-label="Start"
+              title="Start" aria-label="Start">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="6 3 20 12 6 21 6 3"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="stop" data-label="Stop"
+              title="Stop" aria-label="Stop">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="1"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="force-stop" data-label="Force Stop"
+              title="Force Stop" aria-label="Force Stop">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="pause" data-label="Pause"
+              title="Pause" aria-label="Pause">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="resume" data-label="Resume"
+              title="Resume" aria-label="Resume">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="destroy" data-label="Destroy"
+              title="Destroy" aria-label="Destroy">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" data-vm-action="health" data-label="Health"
+              title="Health" aria-label="Health">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-icon" id="vms-retry-btn" data-label="Retry automation"
+              title="Retry automation" aria-label="Retry automation" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+    </div>
+  {% endcall %}
+
+  <div class="scripts-content-header" id="vms-content-header">
+    <div class="scripts-content-heading">
+      <span class="scripts-content-title" id="vms-detail-name">{{ vm_name }}</span>
+      <span class="scripts-content-meta" id="vms-detail-sub">{{ nest_id }}</span>
+    </div>
+  </div>
+
+  <div class="scripts-detail" id="vms-detail" data-nest="{{ nest_id }}" data-name="{{ vm_name }}">
+    <dl class="scripts-meta-list" id="vms-detail-meta"></dl>
+    <div class="vm-detail-health" id="vms-detail-health" role="status" aria-live="polite"></div>
+    <section class="vm-detail-snaps" aria-labelledby="vms-snaps-heading">
+      <h2 class="scripts-section-title" id="vms-snaps-heading">Snapshots</h2>
+      <div class="vm-snap-take">
+        <label class="form-label visually-hidden" for="vms-snap-label">Snapshot label</label>
+        <input type="text" id="vms-snap-label" class="form-input" placeholder="Snapshot label" autocomplete="off">
+        <button type="button" class="btn btn-sm btn-primary" id="vms-snap-take">Take snapshot</button>
+      </div>
+      <ul class="vm-snap-list" id="vms-snap-list" aria-label="Snapshot list"></ul>
+    </section>
+
+    <section class="vm-scoped-events" aria-labelledby="vms-events-heading">
+      <h2 class="scripts-section-title" id="vms-events-heading">Events</h2>
+      <div class="list-shell-body events-console-body">
+        <div id="vms-events-empty" class="stub" role="status" hidden>No events for this VM yet.</div>
+        <table class="notif-table" id="vms-events-table" hidden>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Level</th>
+              <th scope="col">Context</th>
+              <th scope="col">Script</th>
+              <th scope="col">Message</th>
+            </tr>
+          </thead>
+          <tbody id="vms-events-tbody"></tbody>
+        </table>
+      </div>
+      <p class="library-browser-status" id="vms-events-refresh" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+</div>
+
+<div id="vms-modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vms-modal-title">
+    <h2 class="modal-title" id="vms-modal-title">Confirm</h2>
+    <div class="modal-body">
+      <p id="vms-modal-message"></p>
+      <p class="modal-warning" id="vms-modal-warning" hidden></p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="vms-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="vms-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById('vms-detail-root');
+  const nest = root.dataset.nest;
+  const name = root.dataset.name;
+  const detailActions = document.getElementById('vms-detail-actions');
+  const detail = document.getElementById('vms-detail');
+  const detailName = document.getElementById('vms-detail-name');
+  const detailSub = document.getElementById('vms-detail-sub');
+  const detailMeta = document.getElementById('vms-detail-meta');
+  const detailHealth = document.getElementById('vms-detail-health');
+  const snapList = document.getElementById('vms-snap-list');
+  const snapLabel = document.getElementById('vms-snap-label');
+  const retryBtn = document.getElementById('vms-retry-btn');
+  const eventsEmpty = document.getElementById('vms-events-empty');
+  const eventsTable = document.getElementById('vms-events-table');
+  const eventsTbody = document.getElementById('vms-events-tbody');
+  const eventsRefresh = document.getElementById('vms-events-refresh');
+  const modalBackdrop = document.getElementById('vms-modal-backdrop');
+  const modalTitle = document.getElementById('vms-modal-title');
+  const modalMessage = document.getElementById('vms-modal-message');
+  const modalWarning = document.getElementById('vms-modal-warning');
+  const modalCancel = document.getElementById('vms-modal-cancel');
+  const modalConfirm = document.getElementById('vms-modal-confirm');
+
+  let sessionId = root.dataset.sessionId || '';
+  let resolvedTimezone = 'UTC';
+  let lastEventId = 0;
+  let modalResolve = null;
+  let modalFocusReturn = null;
+
+  const POWER_LABEL = {
+    'running': 'Running',
+    'shut off': 'Shut Off',
+    'paused': 'Paused',
+    'suspended': 'Suspended',
+    'crashed': 'Crashed',
+    'pmsuspended': 'Suspended (PM)',
+  };
+
+  if (window.hatchery && hatchery.stickyNav) {
+    hatchery.stickyNav.open({
+      nav: 'vms',
+      under: 'inventory',
+      id: nest + '/' + name,
+      label: name,
+      href: '/vms/' + encodeURIComponent(nest) + '/' + encodeURIComponent(name),
+    });
+    hatchery.stickyNav.activate('vms', 'inventory', nest + '/' + name);
+  }
+
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+  }
+
+  function metaRow(label, value) {
+    return '<div class="scripts-meta-row"><dt>' + esc(label) + '</dt><dd>' + value + '</dd></div>';
+  }
+
+  function syncLifecycleButtons(status) {
+    const power = (status || '').toLowerCase();
+    const shutOff = power === 'shut off';
+    const running = power === 'running';
+    const paused = power === 'paused' || power === 'suspended' || power === 'pmsuspended';
+    const rules = {
+      start: { on: shutOff, when: 'Shut Off' },
+      stop: { on: running, when: 'Running' },
+      'force-stop': { on: running, when: 'Running' },
+      pause: { on: running, when: 'Running' },
+      resume: { on: paused, when: 'Paused' },
+      destroy: { on: true, when: '' },
+      health: { on: true, when: '' },
+    };
+    detailActions.querySelectorAll('[data-vm-action]').forEach(function (btn) {
+      const action = btn.getAttribute('data-vm-action');
+      const rule = rules[action];
+      if (!rule) return;
+      const enabled = !!rule.on;
+      const label = btn.getAttribute('data-label') || action;
+      btn.disabled = !enabled;
+      if (enabled || !rule.when) {
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+      } else {
+        const tip = label + ' (available when power is ' + rule.when + ')';
+        btn.title = tip;
+        btn.setAttribute('aria-label', tip);
+      }
+    });
+  }
+
+  function applyVm(vm) {
+    const power = POWER_LABEL[vm.status] || vm.status || 'Unknown';
+    detailName.textContent = vm.name || name;
+    detailSub.textContent = (vm.nest || nest) + ' · ' + power + (vm.hatchery_sourced ? '' : ' · External');
+    detailMeta.innerHTML = [
+      metaRow('Nest', esc(vm.nest || nest)),
+      metaRow('Power', esc(power)),
+      metaRow('Hatch status', esc(vm.hatch_status || '—')),
+      metaRow('IP', esc(vm.ip || '—')),
+      metaRow('Clutch', esc(vm.clutch_file || '—')),
+      metaRow('Session', esc(vm.session_id || '—')),
+      metaRow('Provenance', vm.hatchery_sourced ? 'Hatchery' : 'External'),
+    ].join('');
+    sessionId = vm.session_id || sessionId || '';
+    root.dataset.sessionId = sessionId;
+    syncLifecycleButtons(vm.status);
+    retryBtn.hidden = !(vm.hatch_status === 'failed' && sessionId);
+  }
+
+  async function refreshVm() {
+    const resp = await fetch('/api/vms');
+    const data = await resp.json().catch(() => ({}));
+    const list = Array.isArray(data.vms) ? data.vms : [];
+    const vm = list.find(function (v) { return v.nest === nest && v.name === name; });
+    if (!vm) {
+      detailMeta.innerHTML = metaRow('Status', 'VM not found on Nest (may have been destroyed)');
+      return;
+    }
+    applyVm(vm);
+  }
+
+  function closeVmModal(result) {
+    if (modalBackdrop.hidden) return;
+    modalBackdrop.hidden = true;
+    const resolve = modalResolve;
+    modalResolve = null;
+    const focusEl = modalFocusReturn;
+    modalFocusReturn = null;
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+    if (resolve) resolve(result);
+  }
+
+  function openVmModal(opts) {
+    modalTitle.textContent = opts.title || 'Confirm';
+    modalMessage.textContent = opts.message || '';
+    if (opts.warning) {
+      modalWarning.textContent = opts.warning;
+      modalWarning.hidden = false;
+    } else {
+      modalWarning.textContent = '';
+      modalWarning.hidden = true;
+    }
+    modalConfirm.textContent = opts.confirmLabel || 'Confirm';
+    modalCancel.hidden = opts.mode === 'notice';
+    modalFocusReturn = document.activeElement;
+    modalBackdrop.hidden = false;
+    modalConfirm.focus();
+    return new Promise(function (resolve) { modalResolve = resolve; });
+  }
+
+  function showNotice(title, message) {
+    return openVmModal({ title: title, message: message, confirmLabel: 'OK', mode: 'notice' });
+  }
+
+  function askConfirm(opts) {
+    return openVmModal({
+      title: opts.title,
+      message: opts.message,
+      warning: opts.warning,
+      confirmLabel: opts.confirmLabel || 'Confirm',
+      mode: 'confirm',
+    });
+  }
+
+  modalCancel.addEventListener('click', function () { closeVmModal(false); });
+  modalConfirm.addEventListener('click', function () { closeVmModal(true); });
+  modalBackdrop.addEventListener('click', function (e) {
+    if (e.target === modalBackdrop) closeVmModal(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modalBackdrop.hidden) {
+      e.preventDefault();
+      closeVmModal(false);
+    }
+  });
+
+  async function postAction(action) {
+    if (action === 'destroy') {
+      const ok = await askConfirm({
+        title: 'Destroy VM',
+        message: 'Destroy "' + name + '" on Nest "' + nest + '"?',
+        warning: 'This removes the VM and its storage.',
+        confirmLabel: 'Destroy',
+      });
+      if (!ok) return;
+    }
+    const path = '/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) + '/' + action;
+    const resp = await fetch(path, { method: 'POST' });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      await showNotice('Action failed', body.error || ('Action failed (' + resp.status + ')'));
+      return;
+    }
+    if (action === 'destroy') {
+      window.location.href = '{{ url_for("vms_pane") }}';
+      return;
+    }
+    await refreshVm();
+  }
+
+  async function runHealth() {
+    detailHealth.textContent = 'Checking health…';
+    const resp = await fetch('/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) + '/health');
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      detailHealth.textContent = body.error || 'Health check failed';
+      await showNotice('Health check failed', body.error || 'Health check failed');
+      return;
+    }
+    const winrm = body.winrm ? 'reachable' : 'unreachable';
+    detailHealth.textContent = 'IP ' + (body.ip || '—') + '; WinRM ' + winrm;
+  }
+
+  async function loadSnapshots() {
+    snapList.innerHTML = '<li>Loading…</li>';
+    const resp = await fetch('/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) + '/snapshots');
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      snapList.innerHTML = '<li>' + esc(body.error || 'Failed to list snapshots') + '</li>';
+      return;
+    }
+    const labels = body.snapshots || [];
+    if (!labels.length) {
+      snapList.innerHTML = '<li>No snapshots</li>';
+      return;
+    }
+    snapList.innerHTML = labels.map(function (label) {
+      return '<li class="vm-snap-item"><span class="vm-snap-label">' + esc(label) + '</span>' +
+        '<button type="button" class="btn btn-secondary btn-sm" data-snap-apply="' + esc(label) + '">Apply</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" data-snap-delete="' + esc(label) + '">Delete</button></li>';
+    }).join('');
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        timeZone: resolvedTimezone,
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).format(new Date(iso));
+    } catch (e) {
+      return new Date(iso).toLocaleString();
+    }
+  }
+
+  function appendEvents(events, replace) {
+    if (replace) {
+      eventsTbody.textContent = '';
+      lastEventId = 0;
+    }
+    if (!events.length && replace) {
+      eventsTable.hidden = true;
+      eventsEmpty.hidden = false;
+      return;
+    }
+    eventsEmpty.hidden = true;
+    eventsTable.hidden = false;
+    events.forEach(function (ev) {
+      if (ev.id <= lastEventId) return;
+      const tr = document.createElement('tr');
+      const timeTd = document.createElement('td');
+      timeTd.className = 'notif-table-time';
+      const timeEl = document.createElement('time');
+      timeEl.setAttribute('datetime', ev.received_at || '');
+      timeEl.textContent = fmtTime(ev.received_at);
+      timeTd.appendChild(timeEl);
+      tr.appendChild(timeTd);
+      const level = String(ev.level || 'INFO');
+      const levelTd = document.createElement('td');
+      levelTd.className = 'events-level events-level--' + level.toLowerCase();
+      levelTd.textContent = level;
+      tr.appendChild(levelTd);
+      ['context', 'script_name', 'message'].forEach(function (key) {
+        const td = document.createElement('td');
+        if (key === 'message') td.className = 'notif-table-msg';
+        td.textContent = ev[key] || '—';
+        tr.appendChild(td);
+      });
+      eventsTbody.appendChild(tr);
+      lastEventId = Math.max(lastEventId, ev.id);
+    });
+  }
+
+  function fetchEvents(replace) {
+    if (!sessionId) {
+      eventsTable.hidden = true;
+      eventsEmpty.hidden = false;
+      eventsEmpty.textContent = 'No active hatch session for this VM.';
+      return;
+    }
+    const url = '/api/sessions/' + encodeURIComponent(sessionId) +
+      '/vms/' + encodeURIComponent(name) + '/events';
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) throw new Error('events ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        const events = data.events || [];
+        appendEvents(replace ? events : events.filter(function (ev) { return ev.id > lastEventId; }), replace);
+        eventsRefresh.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      })
+      .catch(function () {
+        eventsRefresh.textContent = 'Refresh failed';
+      });
+  }
+
+  detailActions.addEventListener('click', function (ev) {
+    const btn = ev.target.closest('[data-vm-action]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-vm-action');
+    if (action === 'health') runHealth();
+    else postAction(action);
+  });
+
+  retryBtn.addEventListener('click', async function () {
+    if (!sessionId) return;
+    const ok = await askConfirm({
+      title: 'Retry automation',
+      message: 'Retry failed automation for "' + name + '"?',
+      confirmLabel: 'Retry',
+    });
+    if (!ok) return;
+    const resp = await fetch(
+      '/api/sessions/' + encodeURIComponent(sessionId) + '/vms/' + encodeURIComponent(name) + '/retry',
+      { method: 'POST' }
+    );
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      await showNotice('Retry failed', body.error || 'Retry failed');
+      return;
+    }
+    await refreshVm();
+    fetchEvents(true);
+  });
+
+  document.getElementById('vms-snap-take').addEventListener('click', async function () {
+    const label = (snapLabel.value || '').trim();
+    if (!label) {
+      await showNotice('Snapshot label required', 'Enter a snapshot label before taking a snapshot.');
+      return;
+    }
+    const resp = await fetch('/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) + '/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: label }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      await showNotice('Take snapshot failed', body.error || 'Take snapshot failed');
+      return;
+    }
+    snapLabel.value = '';
+    loadSnapshots();
+  });
+
+  snapList.addEventListener('click', async function (ev) {
+    const applyBtn = ev.target.closest('[data-snap-apply]');
+    const deleteBtn = ev.target.closest('[data-snap-delete]');
+    if (applyBtn) {
+      const label = applyBtn.getAttribute('data-snap-apply');
+      const ok = await askConfirm({
+        title: 'Apply snapshot',
+        message: 'Apply snapshot "' + label + '" to "' + name + '"?',
+        warning: 'The VM returns to the state captured in that snapshot.',
+        confirmLabel: 'Apply',
+      });
+      if (!ok) return;
+      const resp = await fetch(
+        '/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) +
+        '/snapshots/' + encodeURIComponent(label) + '/apply',
+        { method: 'POST' }
+      );
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) await showNotice('Apply failed', body.error || 'Apply failed');
+      else await refreshVm();
+      return;
+    }
+    if (deleteBtn) {
+      const label = deleteBtn.getAttribute('data-snap-delete');
+      const ok = await askConfirm({
+        title: 'Delete snapshot',
+        message: 'Delete snapshot "' + label + '"?',
+        warning: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+      });
+      if (!ok) return;
+      const resp = await fetch(
+        '/api/nests/' + encodeURIComponent(nest) + '/vms/' + encodeURIComponent(name) +
+        '/snapshots/' + encodeURIComponent(label),
+        { method: 'DELETE' }
+      );
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) await showNotice('Delete failed', body.error || 'Delete failed');
+      else loadSnapshots();
+    }
+  });
+
+  fetch('/api/config')
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      if (cfg && cfg.resolved_timezone) resolvedTimezone = cfg.resolved_timezone;
+    })
+    .catch(function () {})
+    .finally(function () {
+      refreshVm().then(function () {
+        loadSnapshots();
+        fetchEvents(true);
+      });
+      setInterval(function () {
+        refreshVm();
+        fetchEvents(false);
+      }, 5000);
+    });
+})();
+</script>
+{% endblock %}

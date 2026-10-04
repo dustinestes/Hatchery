@@ -17,7 +17,7 @@ We needed a shape that:
 
 ## Decision
 
-1. Persist Nest connections in a **registry** (Settings → Nests; SQLite `nests` table)
+1. Persist Nest connections in a **registry** (Nests → Connections; SQLite `nests` table; [ADR-0031](0031-sticky-submenu-and-nests-connections.md))
 2. Route Nest work through a **provider factory**: Nest id → provider type × location → `BaseProvider` implementation
 3. After registry + factory land, **no new Nest feature may bypass them** (no new hard-wired `_provider()` → libvirt-only paths)
 4. Nest **transport** (Controller → Nest host) stays separate from **guest provisioning** (WinRM/SSH into the VM)

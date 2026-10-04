@@ -45,7 +45,7 @@ Example: within 30 days, once per day; within 7 days, twice per day.
 
 ## Tracked Identities
 
-SSH identity **paths** and optional **expiry** live on each Nest under Settings → Nests (`identity_file`, `cert_path`, `identity_expires_at`). Hatchery is the SSH client: point the Nest row at a private key path on the Hatchery host, and trust the matching public key on the Nest (`authorized_keys`).
+SSH identity paths and optional expiry live on Controller remoting identities; Nest rows bind via `remoting_identity_id` under **Nests → Connections**. Hatchery is the SSH client: trust the matching public key on the Nest (`authorized_keys`).
 
 Private key bytes are not stored - only paths and policy dates. The legacy Security JSON list (`nest_ssh_identities`) is cleared on upgrade; alert evaluation reads Nest rows via `lib/nests.identities_for_expiry()`.
 
@@ -65,7 +65,7 @@ You do not need a special key file for a quick test. Plain OpenSSH keys have no 
 
 ### Fast path (manual Identity expiry)
 
-1. Settings → Nests → expand a remote Nest (or add one)
+1. Nests → Connections → expand a remote Nest (or add one)
 2. Set **Identity file** to any path string (need not exist for alert-only tests)
 3. Set **Identity expiry** to a day inside a Security tier window
 4. Save; wait for the background interval (or restart Hatchery)

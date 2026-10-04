@@ -351,6 +351,8 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 
 `GET /api/sessions/<session_id>/vms/<vm_name>/events` - returns all events for a VM in insertion order.
 
+`GET /api/events` - flat paginated Events console (#527); newest-first with filters (`vm`, `session_id`, `level`, `q`, `scope`).
+
 <br>
 
 ### clutch_instances

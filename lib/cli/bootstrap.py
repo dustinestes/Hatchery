@@ -92,7 +92,7 @@ def resolve_nest_id(explicit: str | None) -> str:
     registered = nests_lib.list_nests()
     if not registered:
         raise NestResolveError(
-            "No Nests registered - add one under Settings → Nests, "
+            "No Nests registered - add one under Nests → Connections, "
             "or pass --nest <id> after registering"
         )
     raise NestResolveError(
