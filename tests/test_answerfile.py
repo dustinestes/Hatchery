@@ -10,7 +10,7 @@ hatchery:
   kind: windows_unattend
   guest_os: [win11]
   companions:
-    - hatchery-setup.ps1
+    - hatchery-setup-windows.ps1
   parameters:
     - name: input_locale
       label: Input locale
@@ -121,7 +121,7 @@ class TestRenderUserAnswerFile:
         assert "en-GB" in xml
         assert "devbox" in xml
         assert "alice" in xml
-        assert companions == ["hatchery-setup.ps1"]
+        assert companions == ["hatchery-setup-windows.ps1"]
 
     def test_truncates_vm_name_to_15(self, tmp_path):
         path = tmp_path / "t.xml.j2"
@@ -200,7 +200,7 @@ class TestValidateVmAnswerFile:
     def test_missing_companion(self, tmp_path):
         path = tmp_path / "win11.xml.j2"
         path.write_text(
-            "---\nhatchery:\n  companions:\n    - hatchery-setup.ps1\n---\n<unattend/>\n",
+            "---\nhatchery:\n  companions:\n    - hatchery-setup-windows.ps1\n---\n<unattend/>\n",
             encoding="utf-8",
         )
         vm = VMConfig(
@@ -213,11 +213,11 @@ class TestValidateVmAnswerFile:
             answer_file="win11.xml.j2",
         )
         errors = answerfile.validate_vm_answer_file(vm, automation_dir=tmp_path)
-        assert any("companion 'hatchery-setup.ps1'" in e for e in errors)
+        assert any("companion 'hatchery-setup-windows.ps1'" in e for e in errors)
 
     def test_ok_when_complete(self, tmp_path):
         (tmp_path / "win11.xml.j2").write_text(_SAMPLE, encoding="utf-8")
-        (tmp_path / "hatchery-setup.ps1").write_text("# setup\n", encoding="utf-8")
+        (tmp_path / "hatchery-setup-windows.ps1").write_text("# setup\n", encoding="utf-8")
         vm = VMConfig(
             name="dc01",
             os="windows",

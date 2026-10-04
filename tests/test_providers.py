@@ -411,7 +411,7 @@ class TestCreateVM:
             "---\n"
             "hatchery:\n"
             "  companions:\n"
-            "    - hatchery-setup.ps1\n"
+            "    - hatchery-setup-windows.ps1\n"
             "  parameters:\n"
             "    - name: input_locale\n"
             "      default: en-US\n"
@@ -419,7 +419,7 @@ class TestCreateVM:
             "<unattend>{{ admin_username }} {{ admin_password }} {{ input_locale }}</unattend>\n",
             encoding="utf-8",
         )
-        (provider.automation_dir / "hatchery-setup.ps1").write_text(
+        (provider.automation_dir / "hatchery-setup-windows.ps1").write_text(
             "Enable-PSRemoting -Force\n", encoding="utf-8"
         )
         img_path = tmp_path / "fake.img"
@@ -443,7 +443,7 @@ class TestCreateVM:
         assert "alice" in xml_arg
         assert "secret" in xml_arg
         assert "en-GB" in xml_arg
-        assert companions == [("hatchery-setup.ps1", "Enable-PSRemoting -Force\n")]
+        assert companions == [("hatchery-setup-windows.ps1", "Enable-PSRemoting -Force\n")]
         cmd = mock_run.call_args[0][0]
         assert any("floppy" in arg for arg in cmd)
 

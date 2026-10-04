@@ -75,7 +75,7 @@ Windows guests require a selected Answer File (`answer_file` on the Clutch VM). 
 | File on floppy | Source | Purpose |
 |---|---|---|
 | `Autounattend.xml` | Rendered Answer File body | OS unattended install |
-| Companion basenames (e.g. `hatchery-setup.ps1`) | Files listed in frontmatter `companions:` under `automation/answerfiles/` | First-boot orchestrator / extras |
+| Companion basenames (e.g. `hatchery-setup-windows.ps1`) | Files listed in frontmatter `companions:` under `automation/answerfiles/` | First-boot orchestrator / extras |
 
 The floppy is attached to the VM as a virtual floppy disk. Windows Setup detects `Autounattend.xml` on the floppy automatically and proceeds without user input.
 
@@ -131,14 +131,14 @@ This behaviour is **scoped to `hatching` status only**. Fledged VMs that are shu
 After the OS install finishes, Windows logs in automatically (via `AutoLogon`) and runs a single `<FirstLogonCommand>` from the answer file:
 
 ```
-powershell.exe -ExecutionPolicy Bypass -File "A:\hatchery-setup.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "A:\hatchery-setup-windows.ps1"
 ```
 
 This is the **stable contract** between the answer file and the orchestrator. If you ever edit the OS-specific answer file templates, the only line in `<FirstLogonCommands>` that must be preserved is this one.
 
-### The orchestrator script (`hatchery-setup.ps1`)
+### The orchestrator script (`hatchery-setup-windows.ps1`)
 
-`hatchery-setup.ps1` is a companion file under `automation/answerfiles/` (Library samples ship it next to the Autounattend templates). It is packed onto the floppy alongside `Autounattend.xml` when listed in Answer File frontmatter. It runs all setup steps sequentially inside a console window titled **"Hatchery - First Boot Setup"**, displaying a live progress list with step indicators:
+`hatchery-setup-windows.ps1` is a companion file under `automation/answerfiles/` (Library samples ship it next to the Autounattend templates). It is packed onto the floppy alongside `Autounattend.xml` when listed in Answer File frontmatter. It runs all setup steps sequentially inside a console window titled **"Hatchery - First Boot Setup"** (black background, white text, Hatchery ASCII banner), displaying a live progress list with step indicators:
 
 | Indicator | Meaning |
 |---|---|
@@ -153,13 +153,14 @@ The steps it executes, in order (OpenSSH path per [ADR-0029](adr/0029-guest-ssh-
 |---|---|---|
 | 1 | `Get-NetConnectionProfile \| Set-NetConnectionProfile -NetworkCategory Private` | Set network profile to Private (required for PSRemoting) |
 | 2 | `Enable-PSRemoting -Force` (+ raise `MaxEnvelopeSizekb` to 8192 when lower) | Start the WinRM service and configure listeners; envelope headroom for Software staging |
-| 3 | `New-ItemProperty … LocalAccountTokenFilterPolicy … 1` | Allow non-built-in admin accounts to authenticate over WinRM |
-| 4 | `New-NetFirewallRule … -LocalPort 5985` | Open WinRM HTTP port |
-| 5 | Download **latest** Win64 OpenSSH Server MSI from [PowerShell/Win32-OpenSSH](https://github.com/PowerShell/Win32-OpenSSH) and `msiexec … ADDLOCAL=Server` | Install OpenSSH Server under `C:\Program Files\OpenSSH` (not Windows Update FoD) |
-| 6 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
-| 7 | `Start-Service -Name sshd` | Start SSH immediately |
-| 8 | `New-NetFirewallRule … -LocalPort 22` | Open SSH port |
-| 9 | `New-Item -Path 'C:\Program Files\Hatchery\temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
+| 3 | `New-ItemProperty … LocalAccountTokenFilterPolicy … 1` | Allow non-built-in admin accounts to authenticate over WinRM (token filter only - not the UAC slider) |
+| 4 | Set UAC to Never notify (`ConsentPromptBehaviorAdmin=0`, `PromptOnSecureDesktop=0`); backup prior values to `temp\hatchery-uac-policy.json` | Lab/dev posture so silent Software installs (`msiexec /qn`) succeed over Guest transport without elevation prompts ([#543](https://github.com/dustinestes/Hatchery/issues/543)). Takes effect for new remoting sessions after `hatchery-ready`; no reboot required. |
+| 5 | `New-NetFirewallRule … -LocalPort 5985` | Open WinRM HTTP port |
+| 6 | Download **latest** Win64 OpenSSH Server MSI from [PowerShell/Win32-OpenSSH](https://github.com/PowerShell/Win32-OpenSSH) and `msiexec … ADDLOCAL=Server` | Install OpenSSH Server under `C:\Program Files\OpenSSH` (not Windows Update FoD) |
+| 7 | `Set-Service -Name sshd -StartupType Automatic` | Configure SSH to start on boot |
+| 8 | `Start-Service -Name sshd` | Start SSH immediately |
+| 9 | `New-NetFirewallRule … -LocalPort 22` | Open SSH port |
+| 10 | `New-Item -Path 'C:\Program Files\Hatchery\temp\hatchery-ready' -ItemType File -Force` | **Setup-complete flag** |
 
 **OpenSSH source (locked):** Hatchery does **not** use `Add-WindowsCapability -Online` / FoD for the default hatch path. Lab evidence: FoD often took ~15–20 minutes; the GitHub MSI completed download + install + service bring-up in ~9 seconds. Implementation resolves **latest** Win64 Server MSI at first boot. After early semver, Win32-OpenSSH has only shipped Beta then Preview tags (often ~a year old and still labeled Preview); Hatchery still tracks latest and documents that channel oddity here and in ADR-0029. Offline MSI staging is [#475](https://github.com/dustinestes/Hatchery/issues/475) / [#131](https://github.com/dustinestes/Hatchery/issues/131); Library release-asset → Software transform is [#517](https://github.com/dustinestes/Hatchery/issues/517).
 
@@ -171,7 +172,7 @@ If any step fails, it is marked `[!]`, the failure message is displayed, and a "
 
 WinRM becomes available as soon as step 2 completes - but OpenSSH install and later steps are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
 
-The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It means first-boot finished with OpenSSH installed, `sshd` listening, and TCP 22 open (ADR-0029). Hatchery's polling loop:
+The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup-windows.ps1`. It means first-boot finished with OpenSSH installed, `sshd` listening, and TCP 22 open (ADR-0029). Hatchery's polling loop:
 
 1. Confirms guest remoting TCP is open (SSH :22 or WinRM :5985 - cheap socket check)
 2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over **Guest transport** (SSH preferred; WinRM Windows fallback) - see [guest transport](guest-transport.md) / [#497](https://github.com/dustinestes/Hatchery/issues/497)
@@ -181,21 +182,23 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 
 ### Log file
 
-`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via Guest transport, it imports this log into `hatch_events` using the guest timestamps as `received_at` - so step durations are visible in the event log exactly as they happened - then deletes the file.
+`hatchery-setup-windows.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup-windows.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via Guest transport, it imports this log into `hatch_events` using the guest timestamps as `received_at` - so step durations are visible in the event log exactly as they happened - then deletes the file.
 
 ### Hatchery guest directory
 
-`hatchery-setup.ps1` creates `C:\Program Files\Hatchery\` on first boot. Path roles (`root`, `logs`, `temp`, `software`, `software_package(id)`) are the cross-platform vocabulary; Windows absolute values are locked today. See [Software - Guest path roles](software.md#guest-path-roles), [ADR-0025](adr/0025-software-product-model.md), and guest env inject + persist [ADR-0026](adr/0026-guest-clutch-environment.md).
+`hatchery-setup-windows.ps1` creates `C:\Program Files\Hatchery\` on first boot. Path roles (`root`, `logs`, `temp`, `software`, `software_package(id)`) are the cross-platform vocabulary; Windows absolute values are locked today. See [Software - Guest path roles](software.md#guest-path-roles), [ADR-0025](adr/0025-software-product-model.md), and guest env inject + persist [ADR-0026](adr/0026-guest-clutch-environment.md).
 
 | Subdirectory | Contents |
 |---|---|
-| `logs\` | `hatchery-setup.log` (first-boot log); `<script-name>.log` (per-automation log, one per script); `software\{id}.log` (installer logs via `HATCHERY_SOFTWARE_LOG`) |
+| `logs\` | `hatchery-setup-windows.log` (first-boot log); `<script-name>.log` (per-automation log, one per script); `software\{id}.log` (installer logs via `HATCHERY_SOFTWARE_LOG`) |
 | `temp\` | Ephemeral files - currently only `hatchery-ready` (deleted immediately on detection) |
 | `software\` | Staged installer payloads under `{package-id}\` when Software steps run ([Software](software.md)) |
 
 Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
 
-If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). If omitted, the directory remains on the guest as a local audit record.
+If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). That script restores UAC from the first-boot backup (or Windows defaults if the backup is missing), removes the Hatchery guest directory, and clears persisted reserved Machine env vars. If omitted, the directory remains on the guest as a local audit record and UAC stays at Never notify.
+
+**Cached Answer Files / Scripts:** Controllers that already pulled Library content keep the previous companion and cleanup scripts until they pull again. Re-pull Answer Files (for `hatchery-setup-windows.ps1`) and Scripts (for `hatchery-cleanup-windows.ps1`) after the Library ships the UAC change ([#543](https://github.com/dustinestes/Hatchery/issues/543)).
 
 <br>
 

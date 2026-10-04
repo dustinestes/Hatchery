@@ -42,7 +42,7 @@ Operators also need Nest UI visibility of resolved env, process injection for ha
 
 4. **Non-windows:** name/value (+ process inject when remoting exists); persist/scope UI disabled until #482.
 
-5. **Cleanup contract:** Library `hatchery-cleanup-{windows,linux,macos}` keep directory wipe as the active path; include **commented-out** removal of persisted reserved base env vars for operators who opt in.
+5. **Cleanup contract:** Library cleanup scripts wipe the Hatchery guest directory. Windows `hatchery-cleanup-windows.ps1` also clears persisted reserved Machine env (`HATCHERY_ROOT` / `_LOGS` / `_TEMP` / `_SOFTWARE`). Linux/macOS keep env clear as a commented stub until guest persist lands (#482).
 
 6. **Non-goals:** Software `parameters` map; Controller-host env dump into guests; secret/encrypted env store; persisting software-scoped package vars.
 

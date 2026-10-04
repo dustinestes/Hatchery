@@ -70,15 +70,15 @@ _TRANSPORT = "ntlm"
 _WINDOWS_PATHS = guest_paths_for(GuestOS.WINDOWS)
 HATCHERY_GUEST_DIR = _WINDOWS_PATHS.root
 
-# Written as the last step of hatchery-setup.ps1.
+# Written as the last step of hatchery-setup-windows.ps1.
 # Hatchery polls for this file before starting automation scripts so that
 # provisioning never begins while first-boot setup is still running.
 # Deleted by Hatchery immediately on detection.
 SETUP_COMPLETE_FLAG = rf"{_WINDOWS_PATHS.temp}\hatchery-ready"
 
-# Written by hatchery-setup.ps1 during FirstLogonCommands. Imported into hatch_events
+# Written by hatchery-setup-windows.ps1 during FirstLogonCommands. Imported into hatch_events
 # after WinRM connects, then deleted so the guest stays clean.
-SETUP_LOG_FILE = rf"{_WINDOWS_PATHS.logs}\hatchery-setup.log"
+SETUP_LOG_FILE = rf"{_WINDOWS_PATHS.logs}\hatchery-setup-windows.log"
 
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
@@ -327,7 +327,7 @@ def delete_setup_flag(ip: str, admin_username: str, admin_password: str) -> None
 def read_setup_log(ip: str, admin_username: str, admin_password: str) -> str:
     """Return the first-boot setup log from the guest, or empty string if absent.
 
-    Called after check_setup_complete() returns True so hatchery-setup.ps1 step
+    Called after check_setup_complete() returns True so hatchery-setup-windows.ps1 step
     events can be imported into hatch_events before automation scripts run.
     """
     try:

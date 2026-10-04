@@ -96,7 +96,7 @@ They are **not** Hatchery’s long-term manage credential for the guest after fl
 | After fledged | Guidance |
 |---|---|
 | Rotate / harden the hatch admin | Add a final Clutch automation (or out-of-band change) that sets a new password and records it in your secrets store |
-| Hatchery-Library cleanup scripts | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) removes guest Hatchery artifacts under `C:\Program Files\Hatchery\`; it does **not** rotate the admin password |
+| Hatchery-Library cleanup scripts | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) restores UAC from first-boot backup ([#543](https://github.com/dustinestes/Hatchery/issues/543)), removes guest Hatchery artifacts under `C:\Program Files\Hatchery\`, and clears persisted reserved Machine env; it does **not** rotate the admin password |
 | Inventory Username / Password | May still show the hatch values (password display is opt-in in Settings) until the hatch session is archived - treat that as hatch history, not the guest’s ongoing secret of record |
 | Encrypted credential storage | Out of scope here; tracked in [#110](https://github.com/dustinestes/Hatchery/issues/110) |
 
@@ -125,7 +125,7 @@ hatchery:
   kind: windows_unattend
   guest_os: [win11]
   companions:
-    - hatchery-setup.ps1
+    - hatchery-setup-windows.ps1
   parameters:
     - name: input_locale
       label: Input locale
@@ -152,7 +152,7 @@ hatchery:
 
 | Field | Meaning |
 |---|---|
-| `answer_file` | Filename under `automation/answerfiles/` ending in `.j2` (Jinja template). Companions (e.g. `hatchery-setup.ps1`) are not listed in the Clutch picker. Legacy Clutch key `os_config` is still accepted on load. |
+| `answer_file` | Filename under `automation/answerfiles/` ending in `.j2` (Jinja template). Companions (e.g. `hatchery-setup-windows.ps1`) are not listed in the Clutch picker. Legacy Clutch key `os_config` is still accepted on load. |
 | `answer_file_parameters` | Map of user-declared param values for that file (from frontmatter `hatchery.parameters`) |
 | `admin_username` / hatch password | Required for Windows guests (`admin_username` on the Clutch; password at hatch). Feed system tokens when the Guest OS needs them |
 
@@ -166,9 +166,9 @@ When Answer Files are required for a guest type, missing `answer_file` or a miss
 
 ## Companions
 
-An Answer File may list **companion** files in frontmatter (for example `hatchery-setup.ps1`). Hatchery packs companions onto the same attach media as the rendered unattend.
+An Answer File may list **companion** files in frontmatter (for example `hatchery-setup-windows.ps1`). Hatchery packs companions onto the same attach media as the rendered unattend.
 
-For Windows samples, Autounattend `FirstLogonCommands` should launch the companion (today: `powershell.exe … -File "A:\hatchery-setup.ps1"` on the floppy drive letter used by the Nest packer). That contract belongs in the Answer File you author, not in invisible Controller code.
+For Windows samples, Autounattend `FirstLogonCommands` should launch the companion (today: `powershell.exe … -File "A:\hatchery-setup-windows.ps1"` on the floppy drive letter used by the Nest packer). That contract belongs in the Answer File you author, not in invisible Controller code.
 
 <br>
 
@@ -190,7 +190,7 @@ Typical content in Hatchery’s samples:
 - `ComputerName` from `{{ vm_name }}`
 - Local admin account and AutoLogon from `{{ admin_username }}` / `{{ admin_password }}`
 - Locale settings (user params in samples; hard-coded `en-US` in older shadow templates)
-- Single FirstLogonCommand that runs `hatchery-setup.ps1` (WinRM, OpenSSH via latest GitHub MSI per [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md), `hatchery-ready` flag)
+- Single FirstLogonCommand that runs `hatchery-setup-windows.ps1` (WinRM, UAC Never notify for silent Software installs per [#543](https://github.com/dustinestes/Hatchery/issues/543), OpenSSH via latest GitHub MSI per [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md), `hatchery-ready` flag)
 
 UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/providers.md`](providers.md)).
 
@@ -304,7 +304,7 @@ Optional Windows samples under Hatchery-Library `answerfiles/windows/`:
 | `win11-autounattend.xml.j2` | Win11 Autounattend |
 | `server2022-autounattend.xml.j2` | Server 2022 Autounattend |
 | `server2025-autounattend.xml.j2` | Server 2025 Autounattend |
-| `hatchery-setup.ps1` | Shared first-boot companion |
+| `hatchery-setup-windows.ps1` | Shared first-boot companion |
 
 How-to stays in this document. Hatchery-Library does not duplicate operator docs. Pull companions alongside the template (same `automation/answerfiles/` directory).
 
