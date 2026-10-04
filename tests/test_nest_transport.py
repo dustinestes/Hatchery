@@ -182,9 +182,7 @@ class TestWinrmNestTransport:
 
     def test_run_nonzero_raises(self):
         mock_session = MagicMock()
-        mock_session.run_ps.return_value = MagicMock(
-            status_code=1, std_out=b"", std_err=b"boom"
-        )
+        mock_session.run_ps.return_value = MagicMock(status_code=1, std_out=b"", std_err=b"boom")
         mock_winrm = MagicMock()
         mock_winrm.Session.return_value = mock_session
         with patch.dict("sys.modules", {"winrm": mock_winrm}):

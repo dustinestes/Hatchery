@@ -19,9 +19,7 @@ def _force_winrm_guest_transport(monkeypatch):
     """Provision unit tests exercise the WinRM guest path (no live TCP / SSH)."""
 
     def _gt(ip, user, password, **_kwargs):
-        return WinrmGuestTransport(
-            GuestEndpoint(host=ip, username=user, password=password)
-        )
+        return WinrmGuestTransport(GuestEndpoint(host=ip, username=user, password=password))
 
     monkeypatch.setattr(provision_lib, "_guest_transport", _gt)
 
