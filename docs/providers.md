@@ -45,7 +45,7 @@ Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × 
 | **UTM local / remote** | macOS UTM Nest ([#210](https://github.com/dustinestes/Hatchery/issues/210)–[#212](https://github.com/dustinestes/Hatchery/issues/212)) |
 | **Hyper-V local / remote** | Windows Hyper-V Nest ([#213](https://github.com/dustinestes/Hatchery/issues/213); stub `lib/providers/hyperv.py`) |
 
-Guest WinRM provisioning is **not** Nest transport - see [Nest transport](nest-transport.md).
+Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md).
 
 <br>
 

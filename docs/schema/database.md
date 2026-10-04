@@ -377,7 +377,7 @@ When a real migration framework becomes necessary:
 
 ## Credential storage
 
-Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** during hatch: Automation Scripts need them to authenticate over WinRM (or SSH later) until the VM reaches **fledged**. Re-entering credentials mid-hatch would break unattended provisioning.
+Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** during hatch: Automation Scripts need them to authenticate over Guest transport (SSH primary; WinRM Windows fallback) until the VM reaches **fledged**. Re-entering credentials mid-hatch would break unattended provisioning. Guest key identity is a follow-on ([#519](https://github.com/dustinestes/Hatchery/issues/519)).
 
 Product intent (ADR-0024 / [#455](https://github.com/dustinestes/Hatchery/issues/455)): credentials are **hatch-scoped through fledged**, not Hatchery’s long-term manage credential for the guest. Operator how-to: [Answer Files - Hatch-scoped through fledged](../answer-files.md#hatch-scoped-through-fledged).
 

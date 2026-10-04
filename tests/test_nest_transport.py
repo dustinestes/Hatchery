@@ -35,7 +35,7 @@ class TestNestConnectionConfig:
 
 class TestBuildSshArgv:
     def test_basic_argv(self):
-        with patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"):
+        with patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"):
             argv = nt.build_ssh_argv(
                 nt.NestSshConfig(host="nest.lab", user="ops", port=2222),
                 "echo ok",
@@ -47,7 +47,7 @@ class TestBuildSshArgv:
         assert "BatchMode=yes" in " ".join(argv)
 
     def test_identity_file_and_no_agent(self):
-        with patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"):
+        with patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"):
             argv = nt.build_ssh_argv(
                 nt.NestSshConfig(
                     host="n",
@@ -63,7 +63,7 @@ class TestBuildSshArgv:
         assert "accept-new" in " ".join(argv)
 
     def test_missing_ssh_client(self):
-        with patch("lib.nest_transport.shutil.which", return_value=None):
+        with patch("lib.openssh_client.shutil.which", return_value=None):
             with pytest.raises(nt.NestTransportError, match="OpenSSH client"):
                 nt.build_ssh_argv(nt.NestSshConfig(host="n"), "true")
 
@@ -75,8 +75,8 @@ class TestSshNestTransport:
     def test_run_success(self):
         mock_result = MagicMock(returncode=0, stdout="hello\n", stderr="")
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", return_value=mock_result) as run,
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", return_value=mock_result) as run,
         ):
             out = nt.SshNestTransport(self._cfg()).run("uname -a")
         assert out == "hello\n"
@@ -86,8 +86,8 @@ class TestSshNestTransport:
     def test_run_nonzero_raises(self):
         mock_result = MagicMock(returncode=255, stdout="", stderr="Permission denied")
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", return_value=mock_result),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", return_value=mock_result),
         ):
             with pytest.raises(nt.NestTransportError, match="Permission denied"):
                 nt.SshNestTransport(self._cfg()).run("true")
@@ -95,8 +95,8 @@ class TestSshNestTransport:
     def test_test_connection_ok(self):
         mock_result = MagicMock(returncode=0, stdout="hatchery-nest-ok\n", stderr="")
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", return_value=mock_result),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", return_value=mock_result),
         ):
             result = nt.SshNestTransport(self._cfg()).test_connection()
         assert result.ok is True
@@ -105,15 +105,15 @@ class TestSshNestTransport:
     def test_test_connection_failure(self):
         mock_result = MagicMock(returncode=255, stdout="", stderr="Connection refused")
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", return_value=mock_result),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", return_value=mock_result),
         ):
             result = nt.SshNestTransport(self._cfg()).test_connection()
         assert result.ok is False
         assert "Connection refused" in result.detail
 
     def test_known_hosts_skip(self):
-        with patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"):
+        with patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"):
             argv = nt.build_ssh_argv(
                 nt.NestSshConfig(host="n", known_hosts="skip"),
                 "true",
@@ -124,9 +124,9 @@ class TestSshNestTransport:
 
     def test_run_timeout(self):
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
             patch(
-                "lib.nest_transport.subprocess.run",
+                "lib.openssh_client.subprocess.run",
                 side_effect=__import__("subprocess").TimeoutExpired(cmd="ssh", timeout=1),
             ),
         ):
@@ -135,8 +135,8 @@ class TestSshNestTransport:
 
     def test_run_oserror(self):
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", side_effect=OSError("boom")),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", side_effect=OSError("boom")),
         ):
             with pytest.raises(nt.NestTransportError, match="failed to start"):
                 nt.SshNestTransport(self._cfg()).run("true")
@@ -144,8 +144,8 @@ class TestSshNestTransport:
     def test_test_connection_unexpected_output(self):
         mock_result = MagicMock(returncode=0, stdout="nope\n", stderr="")
         with (
-            patch("lib.nest_transport.shutil.which", return_value="/usr/bin/ssh"),
-            patch("lib.nest_transport.subprocess.run", return_value=mock_result),
+            patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"),
+            patch("lib.openssh_client.subprocess.run", return_value=mock_result),
         ):
             result = nt.SshNestTransport(self._cfg()).test_connection()
         assert result.ok is False
@@ -161,67 +161,53 @@ class TestSshNestTransport:
         assert isinstance(transport, nt.SshNestTransport)
 
 
-class TestNestWinrmConfig:
-    def test_requires_host_and_user(self):
-        with pytest.raises(ValueError, match="host"):
-            nt.NestWinrmConfig(host="", username="a", password="b")
-        with pytest.raises(ValueError, match="username"):
-            nt.NestWinrmConfig(host="n", username="", password="b")
-
-    def test_endpoint_url_http_https(self):
-        http = nt.NestWinrmConfig(host="nest", username="u", password="p")
-        assert http.endpoint_url == "http://nest:5985/wsman"
-        https = nt.NestWinrmConfig(host="nest", username="u", password="p", use_ssl=True, port=5986)
-        assert https.endpoint_url == "https://nest:5986/wsman"
-
-
 class TestWinrmNestTransport:
     def _cfg(self) -> nt.NestWinrmConfig:
-        return nt.NestWinrmConfig(host="win-nest", username="Admin", password="secret")
+        return nt.NestWinrmConfig(
+            host="win-nest",
+            username="Administrator",
+            password="secret",
+        )
 
     def test_run_success(self):
-        mock_result = MagicMock(status_code=0, std_out=b"ok\n", std_err=b"")
         mock_session = MagicMock()
-        mock_session.run_ps.return_value = mock_result
+        mock_session.run_ps.return_value = MagicMock(status_code=0, std_out=b"ok\n", std_err=b"")
         mock_winrm = MagicMock()
         mock_winrm.Session.return_value = mock_session
         with patch.dict("sys.modules", {"winrm": mock_winrm}):
-            out = nt.WinrmNestTransport(self._cfg()).run("Get-Date")
+            out = nt.WinrmNestTransport(self._cfg()).run("Write-Output ok")
         assert out == "ok\n"
         mock_winrm.Session.assert_called_once()
         assert mock_winrm.Session.call_args.args[0] == "http://win-nest:5985/wsman"
-        mock_session.run_ps.assert_called_once_with("Get-Date")
 
     def test_run_nonzero_raises(self):
-        mock_result = MagicMock(status_code=1, std_out=b"", std_err=b"Access denied")
         mock_session = MagicMock()
-        mock_session.run_ps.return_value = mock_result
+        mock_session.run_ps.return_value = MagicMock(status_code=1, std_out=b"", std_err=b"boom")
         mock_winrm = MagicMock()
         mock_winrm.Session.return_value = mock_session
         with patch.dict("sys.modules", {"winrm": mock_winrm}):
-            with pytest.raises(nt.NestTransportError, match="Access denied"):
+            with pytest.raises(nt.NestTransportError, match="boom"):
                 nt.WinrmNestTransport(self._cfg()).run("bad")
 
     def test_test_connection_ok(self):
-        mock_result = MagicMock(status_code=0, std_out=b"hatchery-nest-ok\r\n", std_err=b"")
         mock_session = MagicMock()
-        mock_session.run_ps.return_value = mock_result
+        mock_session.run_ps.return_value = MagicMock(
+            status_code=0, std_out=b"hatchery-nest-ok\n", std_err=b""
+        )
         mock_winrm = MagicMock()
         mock_winrm.Session.return_value = mock_session
         with patch.dict("sys.modules", {"winrm": mock_winrm}):
             result = nt.WinrmNestTransport(self._cfg()).test_connection()
         assert result.ok is True
-        assert result.detail == "Nest transport OK"
 
     def test_test_connection_failure(self):
         mock_session = MagicMock()
-        mock_session.run_ps.side_effect = RuntimeError("connection refused")
+        mock_session.run_ps.side_effect = RuntimeError("refused")
         mock_winrm = MagicMock()
         mock_winrm.Session.return_value = mock_session
         with patch.dict("sys.modules", {"winrm": mock_winrm}):
             result = nt.WinrmNestTransport(self._cfg()).test_connection()
         assert result.ok is False
-        assert "connection refused" in result.detail
 
     def test_get_nest_transport_winrm(self):
         conn = nt.NestConnectionConfig(

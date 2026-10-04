@@ -1,9 +1,10 @@
-"""Guest Software staging and install walk over WinRM (#474).
+"""Guest Software staging and install walk (#474 / #497).
 
 Runs detect (skip-if-present), else stages ``platforms/{os}/{arch}/`` into
 ``software_package(id)``, then pre_install → install → post_install → detect
-(verify). Deep offline/remote Nest upload polish tracks
-[#475](https://github.com/dustinestes/Hatchery/issues/475).
+(verify). Prefers SSH put when guest transport resolves to SSH; WinRM chunked
+stdin remains the Windows fallback. Deep offline/remote Nest upload polish
+tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
 """
 
 from __future__ import annotations
@@ -55,11 +56,13 @@ _ARCH_MAP = {
 
 def detect_guest_arch(ip: str, admin_username: str, admin_password: str) -> str:
     """Return Software arch key (``x86`` / ``x64`` / ``arm64``) from the guest."""
-    session = provision_lib._make_session(ip, admin_username, admin_password, timeout=30)
-    result = session.run_ps(
-        "Write-Output $env:PROCESSOR_ARCHITECTURE; Write-Output $env:PROCESSOR_ARCHITEW6432"
+    _code, text = _run_ps(
+        ip,
+        admin_username,
+        admin_password,
+        "Write-Output $env:PROCESSOR_ARCHITECTURE; Write-Output $env:PROCESSOR_ARCHITEW6432",
+        timeout=30,
     )
-    text = provision_lib._strip_clixml(result.std_out.decode("utf-8", errors="replace")).strip()
     lines = [ln.strip().lower() for ln in text.splitlines() if ln.strip()]
     # Prefer WOW64 host arch when present (32-bit process on 64-bit OS).
     for token in reversed(lines):
@@ -81,12 +84,8 @@ def _run_ps(
     *,
     timeout: int = 300,
 ) -> tuple[int, str]:
-    session = provision_lib._make_session(ip, admin_username, admin_password, timeout=timeout)
-    result = session.run_ps(code)
-    stdout = provision_lib._strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
-    stderr = provision_lib._strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
-    body = "\n".join(filter(None, [stdout, stderr]))
-    return result.status_code, body
+    transport = provision_lib._guest_transport(ip, admin_username, admin_password)
+    return transport.run_ps(code, timeout=timeout)
 
 
 def _ensure_guest_dir(ip: str, admin_username: str, admin_password: str, remote_dir: str) -> None:
@@ -304,6 +303,39 @@ def _upload_file(
     raise last_exc
 
 
+def _upload_file_ssh(
+    transport,
+    local_path: Path,
+    remote_path: str,
+    *,
+    on_event: Callable[[str, str], None] | None = None,
+) -> None:
+    """Copy a local file via SCP and verify remote SHA-256."""
+    local_hash = hashlib.sha256(local_path.read_bytes()).hexdigest()
+    transport.put_file(local_path, remote_path, timeout=600)
+    code, out = transport.run_ps(
+        f"(Get-FileHash -Algorithm SHA256 -LiteralPath {_ps_quote(remote_path)})"
+        ".Hash.ToLowerInvariant()",
+        timeout=60,
+    )
+    if code != 0:
+        raise RuntimeError(f"failed hashing guest file {remote_path}: {out}")
+    remote_hash = ""
+    for line in out.splitlines():
+        token = line.strip().lower()
+        if len(token) == 64 and all(c in "0123456789abcdef" for c in token):
+            remote_hash = token
+            break
+    if remote_hash != local_hash:
+        raise RuntimeError(
+            f"upload integrity check failed for {local_path.name}: "
+            f"remote sha256 {remote_hash or '(missing)'} != local {local_hash} "
+            f"(guest path {remote_path})"
+        )
+    if on_event:
+        on_event("INFO", f"SSH upload of {local_path.name} verified (sha256)")
+
+
 def stage_payload(
     ip: str,
     admin_username: str,
@@ -316,10 +348,22 @@ def stage_payload(
 ) -> list[str]:
     """Copy payload tree contents into ``guest_package_dir`` (no nested os/arch).
 
-    Returns relative paths uploaded (posix-style). Empty when there is no payload dir.
+    Prefers SSH/SCP when guest transport resolves to SSH (#497); otherwise WinRM
+    chunked stdin. Returns relative paths uploaded (posix-style). Empty when
+    there is no payload dir.
     """
-    _ensure_winrm_envelope_size(ip, admin_username, admin_password, on_event=on_event)
-    _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
+    transport = provision_lib._guest_transport(ip, admin_username, admin_password)
+    use_ssh = transport.kind == "ssh"
+    if use_ssh:
+        if on_event:
+            on_event("INFO", "Software staging via SSH/SCP")
+        _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
+    else:
+        if on_event:
+            on_event("INFO", "Software staging via WinRM (SSH unavailable)")
+        _ensure_winrm_envelope_size(ip, admin_username, admin_password, on_event=on_event)
+        _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
+
     if not payload_rel:
         return []
     src = package_dir / payload_rel
@@ -335,7 +379,10 @@ def stage_payload(
         remote = str(PureWindowsPath(guest_package_dir).joinpath(*rel.split("/")))
         if on_event:
             on_event("INFO", f"Uploading {rel} ({path.stat().st_size} bytes)")
-        _upload_file(ip, admin_username, admin_password, path, remote, on_event=on_event)
+        if use_ssh:
+            _upload_file_ssh(transport, path, remote, on_event=on_event)
+        else:
+            _upload_file(ip, admin_username, admin_password, path, remote, on_event=on_event)
         uploaded.append(rel)
     return uploaded
 

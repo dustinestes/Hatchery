@@ -77,7 +77,7 @@ The Nest registry may be empty (Controller-only). Local Nest id `local` is optio
   Remote)    Remote)    Remote)
 ```
 
-**Nest transport** (SSH default, WinRM fallback) talks to the Nest *machine*. **Guest provision** (WinRM for Windows guests) stays separate - see [Nest transport](nest-transport.md).
+**Nest transport** (SSH default, WinRM fallback) talks to the Nest *machine*. **Guest transport** (SSH primary, WinRM Windows fallback) talks to the guest VM - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md).
 
 <br>
 
@@ -183,6 +183,7 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 |---|---|
 | [Provider matrix](providers.md) | Feature × Nest capability contract |
 | [Nest transport](nest-transport.md) | Control plane to Nest host |
+| [Guest transport](guest-transport.md) | Controller remoting to guest VM (SSH / WinRM) |
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |
 | [Validators](validators.md) | Pluggable checks - Nest onboarding feedback after Controller install |
 | [Notifications - Status surfaces](notifications.md#status-surfaces) | Gather → store → UI poll; `refreshStatusSurfaces` / `onStatusTick` (#282) |

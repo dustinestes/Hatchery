@@ -111,7 +111,7 @@ Feature support vs Nest type (local/remote): [Provider and feature support matri
 
 ### `lib/nest_transport.py`
 
-Nest **control plane** - Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). WinRM is an explicit Nest fallback for Windows hosts. See [Nest transport](nest-transport.md). Nest SSH identity expiry alerts: [Nest SSH identity expiry](nest-key-expiry.md). Guest WinRM stays in `provision.py`.
+Nest **control plane** - Hatchery → Nest host. Default remote transport is SSH with a referenced OpenSSH identity (no private-key storage). WinRM is an explicit Nest fallback for Windows hosts. See [Nest transport](nest-transport.md). Nest SSH identity expiry alerts: [Nest SSH identity expiry](nest-key-expiry.md). Guest remoting (SSH primary / WinRM fallback) is [`guest_transport.py`](../lib/guest_transport.py) via `provision.py` - see [Guest transport](guest-transport.md).
 
 ### `lib/answerfile.py`
 

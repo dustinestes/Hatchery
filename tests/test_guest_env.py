@@ -120,18 +120,15 @@ class TestPersistScript:
     def test_persist_guest_environment_calls_winrm(self, monkeypatch):
         from lib.clutch import EnvironmentEntry
 
-        class _Result:
-            status_code = 0
-            std_out = b"ok"
-            std_err = b""
+        class _Transport:
+            kind = "winrm"
 
-        class _Session:
-            def run_ps(self, body):
+            def run_ps(self, body, *, timeout=120):
                 self.body = body
-                return _Result()
+                return 0, "ok"
 
-        sess = _Session()
-        monkeypatch.setattr("lib.provision._make_session", lambda *a, **k: sess)
+        transport = _Transport()
+        monkeypatch.setattr("lib.provision._guest_transport", lambda *a, **k: transport)
         code, out = guest_env.persist_guest_environment(
             "10.0.0.1",
             "admin",
@@ -140,5 +137,5 @@ class TestPersistScript:
             entries=[EnvironmentEntry(name="MY_ROLE", value="dc")],
         )
         assert code == 0
-        assert "MY_ROLE" in sess.body
-        assert "HATCHERY_ROOT" in sess.body
+        assert "MY_ROLE" in transport.body
+        assert "HATCHERY_ROOT" in transport.body

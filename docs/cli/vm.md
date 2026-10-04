@@ -41,7 +41,7 @@ uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 | `destroy` | Remove VM and storage (`destroy_vm`); CLI uses plain destroy, not Cull |
 | `pause` / `resume` | Hypervisor suspend / resume (`pause_vm` / `resume_vm`); local libvirt only today |
 | `snap *` | VM state snapshot (Hyper-V calls this a checkpoint) |
-| `health` | Guest IP + WinRM TCP reachability (exit 1 if unreachable) |
+| `health` | Guest IP + SSH/WinRM TCP reachability (exit 1 if neither reachable) |
 
 Remote Nest VM ops are not available yet (clear error). Live inventory is not a Controller SQLite table.
 

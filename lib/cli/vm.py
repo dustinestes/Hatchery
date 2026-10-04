@@ -240,14 +240,16 @@ def _power_or_health(cmd: str, nest_arg: str | None, name: str, *, as_json: bool
                     "nest": nest_id,
                     "name": name,
                     "ip": result["ip"],
+                    "ssh": result.get("ssh", False),
                     "winrm": result["winrm"],
                     "reachable": result["reachable"],
                 }
             )
             return 0 if result["reachable"] else 1
         ip = result["ip"] or "-"
+        ssh = "ok" if result.get("ssh") else "unreachable"
         winrm = "ok" if result["winrm"] else "unreachable"
-        print(f"VM '{name}' on Nest '{nest_id}': ip={ip} winrm={winrm}")
+        print(f"VM '{name}' on Nest '{nest_id}': ip={ip} ssh={ssh} winrm={winrm}")
         return 0 if result["reachable"] else 1
     bootstrap.print_err(f"unknown vm command: {cmd}")
     return 2

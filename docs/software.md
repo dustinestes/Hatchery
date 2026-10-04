@@ -46,7 +46,7 @@ Product shape is locked in [ADR-0025](adr/0025-software-product-model.md). Inven
 | | Software | Automation Scripts | Answer Files |
 |---|---|---|---|
 | When | After the guest is reachable (ordered with Scripts) | After the guest is reachable | During OS install / first-boot media |
-| Who consumes | Guest shell (WinRM today; SSH later) | Guest shell | Guest **installer** / early boot |
+| Who consumes | Guest shell (SSH primary; WinRM Windows fallback) | Guest shell | Guest **installer** / early boot |
 | What | Package definition + optional OS payload tree | Script file under `automation/scripts/` | Template under `automation/answerfiles/` |
 | Clutch | `type: software` entry in `automations` | `type: script` entry in `automations` | `answer_file:` / parameters (install-time) |
 
@@ -167,13 +167,12 @@ There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch ke
 Offline installer trees under `platforms/{os}/{arch}/` are staged into the guest
 `software_package(id)` directory before install hooks run.
 
-**Windows (WinRM today):** Hatchery streams each file over WinRM stdin (not
-`-EncodedCommand` payload bytes). Before staging it raises guest
+**Windows:** When Guest transport resolves to SSH, Hatchery stages via SCP
+(SHA-256 verified). WinRM fallback streams each file over WinRM stdin (not
+`-EncodedCommand` payload bytes): before staging it raises guest
 `MaxEnvelopeSizekb` to at least 8192 when lower, invokes `powershell.exe` with
-`WINRS_SKIP_CMD_SHELL`, and verifies SHA-256 after transfer. If staging still
-fails with pipe/transport faults on MSI-sized files, treat that as a known WinRM
-limit and use guest SSH file copy when [#497](https://github.com/dustinestes/Hatchery/issues/497)
-lands - do not rely on 1 KiB EncodedCommand append as a product path.
+`WINRS_SKIP_CMD_SHELL`, and verifies SHA-256 after transfer. Prefer SSH for
+large offline trees; do not rely on 1 KiB EncodedCommand append as a product path.
 
 Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller.
 
@@ -280,7 +279,7 @@ Library domain **`software`** (migrated from reserved `packages`). Fresh Control
 
 ## Detection
 
-Detection runs the platform `detect.command` over Controller/Nest remoting (WinRM today; SSH later) with the same slim contract as install (authored snippet; exit 0 = present). Prefer compact ARP scans (Publisher + DisplayName + DisplayVersion) over ProductCode-only checks when the product writes standard Uninstall keys.
+Detection runs the platform `detect.command` over Guest transport (SSH primary; WinRM Windows fallback) with the same slim contract as install (authored snippet; exit 0 = present). Prefer compact ARP scans (Publisher + DisplayName + DisplayVersion) over ProductCode-only checks when the product writes standard Uninstall keys.
 
 **Skip-if-present ([#502](https://github.com/dustinestes/Hatchery/issues/502)):** hatch runs detect **before** staging. If present, the step succeeds without payload transfer or install. If absent, Hatchery stages, installs, then runs detect again to verify. Pre-detect does not require the package staging directory to exist (registry/ARP detects). Nest/VM present/missing UI status rails land in [#477](https://github.com/dustinestes/Hatchery/issues/477). There is no in-guest agent daemon and no guest login UI requirement for detect.
 

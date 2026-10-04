@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import lib.provision as provision_lib
+from lib.guest_transport import GuestEndpoint, WinrmGuestTransport
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
 _CLIXML_PREFIX = "#< CLIXML\r\n"
@@ -11,6 +12,16 @@ _CLIXML_PREFIX = "#< CLIXML\r\n"
 def _clixml(content: str) -> str:
     """Wrap content in a real-world CLIXML envelope with the WinRM header."""
     return f'{_CLIXML_PREFIX}<Objs Version="1.1.0.1" xmlns="{_CLIXML_NS}">{content}</Objs>'
+
+
+@pytest.fixture(autouse=True)
+def _force_winrm_guest_transport(monkeypatch):
+    """Provision unit tests exercise the WinRM guest path (no live TCP / SSH)."""
+
+    def _gt(ip, user, password, **_kwargs):
+        return WinrmGuestTransport(GuestEndpoint(host=ip, username=user, password=password))
+
+    monkeypatch.setattr(provision_lib, "_guest_transport", _gt)
 
 
 class TestStripClixml:
@@ -383,7 +394,7 @@ class TestLastBootUpTimeRebootWait:
 
     def test_wait_for_boot_uptime_change_ignores_same_boot_id(self, monkeypatch):
         boots = iter(["111", "111", "222"])
-        monkeypatch.setattr(provision_lib, "check_winrm", lambda *a, **k: True)
+        monkeypatch.setattr(provision_lib, "guest_remoting_ready", lambda *a, **k: True)
         monkeypatch.setattr(provision_lib, "get_last_boot_uptime", lambda *a, **k: next(boots))
         monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
         assert (
@@ -394,7 +405,7 @@ class TestLastBootUpTimeRebootWait:
         )
 
     def test_wait_for_boot_uptime_change_times_out(self, monkeypatch):
-        monkeypatch.setattr(provision_lib, "check_winrm", lambda *a, **k: True)
+        monkeypatch.setattr(provision_lib, "guest_remoting_ready", lambda *a, **k: True)
         monkeypatch.setattr(provision_lib, "get_last_boot_uptime", lambda *a, **k: "111")
         monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
         # Force deadline immediately after first iteration.
@@ -425,7 +436,7 @@ class TestLastBootUpTimeRebootWait:
         monkeypatch.setattr(provision_lib, "get_last_boot_uptime", fake_get)
         monkeypatch.setattr(provision_lib, "restart_guest", fake_restart)
         monkeypatch.setattr(provision_lib, "wait_for_boot_uptime_change", fake_wait_boot)
-        monkeypatch.setattr(provision_lib, "wait_for_winrm_stable", lambda *a, **k: None)
+        monkeypatch.setattr(provision_lib, "wait_for_guest_stable", lambda *a, **k: None)
         events: list[tuple[str, str]] = []
         assert (
             provision_lib.reboot_guest_and_wait(
@@ -441,14 +452,14 @@ class TestLastBootUpTimeRebootWait:
         events: list[tuple[str, str]] = []
         probes = {"n": 0}
 
-        class _Sess:
+        class _Transport:
+            kind = "winrm"
+
             def run_ps(self, *_a, **_k):
                 probes["n"] += 1
-                r = MagicMock()
-                r.status_code = 0
-                return r
+                return 0, "ready"
 
-        monkeypatch.setattr(provision_lib, "_make_session", lambda *a, **k: _Sess())
+        monkeypatch.setattr(provision_lib, "_guest_transport", lambda *a, **k: _Transport())
         monkeypatch.setattr(provision_lib.time, "sleep", lambda *_: None)
         provision_lib.wait_for_winrm_stable(
             "10.0.0.1",
@@ -459,8 +470,8 @@ class TestLastBootUpTimeRebootWait:
             on_event=lambda lvl, msg: events.append((lvl, msg)),
         )
         assert probes["n"] == 2
-        assert events[0][1].startswith("Waiting for WinRM to stabilize")
-        assert events[-1][1].startswith("WinRM stable after reboot")
+        assert events[0][1].startswith("Waiting for guest remoting to stabilize")
+        assert events[-1][1].startswith("Guest remoting stable after reboot")
 
     def test_format_guest_reboot_confirmed_matches_event_timestamps(self):
         msg = provision_lib.format_guest_reboot_confirmed("134350310025000000")
@@ -476,7 +487,9 @@ class TestLastBootUpTimeRebootWait:
 class TestCheckSetupComplete:
     def _make_result(self, stdout: str):
         r = MagicMock()
+        r.status_code = 0
         r.std_out = stdout.encode()
+        r.std_err = b""
         return r
 
     def test_returns_true_when_flag_present(self):
@@ -518,7 +531,9 @@ class TestDeleteSetupFlag:
 class TestReadSetupLog:
     def _make_result(self, stdout: str):
         r = MagicMock()
+        r.status_code = 0
         r.std_out = stdout.encode()
+        r.std_err = b""
         return r
 
     def test_returns_log_content(self):

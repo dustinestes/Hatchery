@@ -452,11 +452,18 @@ class TestOperatorInspect:
             patch("lib.providers.factory.get_provider", return_value=fake),
             patch(
                 "lib.guest_health.guest_health",
-                return_value={"ip": "10.0.0.2", "winrm": True, "reachable": True},
+                return_value={
+                    "ip": "10.0.0.2",
+                    "ssh": True,
+                    "winrm": True,
+                    "reachable": True,
+                },
             ),
         ):
             assert vm_cmd.run(args) == 0
-        assert "10.0.0.2" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "10.0.0.2" in out
+        assert "ssh=ok" in out
 
     def test_vm_health_unreachable(self, isolated_config, tmp_path):
         sandbox = tmp_path / "sandbox"
@@ -469,7 +476,12 @@ class TestOperatorInspect:
             patch("lib.providers.factory.get_provider", return_value=fake),
             patch(
                 "lib.guest_health.guest_health",
-                return_value={"ip": None, "winrm": False, "reachable": False},
+                return_value={
+                    "ip": None,
+                    "ssh": False,
+                    "winrm": False,
+                    "reachable": False,
+                },
             ),
         ):
             assert vm_cmd.run(args) == 1

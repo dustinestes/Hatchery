@@ -5,13 +5,13 @@
 - **Issues:** [#509](https://github.com/dustinestes/Hatchery/issues/509) (planning), epic [#202](https://github.com/dustinestes/Hatchery/issues/202)
 - **Implementation / follow-on:** [#518](https://github.com/dustinestes/Hatchery/issues/518) (MSI bootstrap), [#519](https://github.com/dustinestes/Hatchery/issues/519) (guest key identity planning), [#497](https://github.com/dustinestes/Hatchery/issues/497) (`guest_transport`)
 - **Related:** [#517](https://github.com/dustinestes/Hatchery/issues/517) (Library release-asset → Software), [#508](https://github.com/dustinestes/Hatchery/issues/508) (Drivers media), [#475](https://github.com/dustinestes/Hatchery/issues/475) / [#131](https://github.com/dustinestes/Hatchery/issues/131) (offline staging), [ADR-0003](0003-nest-registry-provider-factory.md), [ADR-0021](0021-controller-embeddable-operator-plane.md)
-- **How-to:** [orchestration.md](../orchestration.md) (first-boot / ready-gate), [nest-transport.md](../nest-transport.md) (Nest plane only)
+- **How-to:** [orchestration.md](../orchestration.md) (first-boot / ready-gate), [guest-transport.md](../guest-transport.md), [nest-transport.md](../nest-transport.md) (Nest plane only)
 
 ## Context
 
 Guest first-boot on Windows installed OpenSSH via `Add-WindowsCapability -Online` (Windows Update FoD). Lab hatches spent ~15–20 minutes on that step alone (TiWorker / update catalog), while the payload is only a few MB. A timed smoke test of the [PowerShell/Win32-OpenSSH](https://github.com/PowerShell/Win32-OpenSSH) Win64 MSI (`ADDLOCAL=Server`) completed download + install + service/firewall in ~9 seconds. A hatch with FoD SSH steps removed reached fledged in ~8m 41s.
 
-Nest remoting is already SSH-primary ([`lib/nest_transport.py`](../../lib/nest_transport.py)). Guest provision is still WinRM-only on Windows ([`lib/provision.py`](../../lib/provision.py)). Cross-platform guests need SSH on the guest, and the Controller needs a clear **Guest transport** peer to Nest transport ([#497](https://github.com/dustinestes/Hatchery/issues/497)) without conflating the two planes (ADR-0021).
+Nest remoting is already SSH-primary ([`lib/nest_transport.py`](../../lib/nest_transport.py)). Guest remoting is SSH-primary with WinRM Windows fallback ([`lib/guest_transport.py`](../../lib/guest_transport.py) / [#497](https://github.com/dustinestes/Hatchery/issues/497)). Cross-platform guests need SSH on the guest, and the Controller keeps Nest and Guest planes separate (ADR-0021).
 
 ## Decision
 
@@ -40,7 +40,7 @@ Drivers attachable media ([#508](https://github.com/dustinestes/Hatchery/issues/
 | Plane | Module | Target | Protocol |
 |---|---|---|---|
 | Nest transport | `lib/nest_transport.py` | Nest host | SSH default, WinRM Nest fallback |
-| Guest transport | `lib/guest_transport.py` (new in #497; WinRM today in `lib/provision.py`) | Guest VM | SSH primary, WinRM Windows fallback |
+| Guest transport | `lib/guest_transport.py` (#497; Scripts/Software via `lib/provision.py`) | Guest VM | SSH primary, WinRM Windows fallback |
 
 Naming is intentional and parallel. Do not call Nest transport from guest hatch paths. Do not reuse Nest `identity_file` as the guest authorized key by default. Extract shared OpenSSH **client** helpers (identity path reference, known_hosts, run/copy) for both planes; do not merge Nest and guest credentials into one module.
 
@@ -60,7 +60,7 @@ Controller pubkey injection, `guest_ssh_identities`, Clutch `remoting.ssh.author
 
 - Lab hatches avoid multi-minute FoD stalls when GitHub is reachable from the guest.
 - Operators see a Preview/Beta-only upstream channel; docs explain why Hatchery still uses latest.
-- #497 can introduce `guest_transport` with clear nouns and shared SSH client helpers.
+- #497 lands `guest_transport` with clear nouns and shared SSH client helpers (`lib/openssh_client.py`).
 - Offline and Library-packaged OpenSSH remain follow-ons (#475 / #517).
 
 ## Alternatives considered

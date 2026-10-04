@@ -9,14 +9,11 @@ from lib import software_provision as soft_prov
 
 
 def test_detect_guest_arch_maps_amd64(monkeypatch):
-    session = MagicMock()
-    session.run_ps.return_value = MagicMock(
-        std_out=b"AMD64\r\n",
-        std_err=b"",
-        status_code=0,
+    monkeypatch.setattr(
+        soft_prov,
+        "_run_ps",
+        lambda *a, **k: (0, "AMD64\r\n"),
     )
-    monkeypatch.setattr(soft_prov.provision_lib, "_make_session", lambda *a, **k: session)
-    monkeypatch.setattr(soft_prov.provision_lib, "_strip_clixml", lambda t: t)
     assert soft_prov.detect_guest_arch("10.0.0.1", "admin", "pw") == "x64"
 
 
@@ -37,6 +34,10 @@ def test_stage_payload_uploads_files(tmp_path, monkeypatch):
     def fake_upload(ip, user, pw, local_path, remote_path, **kwargs):
         uploaded.append((Path(local_path).name, remote_path))
 
+    class _Winrm:
+        kind = "winrm"
+
+    monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Winrm())
     monkeypatch.setattr(soft_prov, "_ensure_winrm_envelope_size", lambda *a, **k: None)
     monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
     monkeypatch.setattr(soft_prov, "_upload_file", fake_upload)
@@ -332,6 +333,38 @@ def test_upload_file_streams_stdin_chunks(tmp_path, monkeypatch):
     protocol.close_shell.assert_called_once_with("shell-1")
 
 
+def test_stage_payload_uses_ssh_when_resolved(tmp_path, monkeypatch):
+    pkg = tmp_path / "Pkg"
+    payload = pkg / "windows" / "x64"
+    payload.mkdir(parents=True)
+    (payload / "a.bin").write_bytes(b"x")
+    ssh_uploads: list[str] = []
+
+    class _Ssh:
+        kind = "ssh"
+
+    monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Ssh())
+    monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
+    monkeypatch.setattr(
+        soft_prov,
+        "_upload_file_ssh",
+        lambda transport, local, remote, **k: ssh_uploads.append(Path(local).name),
+    )
+    events: list[str] = []
+    rels = soft_prov.stage_payload(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_dir=pkg,
+        payload_rel="windows/x64",
+        guest_package_dir=r"C:\pkg",
+        on_event=lambda lvl, msg: events.append(msg),
+    )
+    assert rels == ["a.bin"]
+    assert ssh_uploads == ["a.bin"]
+    assert any("SSH/SCP" in e for e in events)
+
+
 def test_stage_payload_ensures_envelope(tmp_path, monkeypatch):
     pkg = tmp_path / "Pkg"
     payload = pkg / "windows" / "x64"
@@ -339,6 +372,10 @@ def test_stage_payload_ensures_envelope(tmp_path, monkeypatch):
     (payload / "a.bin").write_bytes(b"x")
     calls: list[str] = []
 
+    class _Winrm:
+        kind = "winrm"
+
+    monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Winrm())
     monkeypatch.setattr(
         soft_prov,
         "_ensure_winrm_envelope_size",

@@ -1,25 +1,30 @@
-"""Nest transport — Hatchery control plane to a Nest host (not a guest VM).
+"""Nest transport - Hatchery control plane to a Nest host (not a guest VM).
 
 Remote Nest default is SSH with a **referenced** OpenSSH identity (path and/or
-agent). Hatchery does not store private keys here (#218). Guest provisioning
-stays in ``lib.provision`` (WinRM for Windows guests).
+agent). Hatchery does not store private keys here (#218). Guest remoting is a
+separate plane (`lib.guest_transport` / #497); do not call this module from
+guest hatch paths (ADR-0029).
 
 WinRM is an explicit Nest transport fallback for Windows Nests (#220) when
 OpenSSH is unavailable or WinRM is preferred. Nest registry persistence of
-WinRM passwords should use encrypted storage (#110) — this module only holds
+WinRM passwords should use encrypted storage (#110) - this module only holds
 session credentials in memory.
 """
 
 from __future__ import annotations
 
 import shlex
-import shutil
-import subprocess
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
+from lib.openssh_client import (
+    KnownHostsPolicy,
+    OpenSshClientError,
+    build_ssh_argv as _build_ssh_argv,
+    run_openssh,
+)
+
 NestTransportKind = Literal["ssh", "winrm"]
-KnownHostsPolicy = Literal["default", "accept-new", "skip"]
 
 
 class NestTransportError(RuntimeError):
@@ -134,33 +139,20 @@ class NestTransport(Protocol):
 
 def build_ssh_argv(config: NestSshConfig, remote_command: str) -> list[str]:
     """Build an ``ssh`` argv for a Nest host. Does not run the process."""
-    if shutil.which("ssh") is None:
-        raise NestTransportError("OpenSSH client (`ssh`) not found on the Hatchery host PATH")
-
-    argv: list[str] = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        f"ConnectTimeout={config.connect_timeout_seconds}",
-        "-p",
-        str(config.port),
-    ]
-
-    if config.identity_file:
-        argv.extend(["-i", config.identity_file])
-    if not config.use_agent:
-        argv.extend(["-o", "IdentityAgent=none"])
-
-    if config.known_hosts == "accept-new":
-        argv.extend(["-o", "StrictHostKeyChecking=accept-new"])
-    elif config.known_hosts == "skip":
-        argv.extend(["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"])
-
-    target = f"{config.user}@{config.host}" if config.user else config.host
-    argv.append(target)
-    argv.append(remote_command)
-    return argv
+    try:
+        return _build_ssh_argv(
+            host=config.host,
+            user=config.user,
+            port=config.port,
+            remote_command=remote_command,
+            identity_file=config.identity_file,
+            use_agent=config.use_agent,
+            known_hosts=config.known_hosts,
+            connect_timeout_seconds=config.connect_timeout_seconds,
+            batch_mode=True,
+        )
+    except OpenSshClientError as exc:
+        raise NestTransportError(str(exc)) from exc
 
 
 class SshNestTransport:
@@ -170,7 +162,7 @@ class SshNestTransport:
         self.config = config
 
     def test_connection(self) -> NestHealthCheckResult:
-        """Connectivity check — UI label: Test Nest connection."""
+        """Connectivity check - UI label: Test Nest connection."""
         try:
             out = self.run("echo hatchery-nest-ok")
         except NestTransportError as exc:
@@ -192,19 +184,13 @@ class SshNestTransport:
         argv = build_ssh_argv(self.config, remote_command)
         wait = timeout if timeout is not None else float(self.config.connect_timeout_seconds + 5)
         try:
-            result = subprocess.run(
-                argv,
-                capture_output=True,
-                text=True,
-                timeout=wait,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
+            result = run_openssh(argv, timeout=wait, password=None)
+        except OpenSshClientError as exc:
             raise NestTransportError(
                 f"SSH timed out connecting to {self.config.host}:{self.config.port}"
+                if "timed out" in str(exc).lower()
+                else str(exc)
             ) from exc
-        except OSError as exc:
-            raise NestTransportError(f"SSH failed to start: {exc}") from exc
 
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "").strip()

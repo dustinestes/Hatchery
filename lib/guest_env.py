@@ -243,16 +243,12 @@ def persist_guest_environment(
     entries: Sequence[EnvironmentEntry],
     timeout: int = 120,
 ) -> tuple[int, str]:
-    """Persist reserved base + user persist entries on a Windows guest via WinRM."""
+    """Persist reserved base + user persist entries on a Windows guest (SSH/WinRM)."""
     from lib import provision as provision_lib
 
     reserved = reserved_environment(guest_os)
     # Only persist reserved base (not software-scoped).
     reserved_base = {k: reserved[k] for k in RESERVED_BASE}
     body = powershell_persist_script(reserved=reserved_base, entries=list(entries))
-    session = provision_lib._make_session(ip, admin_username, admin_password, timeout)
-    result = session.run_ps(body)
-    stdout = provision_lib._strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
-    stderr = provision_lib._strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
-    body_out = "\n".join(filter(None, [stdout, stderr]))
-    return result.status_code, body_out
+    transport = provision_lib._guest_transport(ip, admin_username, admin_password)
+    return transport.run_ps(body, timeout=timeout)

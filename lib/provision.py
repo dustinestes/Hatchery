@@ -11,7 +11,7 @@ from pathlib import Path
 import winrm
 
 from lib.clutch import GuestOS
-from lib.guest_health import check_winrm
+from lib.guest_health import check_ssh, check_winrm
 from lib.guest_paths import guest_paths_for
 
 log = logging.getLogger(__name__)
@@ -111,6 +111,7 @@ def _strip_clixml(text: str) -> str:
 
 
 def _make_session(ip: str, admin_username: str, admin_password: str, timeout: int) -> winrm.Session:
+    """Return a pywinrm session (WinRM-only helpers / Software chunked upload)."""
     return winrm.Session(
         f"http://{ip}:5985/wsman",
         auth=(admin_username, admin_password),
@@ -118,6 +119,29 @@ def _make_session(ip: str, admin_username: str, admin_password: str, timeout: in
         operation_timeout_sec=timeout,
         read_timeout_sec=timeout + 10,
     )
+
+
+def _guest_transport(
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    on_fallback: Callable[[str], None] | None = None,
+):
+    """Resolve SSH-primary / WinRM-fallback guest remoting (#497)."""
+    from lib import guest_transport as gt
+
+    return gt.resolve_guest_transport(
+        ip,
+        admin_username,
+        admin_password,
+        on_fallback=on_fallback,
+    )
+
+
+def guest_remoting_ready(ip: str) -> bool:
+    """Cheap TCP check: guest SSH or WinRM port is open."""
+    return check_ssh(ip) or check_winrm(ip)
 
 
 def _ps_quote(value: str) -> str:
@@ -181,14 +205,14 @@ def run_script(
     timeout: int = 300,
     environment: dict[str, str] | None = None,
 ) -> tuple[int, str]:
-    """Execute a PowerShell script on a remote Windows guest via WinRM.
+    """Execute a PowerShell script on a remote Windows guest (SSH primary, WinRM fallback).
 
     ``environment`` is already-merged guest env (reserved + user; #501).
     Windows path today: PowerShell ``$env:`` assignments. POSIX export helper
-    lives in ``lib.guest_env`` for future SSH / Linux / macOS remoting.
+    lives in ``lib.guest_env`` for future Linux / macOS remoting.
 
     Returns (exit_code, output) where output combines stdout and stderr.
-    Raises an exception if the WinRM connection cannot be established.
+    Raises an exception if guest remoting cannot be established.
     """
     from lib import guest_env as guest_env_lib
 
@@ -196,9 +220,17 @@ def run_script(
     content = script_path.read_text(encoding="utf-8")
     params = parameters or {}
 
+    transport = _guest_transport(ip, admin_username, admin_password)
+    if transport.kind == "ssh":
+        endpoint = f"ssh://{admin_username}@{ip}:22"
+        transport_label = "ssh"
+    else:
+        endpoint = f"http://{ip}:5985/wsman"
+        transport_label = _TRANSPORT
+
     header = (
-        f"[Hatchery] endpoint : http://{ip}:5985/wsman\n"
-        f"[Hatchery] transport: {_TRANSPORT}\n"
+        f"[Hatchery] endpoint : {endpoint}\n"
+        f"[Hatchery] transport: {transport_label}\n"
         f"[Hatchery] user     : {admin_username}\n"
         f"[Hatchery] script   : {script_path.name}\n"
         f"[Hatchery] params   : {', '.join(f'{k}={v}' for k, v in params.items()) or 'none'}\n"
@@ -208,24 +240,22 @@ def run_script(
     env_prefix = guest_env_lib.powershell_env_assignments(environment or {})
     inject = env_prefix + _build_injection(script_path.name)
     ps_code = _build_ps_invocation(content, params, inject)
-    session = _make_session(ip, admin_username, admin_password, timeout)
-    result = session.run_ps(ps_code)
-    stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
-    stderr = _strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
-    body = "\n".join(filter(None, [stdout, stderr]))
-    return result.status_code, header + body
+    status, body = transport.run_ps(ps_code, timeout=timeout)
+    return status, header + body
 
 
 def check_setup_complete(ip: str, admin_username: str, admin_password: str) -> bool:
     """Return True if the guest's setup-complete flag file exists.
 
-    Called after WinRM TCP is confirmed open to ensure all FirstLogonCommands
-    have finished before automation scripts begin.
+    Called after guest remoting TCP is open to ensure all FirstLogonCommands
+    have finished before automation scripts begin. Prefers SSH (#497).
     """
     try:
-        session = _make_session(ip, admin_username, admin_password, timeout=10)
-        result = session.run_ps(f"Test-Path '{SETUP_COMPLETE_FLAG}'")
-        return result.std_out.decode("utf-8", errors="replace").strip().lower() == "true"
+        transport = _guest_transport(ip, admin_username, admin_password)
+        code, out = transport.run_ps(f"Test-Path '{SETUP_COMPLETE_FLAG}'", timeout=10)
+        if code != 0:
+            return False
+        return out.strip().splitlines()[-1].strip().lower() == "true" if out.strip() else False
     except Exception:
         return False
 
@@ -236,10 +266,11 @@ def delete_setup_flag(ip: str, admin_username: str, admin_password: str) -> None
     Called immediately after check_setup_complete() returns True so the flag
     leaves no permanent footprint on the guest.
     """
-    session = _make_session(ip, admin_username, admin_password, timeout=10)
     try:
-        session.run_ps(
-            f"Remove-Item -Path '{SETUP_COMPLETE_FLAG}' -Force -ErrorAction SilentlyContinue"
+        transport = _guest_transport(ip, admin_username, admin_password)
+        transport.run_ps(
+            f"Remove-Item -Path '{SETUP_COMPLETE_FLAG}' -Force -ErrorAction SilentlyContinue",
+            timeout=10,
         )
     except Exception:
         pass  # non-fatal; flag is ephemeral
@@ -252,11 +283,11 @@ def read_setup_log(ip: str, admin_username: str, admin_password: str) -> str:
     events can be imported into hatch_events before automation scripts run.
     """
     try:
-        session = _make_session(ip, admin_username, admin_password, timeout=10)
-        result = session.run_ps(
-            f"Get-Content -Path '{SETUP_LOG_FILE}' -Raw -ErrorAction SilentlyContinue"
+        transport = _guest_transport(ip, admin_username, admin_password)
+        _code, text = transport.run_ps(
+            f"Get-Content -Path '{SETUP_LOG_FILE}' -Raw -ErrorAction SilentlyContinue",
+            timeout=10,
         )
-        text = result.std_out.decode("utf-8", errors="replace")
         return _strip_clixml(text).strip()
     except Exception:
         return ""
@@ -265,35 +296,38 @@ def read_setup_log(ip: str, admin_username: str, admin_password: str) -> str:
 def delete_setup_log(ip: str, admin_username: str, admin_password: str) -> None:
     """Remove the first-boot setup log from the guest after import.
 
-    Non-fatal if the file is already gone or WinRM fails.
+    Non-fatal if the file is already gone or remoting fails.
     """
-    session = _make_session(ip, admin_username, admin_password, timeout=10)
     try:
-        session.run_ps(f"Remove-Item -Path '{SETUP_LOG_FILE}' -Force -ErrorAction SilentlyContinue")
+        transport = _guest_transport(ip, admin_username, admin_password)
+        transport.run_ps(
+            f"Remove-Item -Path '{SETUP_LOG_FILE}' -Force -ErrorAction SilentlyContinue",
+            timeout=10,
+        )
     except Exception:
         pass  # non-fatal; log is ephemeral
 
 
 def shutdown_guest(ip: str, admin_username: str, admin_password: str) -> None:
-    """Issue a graceful shutdown to the guest via WinRM.
+    """Issue a graceful shutdown to the guest via guest remoting.
 
-    The WinRM connection will drop before the command returns — that is expected.
+    The connection will drop before the command returns - that is expected.
     """
-    session = _make_session(ip, admin_username, admin_password, timeout=30)
     try:
-        session.run_ps("Stop-Computer -Force")
+        transport = _guest_transport(ip, admin_username, admin_password)
+        transport.run_ps("Stop-Computer -Force", timeout=30)
     except Exception:
         pass  # connection drop during shutdown is expected
 
 
 def restart_guest(ip: str, admin_username: str, admin_password: str) -> None:
-    """Issue a graceful restart to the guest via WinRM.
+    """Issue a graceful restart to the guest via guest remoting.
 
-    The WinRM connection will drop before the command returns - that is expected.
+    The connection will drop before the command returns - that is expected.
     """
-    session = _make_session(ip, admin_username, admin_password, timeout=30)
     try:
-        session.run_ps("Restart-Computer -Force")
+        transport = _guest_transport(ip, admin_username, admin_password)
+        transport.run_ps("Restart-Computer -Force", timeout=30)
     except Exception:
         pass  # connection drop during restart is expected
 
@@ -303,15 +337,14 @@ def get_last_boot_uptime(ip: str, admin_username: str, admin_password: str) -> s
 
     This is the guest's own boot identity - not a Controller-side guess from TCP.
     """
-    session = _make_session(ip, admin_username, admin_password, timeout=30)
-    result = session.run_ps(
+    transport = _guest_transport(ip, admin_username, admin_password)
+    code, text = transport.run_ps(
         "(Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime"
-        ".ToUniversalTime().ToFileTimeUtc().ToString()"
+        ".ToUniversalTime().ToFileTimeUtc().ToString()",
+        timeout=30,
     )
-    if result.status_code != 0:
-        err = _strip_clixml(result.std_err.decode("utf-8", errors="replace")).strip()
-        raise RuntimeError(f"failed to read LastBootUpTime: {err or result.status_code}")
-    text = _strip_clixml(result.std_out.decode("utf-8", errors="replace")).strip()
+    if code != 0:
+        raise RuntimeError(f"failed to read LastBootUpTime: {text or code}")
     # First line only; ignore CLIXML noise leftovers.
     token = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     if not token.isdigit():
@@ -348,7 +381,7 @@ def wait_for_boot_uptime_change(
     deadline = time.monotonic() + timeout_sec
     while time.monotonic() < deadline:
         time.sleep(poll_interval_sec)
-        if not check_winrm(ip):
+        if not guest_remoting_ready(ip):
             continue
         try:
             current = get_last_boot_uptime(ip, admin_username, admin_password)
@@ -358,12 +391,76 @@ def wait_for_boot_uptime_change(
         if current != previous_boot_id:
             return current
         log.debug(
-            "WinRM up but LastBootUpTime unchanged (%s) - waiting for real reboot",
+            "Guest remoting up but LastBootUpTime unchanged (%s) - waiting for real reboot",
             previous_boot_id,
         )
     raise RuntimeError(
         f"guest did not report a new LastBootUpTime within {int(timeout_sec)}s "
         f"(still {previous_boot_id!r})"
+    )
+
+
+def wait_for_guest_stable(
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    consecutive: int = 3,
+    poll_interval_sec: float = 5.0,
+    timeout_sec: float = 180.0,
+    on_event: EventEmit | None = None,
+) -> None:
+    """Require several successful authenticated guest remoting probes after reboot.
+
+    LastBootUpTime can flip while remoting is still dropping pipes on heavy Send
+    streams (Software staging). A short stable window reduces that race.
+    """
+
+    def emit(level: str, message: str) -> None:
+        if on_event:
+            on_event(level, message)
+        log.info("%s", message)
+
+    emit(
+        "INFO",
+        f"Waiting for guest remoting to stabilize after reboot ({consecutive} consecutive probes)",
+    )
+    deadline = time.monotonic() + timeout_sec
+    ok = 0
+    while time.monotonic() < deadline:
+        try:
+            transport = _guest_transport(ip, admin_username, admin_password)
+            code, _out = transport.run_ps("Write-Output ready", timeout=30)
+            if code == 0:
+                ok += 1
+                if ok >= consecutive:
+                    emit(
+                        "INFO",
+                        f"Guest remoting stable after reboot "
+                        f"({consecutive} consecutive probes via {transport.kind})",
+                    )
+                    return
+            else:
+                if ok:
+                    emit(
+                        "WARN",
+                        "Guest remoting probe returned non-zero during settle - "
+                        "resetting stability count",
+                    )
+                ok = 0
+        except Exception as exc:
+            if ok:
+                emit(
+                    "WARN",
+                    f"Guest remoting probe failed during settle - resetting stability count: {exc}",
+                )
+            else:
+                log.debug("post-reboot guest remoting probe failed: %s", exc)
+            ok = 0
+        time.sleep(poll_interval_sec)
+    raise RuntimeError(
+        f"Guest remoting did not stay stable for {consecutive} probes within "
+        f"{int(timeout_sec)}s after guest reboot"
     )
 
 
@@ -377,55 +474,15 @@ def wait_for_winrm_stable(
     timeout_sec: float = 180.0,
     on_event: EventEmit | None = None,
 ) -> None:
-    """Require several successful authenticated WinRM probes after reboot.
-
-    LastBootUpTime can flip while WinRM is still dropping pipes on heavy Send
-    streams (Software staging). A short stable window reduces that race.
-    """
-
-    def emit(level: str, message: str) -> None:
-        if on_event:
-            on_event(level, message)
-        log.info("%s", message)
-
-    emit(
-        "INFO",
-        f"Waiting for WinRM to stabilize after reboot ({consecutive} consecutive probes)",
-    )
-    deadline = time.monotonic() + timeout_sec
-    ok = 0
-    while time.monotonic() < deadline:
-        try:
-            session = _make_session(ip, admin_username, admin_password, timeout=30)
-            result = session.run_ps("Write-Output ready")
-            if result.status_code == 0:
-                ok += 1
-                if ok >= consecutive:
-                    emit(
-                        "INFO",
-                        f"WinRM stable after reboot ({consecutive} consecutive probes)",
-                    )
-                    return
-            else:
-                if ok:
-                    emit(
-                        "WARN",
-                        "WinRM probe returned non-zero during settle - resetting stability count",
-                    )
-                ok = 0
-        except Exception as exc:
-            if ok:
-                emit(
-                    "WARN",
-                    f"WinRM probe failed during settle - resetting stability count: {exc}",
-                )
-            else:
-                log.debug("post-reboot WinRM probe failed: %s", exc)
-            ok = 0
-        time.sleep(poll_interval_sec)
-    raise RuntimeError(
-        f"WinRM did not stay stable for {consecutive} probes within {int(timeout_sec)}s "
-        "after guest reboot"
+    """Compatibility alias for ``wait_for_guest_stable`` (SSH primary / WinRM fallback)."""
+    wait_for_guest_stable(
+        ip,
+        admin_username,
+        admin_password,
+        consecutive=consecutive,
+        poll_interval_sec=poll_interval_sec,
+        timeout_sec=timeout_sec,
+        on_event=on_event,
     )
 
 
@@ -441,8 +498,8 @@ def reboot_guest_and_wait(
 ) -> str:
     """Capture ``LastBootUpTime``, restart the guest, wait until boot identity changes.
 
-    When ``settle`` is True (default), also wait for consecutive successful WinRM
-    probes so the next automation does not hit a half-ready remoting stack.
+    When ``settle`` is True (default), also wait for consecutive successful guest
+    remoting probes so the next automation does not hit a half-ready stack.
 
     Emits operator-visible events via ``on_event(level, message)`` when provided:
     reboot confirmed, then settle wait / stable (and settle WARN resets).
@@ -466,5 +523,5 @@ def reboot_guest_and_wait(
     )
     emit("INFO", format_guest_reboot_confirmed(after))
     if settle:
-        wait_for_winrm_stable(ip, admin_username, admin_password, on_event=on_event)
+        wait_for_guest_stable(ip, admin_username, admin_password, on_event=on_event)
     return after
