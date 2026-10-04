@@ -43,7 +43,7 @@ Product **enable** flags owned by Settings may expose convenience verbs on the p
 ```
 ✅ Does this go through Nest id → factory / shared orchestration?
 ✅ Could CI or an external tool call this without the browser?
-✅ Are product nouns stable (Controller, Nest, Clutch, Hatch, Cull, Snapshot, Revert)?
+✅ Are product nouns stable (Controller, Nest, Clutch, Hatch, Destroy, Snapshot, Revert)?
 ✅ Is Nest transport separate from guest provision?
 ✅ Will docs/CLI help stay enough to infer usage (no “read the Flask handler”)?
 ✅ Is new operator state a Settings key or a first-class product graph - and does the CLI match?

@@ -249,7 +249,7 @@ See [events.md](events.md) and [orchestration.md](orchestration.md).
 
 ## Audit (v2)
 
-Clutch create/save/delete, VM cull/rename, and session archive are **not** alerts and are **not** written as toast-driving activity. A future audit trail will cover inventory and authoring changes without mixing them into the Alerts surfaces - tracked in [#164](https://github.com/dustinestes/Hatchery/issues/164).
+Clutch create/save/delete, VM destroy/rename, and session archive are **not** alerts and are **not** written as toast-driving activity. A future audit trail will cover inventory and authoring changes without mixing them into the Alerts surfaces - tracked in [#164](https://github.com/dustinestes/Hatchery/issues/164).
 
 <br>
 

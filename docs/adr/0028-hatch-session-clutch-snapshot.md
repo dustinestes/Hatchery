@@ -22,7 +22,7 @@ Editing a Clutch mid-hatch (Build/Edit) is a legitimate operator action for the 
 
 - Mid-hatch YAML edits cannot change env persist, job inject, or Nest details for that session.
 - Session DB grows by one JSON blob per hatch; size tracks Clutch complexity.
-- Operators who intend to “fix” an in-flight hatch by editing the Clutch must Cull / re-hatch (or retry still uses the original snapshot).
+- Operators who intend to “fix” an in-flight hatch by editing the Clutch must Destroy / re-hatch (or retry still uses the original snapshot).
 
 ## Alternatives considered
 

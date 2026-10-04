@@ -303,8 +303,8 @@
     if (hatch.pending) {
       hatchCol.push('<li>' + hatch.pending + ' pending</li>');
     }
-    if (hatch.culled) {
-      hatchCol.push('<li>' + hatch.culled + ' culled</li>');
+    if (hatch.destroyed) {
+      hatchCol.push('<li>' + hatch.destroyed + ' destroyed</li>');
     }
     hatchCol.push(
       '<li>' + (hatch.none || 0) + ' no hatch record</li>',

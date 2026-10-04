@@ -33,7 +33,7 @@ _BOOT_KEY_SETTLE_SECONDS = 3  # UEFI POST often trails libvirt "running"
 _BOOT_KEY_BURST_ATTEMPTS = 60  # send key 60 times (0.5s intervals) = 30s burst
 _BOOT_KEY_BURST_INTERVAL = 0.5
 
-_TERMINAL_VM_STATUSES = frozenset({"fledged", "failed", "culled"})
+_TERMINAL_VM_STATUSES = frozenset({"fledged", "failed", "destroyed"})
 
 _bg_stop_event: threading.Event | None = None
 
@@ -571,7 +571,7 @@ def spawn_provision_thread(
 def sync_hatch_status(
     provider_for: Callable[[str], BaseProvider | None] | None = None,
 ) -> None:
-    """Monitor active VMs: advance through hatching→provisioning→fledged, cull if gone."""
+    """Monitor active VMs: advance through hatching→provisioning→fledged; mark destroyed if gone."""
 
     def _default_provider(nest_id: str) -> BaseProvider | None:
         try:
@@ -615,7 +615,7 @@ def sync_hatch_status(
 
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
         if current_name is None:
-            hatch_lib.set_vm_status(session_id, vm_name, "culled")
+            hatch_lib.set_vm_status(session_id, vm_name, "destroyed")
             hatch_lib.archive_if_terminal(session_id)
             continue
 
@@ -789,7 +789,7 @@ def start_background_poller() -> threading.Event:
 
 
 def session_vms_terminal(session_id: str) -> bool:
-    """Return True when every VM in the session is fledged, failed, or culled."""
+    """Return True when every VM in the session is fledged, failed, or destroyed."""
     session = hatch_lib.get_session(session_id)
     if not session:
         return True

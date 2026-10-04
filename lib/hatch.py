@@ -156,7 +156,7 @@ def set_vm_status(session_id: str, vm_name: str, status: str, error: str | None 
 
 
 def set_vm_uuid(session_id: str, vm_name: str, libvirt_uuid: str) -> None:
-    """Store the hypervisor UUID for a VM — used as the authoritative identity for culled detection."""
+    """Store the hypervisor UUID for a VM (authoritative identity for destroy/gone detection)."""
     conn = db.get_connection()
     try:
         conn.execute(
@@ -213,7 +213,7 @@ def _compute_session_status(vms: list[dict]) -> str:
         return "failed"
     if statuses == {"fledged"}:
         return "completed"
-    if "culled" in statuses and not (statuses - {"fledged", "culled"}):
+    if "destroyed" in statuses and not (statuses - {"fledged", "destroyed"}):
         return "degraded"
     return "unknown"
 

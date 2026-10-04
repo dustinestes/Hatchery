@@ -630,7 +630,7 @@ class TestDashboardSummaryApi:
                         "provisioning": 0,
                         "fledged": 1,
                         "failed": 0,
-                        "culled": 0,
+                        "destroyed": 0,
                         "none": 1,
                     },
                     "nests_unavailable": 0,
@@ -3204,12 +3204,12 @@ class TestSyncHatchStatus:
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
 
-    def test_marks_culled_when_uuid_not_found_on_host(self, tmp_path, monkeypatch):
+    def test_marks_destroyed_when_uuid_not_found_on_host(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         # Two VMs — ws01 stays hatching so the session is not auto-archived,
-        # letting us assert that dc01's status was set to culled.
+        # letting us assert that dc01's status was set to destroyed.
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_vm(sid, "ws01")
@@ -3227,7 +3227,7 @@ class TestSyncHatchStatus:
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
-        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "culled"
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "destroyed"
 
     def test_skips_vm_when_no_uuid_stored(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -3247,12 +3247,12 @@ class TestSyncHatchStatus:
             app_module._sync_hatch_status()
         mock_prov.assert_not_called()
 
-    def test_marks_culled_when_fledged_vm_gone(self, tmp_path, monkeypatch):
+    def test_marks_destroyed_when_fledged_vm_gone(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         # Two VMs — ws01 stays hatching (→ in_progress) so the session is not
-        # auto-archived, letting us assert that dc01's status was set to culled.
+        # auto-archived, letting us assert that dc01's status was set to destroyed.
         sid = hatch_lib.create_session("lab.yaml", "Lab")
         hatch_lib.add_vm(sid, "dc01")
         hatch_lib.add_vm(sid, "ws01")
@@ -3270,7 +3270,7 @@ class TestSyncHatchStatus:
             app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
-        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "culled"
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "destroyed"
 
     def test_fledged_vm_not_rechecked_for_winrm(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
@@ -3300,7 +3300,7 @@ class TestSyncHatchStatus:
         assert "dc01-renamed" in names
         assert "dc01" not in names
 
-    def test_auto_archives_session_when_last_vm_culled(self, tmp_path, monkeypatch):
+    def test_auto_archives_session_when_last_vm_destroyed(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -3322,7 +3322,7 @@ class TestSyncHatchStatus:
         hatch_lib.set_vm_status(sid, "ws01", "hatching")
         hatch_lib.set_vm_uuid(sid, "ws01", "bbbbccdd-1234-5678-abcd-000000000002")
         with patch("hatchery._provider") as mock_prov:
-            # dc01 is culled, ws01 is still running
+            # dc01 is destroyed, ws01 is still running
             mock_prov.return_value.get_vm_name_by_uuid.side_effect = lambda uuid: (
                 None if uuid == self._UUID else "ws01"
             )

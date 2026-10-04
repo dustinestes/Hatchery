@@ -21,7 +21,7 @@ We needed an explicit separation of concerns so:
 |---|---|---|
 | **Alerts** | Conditions that threaten working Hatchery (missing tools, invalid Clutches, Nest reachability, …) | Bell, tray, toasts, Alerts pane, footer chips |
 | **Events** | Hatch / provision transcript (`hatch_events`, script `Write-HatchEvent` lines) | Events pane |
-| **Audit (v2)** | Who/what changed Clutches; Cull / rename / session archive - not validation, not provision log | Deferred; not toast spam |
+| **Audit (v2)** | Who/what changed Clutches; Destroy / rename / session archive - not validation, not provision log | Deferred; not toast spam |
 
 **Naming:** use **Notifications** only for the **umbrella** sidebar group and group docs. Alert-specific modules/APIs use **alerts** (`lib/alerts.py`, `/api/alerts`, …). Do not keep alert-only artifacts named `notifications`.
 

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-20
-- **Issues:** [#343](https://github.com/dustinestes/Hatchery/issues/343) (planning), [#22](https://github.com/dustinestes/Hatchery/issues/22), [#23](https://github.com/dustinestes/Hatchery/issues/23), [#353](https://github.com/dustinestes/Hatchery/issues/353) (mutate), [#344](https://github.com/dustinestes/Hatchery/issues/344) (epic [#336](https://github.com/dustinestes/Hatchery/issues/336))
+- **Issues:** [#343](https://github.com/dustinestes/Hatchery/issues/343) (planning), [#22](https://github.com/dustinestes/Hatchery/issues/22), [#23](https://github.com/dustinestes/Hatchery/issues/23), [#353](https://github.com/dustinestes/Hatchery/issues/353) (mutate), [#344](https://github.com/dustinestes/Hatchery/issues/344) (epic [#336](https://github.com/dustinestes/Hatchery/issues/336)), [#552](https://github.com/dustinestes/Hatchery/issues/552) (Destroy language)
 - **How-to:** [docs/cli/](../cli/README.md); Nest plane: [architecture-nests.md](../architecture-nests.md)
 
 ## Context
@@ -23,7 +23,7 @@ We also need clear boundaries:
 4. **Operator surface:** subcommands such as `clutch`, `vm`, `hatch`, and `nest` on the same entrypoint, including **list/inspect** and **mutate** (`hatch`, VM power / destroy / snap / health). Execution is **in-process**: load registry from `--data-dir`, Nest id → factory / Nest transport. Does not require a running Controller HTTP process. Shared hatch orchestration lives in `lib/hatch_lifecycle.py` (UI and CLI).
 5. **Nest targeting:** `--nest <id>` when required; if exactly one Nest is registered it may be the default; if zero or many, require `--nest` (or clear empty-registry guidance per [ADR-0014](0014-optional-local-nest.md)).
 6. **Phase cut:** [#22](https://github.com/dustinestes/Hatchery/issues/22) ships entrypoint + globals + `serve` only (no stub operator subcommands). [#23](https://github.com/dustinestes/Hatchery/issues/23) adds operator inspect. [#353](https://github.com/dustinestes/Hatchery/issues/353) adds mutate. [#344](https://github.com/dustinestes/Hatchery/issues/344) may later add `settings get|set` (persist); that is distinct from launch overrides.
-7. **CLI lifecycle verbs** prefer universal operator language: Hatch; `start` / `stop` / `force-stop` / `destroy`; `snap take|list|apply|delete` (Hyper-V “checkpoint”); `health` / Test Nest. Do **not** use Cull, Brood, Freeze, Thaw, or Chirp in CLI help. UI may still say Cull where product copy has not caught up.
+7. **Lifecycle verbs** use universal operator language in both CLI and UI: Hatch; `start` / `stop` / `force-stop` / `destroy`; `snap take|list|apply|delete` (Hyper-V “checkpoint”); `health` / Test Nest. Do **not** use Cull, Brood, Freeze, Thaw, or Chirp in CLI help, primary UI labels, or hatch status tokens ([#552](https://github.com/dustinestes/Hatchery/issues/552)). Gone VMs use status `destroyed`.
 8. Contributor `gunicorn hatchery:app` remains valid when the same runtime overrides apply.
 9. **Inspect is non-creating:** Operator inspect (`nest` / `clutch` / `vm` list, show, test) requires an existing Controller data directory. It must not mkdir the data tree or create `hatchery.db`. Missing `--data-dir` (or default path) exits with an error. Launch (`serve`) and mutate (`hatch`) may create Controller state when appropriate.
 

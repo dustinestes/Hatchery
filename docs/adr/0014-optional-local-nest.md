@@ -14,7 +14,7 @@ Contributors and launch configs also need a **session opt-in** to register this 
 
 ## Decision
 
-1. **Empty registry by default.** Fresh data dirs do not insert Nest id `local`. Existing databases that already have `local` keep it (no auto-cull).
+1. **Empty registry by default.** Fresh data dirs do not insert Nest id `local`. Existing databases that already have `local` keep it (no automatic removal).
 2. **Local Nest is optional.** At most one Nest with `location=local`, and only id `local` may use that location. Operators may remove all Nests, including Local, via Settings.
 3. **Add Local later.** Settings exposes **Add Local Nest** when `local` is absent. `ensure_local_nest()` remains the single INSERT helper (libvirt / Local / id `local`).
 4. **Session Local Nest registration.** `hatchery serve --nest-local` and env `HATCHERY_NEST_LOCAL` (truthy `1` / `true` / `yes`) call `ensure_local_nest()` once at Controller boot. **Idempotent:** if id `local` already exists, no-op (do not fail). Session-only; never written to Settings or bootstrap YAML (same rule as `--data-dir` in ADR-0013).

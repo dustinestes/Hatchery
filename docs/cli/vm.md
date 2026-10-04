@@ -38,7 +38,7 @@ uv run hatchery --json vm snap list [--nest <id>] <vm-name>
 | `--nest` | Required unless exactly one Nest is registered (ADR-0014) |
 | `--data-dir` | Session-only Controller data dir (must already exist for these commands) |
 | `list` | Default: Hatchery-sourced VMs only (session-tagged). `--all` includes external hypervisor VMs. JSON includes `hatchery_sourced` |
-| `destroy` | Remove VM and storage (`destroy_vm`); CLI uses plain destroy, not Cull |
+| `destroy` | Destroy VM and storage (`destroy_vm`); matches UI Destroy (#552) |
 | `pause` / `resume` | Hypervisor suspend / resume (`pause_vm` / `resume_vm`); local libvirt only today |
 | `snap *` | VM state snapshot (Hyper-V calls this a checkpoint) |
 | `health` | Guest IP + SSH/WinRM TCP reachability (exit 1 if neither reachable) |
