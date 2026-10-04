@@ -10,6 +10,7 @@ from lib.cli import hatch as hatch_cmd
 from lib.cli import library as library_cmd
 from lib.cli import media as media_cmd
 from lib.cli import nest as nest_cmd
+from lib.cli import remoting_identity as remoting_identity_cmd
 from lib.cli import scripts as scripts_cmd
 from lib.cli import serve as serve_cmd
 from lib.cli import session as session_cmd
@@ -26,7 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Machine-readable JSON on stdout where the command supports it "
-        "(inspect/list/show; settings get/set; library enable/CRUD/content)",
+        "(inspect/list/show; settings get/set; library enable/CRUD/content; "
+        "remoting-identity)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     serve_cmd.register(sub)
@@ -39,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     scripts_cmd.register(sub)
     settings_cmd.register(sub)
     library_cmd.register(sub)
+    remoting_identity_cmd.register(sub)
     return parser
 
 
@@ -65,6 +68,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return settings_cmd.run(args)
     if args.command == "library":
         return library_cmd.run(args)
+    if args.command == "remoting-identity":
+        return remoting_identity_cmd.run(args)
     parser.error(f"unknown command: {args.command}")
     return 2
 

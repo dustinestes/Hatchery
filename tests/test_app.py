@@ -5056,6 +5056,36 @@ class TestSettingsShowPasswords:
         assert 'name="show_passwords"' in html
         assert "checked" in html
 
+    def test_security_shows_remoting_identities_section(self, client):
+        html = client.get("/settings/security").data.decode()
+        assert "Remoting identities" in html
+        assert "remoting-generate-btn" in html
+
+
+class TestApiRemotingIdentities:
+    def test_list_generate_rotate(self, client):
+        import shutil
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+
+        empty = client.get("/api/remoting-identities")
+        assert empty.status_code == 200
+        assert empty.get_json()["identities"] == []
+
+        gen = client.post("/api/remoting-identities/generate")
+        assert gen.status_code == 200
+        body = gen.get_json()
+        assert body["ok"] is True
+        assert body["identity"]["id"] == "hatchery"
+
+        listed = client.get("/api/remoting-identities").get_json()
+        assert any(i["id"] == "hatchery" for i in listed["identities"])
+
+        rot = client.post("/api/remoting-identities/rotate")
+        assert rot.status_code == 200
+        assert rot.get_json()["identity"]["pubkey"]
+
 
 # ── api_nest_vms ──────────────────────────────────────────────────────────────
 

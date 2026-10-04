@@ -1243,3 +1243,103 @@ class TestLibraryCli:
         with patch("lib.cli.library.run", return_value=0) as run:
             assert cli.main(["library", "enable"]) == 0
         run.assert_called_once()
+
+
+class TestRemotingIdentityCli:
+    def test_generate_list_show_check(self, isolated_config, tmp_path, capsys):
+        import json
+        import shutil
+
+        import lib.cli.remoting_identity as ri_cmd
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+
+        sandbox = tmp_path / "data"
+        gen = cli.build_parser().parse_args(
+            ["--json", "remoting-identity", "--data-dir", str(sandbox), "generate"]
+        )
+        assert ri_cmd.run(gen) == 0
+        gen_payload = json.loads(capsys.readouterr().out)
+        assert gen_payload["id"] == "hatchery"
+        assert gen_payload["kind"] == "hatchery"
+
+        listing = cli.build_parser().parse_args(
+            ["--json", "remoting-identity", "--data-dir", str(sandbox), "list"]
+        )
+        assert ri_cmd.run(listing) == 0
+        list_payload = json.loads(capsys.readouterr().out)
+        assert any(i["id"] == "hatchery" for i in list_payload["identities"])
+
+        show = cli.build_parser().parse_args(
+            ["--json", "remoting-identity", "--data-dir", str(sandbox), "show", "hatchery"]
+        )
+        assert ri_cmd.run(show) == 0
+        show_payload = json.loads(capsys.readouterr().out)
+        assert show_payload["pubkey"]
+
+        check = cli.build_parser().parse_args(
+            ["--json", "remoting-identity", "--data-dir", str(sandbox), "check"]
+        )
+        assert ri_cmd.run(check) == 0
+        check_payload = json.loads(capsys.readouterr().out)
+        assert check_payload["checks"][0]["ok"] is True
+
+    def test_add_path_and_remove(self, isolated_config, tmp_path, capsys):
+        import json
+        import os
+        import shutil
+        import subprocess
+
+        import lib.cli.remoting_identity as ri_cmd
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+
+        sandbox = tmp_path / "data"
+        key = tmp_path / "cli_key"
+        subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "cli"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        os.chmod(key, 0o600)
+
+        # Ensure DB exists for mutate path.
+        gen = cli.build_parser().parse_args(
+            ["remoting-identity", "--data-dir", str(sandbox), "generate"]
+        )
+        assert ri_cmd.run(gen) == 0
+        capsys.readouterr()
+
+        add = cli.build_parser().parse_args(
+            [
+                "--json",
+                "remoting-identity",
+                "--data-dir",
+                str(sandbox),
+                "add-path",
+                "--id",
+                "ops",
+                "--identity-file",
+                str(key),
+                "--name",
+                "Ops",
+            ]
+        )
+        assert ri_cmd.run(add) == 0
+        add_payload = json.loads(capsys.readouterr().out)
+        assert add_payload["id"] == "ops"
+
+        rem = cli.build_parser().parse_args(
+            ["--json", "remoting-identity", "--data-dir", str(sandbox), "remove", "ops"]
+        )
+        assert ri_cmd.run(rem) == 0
+        rem_payload = json.loads(capsys.readouterr().out)
+        assert rem_payload["removed"] == "ops"
+
+    def test_main_dispatches_remoting_identity(self):
+        with patch("lib.cli.remoting_identity.run", return_value=0) as run:
+            assert cli.main(["remoting-identity", "list"]) == 0
+        run.assert_called_once()

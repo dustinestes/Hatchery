@@ -98,6 +98,19 @@ CREATE TABLE IF NOT EXISTS nests (
     updated_at            TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS remoting_identities (
+    id                    TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    kind                  TEXT NOT NULL,
+    identity_file         TEXT NOT NULL,
+    pubkey                TEXT,
+    cert_path             TEXT,
+    identity_expires_at   TEXT,
+    created_at            TEXT NOT NULL,
+    updated_at            TEXT NOT NULL,
+    CHECK (kind IN ('hatchery', 'path'))
+);
+
 CREATE TABLE IF NOT EXISTS validator_runs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     validator_id    TEXT    NOT NULL,
@@ -221,6 +234,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_hatch_vm_scripts_typed(conn)
     _migrate_hatch_vm_status_guest_os(conn)
     _migrate_hatch_sessions_clutch_snapshot(conn)
+    _migrate_remoting_identities(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -973,6 +987,26 @@ def _migrate_hatch_sessions_clutch_snapshot(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_sessions)").fetchall()}
     if "clutch_snapshot" not in cols:
         conn.execute("ALTER TABLE hatch_sessions ADD COLUMN clutch_snapshot TEXT")
+
+
+def _migrate_remoting_identities(conn: sqlite3.Connection) -> None:
+    """Ensure remoting_identities catalog exists (ADR-0030 / #522)."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS remoting_identities (
+            id                    TEXT PRIMARY KEY,
+            name                  TEXT NOT NULL,
+            kind                  TEXT NOT NULL,
+            identity_file         TEXT NOT NULL,
+            pubkey                TEXT,
+            cert_path             TEXT,
+            identity_expires_at   TEXT,
+            created_at            TEXT NOT NULL,
+            updated_at            TEXT NOT NULL,
+            CHECK (kind IN ('hatchery', 'path'))
+        )
+        """
+    )
 
 
 def _migrate_nests_columns(conn: sqlite3.Connection) -> None:

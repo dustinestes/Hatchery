@@ -20,6 +20,7 @@ from lib import library as library_lib
 from lib import library_registry as library_registry_lib
 from lib import nest_cache as nest_cache_lib
 from lib import nests as nests_lib
+from lib import remoting_identities as remoting_identities_lib
 from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
 from lib.nest_transport import NestConnectionConfig
@@ -737,6 +738,13 @@ def _settings_template(
     validator_latest = latest_by_validator() if section == "general" else {}
     validators_run_retention = get_run_retention() if section == "general" else 50
 
+    remoting_identities = []
+    if section == "security":
+        remoting_identities = [
+            remoting_identities_lib.to_dict(i)
+            for i in remoting_identities_lib.list_identities()
+        ]
+
     return render_template(
         "settings.html",
         active_pane=f"settings_{section}",
@@ -754,6 +762,7 @@ def _settings_template(
         validator_configs=validator_configs,
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
+        remoting_identities=remoting_identities,
     )
 
 
@@ -1074,6 +1083,63 @@ def settings_section_post(section: str):
     new_cfg["vms_show_external"] = "vms_show_external" in request.form
     config.save(new_cfg)
     return redirect(url_for("settings_section", section="display", saved="1"))
+
+
+@app.route("/api/remoting-identities")
+def api_remoting_identities_list():
+    """List Controller remoting identities (ADR-0030 / #522)."""
+    rows = [remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()]
+    return jsonify({"ok": True, "identities": rows})
+
+
+@app.route("/api/remoting-identities/generate", methods=["POST"])
+def api_remoting_identities_generate():
+    """Ensure Hatchery-managed remoting key exists."""
+    try:
+        ident = remoting_identities_lib.ensure_hatchery_identity()
+    except remoting_identities_lib.RemotingIdentityError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "identity": remoting_identities_lib.to_dict(ident)})
+
+
+@app.route("/api/remoting-identities/rotate", methods=["POST"])
+def api_remoting_identities_rotate():
+    """Rotate the Hatchery-managed remoting keypair."""
+    try:
+        ident = remoting_identities_lib.rotate_hatchery_identity()
+    except remoting_identities_lib.RemotingIdentityError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "identity": remoting_identities_lib.to_dict(ident)})
+
+
+@app.route("/api/remoting-identities/path", methods=["POST"])
+def api_remoting_identities_add_path():
+    """Register an operator path-referenced remoting identity."""
+    data = request.get_json(silent=True) or {}
+    try:
+        ident = remoting_identities_lib.add_path_identity(
+            identity_id=str(data.get("id") or ""),
+            identity_file=str(data.get("identity_file") or ""),
+            name=(str(data["name"]) if data.get("name") else None),
+            cert_path=(str(data["cert_path"]) if data.get("cert_path") else None),
+            identity_expires_at=(
+                str(data["identity_expires_at"]) if data.get("identity_expires_at") else None
+            ),
+        )
+    except remoting_identities_lib.RemotingIdentityError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "identity": remoting_identities_lib.to_dict(ident)})
+
+
+@app.route("/api/remoting-identities/<identity_id>", methods=["DELETE"])
+def api_remoting_identities_remove(identity_id: str):
+    """Remove a remoting identity catalog row."""
+    delete_files = request.args.get("delete_files") in ("1", "true", "yes")
+    try:
+        remoting_identities_lib.remove_identity(identity_id, delete_files=delete_files)
+    except remoting_identities_lib.RemotingIdentityError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "removed": identity_id})
 
 
 @app.route("/api/settings/export")

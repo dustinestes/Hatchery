@@ -37,6 +37,7 @@ class TestRegistry:
         assert "controller_requirements" in ids
         assert "clutch_files" in ids
         assert "nest_key_expiry" in ids
+        assert "remoting_identities" in ids
         assert "nest_reachability" in ids
         assert "library_connections" in ids
 
@@ -90,6 +91,11 @@ class TestSchedulerRun:
         assert result["tier"] == "info"
         assert result["findings_count"] == 0
         assert list_runs(validator_id="clutch_files")
+
+    def test_remoting_identities_ok_when_empty(self):
+        result = run_validator("remoting_identities", trigger="manual")
+        assert result["status"] == "ok"
+        assert "No remoting identities" in result["message"]
 
     def test_run_validator_records_findings_tier(self):
         from unittest.mock import patch

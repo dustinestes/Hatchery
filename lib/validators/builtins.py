@@ -1,4 +1,4 @@
-"""Built-in validators — migrate existing syncs + stubs for follow-ups."""
+"""Built-in validators - migrate existing syncs + stubs for follow-ups."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from lib import config
 from lib import library as library_lib
 from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import nests as nests_lib
+from lib import remoting_identities as remoting_identities_lib
 from lib import requirements as req_lib
 from lib.validators.base import BaseValidator
 from lib.validators.context import ValidatorContext
@@ -15,6 +16,7 @@ from lib.validators.registry import register
 _CONTROLLER_ALERT_PREFIX = req_lib.CONTROLLER_ALERT_PREFIX
 _NEST_ALERT_PREFIX = req_lib.NEST_ALERT_PREFIX
 _CLUTCH_ALERT_PREFIX = "Invalid Clutch file:"
+_REMOTING_IDENTITY_ALERT_PREFIX = "Remoting identity:"
 
 
 class ControllerRequirementsValidator(BaseValidator):
@@ -100,22 +102,62 @@ def _clutch_error_detail(filename: str, error: str) -> str:
 
 class NestKeyExpiryValidator(BaseValidator):
     id = "nest_key_expiry"
-    title = "Nest SSH identity expiry"
-    description = "Alert when Nest SSH identities are nearing expiry."
+    title = "SSH identity expiry"
+    description = "Alert when Nest-row or remoting-catalog SSH identities are nearing expiry."
     scope = "nest"
     default_interval_seconds = 60
     default_enabled = True
 
     def run(self, ctx: ValidatorContext) -> str:
-        identities = nests_lib.identities_for_expiry()
+        identities = (
+            nests_lib.identities_for_expiry() + remoting_identities_lib.identities_for_expiry()
+        )
         tiers = nest_key_expiry_lib.parse_tiers(config.nest_key_alert_tiers())
         recorded = nest_key_expiry_lib.sync_nest_key_expiry_alerts(identities, tiers)
         if recorded:
-            # Newly filed expiry Alerts — warning unless already expired (alert tier).
+            # Newly filed expiry Alerts - warning unless already expired (alert tier).
             for msg in recorded:
                 tier = "alert" if "expired" in msg.lower() else "warning"
                 ctx.note_finding(tier)
-        return f"Checked {len(identities)} Nest SSH identities"
+        return f"Checked {len(identities)} SSH identities"
+
+
+class RemotingIdentitiesValidator(BaseValidator):
+    id = "remoting_identities"
+    title = "Remoting identities"
+    description = (
+        "Check Controller remoting identity catalog: key file exists, "
+        "permissions, and pubkey derivable (ADR-0030 / #522)."
+    )
+    scope = "controller"
+    default_interval_seconds = 120
+    default_enabled = True
+
+    def run(self, ctx: ValidatorContext) -> str:
+        identities = remoting_identities_lib.list_identities()
+        if not identities:
+            # No catalog rows yet is OK (generate on first use / CLI).
+            ctx.resolve_alerts_by_prefix(_REMOTING_IDENTITY_ALERT_PREFIX)
+            return "No remoting identities registered"
+
+        failed = 0
+        for ident in identities:
+            check = remoting_identities_lib.check_identity(ident)
+            prefix = f"{_REMOTING_IDENTITY_ALERT_PREFIX} '{ident.id}'"
+            if check.ok:
+                ctx.resolve_alerts_by_prefix(prefix)
+                continue
+            failed += 1
+            msg = f"{prefix} - {check.detail}"
+            if not ctx.has_active_alert(msg):
+                ctx.resolve_alerts_by_prefix(prefix)
+                ctx.record_alert(msg)
+            else:
+                ctx.note_finding("alert")
+
+        if failed:
+            return f"{failed} of {len(identities)} remoting identity(ies) unhealthy"
+        return f"{len(identities)} remoting identity(ies) OK"
 
 
 class NestCapabilityValidator(BaseValidator):
@@ -322,6 +364,7 @@ def register_builtins() -> None:
         ControllerRequirementsValidator,
         ClutchFilesValidator,
         NestKeyExpiryValidator,
+        RemotingIdentitiesValidator,
         NestReachabilityValidator,
         NestCapabilityValidator,
         LibraryConnectionsValidator,

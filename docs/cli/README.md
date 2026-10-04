@@ -38,6 +38,7 @@ flowchart LR
     scripts[scripts]
     settings[settings]
     library[library]
+    remotingIdentity[remoting-identity]
   end
   serve --> controller[Controller HTTP process]
   clutch --> factory[Nest factory plus transport]
@@ -50,6 +51,7 @@ flowchart LR
   settings --> configStore[Settings bootstrap and SQLite]
   library --> configStore
   library --> factory
+  remotingIdentity --> configStore
   factory --> localNest[Local Nest]
   factory --> remoteNest[Remote Nest]
 ```
@@ -61,6 +63,7 @@ flowchart LR
 | **Local inventory** (`media`, `scripts`) | List Controller cache files | Inspect against `data_dir`; not Library Content catalog |
 | **Settings** (`settings`) | Persist Settings from the terminal | Distinct from launch overrides ([#344](https://github.com/dustinestes/Hatchery/issues/344)) |
 | **Library** (`library`) | Enable flag, connections/bindings, content consume | Settings flag + first-class tables + pull/remove ([#434](https://github.com/dustinestes/Hatchery/issues/434), [#440](https://github.com/dustinestes/Hatchery/issues/440); [ADR-0022](../adr/0022-dual-surface-operator-discipline.md)) |
+| **Remoting identity** (`remoting-identity`) | Controller SSH identity catalog | First-class `remoting_identities` table ([#522](https://github.com/dustinestes/Hatchery/issues/522); [ADR-0030](../adr/0030-controller-remoting-identities.md)) |
 
 <br>
 
@@ -126,6 +129,10 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `library content list` | `{domain, items: [{name, relative_path, connection_id, source_type, sha256, cached, …}, …]}` |
 | `library content pull` | `{domain, imported, sha256, dest}` |
 | `library content remove` | `{ok, domain, name, deleted}` |
+| `remoting-identity list` | `{identities: [{id, name, kind, identity_file, resolved_path, pubkey, cert_path, identity_expires_at, created_at, updated_at}, …]}` |
+| `remoting-identity show\|generate\|rotate\|add-path` | One identity object (same fields as list rows) |
+| `remoting-identity remove` | `{removed, delete_files}` |
+| `remoting-identity check` | `{checks: [{id, ok, detail}, …]}` |
 
 Schema may evolve; treat field names as the contract for automation, not pretty-print layout.
 
@@ -159,6 +166,7 @@ CI: in-process CLI tests live in `tests/test_cli.py`. A thin console-script smok
 | [nest.md](nest.md) | [`lib/cli/nest.py`](../../lib/cli/nest.py) | **Shipped (inspect)** (#23) | List Nests / Test Nest connection |
 | [settings.md](settings.md) | [`lib/cli/settings.py`](../../lib/cli/settings.py) | **Shipped** (#344) | Persist Settings (`get` / `set`) |
 | [library.md](library.md) | [`lib/cli/library.py`](../../lib/cli/library.py) | **Shipped** (#434, #440) | Library enable + connections/bindings + content list/pull/remove (+ connection test) |
+| [remoting-identity.md](remoting-identity.md) | [`lib/cli/remoting_identity.py`](../../lib/cli/remoting_identity.py) | **Shipped** (#522) | Remoting identity catalog (generate/rotate/add-path/check) |
 | (index `--json`) | [`lib/cli/output.py`](../../lib/cli/output.py) | **Shipped** (#423) | Global `--json` for inspect and Library/Settings JSON emitters |
 
 Operator inspect (`nest`, `clutch`, `vm list`) shipped under [#23](https://github.com/dustinestes/Hatchery/issues/23). Mutating `hatch` and VM lifecycle ship under [#353](https://github.com/dustinestes/Hatchery/issues/353). Session inspect ships under [#421](https://github.com/dustinestes/Hatchery/issues/421); session retry under [#422](https://github.com/dustinestes/Hatchery/issues/422). Machine-readable `--json` ships under [#423](https://github.com/dustinestes/Hatchery/issues/423). Local media / scripts list ships under [#425](https://github.com/dustinestes/Hatchery/issues/425). Settings persist ships under [#344](https://github.com/dustinestes/Hatchery/issues/344). Library registry ships under [#434](https://github.com/dustinestes/Hatchery/issues/434); Library content consume under [#440](https://github.com/dustinestes/Hatchery/issues/440) ([ADR-0022](../adr/0022-dual-surface-operator-discipline.md)). Docs/flags audit: [#441](https://github.com/dustinestes/Hatchery/issues/441).
@@ -181,6 +189,7 @@ Inventory vs `register()` / `--help` (commands, required flags, accepted values)
 | scripts | OK |
 | settings (exportable key table) | OK |
 | library (connection/binding/content + enums) | OK |
+| remoting-identity | OK |
 | index `--json` shapes | OK |
 
 
