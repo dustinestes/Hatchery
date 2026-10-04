@@ -17,7 +17,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [alerts](#alerts)
   - [app\_settings](#app_settings)
   - [nests](#nests)
-  - [remoting\_identities](#remoting_identities-planned)
+  - [remoting\_identities](#remoting_identities)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
@@ -223,27 +223,27 @@ Registered Nest connections (where VMs live). Fresh databases start with an **em
 
 <br>
 
-### remoting_identities (planned)
+### remoting_identities
 
-Controller SSH identity catalog shared by Nest and Guest planes ([ADR-0030](../adr/0030-controller-remoting-identities.md) / [#519](https://github.com/dustinestes/Hatchery/issues/519)). **Not implemented yet** - sketch for implementers. System of record is this table (not `app_settings`). Private key **bytes** are never stored.
+Controller SSH identity catalog shared by Nest and Guest planes ([ADR-0030](../adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522)). System of record is this table (not `app_settings`). Private key **bytes** are never stored.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `TEXT` | `PRIMARY KEY` | Stable identity id (e.g. `hatchery`) |
 | `name` | `TEXT` | `NOT NULL` | Display label |
-| `kind` | `TEXT` | `NOT NULL` | `hatchery` (managed under `data_dir`) or `path` (operator path) |
-| `identity_file` | `TEXT` | `NOT NULL` | Path on Controller host |
+| `kind` | `TEXT` | `NOT NULL` | `hatchery` (managed under `data_dir`) or `path` (operator path); `CHECK` constrained |
+| `identity_file` | `TEXT` | `NOT NULL` | Path on Controller host (`data_dir`-relative for Hatchery-managed) |
 | `pubkey` | `TEXT` | | Optional cached OpenSSH pubkey line |
 | `cert_path` | `TEXT` | | Optional certificate path |
 | `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601) |
 | `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 | `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 
-Clutch YAML (guest authorize; not a DB table): `remoting.ssh.authorize: [<identity_id>, …]` plus optional port. Default new Clutches authorize the Hatchery-managed identity after impl.
+Clutch YAML (guest authorize; not a DB table): `remoting.ssh.authorize: [<identity_id>, …]` plus optional port - binding lands in [#524](https://github.com/dustinestes/Hatchery/issues/524). Nest `remoting_identity_id` lands in [#523](https://github.com/dustinestes/Hatchery/issues/523).
 
-#### Managed by (planned)
+#### Managed by
 
-`lib/remoting_identities.py` + product CLI sketch `hatchery remoting-identity …`
+`lib/remoting_identities.py`, CLI `hatchery remoting-identity …`, Settings → Security UI, validator `remoting_identities`
 
 <br>
 

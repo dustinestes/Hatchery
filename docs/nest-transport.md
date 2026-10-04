@@ -46,7 +46,7 @@ The Controller need not be colocated with a Nest: Remote Nest SSH is how a Contr
 
 ## SSH Default (Key Reference)
 
-Hatchery uses the host **OpenSSH client** (`ssh` on PATH). Identities are **referenced**, not stored. Today Nest rows carry `identity_file` / optional cert and expiry; [ADR-0030](adr/0030-controller-remoting-identities.md) moves those into a shared **remoting identities** catalog and binds each Nest with `remoting_identity_id` (explicit dropdown - no round-robin).
+Hatchery uses the host **OpenSSH client** (`ssh` on PATH). Identities are **referenced**, not stored. The Controller **remoting identities** catalog ([#522](https://github.com/dustinestes/Hatchery/issues/522); [ADR-0030](adr/0030-controller-remoting-identities.md)) holds Hatchery-managed and path keys (`hatchery remoting-identity …` / Settings → Security). Nest rows still carry `identity_file` / optional cert and expiry until [#523](https://github.com/dustinestes/Hatchery/issues/523) binds each Nest with `remoting_identity_id` (explicit dropdown - no round-robin).
 
 | Field (today / transport) | Purpose |
 |---|---|

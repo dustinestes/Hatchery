@@ -5,7 +5,7 @@
 - **Issues:** [#519](https://github.com/dustinestes/Hatchery/issues/519) (planning)
 - **Implementation / follow-on:** [#522](https://github.com/dustinestes/Hatchery/issues/522) (catalog + validators + CLI), [#523](https://github.com/dustinestes/Hatchery/issues/523) (Nest binding), [#524](https://github.com/dustinestes/Hatchery/issues/524) (guest authorize). IA follow-ons (not this ADR): [#525](https://github.com/dustinestes/Hatchery/issues/525)–[#529](https://github.com/dustinestes/Hatchery/issues/529)
 - **Related:** [ADR-0029](0029-guest-ssh-bootstrap-and-guest-transport.md) (bootstrap / planes; keys deferred here), [ADR-0022](0022-dual-surface-operator-discipline.md), [#497](https://github.com/dustinestes/Hatchery/issues/497) (`guest_transport`), [#156](https://github.com/dustinestes/Hatchery/issues/156) (ephemeral admin), [#110](https://github.com/dustinestes/Hatchery/issues/110) / [#259](https://github.com/dustinestes/Hatchery/issues/259) (secrets)
-- **How-to:** [guest-transport.md](../guest-transport.md), [nest-transport.md](../nest-transport.md), [schema/database.md](../schema/database.md) (planned table sketch)
+- **How-to:** [guest-transport.md](../guest-transport.md), [nest-transport.md](../nest-transport.md), [schema/database.md](../schema/database.md#remoting_identities), [cli/remoting-identity.md](../cli/remoting-identity.md)
 
 ## Context
 
@@ -66,7 +66,7 @@ Generalize Nest key expiry ([`nest_key_expiry`](../../lib/validators/builtins.py
 
 ### 6. Field sketch (implementation children)
 
-**Table `remoting_identities` (planned):**
+**Table `remoting_identities`:**
 
 | Column | Notes |
 |---|---|

@@ -267,6 +267,23 @@ html.sidebar-collapsed-init .topbar-name {
   outline-offset: 2px;
 }
 
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.library-conn-row-actions-icons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 /* Theme toggle — show correct icon per theme */
 [data-theme="light"] .icon-moon { display: none; }
 [data-theme="dark"]  .icon-sun  { display: none; }
