@@ -387,9 +387,7 @@ def _provision_vm_thread(
                     "Ending guest environment",
                 )
 
-            n_script = sum(
-                1 for s in scripts if (s.get("entry_type") or "script") == "script"
-            )
+            n_script = sum(1 for s in scripts if (s.get("entry_type") or "script") == "script")
             n_software = sum(1 for s in scripts if s.get("entry_type") == "software")
             auto_parts: list[str] = []
             if n_script:
