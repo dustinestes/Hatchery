@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-03
 - **Issues:** [#509](https://github.com/dustinestes/Hatchery/issues/509) (planning), epic [#202](https://github.com/dustinestes/Hatchery/issues/202)
-- **Implementation / follow-on:** [#518](https://github.com/dustinestes/Hatchery/issues/518) (MSI bootstrap), [#519](https://github.com/dustinestes/Hatchery/issues/519) (guest key identity planning), [#497](https://github.com/dustinestes/Hatchery/issues/497) (`guest_transport`)
+- **Implementation / follow-on:** [#518](https://github.com/dustinestes/Hatchery/issues/518) (MSI bootstrap), [#519](https://github.com/dustinestes/Hatchery/issues/519) / [ADR-0030](0030-controller-remoting-identities.md) (remoting identities), [#497](https://github.com/dustinestes/Hatchery/issues/497) (`guest_transport`)
 - **Related:** [#517](https://github.com/dustinestes/Hatchery/issues/517) (Library release-asset → Software), [#508](https://github.com/dustinestes/Hatchery/issues/508) (Drivers media), [#475](https://github.com/dustinestes/Hatchery/issues/475) / [#131](https://github.com/dustinestes/Hatchery/issues/131) (offline staging), [ADR-0003](0003-nest-registry-provider-factory.md), [ADR-0021](0021-controller-embeddable-operator-plane.md)
 - **How-to:** [orchestration.md](../orchestration.md) (first-boot / ready-gate), [guest-transport.md](../guest-transport.md), [nest-transport.md](../nest-transport.md) (Nest plane only)
 
@@ -44,9 +44,9 @@ Drivers attachable media ([#508](https://github.com/dustinestes/Hatchery/issues/
 
 Naming is intentional and parallel. Do not call Nest transport from guest hatch paths. Do not reuse Nest `identity_file` as the guest authorized key by default. Extract shared OpenSSH **client** helpers (identity path reference, known_hosts, run/copy) for both planes; do not merge Nest and guest credentials into one module.
 
-### 4. Guest key identity (deferred)
+### 4. Guest key identity
 
-Controller pubkey injection, `guest_ssh_identities`, Clutch `remoting.ssh.authorize`, and purpose-built Hatchery guest keys are **not** locked here. Follow-on planning issue. Until then, MSI bootstrap only brings `sshd` up; hatch continues with admin password.
+Deferred in this ADR; product shape locked in [ADR-0030](0030-controller-remoting-identities.md) (#519). Until remoting-identity implementation lands, MSI bootstrap only brings `sshd` up; hatch continues with admin password (#497).
 
 ### 5. Install matrix (who)
 
@@ -68,4 +68,4 @@ Controller pubkey injection, `guest_ssh_identities`, Clutch `remoting.ssh.author
 - **Keep FoD / offline FoD ISO on Drivers media:** rejected for default path after ~20 min vs ~9 s MSI evidence; Drivers stay for VirtIO (#508).
 - **Freeze a specific Beta MSI SHA forever:** rejected; track latest with documented channel oddity.
 - **Collapse Nest and guest into one transport module:** rejected; different targets, configs, and identity (ADR-0021).
-- **Require guest keys in this ADR:** deferred; needs separate product design.
+- **Require guest keys in this ADR:** deferred to [ADR-0030](0030-controller-remoting-identities.md).

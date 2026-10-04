@@ -74,6 +74,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0027](0027-clutch-guest-os-family-firmware-tpm.md) | Clutch Guest OS is family + explicit firmware/TPM | Accepted |
 | [0028](0028-hatch-session-clutch-snapshot.md) | Hatch session Clutch snapshot (ignore mid-hatch edits) | Accepted |
 | [0029](0029-guest-ssh-bootstrap-and-guest-transport.md) | Guest SSH bootstrap and Guest transport plane | Accepted |
+| [0030](0030-controller-remoting-identities.md) | Controller remoting identities (Nest + Guest SSH keys) | Accepted |
 
 <br>
 

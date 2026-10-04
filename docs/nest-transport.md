@@ -34,28 +34,30 @@ How Hatchery talks to a Nest (hypervisor host) over the network - the control pl
 | Guest transport | Guest VM (Scripts / Software / ready-probe) | **SSH** primary + WinRM Windows fallback - [#497](https://github.com/dustinestes/Hatchery/issues/497) (`lib/guest_transport.py`; Scripts/Software call through [`lib/provision.py`](../../lib/provision.py)) |
 | Guest SSH bootstrap | First-boot companion installs `sshd` on the guest | GitHub Win32-OpenSSH MSI (not FoD) - [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md) / [#509](https://github.com/dustinestes/Hatchery/issues/509) |
 
-This document covers **Nest transport only**. Nest transport and Guest transport are parallel planes (same preferred protocol, different targets and identity). Do not reuse Nest `identity_file` as the guest authorized key by default. Shared OpenSSH **client** helpers may serve both modules; credentials and configs stay separate ([ADR-0021](adr/0021-controller-embeddable-operator-plane.md), ADR-0029).
+This document covers **Nest transport only**. Nest transport and Guest transport are parallel planes (same preferred protocol, different targets and identity). Do not silently reuse a Nest identity binding as guest authorize. Shared OpenSSH **client** helpers live in [`lib/openssh_client.py`](../../lib/openssh_client.py); credentials and configs stay separate ([ADR-0021](adr/0021-controller-embeddable-operator-plane.md), [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md), [ADR-0030](adr/0030-controller-remoting-identities.md)).
 
 Module: [`lib/nest_transport.py`](../../lib/nest_transport.py).
 
 Per-Nest choice: `NestConnectionConfig.transport` is `ssh` (default) or `winrm`.
 
+The Controller need not be colocated with a Nest: Remote Nest SSH is how a Controller-only install reaches the hypervisor host ([architecture-nests.md](architecture-nests.md)).
+
 <br>
 
 ## SSH Default (Key Reference)
 
-Hatchery uses the host **OpenSSH client** (`ssh` on PATH). Identities are **referenced**, not stored:
+Hatchery uses the host **OpenSSH client** (`ssh` on PATH). Identities are **referenced**, not stored. Today Nest rows carry `identity_file` / optional cert and expiry; [ADR-0030](adr/0030-controller-remoting-identities.md) moves those into a shared **remoting identities** catalog and binds each Nest with `remoting_identity_id` (explicit dropdown - no round-robin).
 
-| Field | Purpose |
+| Field (today / transport) | Purpose |
 |---|---|
 | `host` | Nest hostname or IP |
 | `user` | SSH user (optional; defaults to client default) |
 | `port` | SSH port (default `22`) |
-| `identity_file` | Path to an existing private key on the Hatchery host |
+| `identity_file` | Path to an existing private key on the Hatchery host (resolved from remoting identity after ADR-0030 impl) |
 | `use_agent` | Allow `ssh-agent` (default true); set false to force the identity file only |
 | `known_hosts` | `default` \| `accept-new` \| `skip` |
 
-Private key bytes are never written into the Hatchery database for Nest auth.
+Private key bytes are never written into the Hatchery database for Nest auth. Matching **public** keys must be present in the Nest host `authorized_keys` (see [guest-transport.md](guest-transport.md) distribution diagram).
 
 <br>
 
