@@ -87,6 +87,52 @@ def _read_pubkey_file(priv: Path) -> str | None:
     return text or None
 
 
+def _pubkey_material(line: str) -> str:
+    """Return ``type blob`` (ignore comment) for comparing OpenSSH pubkey lines."""
+    parts = (line or "").strip().split()
+    if len(parts) < 2:
+        return (line or "").strip()
+    return f"{parts[0]} {parts[1]}"
+
+
+def _derive_pubkey_from_private(priv: Path) -> str | None:
+    """Public key line that matches ``priv`` (``.pub`` file, else ``ssh-keygen -y``)."""
+    pub = _read_pubkey_file(priv)
+    if pub:
+        return pub
+    if not priv.is_file():
+        return None
+    ssh_keygen = shutil.which("ssh-keygen")
+    if ssh_keygen is None:
+        return None
+    try:
+        result = subprocess.run(
+            [ssh_keygen, "-y", "-f", str(priv)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    text = (result.stdout or "").strip()
+    return text or None
+
+
+def _sync_catalog_pubkey(ident: RemotingIdentity, derived: str) -> RemotingIdentity:
+    """Update catalog pubkey when it drifts from private-key material."""
+    if ident.pubkey and _pubkey_material(ident.pubkey) == _pubkey_material(derived):
+        return ident
+    return _upsert(
+        identity_id=ident.id,
+        name=ident.name,
+        kind=ident.kind,
+        identity_file=ident.identity_file,
+        pubkey=derived.strip(),
+        cert_path=ident.cert_path,
+        identity_expires_at=ident.identity_expires_at,
+    )
+
+
 def _row_to_identity(row: Any) -> RemotingIdentity:
     return RemotingIdentity(
         id=str(row["id"]),
@@ -141,17 +187,22 @@ def identity_private_path(identity_id: str) -> Path:
 
 
 def identity_pubkey(identity_id: str) -> str:
-    """Return the OpenSSH public key line for a catalog identity."""
+    """Return the OpenSSH public key line that matches the private key on disk.
+
+    Prefers material derived from the private key (``.pub`` / ``ssh-keygen -y``)
+    over a stale catalog ``pubkey`` column so guest authorize inject and key
+    verify cannot diverge after regenerate/rotate races.
+    """
     ident = resolve(identity_id)
-    if ident.pubkey and ident.pubkey.strip():
-        return ident.pubkey.strip()
-    pub = _read_pubkey_file(ident.resolved_path())
-    if not pub:
+    priv = ident.resolved_path()
+    derived = _derive_pubkey_from_private(priv)
+    if not derived:
         raise RemotingIdentityError(
             f"remoting identity {ident.id!r} has no public key "
-            f"(expected {ident.resolved_path()}.pub)"
+            f"(expected {priv}.pub or a readable private key for ssh-keygen -y)"
         )
-    return pub
+    _sync_catalog_pubkey(ident, derived)
+    return derived.strip()
 
 
 def _upsert(
@@ -245,18 +296,14 @@ def ensure_hatchery_identity(*, rotate: bool = False) -> RemotingIdentity:
     priv = remoting_dir() / "hatchery_ed25519"
     existing = get_identity(HATCHERY_IDENTITY_ID)
     if existing and priv.is_file() and not rotate:
-        pubkey = existing.pubkey or _read_pubkey_file(priv)
-        if pubkey and pubkey != existing.pubkey:
-            return _upsert(
-                identity_id=HATCHERY_IDENTITY_ID,
-                name=existing.name or "Hatchery",
-                kind="hatchery",
-                identity_file=rel,
-                pubkey=pubkey,
-                cert_path=existing.cert_path,
-                identity_expires_at=existing.identity_expires_at,
-            )
-        return existing
+        derived = _derive_pubkey_from_private(priv)
+        if derived:
+            return _sync_catalog_pubkey(existing, derived)
+        if existing.pubkey:
+            return existing
+        raise RemotingIdentityError(
+            f"Hatchery remoting private key exists but pubkey cannot be derived: {priv}"
+        )
 
     _run_ssh_keygen(priv, comment="hatchery-remoting")
     pubkey = _read_pubkey_file(priv)
@@ -373,11 +420,19 @@ def check_identity(ident: RemotingIdentity) -> IdentityCheck:
             False,
             f"identity file is group/world accessible: {path} (expected 0600)",
         )
-    if not ident.pubkey and not _read_pubkey_file(path):
+    derived = _derive_pubkey_from_private(path)
+    if not ident.pubkey and not derived:
         return IdentityCheck(
             ident.id,
             False,
             f"public key missing beside private key ({path}.pub)",
+        )
+    if ident.pubkey and derived and _pubkey_material(ident.pubkey) != _pubkey_material(derived):
+        return IdentityCheck(
+            ident.id,
+            False,
+            "catalog pubkey does not match private key on disk "
+            "(run remoting-identity generate/rotate, or re-check after sync)",
         )
     return IdentityCheck(ident.id, True, "ok")
 

@@ -186,9 +186,18 @@ def verify_key_ssh(
         raise GuestAuthorizeError(f"key SSH transport failed: {exc}") from exc
     if not isinstance(transport, SshGuestTransport):
         raise GuestAuthorizeError("expected SSH guest transport for key verify")
-    if not transport.test_connection():
+    try:
+        code, out = transport.run_ps("Write-Output hatchery-guest-ok", timeout=15)
+    except GuestTransportError as exc:
         raise GuestAuthorizeError(
-            f"key SSH verify failed for {username}@{host}:{ssh_port} (identity {identity_file})"
+            f"key SSH verify failed for {username}@{host}:{ssh_port} "
+            f"(identity {identity_file}): {exc}"
+        ) from exc
+    if code != 0 or "hatchery-guest-ok" not in (out or ""):
+        detail = (out or "").strip() or f"exit {code}"
+        raise GuestAuthorizeError(
+            f"key SSH verify failed for {username}@{host}:{ssh_port} "
+            f"(identity {identity_file}): {detail}"
         )
 
 

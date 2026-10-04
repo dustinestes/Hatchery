@@ -84,7 +84,7 @@ The **Dashboard Validators** tile rolls up enabled/off counts and latest-run sta
 | `controller_requirements` | Active - Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active - Nest-row and remoting-catalog SSH identity expiry tiers ([#522](https://github.com/dustinestes/Hatchery/issues/522)) |
-| `remoting_identities` | Active - catalog key file exists, permissions (`0600`), pubkey derivable ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522)) |
+| `remoting_identities` | Active - catalog key file exists, permissions (`0600`), pubkey matches private key on disk, Nest/Clutch authorize bindings resolve ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522) / [#537](https://github.com/dustinestes/Hatchery/issues/537)) |
 | `nest_reachability` | Active - endpoint TCP then Nest transport; result carries `endpoint` / `transport` reason |
 | `nest_capability` | Active - provider-declared Nest tools (Local on-box; Remote over transport). **Gated by reachability** on Remotes ([#286](https://github.com/dustinestes/Hatchery/issues/286)): unreachable / never-probed Nests skip capability and clear Nest capability Alerts |
 | `library_connections` | Active - Library connection reachability/auth (path, HTTPS, API, Forge) + token expiry ([#254](https://github.com/dustinestes/Hatchery/issues/254), [#255](https://github.com/dustinestes/Hatchery/issues/255)). Skips connections with `enabled: false` and resolves their Alerts ([#293](https://github.com/dustinestes/Hatchery/issues/293)). No-ops (and clears Library Alerts) when Library is disabled |

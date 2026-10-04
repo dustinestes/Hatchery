@@ -165,13 +165,15 @@ class SshGuestTransport:
 
     def _ssh_argv(self, remote_command: str, *, connect_timeout: int) -> list[str]:
         password = self._password()
+        # When an identity file is set, disable the agent so BatchMode verify
+        # cannot offer a different agent key than the authorize identity.
         return build_ssh_argv(
             host=self.endpoint.host,
             user=self.endpoint.username,
             port=self.endpoint.ssh_port,
             remote_command=remote_command,
             identity_file=self.endpoint.identity_file,
-            use_agent=bool(self.endpoint.identity_file),
+            use_agent=False if self.endpoint.identity_file else True,
             known_hosts="accept-new",
             connect_timeout_seconds=connect_timeout,
             batch_mode=password is None,
@@ -255,7 +257,7 @@ class SshGuestTransport:
                 local_path=str(local_path),
                 remote_path=remote_path,
                 identity_file=self.endpoint.identity_file,
-                use_agent=bool(self.endpoint.identity_file),
+                use_agent=False if self.endpoint.identity_file else True,
                 known_hosts="accept-new",
                 connect_timeout_seconds=min(30, max(5, timeout)),
                 batch_mode=password is None,
