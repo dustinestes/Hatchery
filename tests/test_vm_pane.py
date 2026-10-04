@@ -271,9 +271,11 @@ def test_vms_detail_markers(client):
     assert 'id="vms-env-section"' in html
     assert 'id="vms-scripts-section"' in html
     assert 'id="vms-software-section"' in html
+    assert 'id="vms-scripts-add-btn"' in html
     assert 'id="vms-scripts-retry-btn"' in html
     assert 'id="vms-software-add-btn"' in html
     assert 'id="vms-software-retry-btn"' in html
+    assert "Retry Failed Hatch" in html
     assert "detail-hero-action" in html
     assert "External VM (not Hatchery-sourced)" in html
     assert 'id="vms-modal-backdrop"' in html

@@ -69,8 +69,9 @@
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
           </svg>
         </button>
-        <button type="button" class="detail-hero-action" id="vms-retry-btn" data-label="Retry automation"
-                title="Retry automation" aria-label="Retry automation" hidden>
+        <button type="button" class="detail-hero-action" id="vms-retry-btn" data-label="Retry Failed Hatch"
+                title="Retry Failed Hatch (available when this hatch VM has failed)"
+                aria-label="Retry Failed Hatch (available when this hatch VM has failed)" hidden>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -109,10 +110,18 @@
     <div class="detail-section-header">
       <h2 class="scripts-section-title" id="vms-scripts-heading">Scripts</h2>
       <div class="detail-hero-actions" role="toolbar" aria-label="Script actions">
+        <button type="button" class="detail-hero-action" id="vms-scripts-add-btn" disabled
+                title="Add script (coming soon; #535)"
+                aria-label="Add script (coming soon)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
         <button type="button" class="detail-hero-action" id="vms-scripts-retry-btn" disabled
-                data-label="Retry scripts"
-                title="Retry scripts (available when a script has failed)"
-                aria-label="Retry scripts (available when a script has failed)">
+                data-label="Retry Failed Hatch"
+                title="Retry Failed Hatch (available when this hatch VM has failed)"
+                aria-label="Retry Failed Hatch (available when this hatch VM has failed)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -136,9 +145,9 @@
           </svg>
         </button>
         <button type="button" class="detail-hero-action" id="vms-software-retry-btn" disabled
-                data-label="Retry software"
-                title="Retry software (coming soon; #534)"
-                aria-label="Retry software (coming soon)">
+                data-label="Retry Failed Hatch"
+                title="Retry Failed Hatch (available when this hatch VM has failed)"
+                aria-label="Retry Failed Hatch (available when this hatch VM has failed)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -242,6 +251,7 @@
   const scriptsRetryBtn = document.getElementById('vms-scripts-retry-btn');
   const softwareSection = document.getElementById('vms-software-section');
   const softwareBody = document.getElementById('vms-software-body');
+  const softwareRetryBtn = document.getElementById('vms-software-retry-btn');
   const snapList = document.getElementById('vms-snap-list');
   const snapLabel = document.getElementById('vms-snap-label');
   const retryBtn = document.getElementById('vms-retry-btn');
@@ -436,18 +446,6 @@
       'Script',
       'No scripts on this VM.'
     );
-    const canRetry = !!(vm.session_id && parts.scripts.some(function (s) { return s.status === 'failed'; }));
-    scriptsRetryBtn.disabled = !canRetry;
-    if (canRetry) {
-      scriptsRetryBtn.title = 'Retry scripts';
-      scriptsRetryBtn.setAttribute('aria-label', 'Retry scripts');
-    } else {
-      scriptsRetryBtn.title = 'Retry scripts (available when a script has failed)';
-      scriptsRetryBtn.setAttribute(
-        'aria-label',
-        'Retry scripts (available when a script has failed)'
-      );
-    }
   }
 
   function renderSoftware(vm) {
@@ -463,6 +461,25 @@
       'Package',
       'No software packages on this VM.'
     );
+  }
+
+  function syncRetryFailedHatch(vm) {
+    // One semantic today: POST .../retry requires hatch_vm_status == failed.
+    // Hero + Scripts + Software header retries are mirrored affordances (#534 is scoped API later).
+    const canRetry = !!(sessionId && vm && vm.hatch_status === 'failed');
+    const tip = canRetry
+      ? 'Retry Failed Hatch'
+      : 'Retry Failed Hatch (available when this hatch VM has failed)';
+    [retryBtn, scriptsRetryBtn, softwareRetryBtn].forEach(function (btn) {
+      if (!btn) return;
+      if (btn === retryBtn) {
+        btn.hidden = !canRetry;
+      } else {
+        btn.disabled = !canRetry;
+      }
+      btn.title = tip;
+      btn.setAttribute('aria-label', tip);
+    });
   }
 
   function fmtValidated(iso) {
@@ -576,14 +593,10 @@
     sessionId = vm.session_id || sessionId || '';
     root.dataset.sessionId = sessionId;
     syncLifecycleButtons(vm.status);
-    const parts = splitAutomations(vm);
-    const canRetry = !!(sessionId && ((vm.hatch_status === 'failed') ||
-      parts.scripts.some(function (s) { return s.status === 'failed'; }) ||
-      parts.software.some(function (s) { return s.status === 'failed'; })));
-    retryBtn.hidden = !canRetry;
     renderEnvironment(vm);
     renderScripts(vm);
     renderSoftware(vm);
+    syncRetryFailedHatch(vm);
   }
 
   async function refreshVm() {
@@ -824,9 +837,9 @@
   async function runRetry() {
     if (!sessionId) return;
     const ok = await askConfirm({
-      title: 'Retry automation',
-      message: 'Retry failed automation for "' + name + '"?',
-      confirmLabel: 'Retry',
+      title: 'Retry Failed Hatch',
+      message: 'Retry the failed hatch for "' + name + '"? This re-queues automation for the VM; it is not scoped to a single script or package.',
+      confirmLabel: 'Retry Failed Hatch',
     });
     if (!ok) return;
     const resp = await fetch(
@@ -835,7 +848,7 @@
     );
     const body = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-      await showNotice('Retry failed', body.error || 'Retry failed');
+      await showNotice('Retry Failed Hatch', body.error || 'Retry failed');
       return;
     }
     await refreshVm();
@@ -844,6 +857,7 @@
 
   retryBtn.addEventListener('click', runRetry);
   scriptsRetryBtn.addEventListener('click', runRetry);
+  softwareRetryBtn.addEventListener('click', runRetry);
 
   document.getElementById('vms-snap-take').addEventListener('click', async function () {
     const label = (snapLabel.value || '').trim();
