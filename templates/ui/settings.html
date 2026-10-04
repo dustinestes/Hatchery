@@ -399,12 +399,12 @@
         <div class="library-conn-row-body remoting-identity-body" hidden>
           <div class="library-conn-row-fields">
             <div class="form-group form-group-full">
-              <span class="form-label">Identity id</span>
+              <span class="form-label">Id</span>
               <p class="form-help-text"><code>hatchery</code> - Hatchery-managed key under the Controller data directory.</p>
             </div>
             {% if hatchery_ready %}
             <div class="form-group form-group-full">
-              <span class="form-label">Identity file</span>
+              <span class="form-label">Private Key Path</span>
               <p class="form-help-text"><code>{{ remoting_hatchery.resolved_path or remoting_hatchery.identity_file }}</code></p>
             </div>
             {% if remoting_hatchery.pubkey %}
@@ -462,7 +462,7 @@
         <div class="library-conn-row-body remoting-identity-body" hidden>
           <div class="library-conn-row-fields">
             <div class="form-group">
-              <label class="form-label">Identity id <span class="required">*</span></label>
+              <label class="form-label">Id <span class="required">*</span></label>
               <input type="text" class="form-input remoting-id-input" required autocomplete="off"
                      value="{{ ident.id }}" readonly>
             </div>
@@ -472,19 +472,19 @@
                      value="{{ ident.name }}" placeholder="e.g. Lab Nest key">
             </div>
             <div class="form-group form-group-full">
-              <label class="form-label">Identity file <span class="required">*</span></label>
+              <label class="form-label">Private Key Path <span class="required">*</span></label>
               <input type="text" class="form-input remoting-file-input" required autocomplete="off"
                      value="{{ ident.identity_file }}"
                      placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
             </div>
             <div class="form-group">
-              <label class="form-label">Certificate path</label>
+              <label class="form-label">Certificate Path</label>
               <input type="text" class="form-input remoting-cert-input" autocomplete="off"
                      value="{{ ident.cert_path or '' }}"
                      placeholder="OpenSSH cert (or identity_file-cert.pub)">
             </div>
             <div class="form-group">
-              <label class="form-label">Identity expiry</label>
+              <label class="form-label">Expiry</label>
               <input type="date" class="form-input remoting-expires-input"
                      value="{{ (ident.identity_expires_at or '')[:10] }}">
               <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
@@ -530,7 +530,7 @@
       <div class="library-conn-row-body remoting-identity-body">
         <div class="library-conn-row-fields">
           <div class="form-group">
-            <label class="form-label">Identity id <span class="required">*</span></label>
+            <label class="form-label">Id <span class="required">*</span></label>
             <input type="text" class="form-input remoting-id-input" required autocomplete="off"
                    value="" placeholder="lab-nest-key">
           </div>
@@ -540,18 +540,18 @@
                    value="" placeholder="e.g. Lab Nest key">
           </div>
           <div class="form-group form-group-full">
-            <label class="form-label">Identity file <span class="required">*</span></label>
+            <label class="form-label">Private Key Path <span class="required">*</span></label>
             <input type="text" class="form-input remoting-file-input" required autocomplete="off"
                    value=""
                    placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
           </div>
           <div class="form-group">
-            <label class="form-label">Certificate path</label>
+            <label class="form-label">Certificate Path</label>
             <input type="text" class="form-input remoting-cert-input" autocomplete="off"
                    value="" placeholder="OpenSSH cert (or identity_file-cert.pub)">
           </div>
           <div class="form-group">
-            <label class="form-label">Identity expiry</label>
+            <label class="form-label">Expiry</label>
             <input type="date" class="form-input remoting-expires-input" value="">
             <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
           </div>
