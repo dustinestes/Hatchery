@@ -5059,8 +5059,12 @@ class TestSettingsShowPasswords:
     def test_security_shows_remoting_identities_section(self, client):
         html = client.get("/settings/security").data.decode()
         assert "Remoting identities" in html
-        assert "remoting-generate-btn" in html
         assert "remoting-identity-rows" in html
+        assert "remoting-generate-btn" in html
+        assert "remoting-rotate-btn" in html
+        assert "remoting-confirm-backdrop" in html
+        assert 'data-kind="hatchery"' in html
+        assert "not generated" in html
         assert 'type="date"' in html
         assert "remoting-path-row-template" in html
 

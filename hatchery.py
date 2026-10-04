@@ -738,12 +738,15 @@ def _settings_template(
     validator_latest = latest_by_validator() if section == "general" else {}
     validators_run_retention = get_run_retention() if section == "general" else 50
 
-    remoting_identities = []
+    remoting_hatchery = None
+    remoting_path_identities: list = []
     if section == "security":
-        remoting_identities = [
-            remoting_identities_lib.to_dict(i)
-            for i in remoting_identities_lib.list_identities()
-        ]
+        for ident in remoting_identities_lib.list_identities():
+            row = remoting_identities_lib.to_dict(ident)
+            if row.get("kind") == "hatchery":
+                remoting_hatchery = row
+            else:
+                remoting_path_identities.append(row)
 
     return render_template(
         "settings.html",
@@ -762,7 +765,8 @@ def _settings_template(
         validator_configs=validator_configs,
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
-        remoting_identities=remoting_identities,
+        remoting_hatchery=remoting_hatchery,
+        remoting_path_identities=remoting_path_identities,
     )
 
 
