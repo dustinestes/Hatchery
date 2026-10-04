@@ -505,6 +505,7 @@ def dashboard():
 
 @app.route("/nests")
 def nests():
+    """Nests → Inventory (#525 / #526)."""
     from lib import nest_reachability as nr
 
     registered = nests_lib.list_nests()
@@ -518,6 +519,95 @@ def nests():
         "nests.html",
         active_pane="nests",
         nests=registered,
+    )
+
+
+@app.route("/nests/connections")
+def nests_connections():
+    """Nests → Connections: Nest registry (moved from Settings; ADR-0031 / #525)."""
+    remoting_identity_options = [
+        remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
+    ]
+    return render_template(
+        "nests_connections.html",
+        active_pane="nests_connections",
+        nests=nests_lib.list_nests(),
+        remoting_identity_options=remoting_identity_options,
+        form_saved=request.args.get("saved") == "1",
+        form_error=None,
+    )
+
+
+@app.route("/nests/connections", methods=["POST"])
+def nests_connections_post():
+    """Save Nest registry rows from Nests → Connections."""
+    nest_ids = request.form.getlist("nest_id")
+    nest_names = request.form.getlist("nest_name")
+    nest_providers = request.form.getlist("nest_provider_type")
+    nest_locations = request.form.getlist("nest_location")
+    nest_transports = request.form.getlist("nest_transport")
+    nest_hosts = request.form.getlist("nest_host")
+    nest_ports = request.form.getlist("nest_port")
+    nest_ssh_users = request.form.getlist("nest_ssh_user")
+    nest_remoting_ids = request.form.getlist("nest_remoting_identity_id")
+    nest_known_hosts = request.form.getlist("nest_known_hosts")
+    nest_winrm_users = request.form.getlist("nest_winrm_user")
+    nest_credential_refs = request.form.getlist("nest_credential_ref")
+    raw_nests: list[dict] = []
+    for i, nid in enumerate(nest_ids):
+        raw_nests.append(
+            {
+                "id": nid,
+                "name": nest_names[i] if i < len(nest_names) else "",
+                "provider_type": nest_providers[i] if i < len(nest_providers) else "libvirt",
+                "location": nest_locations[i] if i < len(nest_locations) else "local",
+                "transport": nest_transports[i] if i < len(nest_transports) else "",
+                "host": nest_hosts[i] if i < len(nest_hosts) else "",
+                "port": nest_ports[i] if i < len(nest_ports) else "",
+                "ssh_user": nest_ssh_users[i] if i < len(nest_ssh_users) else "",
+                "remoting_identity_id": nest_remoting_ids[i] if i < len(nest_remoting_ids) else "",
+                "known_hosts": nest_known_hosts[i] if i < len(nest_known_hosts) else "default",
+                "winrm_user": nest_winrm_users[i] if i < len(nest_winrm_users) else "",
+                "credential_ref": nest_credential_refs[i] if i < len(nest_credential_refs) else "",
+            }
+        )
+    remoting_identity_options = [
+        remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
+    ]
+    try:
+        nests_lib.replace_nests(raw_nests)
+    except ValueError as exc:
+        return render_template(
+            "nests_connections.html",
+            active_pane="nests_connections",
+            nests=raw_nests,
+            remoting_identity_options=remoting_identity_options,
+            form_saved=False,
+            form_error=str(exc),
+        )
+    _sync_nest_key_expiry()
+    return redirect(url_for("nests_connections", saved="1"))
+
+
+@app.route("/nests/<nest_id>")
+def nests_detail(nest_id: str):
+    """Nest sticky detail under Connections (#529)."""
+    from lib import nest_reachability as nr
+
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        abort(404)
+    nest = dict(nest)
+    nest["reachability_label"] = nr.nest_reachability_label(nest["id"])
+    nest["reachability_dot"] = nr.nest_dot_class(nest["id"])
+    snap_entry = (nr.get_snapshot().get("nests") or {}).get(nest["id"]) or {}
+    last_checked = snap_entry.get("checked_at") if isinstance(snap_entry, dict) else None
+    return render_template(
+        "nests_detail.html",
+        active_pane="nests_detail",
+        page_title=nest["name"],
+        nest=nest,
+        last_checked_at=last_checked if isinstance(last_checked, str) else None,
     )
 
 
@@ -542,8 +632,31 @@ def clutches():
 
 @app.route("/vms")
 def vms_pane():
-    """Top-level VMs inventory + controls (#418)."""
+    """Top-level VMs inventory + controls (#418 / #528)."""
     return render_template("vms.html", active_pane="vms", nests=nests_lib.list_nests())
+
+
+@app.route("/vms/<nest_id>/<path:vm_name>")
+def vms_detail(nest_id: str, vm_name: str):
+    """VM sticky detail under Inventory (#528)."""
+    if nests_lib.get_nest(nest_id) is None:
+        abort(404)
+    session_id = ""
+    for session in hatch_lib.list_sessions(nest_id):
+        for vm in session.get("vms") or []:
+            if vm.get("vm_name") == vm_name:
+                session_id = session["id"]
+                break
+        if session_id:
+            break
+    return render_template(
+        "vms_detail.html",
+        active_pane="vms_detail",
+        page_title=vm_name,
+        nest_id=nest_id,
+        vm_name=vm_name,
+        session_id=session_id,
+    )
 
 
 @app.route("/automation")
@@ -701,10 +814,6 @@ _SETTINGS_SECTIONS = {
         "Display",
         "How timestamps and related values are shown in the UI.",
     ),
-    "nests": (
-        "Nests",
-        "Local and remote Nest endpoints where VMs live.",
-    ),
 }
 
 
@@ -728,8 +837,6 @@ def _settings_template(
     if identities_json is None:
         identities_json = json.dumps(cfg.get("nest_ssh_identities") or [], indent=2)
     registered_nests = nests_overlay
-    if registered_nests is None and section == "nests":
-        registered_nests = nests_lib.list_nests()
 
     from lib.validators.runs import latest_by_validator
     from lib.validators.settings import get_run_retention, list_validator_configs
@@ -741,7 +848,7 @@ def _settings_template(
     remoting_hatchery = None
     remoting_path_identities: list = []
     remoting_identity_options: list = []
-    if section in ("security", "nests"):
+    if section == "security":
         remoting_identity_options = [
             remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
         ]
@@ -900,6 +1007,9 @@ def settings_section(section: str):
         if not config.library_enabled():
             return redirect(url_for("settings_section", section="general", library_required="1"))
         return redirect(url_for("library_connections_pane"))
+    if section == "nests":
+        # ADR-0031: Nest registry moved to Nests → Connections.
+        return redirect(url_for("nests_connections"))
     if section not in _SETTINGS_SECTIONS:
         abort(404)
     return _settings_template(
@@ -917,6 +1027,8 @@ def settings_section_post(section: str):
         if not config.library_enabled():
             return redirect(url_for("settings_section", section="general", library_required="1"))
         return redirect(url_for("library_connections_pane"))
+    if section == "nests":
+        return redirect(url_for("nests_connections"), code=307)
     if section not in _SETTINGS_SECTIONS:
         abort(404)
 
@@ -1032,53 +1144,11 @@ def settings_section_post(section: str):
 
         new_cfg["show_passwords"] = "show_passwords" in request.form
         new_cfg["nest_key_alert_tiers"] = tiers_parsed
-        # SSH identity paths/expiry live on Nest rows (Settings → Nests).
+        # SSH identity paths/expiry live on remoting identities / Nest bindings.
         new_cfg["nest_ssh_identities"] = []
         config.save(new_cfg)
         _sync_nest_key_expiry()
         return redirect(url_for("settings_section", section="security", saved="1"))
-
-    if section == "nests":
-        nest_ids = request.form.getlist("nest_id")
-        nest_names = request.form.getlist("nest_name")
-        nest_providers = request.form.getlist("nest_provider_type")
-        nest_locations = request.form.getlist("nest_location")
-        nest_transports = request.form.getlist("nest_transport")
-        nest_hosts = request.form.getlist("nest_host")
-        nest_ports = request.form.getlist("nest_port")
-        nest_ssh_users = request.form.getlist("nest_ssh_user")
-        nest_remoting_ids = request.form.getlist("nest_remoting_identity_id")
-        nest_known_hosts = request.form.getlist("nest_known_hosts")
-        nest_winrm_users = request.form.getlist("nest_winrm_user")
-        nest_credential_refs = request.form.getlist("nest_credential_ref")
-        raw_nests: list[dict] = []
-        for i, nid in enumerate(nest_ids):
-            raw_nests.append(
-                {
-                    "id": nid,
-                    "name": nest_names[i] if i < len(nest_names) else "",
-                    "provider_type": nest_providers[i] if i < len(nest_providers) else "libvirt",
-                    "location": nest_locations[i] if i < len(nest_locations) else "local",
-                    "transport": nest_transports[i] if i < len(nest_transports) else "",
-                    "host": nest_hosts[i] if i < len(nest_hosts) else "",
-                    "port": nest_ports[i] if i < len(nest_ports) else "",
-                    "ssh_user": nest_ssh_users[i] if i < len(nest_ssh_users) else "",
-                    "remoting_identity_id": nest_remoting_ids[i]
-                    if i < len(nest_remoting_ids)
-                    else "",
-                    "known_hosts": nest_known_hosts[i] if i < len(nest_known_hosts) else "default",
-                    "winrm_user": nest_winrm_users[i] if i < len(nest_winrm_users) else "",
-                    "credential_ref": nest_credential_refs[i]
-                    if i < len(nest_credential_refs)
-                    else "",
-                }
-            )
-        try:
-            nests_lib.replace_nests(raw_nests)
-        except ValueError as exc:
-            return _rerender(str(exc), nests_overlay=raw_nests)
-        _sync_nest_key_expiry()
-        return redirect(url_for("settings_section", section="nests", saved="1"))
 
     # display
     display_timezone_raw = request.form.get("display_timezone", "UTC").strip()
@@ -2297,7 +2367,7 @@ def hatch_clutch_post():
             clutch_files,
             preselected=filename,
             clutch_obj=clutch_obj,
-            form_error="Select a Nest (or register one under Settings → Nests).",
+            form_error="Select a Nest (or register one under Nests → Connections).",
             selected_nest_id="",
         )
 
@@ -2372,7 +2442,7 @@ def hatch_clutch_post():
         background=True,
     )
 
-    return redirect(url_for("nests"))
+    return redirect(url_for("vms_pane"))
 
 
 # ── Clutch builder ───────────────────────────────────────────────────────────
@@ -3371,7 +3441,8 @@ def api_vm_snapshots_delete(nest: str, name: str, label: str):
 
 @app.route("/api/sessions")
 def api_sessions():
-    return jsonify(hatch_lib.list_sessions())
+    nest = (request.args.get("nest") or "local").strip() or "local"
+    return jsonify(hatch_lib.list_sessions(nest))
 
 
 @app.route("/api/sessions/<session_id>/dismiss", methods=["POST"])
@@ -3433,6 +3504,29 @@ def api_dashboard_summary():
 def api_vm_events(session_id: str, vm_name: str):
     events = hatch_lib.get_events(session_id, vm_name)
     return jsonify({"events": events})
+
+
+@app.route("/api/events")
+def api_events():
+    """Flat paginated hatch events for the Events console (#527)."""
+    try:
+        limit = int(request.args.get("limit", 50))
+    except (TypeError, ValueError):
+        limit = 50
+    try:
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    page = hatch_lib.query_events(
+        vm_name=(request.args.get("vm") or "").strip() or None,
+        session_id=(request.args.get("session_id") or "").strip() or None,
+        level=(request.args.get("level") or "").strip() or None,
+        q=(request.args.get("q") or "").strip() or None,
+        scope=(request.args.get("scope") or "active").strip() or "active",
+        limit=limit,
+        offset=offset,
+    )
+    return jsonify(page)
 
 
 @app.route("/api/config")

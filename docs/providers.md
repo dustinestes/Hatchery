@@ -106,9 +106,9 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 |---|---|
 | SSH Nest transport (key **reference**) | Works (wired via Nest registry [#207](https://github.com/dustinestes/Hatchery/issues/207)) |
 | WinRM Nest transport fallback | Works (same registry; passwords session-only until [#110](https://github.com/dustinestes/Hatchery/issues/110)) |
-| Nest connectivity check | Works (Settings → Nests → Test Nest connection) |
+| Nest connectivity check | Works (Nests → Connections → Test Nest connection) |
 | Nest SSH identity expiry alerts | Works ([Nest SSH identity expiry](nest-key-expiry.md)) |
-| Nest connection registry / Settings | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Settings → Nests) |
+| Nest connection registry | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Nests → Connections / [ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)) |
 | Provider factory by Nest id | Works ([#206](https://github.com/dustinestes/Hatchery/issues/206); `lib/providers/factory.py`) |
 
 `get_provider(nest_id)` returns `LibvirtProvider` for the local Nest. Remote / UTM / Hyper-V Nests raise `UnsupportedProviderError` (API inventory returns 501; Hatch Clutch surfaces the error) until those adapters land.

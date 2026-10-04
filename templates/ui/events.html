@@ -3,26 +3,52 @@
 {% block title %}Events - Hatchery{% endblock %}
 
 {% block content %}
-<div class="list-shell">
+<div class="list-shell events-console">
   <div class="notif-filters" role="search" aria-label="Filter Events">
     <div class="form-group notif-filter-field">
+      <label class="form-label" for="events-filter-q">Search</label>
+      <input type="search" id="events-filter-q" class="form-input" placeholder="Message, VM, session…"
+             autocomplete="off" aria-controls="events-table">
+    </div>
+    <div class="form-group notif-filter-field">
       <label class="form-label" for="events-filter-vm">VM</label>
-      <select id="events-filter-vm" class="form-select" aria-controls="events-table" disabled>
-        <option value="">No active hatch sessions</option>
+      <input type="search" id="events-filter-vm" class="form-input" placeholder="VM name"
+             autocomplete="off" aria-controls="events-table">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="events-filter-session">Session</label>
+      <input type="search" id="events-filter-session" class="form-input" placeholder="Session id"
+             autocomplete="off" aria-controls="events-table">
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="events-filter-level">Level</label>
+      <select id="events-filter-level" class="form-select" aria-controls="events-table">
+        <option value="">All</option>
+        <option value="INFO">INFO</option>
+        <option value="WARN">WARN</option>
+        <option value="ERROR">ERROR</option>
+      </select>
+    </div>
+    <div class="form-group notif-filter-field">
+      <label class="form-label" for="events-filter-scope">Sessions</label>
+      <select id="events-filter-scope" class="form-select" aria-controls="events-table">
+        <option value="active">Active</option>
+        <option value="all">All</option>
       </select>
     </div>
     <p class="library-browser-status notif-filter-status" id="events-refresh-label" role="status" aria-live="polite"></p>
   </div>
 
-  <div class="list-shell-body">
-    <div id="events-empty" class="stub" role="status">No active hatch sessions.</div>
-    <div id="events-feed-empty" class="stub" role="status" hidden>No events recorded yet for this VM.</div>
+  <div class="list-shell-body events-console-body">
+    <div id="events-empty" class="stub" role="status" hidden>No events match these filters.</div>
 
     <table class="notif-table" id="events-table" hidden>
       <thead>
         <tr>
           <th scope="col">Time</th>
           <th scope="col">Level</th>
+          <th scope="col">VM</th>
+          <th scope="col">Session</th>
           <th scope="col">Context</th>
           <th scope="col">Script</th>
           <th scope="col">Component</th>
@@ -32,52 +58,37 @@
       <tbody id="events-tbody"></tbody>
     </table>
   </div>
+
+  <nav class="events-pager" id="events-pager" aria-label="Events pagination" hidden>
+    <button type="button" class="btn btn-secondary btn-sm" id="events-page-prev">Previous</button>
+    <p class="events-pager-status" id="events-pager-status" role="status"></p>
+    <button type="button" class="btn btn-secondary btn-sm" id="events-page-next">Next</button>
+  </nav>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  const vmSelect = document.getElementById('events-filter-vm');
+  const filterQ = document.getElementById('events-filter-q');
+  const filterVm = document.getElementById('events-filter-vm');
+  const filterSession = document.getElementById('events-filter-session');
+  const filterLevel = document.getElementById('events-filter-level');
+  const filterScope = document.getElementById('events-filter-scope');
   const refreshLabel = document.getElementById('events-refresh-label');
   const empty = document.getElementById('events-empty');
-  const feedEmpty = document.getElementById('events-feed-empty');
   const table = document.getElementById('events-table');
   const tbody = document.getElementById('events-tbody');
+  const pager = document.getElementById('events-pager');
+  const pagePrev = document.getElementById('events-page-prev');
+  const pageNext = document.getElementById('events-page-next');
+  const pageStatus = document.getElementById('events-pager-status');
 
-  const HATCH_STATUS_LABEL = {
-    pending: 'Pending',
-    hatching: 'Hatching',
-    provisioning: 'Provisioning',
-    fledged: 'Fledged',
-    failed: 'Failed',
-    culled: 'Culled',
-  };
-
+  const PAGE_SIZE = 50;
   let resolvedTimezone = 'UTC';
-  let vmItems = [];
-  let selectedKey = null;
-  let lastEventId = 0;
-
-  function vmKey(sessionId, vmName) {
-    return sessionId + '|' + vmName;
-  }
-
-  function flattenSessions(sessions) {
-    const items = [];
-    (sessions || []).forEach(function (s) {
-      (s.vms || []).forEach(function (vm) {
-        items.push({
-          key: vmKey(s.id, vm.vm_name),
-          session_id: s.id,
-          vm_name: vm.vm_name,
-          clutch_name: s.clutch_name,
-          status: vm.status,
-        });
-      });
-    });
-    return items;
-  }
+  let offset = 0;
+  let total = 0;
+  let debounceTimer = null;
 
   function fmtTime(iso) {
     if (!iso) return '—';
@@ -95,83 +106,36 @@
     }
   }
 
-  function statusLabel(status) {
-    return HATCH_STATUS_LABEL[status] || status || '—';
-  }
-
-  function selectedItem() {
-    return vmItems.find(function (i) { return i.key === selectedKey; }) || null;
-  }
-
-  function showNoSessions() {
-    selectedKey = null;
-    lastEventId = 0;
-    tbody.textContent = '';
-    table.hidden = true;
-    if (feedEmpty) feedEmpty.hidden = true;
-    if (empty) {
-      empty.hidden = false;
-      empty.textContent = 'No active hatch sessions.';
-    }
-    vmSelect.disabled = true;
-    vmSelect.innerHTML = '<option value="">No active hatch sessions</option>';
-  }
-
-  function fillVmFilter(items) {
-    const prev = selectedKey;
-    vmItems = items;
-    if (!items.length) {
-      showNoSessions();
-      return;
-    }
-
-    if (empty) empty.hidden = true;
-    vmSelect.disabled = false;
-    vmSelect.innerHTML = '';
-    items.forEach(function (item) {
-      const opt = document.createElement('option');
-      opt.value = item.key;
-      opt.textContent =
-        item.vm_name + ' - ' + item.clutch_name + ' (' + statusLabel(item.status) + ')';
-      vmSelect.appendChild(opt);
-    });
-
-    if (prev && items.some(function (i) { return i.key === prev; })) {
-      selectedKey = prev;
-    } else {
-      selectedKey = items[0].key;
-    }
-    vmSelect.value = selectedKey;
-  }
-
-  function nearBottom(el) {
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-  }
-
   function cell(text, className) {
     const td = document.createElement('td');
     if (className) td.className = className;
-    td.textContent = text == null ? '' : String(text);
+    td.textContent = text == null || text === '' ? '—' : String(text);
     return td;
   }
 
-  function appendEvents(events, replace) {
-    const scrollRoot = table.closest('.list-shell-body') || table;
-    const stick = replace || nearBottom(scrollRoot);
-    if (replace) {
-      tbody.textContent = '';
-      lastEventId = 0;
-    }
-    if (!events.length && replace) {
+  function filters() {
+    return {
+      q: (filterQ.value || '').trim(),
+      vm: (filterVm.value || '').trim(),
+      session_id: (filterSession.value || '').trim(),
+      level: filterLevel.value || '',
+      scope: filterScope.value || 'active',
+    };
+  }
+
+  function renderRows(events) {
+    tbody.textContent = '';
+    const ordered = (events || []).slice().sort(function (a, b) {
+      return (b.id || 0) - (a.id || 0);
+    });
+    if (!ordered.length) {
       table.hidden = true;
-      if (feedEmpty) feedEmpty.hidden = false;
+      empty.hidden = false;
       return;
     }
-    if (feedEmpty) feedEmpty.hidden = true;
+    empty.hidden = true;
     table.hidden = false;
-
-    events.forEach(function (ev) {
-      if (ev.id <= lastEventId) return;
+    ordered.forEach(function (ev) {
       const level = String(ev.level || 'INFO');
       const tr = document.createElement('tr');
       tr.setAttribute('data-event-id', String(ev.id));
@@ -185,33 +149,51 @@
       const levelTd = cell(level);
       levelTd.className = 'events-level events-level--' + level.toLowerCase();
       tr.appendChild(levelTd);
-      tr.appendChild(cell(ev.context || '—'));
-      tr.appendChild(cell(ev.script_name || '—'));
-      tr.appendChild(cell(ev.component || '—'));
-      tr.appendChild(cell(ev.message || '', 'notif-table-msg'));
+      tr.appendChild(cell(ev.vm_name));
+      const sess = (ev.session_id || '').slice(0, 8);
+      const sessTd = cell(sess + (ev.clutch_name ? ' · ' + ev.clutch_name : ''));
+      sessTd.title = ev.session_id || '';
+      tr.appendChild(sessTd);
+      tr.appendChild(cell(ev.context));
+      tr.appendChild(cell(ev.script_name));
+      tr.appendChild(cell(ev.component));
+      tr.appendChild(cell(ev.message, 'notif-table-msg'));
       tbody.appendChild(tr);
-      lastEventId = Math.max(lastEventId, ev.id);
     });
-    if (stick) scrollRoot.scrollTop = scrollRoot.scrollHeight;
   }
 
-  function fetchEvents(replace) {
-    const item = selectedItem();
-    if (!item) return;
-    const url = '/api/sessions/' + encodeURIComponent(item.session_id) +
-      '/vms/' + encodeURIComponent(item.vm_name) + '/events';
-    fetch(url)
+  function renderPager() {
+    const page = Math.floor(offset / PAGE_SIZE) + 1;
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    pager.hidden = total === 0;
+    pageStatus.textContent = total
+      ? ('Page ' + page + ' of ' + pages + ' · ' + total + ' events')
+      : '';
+    pagePrev.disabled = offset <= 0;
+    pageNext.disabled = offset + PAGE_SIZE >= total;
+  }
+
+  function fetchPage() {
+    const f = filters();
+    const params = new URLSearchParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    params.set('scope', f.scope);
+    if (f.q) params.set('q', f.q);
+    if (f.vm) params.set('vm', f.vm);
+    if (f.session_id) params.set('session_id', f.session_id);
+    if (f.level) params.set('level', f.level);
+
+    fetch('/api/events?' + params.toString())
       .then(function (r) {
         if (!r.ok) throw new Error('events ' + r.status);
         return r.json();
       })
       .then(function (data) {
-        const events = data.events || [];
-        if (replace) {
-          appendEvents(events, true);
-        } else {
-          appendEvents(events.filter(function (ev) { return ev.id > lastEventId; }), false);
-        }
+        total = data.total || 0;
+        offset = data.offset || 0;
+        renderRows(data.events || []);
+        renderPager();
         refreshLabel.textContent = 'Updated ' + new Date().toLocaleTimeString();
       })
       .catch(function () {
@@ -219,48 +201,29 @@
       });
   }
 
-  function selectFromFilter(replaceEvents) {
-    const next = vmSelect.value;
-    if (!next) {
-      showNoSessions();
-      return;
-    }
-    if (next !== selectedKey) {
-      selectedKey = next;
-      lastEventId = 0;
-      tbody.textContent = '';
-      fetchEvents(true);
-      return;
-    }
-    if (replaceEvents) fetchEvents(true);
+  function resetAndFetch() {
+    offset = 0;
+    fetchPage();
   }
 
-  function pollSessions() {
-    fetch('/api/sessions')
-      .then(function (r) {
-        if (!r.ok) throw new Error('sessions ' + r.status);
-        return r.json();
-      })
-      .then(function (sessions) {
-        const items = flattenSessions(sessions);
-        const prev = selectedKey;
-        fillVmFilter(items);
-        if (!items.length) return;
-        if (prev !== selectedKey) {
-          lastEventId = 0;
-          tbody.textContent = '';
-          fetchEvents(true);
-        } else {
-          fetchEvents(false);
-        }
-      })
-      .catch(function () {
-        refreshLabel.textContent = 'Refresh failed';
-      });
+  function debounceFetch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(resetAndFetch, 250);
   }
 
-  vmSelect.addEventListener('change', function () {
-    selectFromFilter(true);
+  [filterQ, filterVm, filterSession].forEach(function (el) {
+    el.addEventListener('input', debounceFetch);
+  });
+  [filterLevel, filterScope].forEach(function (el) {
+    el.addEventListener('change', resetAndFetch);
+  });
+  pagePrev.addEventListener('click', function () {
+    offset = Math.max(0, offset - PAGE_SIZE);
+    fetchPage();
+  });
+  pageNext.addEventListener('click', function () {
+    offset = offset + PAGE_SIZE;
+    fetchPage();
   });
 
   fetch('/api/config')
@@ -270,8 +233,8 @@
     })
     .catch(function () { /* keep UTC */ })
     .finally(function () {
-      pollSessions();
-      setInterval(pollSessions, 5000);
+      fetchPage();
+      setInterval(fetchPage, 5000);
     });
 })();
 </script>

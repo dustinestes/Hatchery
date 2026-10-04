@@ -239,7 +239,7 @@ The script requires Hatchery to have been started at least once (so `hatchery.db
 
 ## Events
 
-Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114)). The pane uses the same list shell as Alerts/Validators ([#298](https://github.com/dustinestes/Hatchery/issues/298)): a **VM** filter selects among active hatch VMs, and the event table scrolls below. Polls `GET /api/sessions/.../events`. Events do not drive the Alerts bell, tray, or toasts. Event rows for a session are purged when that session is archived - see [events.md - Retention](events.md#retention).
+Hatch / provision lifecycle and `Write-HatchEvent` script lines are stored in `hatch_events` and shown on the Events pane under `/notifications/events` ([#114](https://github.com/dustinestes/Hatchery/issues/114), [#527](https://github.com/dustinestes/Hatchery/issues/527)). The pane uses the same list shell as Alerts/Validators ([#298](https://github.com/dustinestes/Hatchery/issues/298)): flat rows with search/filters, fixed-height scroll, and pagination via `GET /api/events`. VM-scoped streams live on sticky VM detail. Events do not drive the Alerts bell, tray, or toasts. Event rows for a session are purged when that session is archived - see [events.md - Retention](events.md#retention).
 
 See [events.md](events.md) and [orchestration.md](orchestration.md).
 

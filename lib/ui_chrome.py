@@ -10,9 +10,12 @@ from __future__ import annotations
 # Short admin-console labels (sidebar leaf / topbar). Not browser-tab strings.
 PANE_TITLES: dict[str, str] = {
     "dashboard": "Dashboard",
-    "nests": "Nests",
+    "nests": "Inventory",
+    "nests_connections": "Connections",
+    "nests_detail": "Nest",
     "clutches": "Clutches",
-    "vms": "VMs",
+    "vms": "Inventory",
+    "vms_detail": "VM",
     "build": "New Clutch",
     "edit": "Edit Clutch",
     "hatch_clutch": "Hatch Clutch",
@@ -29,7 +32,6 @@ PANE_TITLES: dict[str, str] = {
     "settings_general": "General",
     "settings_security": "Security",
     "settings_display": "Display",
-    "settings_nests": "Nests",
 }
 
 
