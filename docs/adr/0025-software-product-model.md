@@ -28,6 +28,7 @@ A reserved Library connection kind `packages` exists but is empty and ambiguous 
 | `logs` | First-boot + per-script audit |
 | `temp` | Ephemeral handoff |
 | `software` | Parent of staged installer payloads |
+| `modules` | PowerShell modules (`Hatchery` module; #554) |
 | `software_package(id)` | `{software}/{Publisher.Product.Version}` |
 
 | Role | Windows (locked) | Linux | macOS |
@@ -36,6 +37,7 @@ A reserved Library connection kind `packages` exists but is empty and ambiguous 
 | `logs` | `{root}\logs` | `{root}/logs` | `{root}/logs` |
 | `temp` | `{root}\temp` | `{root}/temp` | `{root}/temp` |
 | `software` | `{root}\software` | `{root}/software` | `{root}/software` |
+| `modules` | `{root}\modules` | `{root}/modules` | `{root}/modules` |
 | `software_package(id)` | `{software}\{id}` | `{software}/{id}` | `{software}/{id}` |
 
 Today’s strings in [`lib/provision.py`](../../lib/provision.py) (`HATCHERY_GUEST_DIR`, setup flag/log paths) are the **Windows** row. Linux/macOS raise a clear unsupported error until values are filled. New provision/software code must use the role map, not hard-coded Windows paths. Reserved guest path env vars (so packages need not hardcode log paths): [ADR-0026](0026-guest-clutch-environment.md) / [#501](https://github.com/dustinestes/Hatchery/issues/501).

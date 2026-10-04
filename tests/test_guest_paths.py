@@ -3,7 +3,16 @@
 import pytest
 
 from lib.clutch import GuestOS
-from lib.guest_paths import clutch_os_to_platform_key, guest_paths_for
+from lib.guest_paths import clutch_os_to_platform_key, guest_os_family, guest_paths_for
+
+
+class TestGuestOsFamily:
+    def test_windows_and_deferred_families(self):
+        assert guest_os_family(GuestOS.WINDOWS) == "windows"
+        assert guest_os_family("win11") == "windows"
+        assert guest_os_family(GuestOS.LINUX) == "linux"
+        assert guest_os_family(GuestOS.MACOS) == "macos"
+        assert guest_os_family("unknown-os") is None
 
 
 class TestGuestPathsFor:
@@ -13,6 +22,7 @@ class TestGuestPathsFor:
         assert paths.logs == r"C:\Program Files\Hatchery\logs"
         assert paths.temp == r"C:\Program Files\Hatchery\temp"
         assert paths.software == r"C:\Program Files\Hatchery\software"
+        assert paths.modules == r"C:\Program Files\Hatchery\modules"
         assert paths.family == "windows"
 
     def test_software_package_path(self):

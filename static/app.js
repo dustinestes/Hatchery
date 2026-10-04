@@ -195,11 +195,15 @@ hatchery.vmRows = (function () {
         fieldRow.className = 'script-param-row vm-env-row';
         var label = document.createElement('label');
         label.className = 'script-param-label';
-        var persistLabel = item.persist === 'job' ? 'job-only' : 'persist Machine';
+        var persistLabel = item.persist === 'job'
+          ? 'job-only'
+          : (item.mode === 'append' ? 'persist Machine (append)' : 'persist Machine');
         label.textContent = item.name + (item.scope === 'software' ? ' (software)' : '');
         label.title = item.scope === 'software'
           ? 'Set only during Software hatch jobs for the current package id (not persisted)'
-          : 'Injected for Script and Software jobs; persisted as Machine env on Windows';
+          : (item.mode === 'append'
+            ? 'Hatchery appends this path on the guest (Machine PSModulePath) during ensure'
+            : 'Available to Script and Software jobs; persisted as Machine env on Windows');
         var input = document.createElement('input');
         input.className = 'script-param-input vm-env-reserved-input';
         input.type = 'text';

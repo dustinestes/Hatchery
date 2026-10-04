@@ -30,6 +30,7 @@ class GuestPaths:
     logs: str
     temp: str
     software: str
+    modules: str
     family: str  # windows | linux | macos
 
     def _safe_package_id(self, package_id: str) -> str:
@@ -63,6 +64,22 @@ class GuestPaths:
         return f"{self.software_logs_dir()}/{safe}.log"
 
 
+def guest_os_family(guest_os: GuestOS | str) -> str | None:
+    """Return ``windows`` / ``linux`` / ``macos`` when recognized, else ``None``.
+
+    Path values may still be unfilled for non-Windows (#482); family is used by
+    the guest environment ensure hook (#554) to skip until platform payloads land.
+    """
+    os_key = guest_os.value if isinstance(guest_os, GuestOS) else str(guest_os or "").strip()
+    if os_key in _WINDOWS_OS:
+        return "windows"
+    if os_key == GuestOS.LINUX.value:
+        return "linux"
+    if os_key == GuestOS.MACOS.value:
+        return "macos"
+    return None
+
+
 def guest_paths_for(guest_os: GuestOS | str) -> GuestPaths:
     """Resolve path roles for a Clutch guest OS.
 
@@ -76,6 +93,7 @@ def guest_paths_for(guest_os: GuestOS | str) -> GuestPaths:
             logs=rf"{root}\logs",
             temp=rf"{root}\temp",
             software=rf"{root}\software",
+            modules=rf"{root}\modules",
             family="windows",
         )
     raise ValueError(

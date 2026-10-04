@@ -47,19 +47,20 @@ Scripts are declared per VM in a Clutch file under the `automations` key and run
 
 Hatchery connects to the guest over WinRM using `pywinrm` and executes each script's content. The connection uses the admin credentials declared in the Clutch file.
 
-Hatchery injects a `Write-HatchEvent` helper function into every script before execution. You do not need to define it, source it, or import it - it is always available. See [Write-HatchEvent](#write-hatchevent).
+`Write-HatchEvent` comes from the Hatchery PowerShell module installed by the guest environment ensure job (`HATCHERY_ROOT\modules\Hatchery`, on `PSModulePath`). You do not need to define it, source it, or import it - PowerShell autoloads it. Hatchery does **not** splice helper function bodies into your script text. See [Write-HatchEvent](#write-hatchevent).
 
-If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the content in a PowerShell scriptblock and appends the configured values as named arguments. PowerShell requires `param()` to be the first statement inside a scriptblock, so Hatchery places it first, injects `Write-HatchEvent` immediately after, then appends the rest of the script:
+If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the **user** content in a PowerShell scriptblock and appends the Clutch values as named arguments. Reserved / Clutch process env is applied in an outer scope so `param()` stays first inside your scriptblock:
 
 ```powershell
+$env:HATCHERY_ROOT = '...'   # outer scope (Hatchery process env)
+# ...
 & {
-    param($ComputerName, $TimeZone)   # param() block - must be first
-    function Write-HatchEvent { ... } # injected by Hatchery
-    # ... rest of script ...
+    param($ComputerName, $TimeZone)   # your param() block - first in the user scriptblock
+    # ... your script body unchanged ...
 } -ComputerName 'dc01' -TimeZone 'Central Standard Time'
 ```
 
-Scripts without parameters receive the same `Write-HatchEvent` injection prepended directly, with no scriptblock wrapping.
+Scripts that declare `param()` but have no Clutch parameter values still keep `param()` first inside a user scriptblock when process env is present. Scripts with no `param()` block run as authored after the outer env preamble.
 
 All script output (stdout and stderr) is captured and stored per-script in the database. The exit code is read when the script finishes:
 
@@ -82,7 +83,7 @@ If `reboot_after: true` is set for a script, Hatchery reboots the VM after the s
 
 ### Write-HatchEvent
 
-Hatchery injects a `Write-HatchEvent` helper function into every script before execution (see [How Hatchery Runs Scripts](#how-hatchery-runs-scripts) for placement details). You do not need to define it, source it, or import it - it is always available.
+`Write-HatchEvent` is exported by the Hatchery guest module installed during ensure (`$env:HATCHERY_MODULES\Hatchery`, on Machine `PSModulePath` for Windows PowerShell and pwsh). You do not need to define it, source it, or import it - call it like any other cmdlet (#554 / ADR-0032).
 
 ```powershell
 Write-HatchEvent -Message "text" [-Level INFO|WARN|ERROR] [-Component "label"]

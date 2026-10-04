@@ -30,6 +30,7 @@ class TestReservedAndMerge:
         env = guest_env.reserved_environment(GuestOS.WINDOWS)
         assert env["HATCHERY_ROOT"] == r"C:\Program Files\Hatchery"
         assert env["HATCHERY_LOGS"].endswith(r"\logs")
+        assert env["HATCHERY_MODULES"].endswith(r"\modules")
         assert "HATCHERY_SOFTWARE_PACKAGE" not in env
         assert "HATCHERY_SOFTWARE_LOG" not in env
 
@@ -139,3 +140,83 @@ class TestPersistScript:
         assert code == 0
         assert "MY_ROLE" in transport.body
         assert "HATCHERY_ROOT" in transport.body
+        assert "exit 0" in transport.body
+
+
+class TestEnsureGuestEnvironment:
+    def test_ensure_plan_includes_module_and_dirs(self):
+        lines = guest_env.ensure_plan_summary(GuestOS.WINDOWS)
+        assert any(line.startswith("HATCHERY_ROOT") for line in lines)
+        assert any("HATCHERY_MODULES" in line for line in lines)
+        assert any("PSModulePath" in line for line in lines)
+        assert any("module →" in line for line in lines)
+        assert any(line.startswith("dirs →") for line in lines)
+
+    def test_ensure_plan_defers_non_windows(self):
+        lines = guest_env.ensure_plan_summary(GuestOS.LINUX)
+        assert any("deferred" in line and "linux" in line for line in lines)
+
+    def test_powershell_ensure_script_installs_module(self):
+        from lib.clutch import EnvironmentEntry
+
+        body = guest_env.powershell_ensure_script(
+            reserved={
+                "HATCHERY_ROOT": r"C:\Program Files\Hatchery",
+                "HATCHERY_MODULES": r"C:\Program Files\Hatchery\modules",
+            },
+            entries=[EnvironmentEntry(name="MY_ROLE", value="dc")],
+            module_psm1="function Write-HatchEvent { param([string]$Message) }\n",
+            module_psd1="@{ RootModule = 'Hatchery.psm1' }\n",
+        )
+        assert "Write-HatchEvent" in body
+        assert r"modules\Hatchery" in body
+        assert "Hatchery.psm1" in body
+        assert "PSModulePath" in body
+        assert "Import-Module Hatchery" in body
+        assert "New-Item" in body
+        assert "MY_ROLE" in body
+        assert "exit 0" in body
+
+    def test_ensure_guest_environment_windows(self, monkeypatch):
+        from lib.clutch import EnvironmentEntry
+
+        class _Transport:
+            kind = "winrm"
+
+            def run_ps(self, body, *, timeout=180):
+                self.body = body
+                self.timeout = timeout
+                return 0, "ok"
+
+        transport = _Transport()
+        monkeypatch.setattr("lib.provision._guest_transport", lambda *a, **k: transport)
+        code, out = guest_env.ensure_guest_environment(
+            "10.0.0.1",
+            "admin",
+            "secret",
+            guest_os=GuestOS.WINDOWS,
+            entries=[EnvironmentEntry(name="MY_ROLE", value="dc")],
+        )
+        assert code == 0
+        assert out == "ok"
+        assert "function Write-HatchEvent" in transport.body
+        assert "HATCHERY_MODULES" in transport.body
+        assert r"modules\Hatchery" in transport.body
+        assert "PSModulePath" in transport.body
+
+    def test_ensure_guest_environment_skips_linux(self):
+        code, out = guest_env.ensure_guest_environment(
+            "10.0.0.1",
+            "admin",
+            "secret",
+            guest_os=GuestOS.LINUX,
+            entries=[],
+        )
+        assert code == 0
+        assert out == "skipped:linux"
+
+    def test_catalog_includes_modules_and_psmodulepath(self):
+        rows = {r["name"]: r for r in guest_env.reserved_env_catalog(GuestOS.WINDOWS)}
+        assert rows["HATCHERY_MODULES"]["persist"] == "machine"
+        assert rows["PSModulePath"]["mode"] == "append"
+        assert rows["PSModulePath"]["value"].endswith(r"\modules")

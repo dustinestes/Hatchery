@@ -325,58 +325,83 @@ def _provision_vm_thread(
                 user_env,
             )
 
-            # Persist reserved base + user persist entries once before automations (#501).
-            # Hatch jobs also get process inject per step; persist is for the guest after that.
-            os_key = guest_os.value if hasattr(guest_os, "value") else str(guest_os)
-            if os_key in ("windows", "win10", "win11", "server2022", "server2025"):
-                plan = guest_env_lib.persist_plan_summary(guest_os, user_entries)
+            # Guest environment ensure (#554 / ADR-0032): one hatch job block before
+            # user automations. Windows payload runs now; Linux/macOS skip until
+            # #557 / #558. New catalog requirements plug into this hook only.
+            # Section bookends stay pure start/end - do not tail the next section.
+            plan = guest_env_lib.ensure_plan_summary(guest_os, user_entries)
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                "Starting guest environment: env vars, dirs, helpers",
+            )
+            for line in plan:
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
                     "INFO",
-                    "Persisting guest environment before automations "
-                    "(Machine/User store; jobs also get process inject)",
+                    f"Ensure: {line}",
                 )
-                for line in plan:
-                    hatch_lib.add_event(
-                        session_id,
-                        vm_name,
-                        "hatchery",
-                        "INFO",
-                        f"Persist: {line}",
-                    )
-                persist_code, persist_out = guest_env_lib.persist_guest_environment(
-                    ip,
-                    admin_username,
-                    admin_password,
-                    guest_os=guest_os,
-                    entries=user_entries,
+            ensure_code, ensure_out = guest_env_lib.ensure_guest_environment(
+                ip,
+                admin_username,
+                admin_password,
+                guest_os=guest_os,
+                entries=user_entries,
+            )
+            if ensure_code != 0:
+                detail = (ensure_out or "").strip()
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "ERROR",
+                    f"Guest environment failed (exit {ensure_code})"
+                    + (f": {detail}" if detail else ""),
                 )
-                if persist_code != 0:
-                    detail = (persist_out or "").strip()
-                    hatch_lib.add_event(
-                        session_id,
-                        vm_name,
-                        "hatchery",
-                        "ERROR",
-                        f"Failed to persist guest environment (exit {persist_code})"
-                        + (f": {detail}" if detail else ""),
-                    )
-                    hatch_lib.set_vm_status(
-                        session_id,
-                        vm_name,
-                        "failed",
-                        error=f"persist env failed: {persist_out or persist_code}",
-                    )
-                    return
+                hatch_lib.set_vm_status(
+                    session_id,
+                    vm_name,
+                    "failed",
+                    error=f"guest env ensure failed: {ensure_out or ensure_code}",
+                )
+                return
+            if (ensure_out or "").startswith("skipped:"):
+                family = (ensure_out or "").split(":", 1)[-1]
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Guest environment persisted ({len(plan)} variable(s)); starting automations",
+                    f"Ending guest environment (skipped: {family} payload pending)",
                 )
+            else:
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    "Ending guest environment",
+                )
+
+            n_script = sum(1 for s in scripts if (s.get("entry_type") or "script") == "script")
+            n_software = sum(1 for s in scripts if s.get("entry_type") == "software")
+            auto_parts: list[str] = []
+            if n_script:
+                auto_parts.append(f"{n_script} script{'s' if n_script != 1 else ''}")
+            if n_software:
+                auto_parts.append(f"{n_software} Software")
+            auto_summary = ", ".join(auto_parts) if auto_parts else "none"
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                f"Starting automations: {auto_summary}",
+            )
 
             for script in scripts:
                 if script["status"] == "succeeded":
@@ -529,7 +554,14 @@ def _provision_vm_thread(
                 vm_name,
                 "hatchery",
                 "INFO",
-                "All automations succeeded - VM is fledged",
+                "Ending automations",
+            )
+            hatch_lib.add_event(
+                session_id,
+                vm_name,
+                "hatchery",
+                "INFO",
+                "VM is fledged",
             )
             hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -719,14 +751,12 @@ def sync_hatch_status(
 
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             if scripts:
-                n = len(scripts)
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Windows setup complete - guest remoting via {remoting_kind}; "
-                    f"starting provisioning ({n} automation{'s' if n != 1 else ''})",
+                    f"Ending Windows setup (guest remoting via {remoting_kind})",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
                 spawn_provision_thread(
@@ -744,8 +774,8 @@ def sync_hatch_status(
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Windows setup complete - guest remoting via {remoting_kind}; "
-                    "no automations configured",
+                    f"Ending Windows setup (guest remoting via {remoting_kind}; "
+                    "no automations configured)",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
