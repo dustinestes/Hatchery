@@ -169,17 +169,17 @@ If any step fails, it is marked `[!]`, the failure message is displayed, and a "
 
 WinRM becomes available as soon as step 2 completes - but OpenSSH install and later steps are still running. Without the flag, Hatchery would detect an open WinRM port and immediately begin running automation scripts while the OS setup was still in progress.
 
-The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It means first-boot finished with OpenSSH installed, `sshd` listening, and TCP 22 open (ADR-0029). Until Guest transport ([#497](https://github.com/dustinestes/Hatchery/issues/497)) lands, Hatchery's polling loop still:
+The `hatchery-ready` flag file is written as the **last step** of `hatchery-setup.ps1`. It means first-boot finished with OpenSSH installed, `sshd` listening, and TCP 22 open (ADR-0029). Hatchery's polling loop:
 
-1. Confirms WinRM TCP port 5985 is open (cheap socket check)
-2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over WinRM (actual command execution)
+1. Confirms guest remoting TCP is open (SSH :22 or WinRM :5985 - cheap socket check)
+2. Runs `Test-Path C:\Program Files\Hatchery\temp\hatchery-ready` over **Guest transport** (SSH preferred; WinRM Windows fallback) - see [guest transport](guest-transport.md) / [#497](https://github.com/dustinestes/Hatchery/issues/497)
 3. Only advances to the next phase when the flag is present
 
-After #497, prefer SSH for ready-probe and provision; WinRM remains a Windows-only fallback. The flag is **deleted immediately** upon detection - `Remove-Item` is called before any scripts run.
+The flag is **deleted immediately** upon detection - `Remove-Item` is called before any scripts run.
 
 ### Log file
 
-`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via WinRM, it imports this log into `hatch_events` using the guest timestamps as `received_at` - so step durations are visible in the event log exactly as they happened - then deletes the file.
+`hatchery-setup.ps1` writes a structured log to `C:\Program Files\Hatchery\logs\hatchery-setup.log` as each step runs. Every line uses the same `[HATCH:LEVEL][component][timestamp] message` wire format as `Write-HatchEvent`, with guest-side UTC timestamps embedded per line. When Hatchery connects via Guest transport, it imports this log into `hatch_events` using the guest timestamps as `received_at` - so step durations are visible in the event log exactly as they happened - then deletes the file.
 
 ### Hatchery guest directory
 
@@ -278,7 +278,7 @@ A `failed` VM can be retried from the Nests panel. Retry resets the status of ev
 - Scripts that succeeded before the failure are not re-run
 - The OS is not reinstalled - retry replays the automation phase only
 
-Re-spawns the provision thread immediately if WinRM is reachable, or queues it for the next polling tick if not.
+Re-spawns the provision thread immediately if guest remoting TCP is reachable (SSH or WinRM), or queues it for the next polling tick if not.
 
 <br>
 

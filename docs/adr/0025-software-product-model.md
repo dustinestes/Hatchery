@@ -19,7 +19,7 @@ A reserved Library connection kind `packages` exists but is empty and ambiguous 
 5. **Offline payloads:** Optional trees `{os}/{arch}/…` under the package id (mirrors YAML). On hatch, copy **only** the guest OS + selected arch subtree (guest arch → `x86`/`x64`/`arm64`, else `any` if that unit exists) into the guest `software_package(id)` path. Do **not** nest `windows/` or arch folders on the guest; do not stage sibling OS or arch trees. Install/hook commands are relative to that staging folder.
 6. **Library domain:** `software`. Migrate connection kind / CHECK `packages` → `software`; seed **All Software** binding (`filter: *software/*`) like Answer Files. Fresh Controllers get the kind + binding; pull remains operator-driven (ADR-0011).
 7. **Clutch automations:** One ordered post-boot list. **Every entry declares `type: script` or `type: software`** (required). No bare-string script shorthand (pre-release break; document migration). Software rows support `reboot_after` and `clean_payload_on_success` (default true). Scripts keep `reboot_after` (+ existing parameters); Software has no parameters map in v1.
-8. **Detection:** Controller/Nest remoting runs the defined detect command (WinRM today; SSH later) - not an in-guest agent daemon. Guest-plane login UI is not required for detect.
+8. **Detection:** Guest transport runs the defined detect command (SSH primary; WinRM Windows fallback - [#497](https://github.com/dustinestes/Hatchery/issues/497)) - not an in-guest agent daemon. Guest-plane login UI is not required for detect.
 9. **Guest path roles:** One vocabulary resolved per **guest OS family** via `guest_paths_for(GuestOS)` (never Controller `sys.platform`):
 
 | Role | Meaning |

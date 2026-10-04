@@ -15,7 +15,6 @@ from lib import config
 from lib import hatch as hatch_lib
 from lib import nests as nests_lib
 from lib import provision as provision_lib
-from lib.guest_health import check_winrm
 from lib.providers.base import BaseProvider
 from lib.providers.factory import (
     NoNestSelectedError,
@@ -527,7 +526,7 @@ def sync_hatch_status(
             ip = provider.get_vm_ip(current_name)
             if not ip:
                 continue
-            if not check_winrm(ip):
+            if not provision_lib.guest_remoting_ready(ip):
                 continue
 
             db_record = hatch_lib.get_vm_record(session_id, vm_name)
@@ -536,8 +535,24 @@ def sync_hatch_status(
 
             # Gate on the setup-complete flag so automation never starts while
             # FirstLogonCommands (SSH install, WinRM config, etc.) are still running.
+            # Prefers SSH ready-probe; WinRM is Windows fallback (#497 / ADR-0029).
             if not provision_lib.check_setup_complete(ip, admin_username, admin_password):
                 continue
+
+            def _guest_fallback(message: str) -> None:
+                hatch_lib.add_event(session_id, vm_name, "hatchery", "WARN", message)
+
+            remoting_kind = "winrm"
+            try:
+                transport = provision_lib._guest_transport(
+                    ip,
+                    admin_username,
+                    admin_password,
+                    on_fallback=_guest_fallback,
+                )
+                remoting_kind = transport.kind
+            except Exception:
+                pass
 
             # Import first-boot setup events before deleting guest artifacts.
             try:
@@ -571,8 +586,8 @@ def sync_hatch_status(
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Windows setup complete - starting provisioning "
-                    f"({n} automation{'s' if n != 1 else ''})",
+                    f"Windows setup complete - guest remoting via {remoting_kind}; "
+                    f"starting provisioning ({n} automation{'s' if n != 1 else ''})",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
                 spawn_provision_thread(
@@ -588,7 +603,8 @@ def sync_hatch_status(
                     vm_name,
                     "hatchery",
                     "INFO",
-                    "Windows setup complete - no automations configured",
+                    f"Windows setup complete - guest remoting via {remoting_kind}; "
+                    "no automations configured",
                 )
                 hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
@@ -598,7 +614,7 @@ def sync_hatch_status(
                 already_running = (session_id, vm_name) in _provisioning
             if not already_running:
                 ip = provider.get_vm_ip(current_name)
-                if ip and check_winrm(ip):
+                if ip and provision_lib.guest_remoting_ready(ip):
                     db_record = hatch_lib.get_vm_record(session_id, vm_name)
                     hatch_lib.reset_scripts_for_retry(session_id, vm_name)
                     spawn_provision_thread(
@@ -777,7 +793,7 @@ def retry_failed_vm(session_id: str, vm_name: str) -> dict:
     except Exception:
         ip = None
 
-    if ip and check_winrm(ip):
+    if ip and provision_lib.guest_remoting_ready(ip):
         spawn_provision_thread(
             session_id,
             vm_name,

@@ -47,7 +47,7 @@ Product shape is locked in [ADR-0024](adr/0024-answer-files-product-model.md). W
 | | Answer Files | Automation Scripts |
 |---|---|---|
 | When | During OS install / first-boot media | After the guest is reachable (fledged path) |
-| Who consumes | Guest **installer** / early boot | Guest shell (WinRM today; SSH later) |
+| Who consumes | Guest **installer** / early boot | Guest shell (SSH primary; WinRM Windows fallback) |
 | Data dir | `automation/answerfiles/` | `automation/scripts/` |
 | Nest role | Pack and **attach** media | Transfer and **run** |
 | Parameters | Declared frontmatter; Jinja `{{ name }}` | PowerShell `param()` (+ optional pwsh introspect) |

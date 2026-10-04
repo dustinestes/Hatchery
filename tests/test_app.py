@@ -3002,7 +3002,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
                 ):
@@ -3026,7 +3026,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
                 ):
@@ -3055,7 +3055,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
                 ):
@@ -3074,7 +3074,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=False
                 ):
@@ -3089,7 +3089,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=True
                 ):
@@ -3115,7 +3115,7 @@ class TestSyncHatchStatus:
         self._setup_hatching(tmp_path)
         with (
             patch("hatchery._provider") as mock_prov,
-            patch("lib.hatch_lifecycle.check_winrm") as mock_winrm,
+            patch("lib.provision.guest_remoting_ready") as mock_winrm,
         ):
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
@@ -3171,7 +3171,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=False):
+            with patch("lib.provision.guest_remoting_ready", return_value=False):
                 app_module._sync_hatch_status()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -5340,7 +5340,7 @@ class TestApiRetryVm:
         spawned = []
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.get_vm_ip.return_value = "192.168.1.10"
-            with patch("lib.hatch_lifecycle.check_winrm", return_value=True):
+            with patch("lib.provision.guest_remoting_ready", return_value=True):
                 with patch(
                     "lib.hatch_lifecycle.spawn_provision_thread",
                     side_effect=lambda *a, **kw: spawned.append(a),

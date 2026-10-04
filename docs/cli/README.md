@@ -107,7 +107,7 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `clutch list` | `{clutches: [filename, …]}` |
 | `clutch show` | `{name, description, file, vms: [{name, os, vcpus, ram_gb}, …]}` |
 | `vm list` | `{nest, vms: [{name, status}, …]}` |
-| `vm health` | `{nest, name, ip, winrm, reachable}` |
+| `vm health` | `{nest, name, ip, ssh, winrm, reachable}` |
 | `vm snap list` | `{nest, name, snapshots: [label, …]}` |
 | `session list` | Array of `{id, nest, status, clutch_file, clutch_name, hatched_at}` |
 | `session show` | `{id, nest, clutch_file, clutch_name, status, hatched_at, archived_at, vms: [{vm_name, status, error, events}, …]}` |

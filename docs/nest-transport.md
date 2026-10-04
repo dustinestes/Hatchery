@@ -31,7 +31,7 @@ How Hatchery talks to a Nest (hypervisor host) over the network - the control pl
 |---|---|---|
 | Nest transport | Nest host (Linux / macOS / Windows) | **SSH** (default) - [#218](https://github.com/dustinestes/Hatchery/issues/218) |
 | Nest transport fallback | Windows Nest when OpenSSH is unavailable or WinRM is preferred | **WinRM** - [#220](https://github.com/dustinestes/Hatchery/issues/220) |
-| Guest transport | Guest VM (Scripts / Software / ready-probe) | **SSH** primary + WinRM Windows fallback - [#497](https://github.com/dustinestes/Hatchery/issues/497) (`lib/guest_transport.py`); today WinRM in [`lib/provision.py`](../../lib/provision.py) |
+| Guest transport | Guest VM (Scripts / Software / ready-probe) | **SSH** primary + WinRM Windows fallback - [#497](https://github.com/dustinestes/Hatchery/issues/497) (`lib/guest_transport.py`; Scripts/Software call through [`lib/provision.py`](../../lib/provision.py)) |
 | Guest SSH bootstrap | First-boot companion installs `sshd` on the guest | GitHub Win32-OpenSSH MSI (not FoD) - [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md) / [#509](https://github.com/dustinestes/Hatchery/issues/509) |
 
 This document covers **Nest transport only**. Nest transport and Guest transport are parallel planes (same preferred protocol, different targets and identity). Do not reuse Nest `identity_file` as the guest authorized key by default. Shared OpenSSH **client** helpers may serve both modules; credentials and configs stay separate ([ADR-0021](adr/0021-controller-embeddable-operator-plane.md), ADR-0029).
@@ -72,7 +72,7 @@ Use when a Windows Nest cannot (or should not) expose OpenSSH. `WinrmNestTranspo
 | `use_ssl` | Use `https://…/wsman` when true |
 | `auth_transport` | pywinrm auth transport (default `ntlm`) |
 
-Guest remoting (`lib/provision.py` today; `lib/guest_transport.py` under [#497](https://github.com/dustinestes/Hatchery/issues/497)) is a separate plane - see [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md).
+Guest remoting (`lib/guest_transport.py`, used by `lib/provision.py` / Software) is a separate plane - see [guest transport](guest-transport.md) and [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md).
 
 <br>
 
