@@ -5060,6 +5060,9 @@ class TestSettingsShowPasswords:
         html = client.get("/settings/security").data.decode()
         assert "Remoting identities" in html
         assert "remoting-generate-btn" in html
+        assert "remoting-identity-rows" in html
+        assert 'type="date"' in html
+        assert "remoting-path-row-template" in html
 
 
 class TestApiRemotingIdentities:

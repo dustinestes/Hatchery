@@ -327,88 +327,175 @@
       <span class="form-label" id="remoting-identities-label">Catalog</span>
       <div>
         <button type="button" id="remoting-generate-btn" class="btn btn-secondary btn-sm"
-                aria-label="Generate Hatchery-managed remoting key">Generate Hatchery key</button>
-        <button type="button" id="remoting-rotate-btn" class="btn btn-secondary btn-sm"
-                aria-label="Rotate Hatchery-managed remoting key">Rotate Hatchery key</button>
+                aria-label="Generate Hatchery-managed remoting key"
+                {% if remoting_identities | selectattr('kind', 'equalto', 'hatchery') | list %}hidden{% endif %}>
+          Generate Hatchery key
+        </button>
+        <button type="button" id="remoting-add-path-btn" class="btn btn-secondary btn-sm"
+                aria-label="Add path remoting identity">+ Add path identity</button>
       </div>
     </div>
     <div id="remoting-identities-status" class="form-help-text" role="status" aria-live="polite"></div>
-    <div class="library-browser-table-wrap" role="region" aria-labelledby="remoting-identities-label">
-      <table class="library-browser-table" id="remoting-identities-table">
-        <thead>
-          <tr>
-            <th scope="col">Id</th>
-            <th scope="col">Kind</th>
-            <th scope="col">Name</th>
-            <th scope="col">Path</th>
-            <th scope="col"><span class="visually-hidden">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ident in remoting_identities %}
-          <tr data-identity-id="{{ ident.id }}">
-            <td><code>{{ ident.id }}</code></td>
-            <td>{{ ident.kind }}</td>
-            <td>{{ ident.name }}</td>
-            <td><code>{{ ident.resolved_path or ident.identity_file }}</code></td>
-            <td>
-              {% if ident.kind == 'path' %}
-              <button type="button" class="btn-icon remoting-remove-btn"
-                      data-identity-id="{{ ident.id }}"
-                      title="Remove identity {{ ident.id }}"
-                      aria-label="Remove remoting identity {{ ident.id }}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                  <path d="M10 11v6"/>
-                  <path d="M14 11v6"/>
-                  <path d="M9 6V4h6v2"/>
-                </svg>
-              </button>
-              {% else %}
-              <span class="form-help-text">managed</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="5">No remoting identities yet. Generate the Hatchery key or add a path below.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div id="remoting-identity-rows" class="library-conn-rows" role="group"
+         aria-labelledby="remoting-identities-label">
+      {% for ident in remoting_identities %}
+      <div class="library-conn-row remoting-identity-row"
+           data-identity-id="{{ ident.id }}" data-kind="{{ ident.kind }}" data-saved="1">
+        <div class="library-conn-row-header">
+          <button type="button" class="library-conn-toggle remoting-identity-toggle"
+                  aria-expanded="false"
+                  aria-label="Expand remoting identity {{ ident.name }}">
+            <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="nest-conn-title">
+              <span class="library-conn-summary remoting-identity-summary">
+                {{ ident.name }} · {{ ident.kind }}{% if ident.resolved_path or ident.identity_file %} · {{ ident.resolved_path or ident.identity_file }}{% endif %}
+              </span>
+              <span class="nest-conn-id remoting-identity-id-badge" title="Stable identity id">{{ ident.id }}</span>
+            </span>
+          </button>
+          {% if ident.kind == 'path' %}
+          <button type="button" class="btn-icon remoting-remove-btn" title="Remove identity"
+                  aria-label="Remove remoting identity {{ ident.name }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/>
+              <path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+          {% endif %}
+        </div>
+        <div class="library-conn-row-body remoting-identity-body" hidden>
+          <div class="library-conn-row-fields">
+            {% if ident.kind == 'hatchery' %}
+            <div class="form-group form-group-full">
+              <span class="form-label">Identity id</span>
+              <p class="form-help-text"><code>{{ ident.id }}</code> - Hatchery-managed key under the Controller data directory.</p>
+            </div>
+            <div class="form-group form-group-full">
+              <span class="form-label">Private key path</span>
+              <p class="form-help-text"><code>{{ ident.resolved_path or ident.identity_file }}</code></p>
+            </div>
+            {% if ident.pubkey %}
+            <div class="form-group form-group-full">
+              <span class="form-label">Public key</span>
+              <p class="form-help-text" style="word-break:break-all"><code>{{ ident.pubkey }}</code></p>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="form-group">
+              <label class="form-label">Id <span class="required">*</span></label>
+              <input type="text" class="form-input remoting-id-input" required autocomplete="off"
+                     value="{{ ident.id }}" readonly>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Name</label>
+              <input type="text" class="form-input remoting-name-input" autocomplete="off"
+                     value="{{ ident.name }}" placeholder="e.g. Lab Nest key">
+            </div>
+            <div class="form-group form-group-full">
+              <label class="form-label">Identity file <span class="required">*</span></label>
+              <input type="text" class="form-input remoting-file-input" required autocomplete="off"
+                     value="{{ ident.identity_file }}"
+                     placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Certificate path</label>
+              <input type="text" class="form-input remoting-cert-input" autocomplete="off"
+                     value="{{ ident.cert_path or '' }}"
+                     placeholder="OpenSSH cert (or identity_file-cert.pub)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Identity expiry</label>
+              <input type="date" class="form-input remoting-expires-input"
+                     value="{{ (ident.identity_expires_at or '')[:10] }}">
+              <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+            </div>
+            {% endif %}
+          </div>
+          <div class="library-conn-row-actions">
+            {% if ident.kind == 'hatchery' %}
+            <button type="button" class="btn btn-secondary btn-sm remoting-rotate-btn">Rotate Hatchery key</button>
+            {% else %}
+            <button type="button" class="btn btn-secondary btn-sm remoting-save-btn">Save identity</button>
+            {% endif %}
+            <span class="library-test-result remoting-row-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
     </div>
-    <div class="form-grid form-grid-2" style="margin-top:1rem">
-      <div class="form-group">
-        <label class="form-label" for="remoting-path-id">Path identity id</label>
-        <input type="text" id="remoting-path-id" class="form-input" autocomplete="off"
-               placeholder="lab-nest-key">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="remoting-path-name">Display name</label>
-        <input type="text" id="remoting-path-name" class="form-input" autocomplete="off"
-               placeholder="Lab Nest key">
-      </div>
-      <div class="form-group form-group-full">
-        <label class="form-label" for="remoting-path-file">Private key path</label>
-        <input type="text" id="remoting-path-file" class="form-input" autocomplete="off"
-               placeholder="~/.ssh/id_ed25519">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="remoting-path-cert">Cert path (optional)</label>
-        <input type="text" id="remoting-path-cert" class="form-input" autocomplete="off"
-               placeholder="">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="remoting-path-expires">Expires at (optional)</label>
-        <input type="text" id="remoting-path-expires" class="form-input" autocomplete="off"
-               placeholder="2027-01-01T00:00:00+00:00">
-      </div>
-    </div>
-    <button type="button" id="remoting-add-path-btn" class="btn btn-secondary btn-sm"
-            aria-label="Register path remoting identity">Add path identity</button>
+    <p class="empty-state" id="remoting-identity-rows-empty"
+       {% if remoting_identities %}hidden{% endif %}>
+      No remoting identities yet. Generate the Hatchery key or add a path identity.
+    </p>
   </section>
+
+  <template id="remoting-path-row-template">
+    <div class="library-conn-row remoting-identity-row" data-identity-id="" data-kind="path" data-saved="0">
+      <div class="library-conn-row-header">
+        <button type="button" class="library-conn-toggle remoting-identity-toggle"
+                aria-expanded="true" aria-label="Collapse remoting identity">
+          <svg class="library-conn-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="nest-conn-title">
+            <span class="library-conn-summary remoting-identity-summary">New path identity</span>
+            <span class="nest-conn-id remoting-identity-id-badge" title="Stable identity id"></span>
+          </span>
+        </button>
+        <button type="button" class="btn-icon remoting-remove-btn" title="Remove identity"
+                aria-label="Remove remoting identity">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="library-conn-row-body remoting-identity-body">
+        <div class="library-conn-row-fields">
+          <div class="form-group">
+            <label class="form-label">Id <span class="required">*</span></label>
+            <input type="text" class="form-input remoting-id-input" required autocomplete="off"
+                   value="" placeholder="lab-nest-key">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-input remoting-name-input" autocomplete="off"
+                   value="" placeholder="e.g. Lab Nest key">
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label">Identity file <span class="required">*</span></label>
+            <input type="text" class="form-input remoting-file-input" required autocomplete="off"
+                   value=""
+                   placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Certificate path</label>
+            <input type="text" class="form-input remoting-cert-input" autocomplete="off"
+                   value="" placeholder="OpenSSH cert (or identity_file-cert.pub)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Identity expiry</label>
+            <input type="date" class="form-input remoting-expires-input" value="">
+            <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+          </div>
+        </div>
+        <div class="library-conn-row-actions">
+          <button type="button" class="btn btn-secondary btn-sm remoting-save-btn">Save identity</button>
+          <span class="library-test-result remoting-row-status" role="status" aria-live="polite"></span>
+        </div>
+      </div>
+    </div>
+  </template>
 
   <section class="form-section">
     <h2 class="form-section-title">Password visibility</h2>
@@ -881,8 +968,21 @@
   }
 
   const statusEl = document.getElementById('remoting-identities-status');
+  const remotingRows = document.getElementById('remoting-identity-rows');
+  const remotingEmpty = document.getElementById('remoting-identity-rows-empty');
+  const remotingTpl = document.getElementById('remoting-path-row-template');
+  const genBtn = document.getElementById('remoting-generate-btn');
+  const addPathBtn = document.getElementById('remoting-add-path-btn');
+
   function setStatus(msg) {
     if (statusEl) statusEl.textContent = msg || '';
+  }
+  function setRowStatus(row, msg, ok) {
+    const el = row ? row.querySelector('.remoting-row-status') : null;
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('library-test-result--ok', !!ok);
+    el.classList.toggle('library-test-result--err', !ok && !!msg);
   }
   function postJson(url, body) {
     return fetch(url, {
@@ -891,16 +991,146 @@
       body: body ? JSON.stringify(body) : '{}',
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); });
   }
-  function reloadOnOk(result, successMsg) {
+  function reloadOnOk(result, successMsg, row) {
     if (!result.ok || !result.json.ok) {
-      setStatus((result.json && result.json.error) || 'Request failed');
+      const err = (result.json && result.json.error) || 'Request failed';
+      setStatus(err);
+      if (row) setRowStatus(row, err, false);
       return;
     }
     setStatus(successMsg || 'Saved.');
     window.location.reload();
   }
+  function syncRemotingEmpty() {
+    if (!remotingEmpty || !remotingRows) return;
+    remotingEmpty.hidden = remotingRows.children.length > 0;
+  }
+  function updateRemotingSummary(row) {
+    const kind = row.dataset.kind || 'path';
+    const idInput = row.querySelector('.remoting-id-input');
+    const id = (idInput && idInput.value) || row.dataset.identityId || '';
+    const name = (row.querySelector('.remoting-name-input') || {}).value
+      || (kind === 'hatchery' ? 'Hatchery' : 'Path identity');
+    const file = (row.querySelector('.remoting-file-input') || {}).value || '';
+    const summary = row.querySelector('.remoting-identity-summary');
+    if (summary) {
+      summary.textContent = name + ' · ' + kind + (file ? ' · ' + file : '');
+    }
+    const badge = row.querySelector('.remoting-identity-id-badge');
+    if (badge) badge.textContent = id;
+    const toggle = row.querySelector('.remoting-identity-toggle');
+    if (toggle) {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute(
+        'aria-label',
+        (expanded ? 'Collapse' : 'Expand') + ' remoting identity ' + (name || id || '')
+      );
+    }
+  }
+  function setRemotingExpanded(row, expanded) {
+    const body = row.querySelector('.remoting-identity-body');
+    const toggle = row.querySelector('.remoting-identity-toggle');
+    if (body) body.hidden = !expanded;
+    if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    updateRemotingSummary(row);
+  }
+  function pathPayload(row) {
+    const expires = ((row.querySelector('.remoting-expires-input') || {}).value || '').trim();
+    return {
+      id: ((row.querySelector('.remoting-id-input') || {}).value || '').trim(),
+      name: ((row.querySelector('.remoting-name-input') || {}).value || '').trim(),
+      identity_file: ((row.querySelector('.remoting-file-input') || {}).value || '').trim(),
+      cert_path: ((row.querySelector('.remoting-cert-input') || {}).value || '').trim() || null,
+      identity_expires_at: expires || null,
+    };
+  }
 
-  const genBtn = document.getElementById('remoting-generate-btn');
+  if (remotingRows) {
+    remotingRows.addEventListener('click', function (e) {
+      const toggle = e.target.closest('.remoting-identity-toggle');
+      if (toggle) {
+        const row = toggle.closest('.remoting-identity-row');
+        if (!row) return;
+        const open = toggle.getAttribute('aria-expanded') === 'true';
+        setRemotingExpanded(row, !open);
+        return;
+      }
+      const saveBtn = e.target.closest('.remoting-save-btn');
+      if (saveBtn) {
+        const row = saveBtn.closest('.remoting-identity-row');
+        if (!row) return;
+        const payload = pathPayload(row);
+        if (!payload.id || !payload.identity_file) {
+          setRowStatus(row, 'Id and identity file are required', false);
+          return;
+        }
+        setRowStatus(row, 'Saving…', false);
+        setStatus('Saving…');
+        postJson('/api/remoting-identities/path', payload).then(function (r) {
+          reloadOnOk(r, 'Path identity saved.', row);
+        }).catch(function () {
+          setStatus('Request failed');
+          setRowStatus(row, 'Request failed', false);
+        });
+        return;
+      }
+      const rotBtn = e.target.closest('.remoting-rotate-btn');
+      if (rotBtn) {
+        if (!window.confirm(
+          'Rotate the Hatchery-managed key? Existing Nest/guest authorize lists must be updated.'
+        )) {
+          return;
+        }
+        const row = rotBtn.closest('.remoting-identity-row');
+        setStatus('Rotating…');
+        if (row) setRowStatus(row, 'Rotating…', false);
+        postJson('/api/remoting-identities/rotate').then(function (r) {
+          reloadOnOk(r, 'Hatchery key rotated.', row);
+        }).catch(function () {
+          setStatus('Request failed');
+          if (row) setRowStatus(row, 'Request failed', false);
+        });
+        return;
+      }
+      const remBtn = e.target.closest('.remoting-remove-btn');
+      if (remBtn) {
+        const row = remBtn.closest('.remoting-identity-row');
+        if (!row) return;
+        const saved = row.dataset.saved === '1';
+        const id = (row.querySelector('.remoting-id-input') || {}).value
+          || row.dataset.identityId || '';
+        if (!saved) {
+          row.remove();
+          syncRemotingEmpty();
+          return;
+        }
+        if (!id || !window.confirm('Remove remoting identity "' + id + '"?')) return;
+        setStatus('Removing…');
+        setRowStatus(row, 'Removing…', false);
+        fetch('/api/remoting-identities/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json' },
+        }).then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, json: j }; });
+        }).then(function (r) {
+          reloadOnOk(r, 'Removed.', row);
+        }).catch(function () {
+          setStatus('Request failed');
+          setRowStatus(row, 'Request failed', false);
+        });
+      }
+    });
+
+    remotingRows.addEventListener('input', function (e) {
+      const row = e.target.closest('.remoting-identity-row');
+      if (row) updateRemotingSummary(row);
+    });
+
+    remotingRows.querySelectorAll('.remoting-identity-row').forEach(function (row) {
+      updateRemotingSummary(row);
+    });
+  }
+
   if (genBtn) {
     genBtn.addEventListener('click', function () {
       setStatus('Generating…');
@@ -909,53 +1139,20 @@
       }).catch(function () { setStatus('Request failed'); });
     });
   }
-  const rotBtn = document.getElementById('remoting-rotate-btn');
-  if (rotBtn) {
-    rotBtn.addEventListener('click', function () {
-      if (!window.confirm('Rotate the Hatchery-managed key? Existing Nest/guest authorize lists must be updated.')) {
-        return;
-      }
-      setStatus('Rotating…');
-      postJson('/api/remoting-identities/rotate').then(function (r) {
-        reloadOnOk(r, 'Hatchery key rotated.');
-      }).catch(function () { setStatus('Request failed'); });
-    });
-  }
-  const addPathBtn = document.getElementById('remoting-add-path-btn');
-  if (addPathBtn) {
+
+  if (addPathBtn && remotingRows && remotingTpl) {
     addPathBtn.addEventListener('click', function () {
-      const id = (document.getElementById('remoting-path-id') || {}).value || '';
-      const name = (document.getElementById('remoting-path-name') || {}).value || '';
-      const identity_file = (document.getElementById('remoting-path-file') || {}).value || '';
-      const cert_path = (document.getElementById('remoting-path-cert') || {}).value || '';
-      const identity_expires_at = (document.getElementById('remoting-path-expires') || {}).value || '';
-      setStatus('Registering…');
-      postJson('/api/remoting-identities/path', {
-        id: id.trim(),
-        name: name.trim(),
-        identity_file: identity_file.trim(),
-        cert_path: cert_path.trim() || null,
-        identity_expires_at: identity_expires_at.trim() || null,
-      }).then(function (r) {
-        reloadOnOk(r, 'Path identity registered.');
-      }).catch(function () { setStatus('Request failed'); });
+      remotingRows.appendChild(remotingTpl.content.cloneNode(true));
+      const row = remotingRows.lastElementChild;
+      syncRemotingEmpty();
+      if (!row) return;
+      setRemotingExpanded(row, true);
+      const idInput = row.querySelector('.remoting-id-input');
+      if (idInput) idInput.focus();
     });
   }
-  document.querySelectorAll('.remoting-remove-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const id = btn.getAttribute('data-identity-id');
-      if (!id || !window.confirm('Remove remoting identity "' + id + '"?')) return;
-      setStatus('Removing…');
-      fetch('/api/remoting-identities/' + encodeURIComponent(id), {
-        method: 'DELETE',
-        headers: { 'Accept': 'application/json' },
-      }).then(function (r) {
-        return r.json().then(function (j) { return { ok: r.ok, json: j }; });
-      }).then(function (r) {
-        reloadOnOk(r, 'Removed.');
-      }).catch(function () { setStatus('Request failed'); });
-    });
-  });
+
+  syncRemotingEmpty();
 })();
 </script>
 {% endif %}
