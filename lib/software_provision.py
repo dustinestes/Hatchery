@@ -417,7 +417,7 @@ def run_in_package(
         raise ValueError("pass exactly one of command or script_rel")
     # Windows WinRM today: PowerShell assignments. POSIX export helper exists for
     # future SSH / Linux / macOS remoting (same env names, different shell).
-    prefix = guest_env_lib.powershell_env_assignments(env or {})
+    prefix = guest_env_lib.powershell_job_preamble(env or {})
     if require_cwd:
         prefix += f"Set-Location -LiteralPath {pkg}\n"
     else:

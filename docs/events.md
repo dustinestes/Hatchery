@@ -123,6 +123,20 @@ The "Creating VM" message contains the complete command as it will be run, inclu
 
 ---
 
+### Section bookends
+
+Hatchery-context lifecycle sections use **pure start/end** messages. Do not append “starting \<next section\>” onto an end line - that buries the bookend. Detail lines (`Ensure: …`, per-script start/complete) sit between the section’s start and end.
+
+Convention (target shape; full catalog review tracked separately):
+
+| Pattern | Example |
+|---|---|
+| `Starting <section>: <summary>` | `Starting guest environment: env vars, dirs, helpers` |
+| `Ending <section>` or `Ending <section> (<reason>)` | `Ending guest environment` |
+| Failure stays an ERROR on that section | `Guest environment failed (exit 1): …` |
+
+---
+
 ### Windows Setup
 
 Emitted in `lib.hatch_lifecycle.sync_hatch_status` (Hatch status poller, runs every `bg_interval` seconds). These events track the Windows unattended install phase after `virt-install` returns.
@@ -130,12 +144,26 @@ Emitted in `lib.hatch_lifecycle.sync_hatch_status` (Hatch status poller, runs ev
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|
 | `INFO` | `Starting VM: virsh start <name>` | null | VM found shut off during hatching phase - Windows OOBE triggered ACPI power-off; Hatchery restarts it |
-| `INFO` | `Windows setup complete - starting provisioning (<n> scripts)` | null | `hatchery-ready` flag detected on guest, scripts are queued |
-| `INFO` | `Windows setup complete - no automation scripts configured` | null | `hatchery-ready` flag detected, no scripts declared for this VM |
+| `INFO` | `Ending Windows setup (guest remoting via ssh\|winrm)` | null | `hatchery-ready` flag detected; automations will run next |
+| `INFO` | `Ending Windows setup (guest remoting via ssh\|winrm; no automations configured)` | null | `hatchery-ready` flag detected, no automations declared for this VM |
 
-The `hatchery-ready` flag is a file written by the last `FirstLogonCommand` in every answer file template. Hatchery polls for it (via WinRM) to ensure all first-boot setup finishes before automation scripts begin. It is deleted immediately on detection.
+The `hatchery-ready` flag is a file written by the last `FirstLogonCommand` in every answer file template. Hatchery polls for it (via Guest transport) to ensure all first-boot setup finishes before provisioning begins. It is deleted immediately on detection.
 
 The "Starting VM" event may appear multiple times during a long Windows install - OOBE issues several ACPI power-off signals at different stages (driver installation, region selection, user account creation). Each one triggers a restart and a new event.
+
+---
+
+### Guest environment ensure
+
+Emitted at the start of `_provision_vm_thread` before user automations ([#554](https://github.com/dustinestes/Hatchery/issues/554) / [ADR-0032](adr/0032-guest-environment-ensure-job.md)).
+
+| Level | Message pattern | `script_name` | When |
+|---|---|---|---|
+| `INFO` | `Starting guest environment: env vars, dirs, helpers` | null | Ensure job begins |
+| `INFO` | `Ensure: <catalog line>` | null | One line per planned catalog item |
+| `ERROR` | `Guest environment failed (exit <n>): <detail>` | null | Ensure payload failed |
+| `INFO` | `Ending guest environment` | null | Windows ensure succeeded |
+| `INFO` | `Ending guest environment (skipped: <family> payload pending)` | null | Non-Windows family until #557 / #558 |
 
 ---
 
@@ -145,10 +173,13 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 
 | Level | Message pattern | `script_name` | When |
 |---|---|---|---|
-| `INFO` | `Starting script: <name>.ps1` | `<name>.ps1` | Before the script is sent to the guest over WinRM |
+| `INFO` | `Starting automations: <n> script(s), <m> Software` | null | After guest environment ends; counts omit a kind when zero |
+| `INFO` | `Starting script: <name>.ps1` | `<name>.ps1` | Before the script is sent to the guest over Guest transport |
+| `INFO` | `Starting software: <package-id>` | package id | Before Software entry runs |
 | `INFO` | `Script complete: <name>.ps1 - Exit Code: 0` | `<name>.ps1` | Script returned exit code 0 |
+| `INFO` | `Software complete: <package-id> - Exit Code: 0` | package id | Software entry returned exit code 0 |
 | `ERROR` | `Script failed: <name>.ps1 - Exit Code: <n>` | `<name>.ps1` | Script returned a non-zero exit code |
-| `ERROR` | `Script failed: WinRM connection error - <detail>` | `<name>.ps1` | WinRM connection raised an exception before or during script execution |
+| `ERROR` | `Script failed: WinRM connection error - <detail>` | `<name>.ps1` | Guest remoting raised an exception before or during script execution |
 | `INFO` | `Rebooting VM after script: <name>.ps1` | `<name>.ps1` | Script has `reboot_after: true`; guest restart initiated |
 | `INFO` | `Guest reboot confirmed: <UTC ISO> (LastBootUpTime=<FILETIME>)` | `<name>.ps1` | Guest boot time changed after `reboot_after`; ISO matches event log timestamps ([#499](https://github.com/dustinestes/Hatchery/issues/499)) |
 | `INFO` | `Waiting for WinRM to stabilize after reboot (N consecutive probes)` | `<name>.ps1` | Post-reboot settle before the next automation |
@@ -161,9 +192,10 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 | `INFO` | `Install finished with exit N` | Software id | Install command completed (authored ``software.yaml`` exit) |
 | `INFO` | `Running detect (verify install)` | Software id | Post-install detect; fail step if missing |
 | `INFO` | `WinRM upload of <file> succeeded on attempt i/n` | Software id | Staging recovered after a transient fault |
-| `INFO` | `All scripts succeeded - VM is fledged` | null | All scripts completed successfully; VM status set to `fledged` |
+| `INFO` | `Ending automations` | null | All automation entries succeeded |
+| `INFO` | `VM is fledged` | null | VM status set to `fledged` after automations end |
 
-When a script fails (non-zero exit code or WinRM error), all remaining scripts in the queue are marked `skipped` and provisioning halts. The VM is set to `failed` state and can be retried from the Nests panel.
+When a script fails (non-zero exit code or remoting error), all remaining scripts in the queue are marked `skipped` and provisioning halts. The VM is set to `failed` state and can be retried from the Nests panel.
 
 ---
 

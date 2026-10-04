@@ -207,6 +207,7 @@ Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutc
 | `logs` | First-boot + per-script audit (`Write-HatchEvent`) | `HATCHERY_LOGS` |
 | `temp` | Ephemeral handoff (e.g. setup-complete flag) | `HATCHERY_TEMP` |
 | `software` | Parent of staged installer payloads | `HATCHERY_SOFTWARE` |
+| `modules` | PowerShell modules (`Hatchery` module) | `HATCHERY_MODULES` |
 | `software_package(id)` | `{software}/{Publisher.Product.Version}` | `HATCHERY_SOFTWARE_PACKAGE` (Software jobs) |
 | per-package installer log | `{logs}/software/{id}.log` | `HATCHERY_SOFTWARE_LOG` (Software jobs) |
 
@@ -216,11 +217,12 @@ Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutc
 | `logs` | `{root}\logs` | `{root}/logs` | `{root}/logs` |
 | `temp` | `{root}\temp` | `{root}/temp` | `{root}/temp` |
 | `software` | `{root}\software` | `{root}/software` | `{root}/software` |
+| `modules` | `{root}\modules` | `{root}/modules` | `{root}/modules` |
 | `software_package(id)` | `{software}\{id}` | `{software}/{id}` | `{software}/{id}` |
 
 Windows values match today’s guest directory in [Orchestration](orchestration.md#hatchery-guest-directory). Linux/macOS absolute `root` values land when those guests are supported; until then the resolver raises a clear unsupported error.
 
-**Env inject + persist ([ADR-0026](adr/0026-guest-clutch-environment.md)):** Hatchery sets the reserved vars (plus optional Clutch `environment:` user entries) before Script and Software remoting. Reserved base vars also persist as Machine env on Windows before automations; software-scoped package vars stay job-only. Names are identical on every guest OS; values come from `guest_paths_for(GuestOS)` (never Controller OS). Windows units use `$env:NAME`; future POSIX units use `$NAME` / `export`. User keys must not collide with reserved `HATCHERY_*` names.
+**Env + ensure ([ADR-0026](adr/0026-guest-clutch-environment.md) / [ADR-0032](adr/0032-guest-environment-ensure-job.md)):** Hatchery sets the reserved vars (plus optional Clutch `environment:` user entries) for Script and Software remoting in an outer process scope. Reserved base vars (including `HATCHERY_MODULES`) and a Machine `PSModulePath` append persist on Windows inside the guest environment ensure job before automations; software-scoped package vars stay job-only. Names are identical on every guest OS; values come from `guest_paths_for(GuestOS)` (never Controller OS). Windows units use `$env:NAME`; future POSIX units use `$NAME` / `export`. User keys must not collide with reserved `HATCHERY_*` names or Hatchery-managed `PSModulePath`.
 
 Windows example after staging `Microsoft.VisualStudioCode.1.96.0` (guest arch `x64`):
 

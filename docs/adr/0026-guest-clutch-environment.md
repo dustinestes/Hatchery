@@ -23,6 +23,8 @@ Operators also need Nest UI visibility of resolved env, process injection for ha
    | `HATCHERY_LOGS` | Script + Software | Machine | Audit / first-boot logs |
    | `HATCHERY_TEMP` | Script + Software | Machine | Ephemeral handoff |
    | `HATCHERY_SOFTWARE` | Script + Software | Machine | Parent of staged Software payloads |
+   | `HATCHERY_MODULES` | Script + Software | Machine | PowerShell module path (`modules`) |
+   | `PSModulePath` | Script + Software | Machine **append** | Append `HATCHERY_MODULES` (WinPS + pwsh) |
    | `HATCHERY_SOFTWARE_PACKAGE` | Software jobs only | Job-only | `software_package(id)` |
    | `HATCHERY_SOFTWARE_LOG` | Software jobs only | Job-only | `logs/software/{id}.log` |
 
@@ -37,12 +39,12 @@ Operators also need Nest UI visibility of resolved env, process injection for ha
 
 3. **Dual surface:**
    - Nest UI shows resolved reserved + Clutch env in a table (columns: name, value, source `reserved`|`clutch`|`software`, scope, persist, mode).
-   - Jobs get process injection (reserved + all Clutch user vars) each Script/Software step.
-   - Persisted vars are written once on the guest **before automations** (Windows: `[Environment]::SetEnvironmentVariable` + `WM_SETTINGCHANGE`). Hatch events list each name→target. Fail hatch on persist error.
+   - Jobs get process env (reserved + all Clutch user vars) each Script/Software step in an outer scope; user script bodies are not rewritten with Hatchery helper functions ([ADR-0032](0032-guest-environment-ensure-job.md)).
+   - Persisted vars (and the Hatchery module + `PSModulePath` append) are written once on the guest as part of the **guest environment ensure** job before automations (Windows: `[Environment]::SetEnvironmentVariable` + `WM_SETTINGCHANGE`). Hatch events list each name→target inside that job. Fail hatch on ensure/persist error.
 
 4. **Non-windows:** name/value (+ process inject when remoting exists); persist/scope UI disabled until #482.
 
-5. **Cleanup contract:** Library cleanup scripts wipe the Hatchery guest directory. Windows `hatchery-cleanup-windows.ps1` also clears persisted reserved Machine env (`HATCHERY_ROOT` / `_LOGS` / `_TEMP` / `_SOFTWARE`). Linux/macOS keep env clear as a commented stub until guest persist lands (#482).
+5. **Cleanup contract:** Library cleanup scripts wipe the Hatchery guest directory (including `modules\Hatchery`), unload the Hatchery module, strip Hatchery’s `PSModulePath` append, and clear persisted reserved Machine env (`HATCHERY_ROOT` / `_LOGS` / `_TEMP` / `_SOFTWARE` / `_MODULES`). Linux/macOS keep env clear as a commented stub until ensure payloads land ([#557](https://github.com/dustinestes/Hatchery/issues/557) / [#558](https://github.com/dustinestes/Hatchery/issues/558); #482).
 
 6. **Non-goals:** Software `parameters` map; Controller-host env dump into guests; secret/encrypted env store; persisting software-scoped package vars.
 

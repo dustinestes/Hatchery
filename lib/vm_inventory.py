@@ -121,6 +121,18 @@ def _resolved_environment(
             }
         )
     for item in guest_env_lib.reserved_env_catalog(guest_os):
+        if item.get("mode") == "append":
+            rows.append(
+                {
+                    "name": item["name"],
+                    "value": item["value"],
+                    "source": "reserved",
+                    "scope": "machine",
+                    "persist": "yes",
+                    "mode": "append",
+                }
+            )
+            continue
         if item["scope"] == "software":
             rows.append(
                 {

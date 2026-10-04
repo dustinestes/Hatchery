@@ -193,10 +193,11 @@ The flag is **deleted immediately** upon detection - `Remove-Item` is called bef
 | `logs\` | `hatchery-setup-windows.log` (first-boot log); `<script-name>.log` (per-automation log, one per script); `software\{id}.log` (installer logs via `HATCHERY_SOFTWARE_LOG`) |
 | `temp\` | Ephemeral files - currently only `hatchery-ready` (deleted immediately on detection) |
 | `software\` | Staged installer payloads under `{package-id}\` when Software steps run ([Software](software.md)) |
+| `modules\` | Hatchery PowerShell module (`Hatchery\Hatchery.psd1` + `.psm1`); on Machine `PSModulePath` |
 
-Automation scripts also write to this directory via the injected `Write-HatchEvent` function. Each script gets its own log file named after the script (e.g. `configure-vm-basics.ps1.log`), created automatically.
+Automation scripts call `Write-HatchEvent` from the Hatchery PowerShell module (ensure installs it; `PSModulePath` makes it autoload). Per-script file logs use `HATCHERY_SCRIPT_LOG` (set for the job) under `logs\` (e.g. `configure-vm-basics.ps1.log`).
 
-If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). That script restores UAC from the first-boot backup (or Windows defaults if the backup is missing), removes the Hatchery guest directory, and clears persisted reserved Machine env vars. If omitted, the directory remains on the guest as a local audit record and UAC stays at Never notify.
+If you want to remove all Hatchery artifacts from the guest after provisioning completes, add `hatchery-cleanup-windows.ps1` as the last entry in your Clutch's `automations` list (from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library)). That script restores UAC from the first-boot backup (or Windows defaults if the backup is missing), removes the Hatchery guest directory (including the module), unloads the module, strips Hatchery’s `PSModulePath` append, and clears persisted reserved Machine env vars. If omitted, the directory remains on the guest as a local audit record and UAC stays at Never notify.
 
 **Cached Answer Files / Scripts:** Controllers that already pulled Library content keep the previous companion and cleanup scripts until they pull again. Re-pull Answer Files (for `hatchery-setup-windows.ps1`) and Scripts (for `hatchery-cleanup-windows.ps1`) after the Library ships the UAC change ([#543](https://github.com/dustinestes/Hatchery/issues/543)).
 
@@ -212,11 +213,17 @@ Once the setup-complete handoff occurs, Hatchery transitions the VM to `provisio
 
 ### Clutch snapshot at hatch start
 
-When a hatch session is created, Hatchery stores an immutable JSON copy of the Clutch on `hatch_sessions.clutch_snapshot` (#514). Automations were already copied into session DB rows; env persist, job inject, and Nest details for that session also read the snapshot. Editing the Clutch YAML (Build/Edit) during an active hatch affects only the **next** hatch, not the in-flight session. Legacy sessions without a snapshot still fall back to the live file.
+When a hatch session is created, Hatchery stores an immutable JSON copy of the Clutch on `hatch_sessions.clutch_snapshot` (#514). Automations were already copied into session DB rows; guest environment ensure, job inject, and Nest details for that session also read the snapshot. Editing the Clutch YAML (Build/Edit) during an active hatch affects only the **next** hatch, not the in-flight session. Legacy sessions without a snapshot still fall back to the live file.
 
-### Guest environment persist (Windows)
+### Guest environment ensure
 
-Before the first automation runs, Hatchery persists reserved base Machine env vars (`HATCHERY_ROOT`, `HATCHERY_LOGS`, `HATCHERY_TEMP`, `HATCHERY_SOFTWARE`) plus Clutch user entries with `persist: true` (scope/mode per entry). Software-scoped vars stay job-only. Persist failure fails the hatch. Hatch events log the plan (`Persist: NAME → Machine|User (…)`) and a completion line before automations start. Each Script/Software job also gets process inject of reserved + Clutch vars for that job. See [ADR-0026](adr/0026-guest-clutch-environment.md).
+Before the first user automation runs, Hatchery runs one **guest environment ensure** job ([#554](https://github.com/dustinestes/Hatchery/issues/554) / [ADR-0032](adr/0032-guest-environment-ensure-job.md)). Operators see pure section bookends (`Starting guest environment…` / `Ending guest environment`) plus `Ensure: …` catalog lines, then a separate `Starting automations…` bookend. New guest environment requirements plug into this job only (not a parallel hatch path). See [events.md - Section bookends](events.md#section-bookends).
+
+**Windows (live):** persist reserved base Machine env (`HATCHERY_ROOT`, `HATCHERY_LOGS`, `HATCHERY_TEMP`, `HATCHERY_SOFTWARE`, `HATCHERY_MODULES`) plus Clutch user entries with `persist: true`; ensure guest dirs; install the Hatchery PowerShell module under `HATCHERY_ROOT\modules\Hatchery`; append that modules dir to Machine `PSModulePath` (shared by Windows PowerShell 5.1 and pwsh 7). Software-scoped vars stay job-only. Ensure failure fails the hatch.
+
+**Linux / macOS:** the same Controller hook runs; payload is skipped until [#557](https://github.com/dustinestes/Hatchery/issues/557) / [#558](https://github.com/dustinestes/Hatchery/issues/558). Events note the skip.
+
+Each Script/Software job still gets process inject of reserved + Clutch vars. See [ADR-0026](adr/0026-guest-clutch-environment.md).
 
 ### Script execution
 
@@ -224,7 +231,7 @@ Scripts run **sequentially** in the order they are declared in the Clutch file. 
 
 1. Status is set to `running` in the database
 2. The script file is read from `~/.local/share/hatchery/automation/scripts/`
-3. If the script has configured parameters, the content is wrapped in a PowerShell scriptblock: `& { param(...) <inject> <rest> } -Param 'value'`. The `param()` block is placed first (required by PowerShell), the `Write-HatchEvent` helper is injected after it, then the rest of the script body follows. Scripts without parameters receive the injection prepended directly with no wrapping. Reserved + Clutch user env are process-injected for the job.
+3. Clutch parameter values are bound into a PowerShell scriptblock: `& { param(...) <user body> } -Param 'value'`. Reserved + Clutch user env (and a process `PSModulePath` append for `HATCHERY_MODULES`) are applied in an **outer** scope so user script text is not rewritten with Hatchery helpers (#554). `param()` stays first inside the user scriptblock, including when the Clutch passes no values and the script only uses `param()` defaults.
 4. The script is executed on the guest over WinRM via `pywinrm`
 5. All stdout and stderr output is captured and stored against the script record
 6. The exit code determines what happens next:

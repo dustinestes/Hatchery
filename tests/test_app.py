@@ -5458,9 +5458,9 @@ class TestApiRetryVm:
 
 class TestProvisionVmThread:
     @pytest.fixture(autouse=True)
-    def _mock_persist_env(self, monkeypatch):
+    def _mock_ensure_env(self, monkeypatch):
         monkeypatch.setattr(
-            "lib.guest_env.persist_guest_environment",
+            "lib.guest_env.ensure_guest_environment",
             lambda *a, **k: (0, ""),
         )
 
@@ -5483,7 +5483,7 @@ class TestProvisionVmThread:
         p.write_text("echo hi")
         return name
 
-    def test_persists_guest_env_once_before_scripts(self, tmp_path, monkeypatch):
+    def test_ensures_guest_env_once_before_scripts(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
         import lib.config as cfg
         import hatchery as app_module
@@ -5500,23 +5500,27 @@ class TestProvisionVmThread:
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
         calls = []
 
-        def _persist(*a, **k):
+        def _ensure(*a, **k):
             calls.append(1)
             return (0, "")
 
-        monkeypatch.setattr("lib.guest_env.persist_guest_environment", _persist)
+        monkeypatch.setattr("lib.guest_env.ensure_guest_environment", _ensure)
         with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
             with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
         assert len(calls) == 1
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
         messages = [e["message"] for e in hatch_lib.get_events(sid, "dc01")]
-        assert any("Persisting guest environment before automations" in m for m in messages)
-        assert any(m.startswith("Persist: HATCHERY_ROOT") for m in messages)
-        assert any("Guest environment persisted" in m for m in messages)
+        assert any("Starting guest environment: env vars, dirs, helpers" in m for m in messages)
+        assert any(m.startswith("Ensure: HATCHERY_ROOT") for m in messages)
+        assert any("HATCHERY_MODULES" in m for m in messages)
+        assert any("module →" in m for m in messages)
+        assert any(m == "Ending guest environment" for m in messages)
+        assert any(m.startswith("Starting automations:") for m in messages)
+        assert any(m == "Ending automations" for m in messages)
 
-    def test_persist_uses_snapshot_after_live_clutch_edit(self, tmp_path, monkeypatch):
-        """Mid-hatch Clutch YAML edits must not change env persist (#514)."""
+    def test_ensure_uses_snapshot_after_live_clutch_edit(self, tmp_path, monkeypatch):
+        """Mid-hatch Clutch YAML edits must not change guest env ensure (#514)."""
         import lib.hatch as hatch_lib
         import lib.config as cfg
         import lib.clutch as clutch_lib
@@ -5581,11 +5585,11 @@ class TestProvisionVmThread:
 
         seen_entries = []
 
-        def _persist(*a, **k):
+        def _ensure(*a, **k):
             seen_entries.append(list(k.get("entries") or []))
             return (0, "")
 
-        monkeypatch.setattr("lib.guest_env.persist_guest_environment", _persist)
+        monkeypatch.setattr("lib.guest_env.ensure_guest_environment", _ensure)
         with patch("lib.hatch_lifecycle.provision_lib.run_script", return_value=(0, "ok")):
             with patch("lib.hatch_lifecycle.get_provider"):
                 app_module._provision_vm_thread(sid, "dc01", "192.168.1.1", "admin", "pass")
@@ -5595,7 +5599,7 @@ class TestProvisionVmThread:
         assert "KEEP_ME" in names
         assert hatch_lib.get_vm_record(sid, "dc01")["status"] == "fledged"
 
-    def test_sets_failed_when_persist_env_fails(self, tmp_path, monkeypatch):
+    def test_sets_failed_when_ensure_env_fails(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
         import lib.config as cfg
         import hatchery as app_module
@@ -5611,7 +5615,7 @@ class TestProvisionVmThread:
         hatch_lib.add_vm_scripts(sid, "dc01", [_S()])
         hatch_lib.set_vm_status(sid, "dc01", "provisioning")
         monkeypatch.setattr(
-            "lib.guest_env.persist_guest_environment",
+            "lib.guest_env.ensure_guest_environment",
             lambda *a, **k: (1, "denied"),
         )
         with patch("lib.hatch_lifecycle.provision_lib.run_script") as run_script:

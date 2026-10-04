@@ -83,11 +83,10 @@ SETUP_LOG_FILE = rf"{_WINDOWS_PATHS.logs}\hatchery-setup-windows.log"
 
 _CLIXML_NS = "http://schemas.microsoft.com/powershell/2004/04"
 
-# Write-HatchEvent function body — injected into every script before execution.
-# Writes to stdout (captured by pywinrm) and to a per-script log file under
-# HATCHERY_GUEST_DIR\logs\ for local audit. $script:HatchLogFile is set by
-# _build_injection() before this function is defined.
-_WRITE_HATCH_EVENT_FUNC = """\
+# Hatchery guest PowerShell module (#554 / ADR-0032). Installed once by ensure
+# under HATCHERY_ROOT\modules\Hatchery; discovered via PSModulePath (WinPS + pwsh).
+# Controllers do not inject this function into user script bodies.
+_HATCHERY_MODULE_PSM1 = """\
 function Write-HatchEvent {
     param(
         [Parameter(Mandatory)]
@@ -100,23 +99,47 @@ function Write-HatchEvent {
     Write-Output "$prefix $Message"
     $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss+00:00")
     $line = if ($Component) { "[HATCH:$Level][$Component][$ts] $Message" } else { "[HATCH:$Level][$ts] $Message" }
-    try { Add-Content -Path $script:HatchLogFile -Value $line -Encoding UTF8 } catch { }
+    $logFile = $env:HATCHERY_SCRIPT_LOG
+    if (-not $logFile -and $env:HATCHERY_LOGS) {
+        $logFile = Join-Path $env:HATCHERY_LOGS 'hatchery-events.log'
+    }
+    if ($logFile) {
+        try {
+            $null = New-Item -Path (Split-Path -Parent $logFile) -ItemType Directory -Force
+            Add-Content -Path $logFile -Value $line -Encoding UTF8
+        } catch { }
+    }
+}
+
+Export-ModuleMember -Function Write-HatchEvent
+"""
+
+_HATCHERY_MODULE_PSD1 = """\
+@{
+    RootModule        = 'Hatchery.psm1'
+    ModuleVersion     = '1.0.0'
+    GUID              = 'b8e6c2a1-4f3d-4e9a-9c1b-7a2d5e6f8a90'
+    Author            = 'Hatchery'
+    CompanyName       = 'Hatchery'
+    Copyright         = 'Copyright (c) Hatchery'
+    Description       = 'Hatchery guest builtins (Write-HatchEvent and related helpers).'
+    PowerShellVersion = '5.1'
+    FunctionsToExport = @('Write-HatchEvent')
+    CmdletsToExport   = @()
+    VariablesToExport = @()
+    AliasesToExport   = @()
 }
 """
 
 
-def _build_injection(script_name: str) -> str:
-    """Build the preamble injected into every script before execution.
+def hatchery_module_psm1_source() -> str:
+    """PowerShell module body installed under ``HATCHERY_ROOT\\modules\\Hatchery``."""
+    return _HATCHERY_MODULE_PSM1.strip() + "\n"
 
-    Sets $script:HatchLogFile to a per-script path under HATCHERY_GUEST_DIR\\logs\\,
-    creates the directory if needed, then defines Write-HatchEvent.
-    """
-    log_file = rf"{_WINDOWS_PATHS.logs}\{script_name}.log"
-    return (
-        f"$script:HatchLogFile = '{log_file}'\n"
-        "$null = New-Item -Path (Split-Path $script:HatchLogFile) -ItemType Directory -Force\n"
-        + _WRITE_HATCH_EVENT_FUNC
-    )
+
+def hatchery_module_psd1_source() -> str:
+    """PowerShell module manifest installed beside ``Hatchery.psm1``."""
+    return _HATCHERY_MODULE_PSD1.strip() + "\n"
 
 
 def _strip_clixml(text: str) -> str:
@@ -221,26 +244,36 @@ def _extract_param_block(content: str) -> tuple[str, str]:
     return "", content
 
 
-def _build_ps_invocation(content: str, parameters: dict[str, str], inject: str = "") -> str:
-    """Optionally wrap content in a scriptblock for parameter passing.
+def _build_ps_invocation(
+    content: str,
+    parameters: dict[str, str],
+    *,
+    env_prefix: str = "",
+) -> str:
+    """Build the remoting payload: optional outer env, then user script + clutch params.
 
-    PowerShell requires param() to be the first statement in a scriptblock.
-    When wrapping, the param() block is extracted and placed first, then
-    the inject preamble follows, then the rest of the script — so named
-    argument binding works correctly.
+    User script bodies are not rewritten with Hatchery helper functions (#554).
+    Process env (reserved / Clutch / job log path) is applied in an outer scope so
+    ``param()`` remains the first statement inside the user scriptblock.
 
-    Without parameters: inject is prepended and content is sent as-is.
-    With parameters: content is wrapped in & { param(...) <inject> <rest> } -Key 'val'
+    Clutch parameter values are the only values bound into the user scriptblock
+    (``& { param(...) <user body> } -Key 'val'``). When the script declares
+    ``param()`` but the Clutch passes no values, the scriptblock still runs so
+    defaults apply and outer env stays outside ``param()``.
     """
-    if not parameters:
-        return inject + content
     param_block, rest = _extract_param_block(content)
-    if param_block:
-        inner = param_block + "\n" + inject + rest
+    if parameters:
+        inner = (param_block + "\n" + rest) if param_block else content
+        args = " ".join(f"-{k} {_ps_quote(v)}" for k, v in parameters.items())
+        user = f"& {{\n{inner}\n}} {args}"
+    elif param_block and env_prefix:
+        # Keep param() first inside the user scriptblock; env stays outside.
+        user = f"& {{\n{param_block}\n{rest}\n}}"
+    elif param_block:
+        user = param_block + "\n" + rest
     else:
-        inner = inject + content
-    args = " ".join(f"-{k} {_ps_quote(v)}" for k, v in parameters.items())
-    return f"& {{\n{inner}\n}} {args}"
+        user = content
+    return env_prefix + user
 
 
 def run_script(
@@ -255,8 +288,10 @@ def run_script(
     """Execute a PowerShell script on a remote Windows guest (SSH primary, WinRM fallback).
 
     ``environment`` is already-merged guest env (reserved + user; #501).
-    Windows path today: PowerShell ``$env:`` assignments. POSIX export helper
-    lives in ``lib.guest_env`` for future Linux / macOS remoting.
+    Windows path today: PowerShell ``$env:`` assignments outside the user body.
+    ``Write-HatchEvent`` comes from the guest Hatchery module (ensure / PSModulePath),
+    not from rewriting the user script. POSIX export helper lives in ``lib.guest_env``
+    for future Linux / macOS remoting.
 
     Returns (exit_code, output) where output combines stdout and stderr.
     Raises an exception if guest remoting cannot be established.
@@ -285,9 +320,14 @@ def run_script(
         f"[Hatchery] ---\n"
     )
 
-    env_prefix = guest_env_lib.powershell_env_assignments(environment or {})
-    inject = env_prefix + _build_injection(script_path.name)
-    ps_code = _build_ps_invocation(content, params, inject)
+    job_env = dict(environment or {})
+    if "HATCHERY_SCRIPT_LOG" not in job_env:
+        logs = job_env.get("HATCHERY_LOGS") or _WINDOWS_PATHS.logs
+        job_env["HATCHERY_SCRIPT_LOG"] = rf"{logs}\{script_path.name}.log"
+    if "HATCHERY_MODULES" not in job_env:
+        job_env["HATCHERY_MODULES"] = _WINDOWS_PATHS.modules
+    env_prefix = guest_env_lib.powershell_job_preamble(job_env)
+    ps_code = _build_ps_invocation(content, params, env_prefix=env_prefix)
     status, body = transport.run_ps(ps_code, timeout=timeout)
     return status, header + body
 
