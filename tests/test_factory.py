@@ -12,6 +12,7 @@ from lib.providers.factory import (
     UnsupportedProviderError,
     get_provider,
 )
+from lib.providers.hyperv import HyperVProvider
 from lib.providers.libvirt import LibvirtProvider
 
 
@@ -75,3 +76,49 @@ class TestGetProvider:
         with pytest.raises(UnsupportedProviderError) as exc:
             get_provider("local")
         assert "utm" in str(exc.value)
+
+    def test_hyperv_local(self):
+        nests_lib.ensure_local_nest()
+        local = nests_lib.get_nest("local")
+        assert local is not None
+        local["provider_type"] = "hyperv"
+        nests_lib.replace_nests([local])
+        provider = get_provider("local")
+        assert isinstance(provider, HyperVProvider)
+        assert provider.nest_id == "local"
+        assert provider._transport is None
+
+    def test_hyperv_remote_ssh(self):
+        nests_lib.replace_nests(
+            [
+                {
+                    "id": "hv-remote",
+                    "name": "Remote Hyper-V",
+                    "provider_type": "hyperv",
+                    "location": "remote",
+                    "host": "nest.example",
+                    "transport": "ssh",
+                    "ssh_user": "admin",
+                    "port": 22,
+                }
+            ]
+        )
+        provider = get_provider("hv-remote")
+        assert isinstance(provider, HyperVProvider)
+        assert provider._transport is not None
+
+    def test_remote_libvirt_still_unsupported(self):
+        nests_lib.replace_nests(
+            [
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "r.example",
+                }
+            ]
+        )
+        with pytest.raises(UnsupportedProviderError) as exc:
+            get_provider("remote1")
+        assert "libvirt" in str(exc.value)

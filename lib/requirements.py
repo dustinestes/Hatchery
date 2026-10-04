@@ -33,7 +33,7 @@ class NestToolSpec:
     packages: dict[str, str] = field(default_factory=dict)
     """Install package names keyed by ``linux`` / ``macos`` / ``windows``."""
     check: str = "which"
-    """``which`` (PATH) or ``python3_gi`` (Debian python3-gi / import fallback)."""
+    """``which`` (PATH), ``python3_gi``, or ``hyperv_get_vm`` (Hyper-V cmdlet)."""
 
 
 CONTROLLER_ALERT_PREFIX = "Controller requirement:"
@@ -111,6 +111,8 @@ def _check_python3_gi() -> bool:
 def _tool_present(spec: NestToolSpec) -> bool:
     if spec.check == "python3_gi":
         return _check_python3_gi()
+    if spec.check == "hyperv_get_vm":
+        return _check_hyperv_get_vm_local()
     return shutil.which(spec.name) is not None
 
 
@@ -188,6 +190,10 @@ def nest_tool_specs_for_provider(provider_type: str) -> list[NestToolSpec]:
         from lib.providers.libvirt import LibvirtProvider
 
         return list(LibvirtProvider.nest_tool_specs())
+    if provider_type == "hyperv":
+        from lib.providers.hyperv import HyperVProvider
+
+        return list(HyperVProvider.nest_tool_specs())
     return []
 
 
@@ -207,6 +213,58 @@ def _remote_which(transport, name: str) -> bool:
         return False
 
 
+def _check_hyperv_get_vm_local() -> bool:
+    """True when local PowerShell can resolve the Hyper-V ``Get-VM`` cmdlet."""
+    import base64
+
+    exe = shutil.which("pwsh") or shutil.which("powershell") or shutil.which("powershell.exe")
+    if not exe:
+        return False
+    script = "Get-Command Get-VM -ErrorAction Stop | Out-Null; Write-Output 'hatchery-hyperv-ok'"
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        result = subprocess.run(
+            [
+                exe,
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-EncodedCommand",
+                encoded,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and "hatchery-hyperv-ok" in (result.stdout or "")
+
+
+def _remote_hyperv_get_vm(transport) -> bool:
+    """Probe a Windows Nest for Hyper-V ``Get-VM`` over Nest transport."""
+    import base64
+
+    from lib.nest_transport import WinrmNestTransport
+
+    script = "Get-Command Get-VM -ErrorAction Stop | Out-Null; Write-Output 'hatchery-hyperv-ok'"
+    try:
+        if isinstance(transport, WinrmNestTransport):
+            out = transport.run(script, timeout=20)
+        else:
+            encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+            out = transport.run(
+                "powershell.exe -NoProfile -NonInteractive "
+                f"-ExecutionPolicy Bypass -EncodedCommand {encoded}",
+                timeout=20,
+            )
+    except Exception:
+        return False
+    return "hatchery-hyperv-ok" in (out or "")
+
+
 def check_nest_tools_remote(transport, specs: list[NestToolSpec]) -> list[Requirement]:
     """Evaluate Nest tools over Nest transport (Remote Nest)."""
     out: list[Requirement] = []
@@ -224,6 +282,8 @@ def check_nest_tools_remote(transport, specs: list[NestToolSpec]) -> list[Requir
                 present = True
             except Exception:
                 present = False
+        elif spec.check == "hyperv_get_vm":
+            present = _remote_hyperv_get_vm(transport)
         else:
             present = _remote_which(transport, spec.name)
         out.append(_requirement_from_spec(spec, present=present))
