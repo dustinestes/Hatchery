@@ -162,6 +162,50 @@ class ProviderOverlays(BaseModel):
     utm: UtmProviderSettings | None = None
 
 
+class RemotingSshConfig(BaseModel):
+    """Guest SSH authorize binding (ADR-0030 / #524)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    port: int = 22
+    # Default Hatchery-managed identity when omitted at authoring time.
+    authorize: list[str] = Field(default_factory=lambda: ["hatchery"])
+
+    @field_validator("port")
+    @classmethod
+    def port_valid(cls, v: int) -> int:
+        if v < 1 or v > 65535:
+            raise ValueError("remoting.ssh.port must be between 1 and 65535")
+        return v
+
+    @field_validator("authorize")
+    @classmethod
+    def authorize_nonempty(cls, v: list[str]) -> list[str]:
+        ids = [str(x).strip() for x in (v or []) if str(x).strip()]
+        if not ids:
+            raise ValueError(
+                "remoting.ssh.authorize must list at least one remoting identity id "
+                "(default: hatchery)"
+            )
+        # Preserve order; drop duplicates.
+        seen: set[str] = set()
+        out: list[str] = []
+        for tid in ids:
+            if tid in seen:
+                continue
+            seen.add(tid)
+            out.append(tid)
+        return out
+
+
+class RemotingConfig(BaseModel):
+    """Guest remoting settings on a Clutch VM (not Nest transport)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ssh: RemotingSshConfig = Field(default_factory=RemotingSshConfig)
+
+
 class VMConfig(BaseModel):
     name: str
     os: GuestOS
@@ -179,6 +223,7 @@ class VMConfig(BaseModel):
     answer_file_parameters: dict[str, str] = {}
     environment: list[EnvironmentEntry] = Field(default_factory=list)
     providers: ProviderOverlays = Field(default_factory=ProviderOverlays)
+    remoting: RemotingConfig = Field(default_factory=RemotingConfig)
     admin_username: str | None = None
     automations: list[AutomationEntry] = []
     parallel: bool = False
@@ -487,6 +532,17 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
             vm["providers"] = cleaned if cleaned else None
             if not vm.get("providers"):
                 vm.pop("providers", None)
+        remoting = vm.get("remoting") or {}
+        ssh = remoting.get("ssh") or {}
+        authorize = list(ssh.get("authorize") or [])
+        port = ssh.get("port", 22)
+        # Always emit remoting.ssh so authorize is visible in saved Clutches (#524).
+        vm["remoting"] = {
+            "ssh": {
+                "port": int(port) if port is not None else 22,
+                "authorize": authorize or ["hatchery"],
+            }
+        }
         if not vm.get("parallel"):
             vm.pop("parallel", None)
     with open(path, "w") as f:

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
 import time
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,6 +18,43 @@ from lib.guest_health import check_ssh, check_winrm
 from lib.guest_paths import guest_paths_for
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GuestTransportDefaults:
+    """Thread/async-scoped defaults for guest SSH client identity (#524)."""
+
+    identity_file: str | None = None
+    ssh_port: int = 22
+    winrm_port: int = 5985
+
+
+_guest_transport_defaults: contextvars.ContextVar[GuestTransportDefaults] = contextvars.ContextVar(
+    "guest_transport_defaults",
+    default=GuestTransportDefaults(),
+)
+
+
+@contextmanager
+def guest_transport_defaults(
+    *,
+    identity_file: str | None = None,
+    ssh_port: int = 22,
+    winrm_port: int = 5985,
+) -> Iterator[None]:
+    """Bind guest SSH identity/port for ``_guest_transport`` in this context."""
+    token = _guest_transport_defaults.set(
+        GuestTransportDefaults(
+            identity_file=identity_file,
+            ssh_port=ssh_port,
+            winrm_port=winrm_port,
+        )
+    )
+    try:
+        yield
+    finally:
+        _guest_transport_defaults.reset(token)
+
 
 # Windows FILETIME epoch (100ns ticks since 1601-01-01 UTC) ↔ Unix epoch offset.
 _FILETIME_UNIX_EPOCH = 116444736000000000
@@ -127,15 +167,22 @@ def _guest_transport(
     admin_password: str,
     *,
     on_fallback: Callable[[str], None] | None = None,
+    identity_file: str | None = None,
+    ssh_port: int | None = None,
+    winrm_port: int | None = None,
 ):
-    """Resolve SSH-primary / WinRM-fallback guest remoting (#497)."""
+    """Resolve SSH-primary / WinRM-fallback guest remoting (#497 / #524)."""
     from lib import guest_transport as gt
 
+    defaults = _guest_transport_defaults.get()
     return gt.resolve_guest_transport(
         ip,
         admin_username,
         admin_password,
         on_fallback=on_fallback,
+        identity_file=identity_file if identity_file is not None else defaults.identity_file,
+        ssh_port=ssh_port if ssh_port is not None else defaults.ssh_port,
+        winrm_port=winrm_port if winrm_port is not None else defaults.winrm_port,
     )
 
 
@@ -221,11 +268,12 @@ def run_script(
     params = parameters or {}
 
     transport = _guest_transport(ip, admin_username, admin_password)
+    defaults = _guest_transport_defaults.get()
     if transport.kind == "ssh":
-        endpoint = f"ssh://{admin_username}@{ip}:22"
+        endpoint = f"ssh://{admin_username}@{ip}:{defaults.ssh_port}"
         transport_label = "ssh"
     else:
-        endpoint = f"http://{ip}:5985/wsman"
+        endpoint = f"http://{ip}:{defaults.winrm_port}/wsman"
         transport_label = _TRANSPORT
 
     header = (

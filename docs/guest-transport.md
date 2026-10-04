@@ -15,9 +15,13 @@ Resolve path: [`lib/guest_transport.py`](../lib/guest_transport.py) (`resolve_gu
 
 ## Auth
 
-**Today (until remoting-identity impl):** hatch admin username/password (session row). Password SSH uses Controller `sshpass` when present, otherwise a short-lived `SSH_ASKPASS` helper.
+Controller remoting identities ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#524](https://github.com/dustinestes/Hatchery/issues/524)): Clutch `remoting.ssh.authorize` lists identity ids (default `hatchery`). After first-boot ready:
 
-**Target ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#519](https://github.com/dustinestes/Hatchery/issues/519)):** Controller remoting identities (Hatchery-managed + operator path refs). Clutch `remoting.ssh.authorize` lists identity ids; after pubkeys are installed and key SSH is verified, guest SSH password auth is disabled. WinRM may still use hatch password until [#156](https://github.com/dustinestes/Hatchery/issues/156). Do **not** silently reuse a Nest binding as guest authorize.
+1. Inject authorized pubkeys (user `.ssh/authorized_keys` and Windows `administrators_authorized_keys`)
+2. Verify key SSH via `guest_transport` (BatchMode + identity path; first authorize id is the Controller client key)
+3. Disable guest SSH `PasswordAuthentication`
+
+Empty `authorize` is invalid. Nest `remoting_identity_id` is **never** auto-copied into guest authorize. WinRM may still use hatch password until [#156](https://github.com/dustinestes/Hatchery/issues/156). Password SSH (sshpass / `SSH_ASKPASS`) remains only for the pre-authorize window and WinRM fallback.
 
 ### Public key distribution
 

@@ -89,8 +89,10 @@ class TestHatcheryManaged:
         assert ident.pubkey
         priv = isolated_config / "remoting" / "hatchery_ed25519"
         assert priv.is_file()
-        mode = priv.stat().st_mode
-        assert not (mode & (stat.S_IRGRP | stat.S_IROTH))
+        # Unix mode bits are not meaningful on Windows Controllers.
+        if os.name == "posix":
+            mode = priv.stat().st_mode
+            assert not (mode & (stat.S_IRGRP | stat.S_IROTH))
         listed = ri.list_identities()
         assert any(i.id == "hatchery" for i in listed)
         again = ri.ensure_hatchery_identity()
@@ -106,6 +108,8 @@ class TestHatcheryManaged:
         ri.ensure_hatchery_identity()
         path = ri.identity_private_path("hatchery")
         assert path.is_file()
+        pub = ri.identity_pubkey("hatchery")
+        assert pub.startswith("ssh-")
         with pytest.raises(ri.RemotingIdentityError, match="unknown"):
             ri.resolve("missing")
 

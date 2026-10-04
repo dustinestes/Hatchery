@@ -4,8 +4,10 @@ SSH is primary; WinRM is the Windows fallback (ADR-0029 / #497). Nest transport
 (`lib.nest_transport`) is a parallel plane - different target, credentials, and
 identity. Shared OpenSSH **client** helpers live in ``lib.openssh_client``.
 
-Until guest key identity (#519), SSH auth uses the hatch admin password via
-sshpass or SSH_ASKPASS on the Controller.
+Guest SSH keys come from Clutch ``remoting.ssh.authorize`` (#524 / ADR-0030):
+inject pubkeys, verify BatchMode + identity path, then disable password SSH.
+Until authorize completes (or when WinRM fallback is used), hatch may still use
+the admin password via sshpass or SSH_ASKPASS on the Controller.
 """
 
 from __future__ import annotations
