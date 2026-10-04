@@ -140,6 +140,20 @@ def identity_private_path(identity_id: str) -> Path:
     return resolve(identity_id).resolved_path()
 
 
+def identity_pubkey(identity_id: str) -> str:
+    """Return the OpenSSH public key line for a catalog identity."""
+    ident = resolve(identity_id)
+    if ident.pubkey and ident.pubkey.strip():
+        return ident.pubkey.strip()
+    pub = _read_pubkey_file(ident.resolved_path())
+    if not pub:
+        raise RemotingIdentityError(
+            f"remoting identity {ident.id!r} has no public key "
+            f"(expected {ident.resolved_path()}.pub)"
+        )
+    return pub
+
+
 def _upsert(
     *,
     identity_id: str,

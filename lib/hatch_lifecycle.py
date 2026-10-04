@@ -152,6 +152,8 @@ def _reboot_guest_after_automation(
     admin_password: str,
     *,
     script_name: str,
+    identity_file: str | None = None,
+    ssh_port: int = 22,
 ) -> None:
     """Restart the guest and wait until LastBootUpTime changes (#499)."""
 
@@ -165,7 +167,11 @@ def _reboot_guest_after_automation(
             script_name=script_name,
         )
 
-    provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
+    with provision_lib.guest_transport_defaults(
+        identity_file=identity_file,
+        ssh_port=ssh_port,
+    ):
+        provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
 
 
 def _clutch_vm_for_session(session_id: str, vm_name: str):
@@ -197,12 +203,105 @@ def _clutch_vm_for_session(session_id: str, vm_name: str):
     return None
 
 
+def _guest_ssh_client_defaults(clutch_vm) -> tuple[str | None, int]:
+    """Resolve Controller SSH identity path + port from Clutch remoting.ssh."""
+    from lib import guest_authorize as ga
+    from lib import remoting_identities as ri
+
+    if clutch_vm is None:
+        return None, 22
+    ids = ga.authorize_ids_for_vm(clutch_vm)
+    port = ga.ssh_port_for_vm(clutch_vm)
+    if not ids:
+        return None, port
+    try:
+        return str(ri.identity_private_path(ids[0])), port
+    except ri.RemotingIdentityError:
+        return None, port
+
+
+def _apply_guest_ssh_authorize(
+    session_id: str,
+    vm_name: str,
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    password_transport,
+) -> tuple[str | None, int]:
+    """Inject authorize pubkeys, verify key SSH, disable password auth (#524).
+
+    Returns ``(identity_file, ssh_port)`` for subsequent Guest transport. On hard
+    failure, marks the VM failed and returns ``(None, port)``.
+    """
+    from lib import guest_authorize as ga
+    from lib import remoting_identities as ri
+
+    clutch_vm = _clutch_vm_for_session(session_id, vm_name)
+    if clutch_vm is None:
+        authorize_ids = [ri.HATCHERY_IDENTITY_ID]
+        ssh_port = 22
+    else:
+        authorize_ids = ga.authorize_ids_for_vm(clutch_vm)
+        ssh_port = ga.ssh_port_for_vm(clutch_vm)
+
+    hatch_lib.add_event(
+        session_id,
+        vm_name,
+        "hatchery",
+        "INFO",
+        f"Authorizing guest SSH keys: {', '.join(authorize_ids)} (port {ssh_port})",
+    )
+    try:
+        result = ga.apply_guest_ssh_authorize(
+            ip,
+            admin_username,
+            admin_password,
+            authorize_ids=authorize_ids,
+            ssh_port=ssh_port,
+            password_transport=password_transport,
+        )
+    except ga.GuestAuthorizeError as exc:
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            "ERROR",
+            f"Guest SSH authorize failed: {exc}",
+        )
+        hatch_lib.set_vm_status(session_id, vm_name, "failed", error=str(exc))
+        return None, ssh_port
+
+    if result.skipped:
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            "WARN",
+            result.skip_reason or "Guest SSH authorize skipped",
+        )
+        return result.identity_file, result.ssh_port
+
+    hatch_lib.add_event(
+        session_id,
+        vm_name,
+        "hatchery",
+        "INFO",
+        f"Guest SSH authorize complete (client identity {result.client_identity_id}; "
+        f"password auth {'disabled' if result.password_auth_disabled else 'still enabled'})",
+    )
+    return result.identity_file, result.ssh_port
+
+
 def _provision_vm_thread(
     session_id: str,
     vm_name: str,
     ip: str,
     admin_username: str,
     admin_password: str,
+    *,
+    identity_file: str | None = None,
+    ssh_port: int = 22,
 ) -> None:
     """Run pending automations (script|software) sequentially, updating DB per step."""
     from lib import guest_env as guest_env_lib
@@ -210,219 +309,229 @@ def _provision_vm_thread(
     from lib.clutch import GuestOS
 
     try:
-        scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
-        data_dir = config.data_dir()
-        vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
-        guest_os = vm_record.get("guest_os") or GuestOS.WINDOWS.value
-        clutch_vm = _clutch_vm_for_session(session_id, vm_name)
-        user_entries = list(clutch_vm.environment) if clutch_vm else []
-        user_env = clutch_vm.environment_as_process_map() if clutch_vm else {}
-        script_env = guest_env_lib.merge_guest_environment(
-            guest_env_lib.reserved_environment(guest_os),
-            user_env,
-        )
-
-        # Persist reserved base + user persist entries once before automations (#501).
-        # Hatch jobs also get process inject per step; persist is for the guest after that.
-        os_key = guest_os.value if hasattr(guest_os, "value") else str(guest_os)
-        if os_key in ("windows", "win10", "win11", "server2022", "server2025"):
-            plan = guest_env_lib.persist_plan_summary(guest_os, user_entries)
-            hatch_lib.add_event(
-                session_id,
-                vm_name,
-                "hatchery",
-                "INFO",
-                "Persisting guest environment before automations "
-                "(Machine/User store; jobs also get process inject)",
+        with provision_lib.guest_transport_defaults(
+            identity_file=identity_file,
+            ssh_port=ssh_port,
+        ):
+            scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
+            data_dir = config.data_dir()
+            vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
+            guest_os = vm_record.get("guest_os") or GuestOS.WINDOWS.value
+            clutch_vm = _clutch_vm_for_session(session_id, vm_name)
+            user_entries = list(clutch_vm.environment) if clutch_vm else []
+            user_env = clutch_vm.environment_as_process_map() if clutch_vm else {}
+            script_env = guest_env_lib.merge_guest_environment(
+                guest_env_lib.reserved_environment(guest_os),
+                user_env,
             )
-            for line in plan:
+
+            # Persist reserved base + user persist entries once before automations (#501).
+            # Hatch jobs also get process inject per step; persist is for the guest after that.
+            os_key = guest_os.value if hasattr(guest_os, "value") else str(guest_os)
+            if os_key in ("windows", "win10", "win11", "server2022", "server2025"):
+                plan = guest_env_lib.persist_plan_summary(guest_os, user_entries)
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
                     "INFO",
-                    f"Persist: {line}",
+                    "Persisting guest environment before automations "
+                    "(Machine/User store; jobs also get process inject)",
                 )
-            persist_code, persist_out = guest_env_lib.persist_guest_environment(
-                ip,
-                admin_username,
-                admin_password,
-                guest_os=guest_os,
-                entries=user_entries,
-            )
-            if persist_code != 0:
-                detail = (persist_out or "").strip()
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "hatchery",
-                    "ERROR",
-                    f"Failed to persist guest environment (exit {persist_code})"
-                    + (f": {detail}" if detail else ""),
-                )
-                hatch_lib.set_vm_status(
-                    session_id,
-                    vm_name,
-                    "failed",
-                    error=f"persist env failed: {persist_out or persist_code}",
-                )
-                return
-            hatch_lib.add_event(
-                session_id,
-                vm_name,
-                "hatchery",
-                "INFO",
-                f"Guest environment persisted ({len(plan)} variable(s)); starting automations",
-            )
-
-        for script in scripts:
-            if script["status"] == "succeeded":
-                continue
-
-            sname = script["script_name"]
-            entry_type = script.get("entry_type") or "script"
-            kind_label = "software" if entry_type == "software" else "script"
-            hatch_lib.add_event(
-                session_id,
-                vm_name,
-                "hatchery",
-                "INFO",
-                f"Starting {kind_label}: {sname}",
-                script_name=sname,
-            )
-            hatch_lib.set_script_status(session_id, vm_name, script["run_order"], "running")
-
-            try:
-                if entry_type == "software":
-
-                    def _on_sw_event(level: str, message: str, _name: str = sname) -> None:
-                        hatch_lib.add_event(
-                            session_id,
-                            vm_name,
-                            "software",
-                            level if level in ("INFO", "WARN", "ERROR") else "INFO",
-                            message,
-                            script_name=_name,
-                        )
-
-                    exit_code, output, _install_reboot = software_provision_lib.run_software_entry(
-                        ip,
-                        admin_username,
-                        admin_password,
-                        package_id=sname,
-                        guest_os=guest_os,
-                        clean_payload_on_success=bool(script.get("clean_payload_on_success", True)),
-                        on_event=_on_sw_event,
-                        user_environment=user_env,
-                    )
-                else:
-                    script_path = data_dir / "automation" / "scripts" / sname
-                    exit_code, output = provision_lib.run_script(
-                        ip,
-                        admin_username,
-                        admin_password,
-                        script_path,
-                        parameters=script.get("parameters") or {},
-                        environment=script_env,
-                    )
-            except Exception as exc:
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "hatchery",
-                    "ERROR",
-                    f"{kind_label.capitalize()} failed: {exc}",
-                    script_name=sname,
-                )
-                hatch_lib.set_script_status(
-                    session_id,
-                    vm_name,
-                    script["run_order"],
-                    "failed",
-                    exit_code=-1,
-                    output=str(exc),
-                )
-                _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
-                hatch_lib.set_vm_status(session_id, vm_name, "failed")
-                return
-
-            if entry_type != "software":
-                for event in hatch_lib.parse_hatch_event_lines(output):
+                for line in plan:
                     hatch_lib.add_event(
                         session_id,
                         vm_name,
-                        "script",
-                        event["level"],
-                        event["message"],
-                        script_name=sname,
-                        component=event["component"],
-                        received_at=event["received_at"],
+                        "hatchery",
+                        "INFO",
+                        f"Persist: {line}",
                     )
-
-            if entry_type == "script" and exit_code != 0:
+                persist_code, persist_out = guest_env_lib.persist_guest_environment(
+                    ip,
+                    admin_username,
+                    admin_password,
+                    guest_os=guest_os,
+                    entries=user_entries,
+                )
+                if persist_code != 0:
+                    detail = (persist_out or "").strip()
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "ERROR",
+                        f"Failed to persist guest environment (exit {persist_code})"
+                        + (f": {detail}" if detail else ""),
+                    )
+                    hatch_lib.set_vm_status(
+                        session_id,
+                        vm_name,
+                        "failed",
+                        error=f"persist env failed: {persist_out or persist_code}",
+                    )
+                    return
                 hatch_lib.add_event(
                     session_id,
                     vm_name,
                     "hatchery",
-                    "ERROR",
-                    f"Script failed: {sname} - Exit Code: {exit_code}",
+                    "INFO",
+                    f"Guest environment persisted ({len(plan)} variable(s)); starting automations",
+                )
+
+            for script in scripts:
+                if script["status"] == "succeeded":
+                    continue
+
+                sname = script["script_name"]
+                entry_type = script.get("entry_type") or "script"
+                kind_label = "software" if entry_type == "software" else "script"
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    f"Starting {kind_label}: {sname}",
+                    script_name=sname,
+                )
+                hatch_lib.set_script_status(session_id, vm_name, script["run_order"], "running")
+
+                try:
+                    if entry_type == "software":
+
+                        def _on_sw_event(level: str, message: str, _name: str = sname) -> None:
+                            hatch_lib.add_event(
+                                session_id,
+                                vm_name,
+                                "software",
+                                level if level in ("INFO", "WARN", "ERROR") else "INFO",
+                                message,
+                                script_name=_name,
+                            )
+
+                        exit_code, output, _install_reboot = (
+                            software_provision_lib.run_software_entry(
+                                ip,
+                                admin_username,
+                                admin_password,
+                                package_id=sname,
+                                guest_os=guest_os,
+                                clean_payload_on_success=bool(
+                                    script.get("clean_payload_on_success", True)
+                                ),
+                                on_event=_on_sw_event,
+                                user_environment=user_env,
+                            )
+                        )
+                    else:
+                        script_path = data_dir / "automation" / "scripts" / sname
+                        exit_code, output = provision_lib.run_script(
+                            ip,
+                            admin_username,
+                            admin_password,
+                            script_path,
+                            parameters=script.get("parameters") or {},
+                            environment=script_env,
+                        )
+                except Exception as exc:
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "ERROR",
+                        f"{kind_label.capitalize()} failed: {exc}",
+                        script_name=sname,
+                    )
+                    hatch_lib.set_script_status(
+                        session_id,
+                        vm_name,
+                        script["run_order"],
+                        "failed",
+                        exit_code=-1,
+                        output=str(exc),
+                    )
+                    _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
+                    hatch_lib.set_vm_status(session_id, vm_name, "failed")
+                    return
+
+                if entry_type != "software":
+                    for event in hatch_lib.parse_hatch_event_lines(output):
+                        hatch_lib.add_event(
+                            session_id,
+                            vm_name,
+                            "script",
+                            event["level"],
+                            event["message"],
+                            script_name=sname,
+                            component=event["component"],
+                            received_at=event["received_at"],
+                        )
+
+                if entry_type == "script" and exit_code != 0:
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "ERROR",
+                        f"Script failed: {sname} - Exit Code: {exit_code}",
+                        script_name=sname,
+                    )
+                    hatch_lib.set_script_status(
+                        session_id,
+                        vm_name,
+                        script["run_order"],
+                        "failed",
+                        exit_code=exit_code,
+                        output=output,
+                    )
+                    _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
+                    hatch_lib.set_vm_status(session_id, vm_name, "failed")
+                    return
+
+                hatch_lib.add_event(
+                    session_id,
+                    vm_name,
+                    "hatchery",
+                    "INFO",
+                    f"{kind_label.capitalize()} complete: {sname} - Exit Code: {exit_code}",
                     script_name=sname,
                 )
                 hatch_lib.set_script_status(
                     session_id,
                     vm_name,
                     script["run_order"],
-                    "failed",
+                    "succeeded",
                     exit_code=exit_code,
                     output=output,
                 )
-                _mark_remaining_skipped(session_id, vm_name, scripts, script["run_order"])
-                hatch_lib.set_vm_status(session_id, vm_name, "failed")
-                return
+
+                if script["reboot_after"]:
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "INFO",
+                        f"Rebooting VM after {kind_label}: {sname}",
+                        script_name=sname,
+                    )
+                    _reboot_guest_after_automation(
+                        session_id,
+                        vm_name,
+                        ip,
+                        admin_username,
+                        admin_password,
+                        script_name=sname,
+                        identity_file=identity_file,
+                        ssh_port=ssh_port,
+                    )
 
             hatch_lib.add_event(
                 session_id,
                 vm_name,
                 "hatchery",
                 "INFO",
-                f"{kind_label.capitalize()} complete: {sname} - Exit Code: {exit_code}",
-                script_name=sname,
+                "All automations succeeded - VM is fledged",
             )
-            hatch_lib.set_script_status(
-                session_id,
-                vm_name,
-                script["run_order"],
-                "succeeded",
-                exit_code=exit_code,
-                output=output,
-            )
-
-            if script["reboot_after"]:
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "hatchery",
-                    "INFO",
-                    f"Rebooting VM after {kind_label}: {sname}",
-                    script_name=sname,
-                )
-                _reboot_guest_after_automation(
-                    session_id,
-                    vm_name,
-                    ip,
-                    admin_username,
-                    admin_password,
-                    script_name=sname,
-                )
-
-        hatch_lib.add_event(
-            session_id,
-            vm_name,
-            "hatchery",
-            "INFO",
-            "All automations succeeded - VM is fledged",
-        )
-        hatch_lib.set_vm_status(session_id, vm_name, "fledged")
+            hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
     finally:
         with _provisioning_lock:
@@ -430,7 +539,14 @@ def _provision_vm_thread(
 
 
 def spawn_provision_thread(
-    session_id: str, vm_name: str, ip: str, admin_username: str, admin_password: str
+    session_id: str,
+    vm_name: str,
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    *,
+    identity_file: str | None = None,
+    ssh_port: int = 22,
 ) -> None:
     with _provisioning_lock:
         if (session_id, vm_name) in _provisioning:
@@ -438,7 +554,15 @@ def spawn_provision_thread(
         _provisioning.add((session_id, vm_name))
     t = threading.Thread(
         target=_provision_vm_thread,
-        args=(session_id, vm_name, ip, admin_username, admin_password),
+        kwargs={
+            "session_id": session_id,
+            "vm_name": vm_name,
+            "ip": ip,
+            "admin_username": admin_username,
+            "admin_password": admin_password,
+            "identity_file": identity_file,
+            "ssh_port": ssh_port,
+        },
         daemon=True,
     )
     t.start()
@@ -543,6 +667,7 @@ def sync_hatch_status(
                 hatch_lib.add_event(session_id, vm_name, "hatchery", "WARN", message)
 
             remoting_kind = "winrm"
+            transport = None
             try:
                 transport = provision_lib._guest_transport(
                     ip,
@@ -578,6 +703,20 @@ def sync_hatch_status(
             except Exception:
                 pass
 
+            # Guest SSH authorize: inject → verify key → disable password (#524).
+            identity_file, ssh_port = _apply_guest_ssh_authorize(
+                session_id,
+                vm_name,
+                ip,
+                admin_username,
+                admin_password,
+                password_transport=transport,
+            )
+            # Authorize hard-failure marks the VM failed; do not start provisioning.
+            post_auth = hatch_lib.get_vm_record(session_id, vm_name) or {}
+            if post_auth.get("status") == "failed":
+                continue
+
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             if scripts:
                 n = len(scripts)
@@ -596,6 +735,8 @@ def sync_hatch_status(
                     ip,
                     admin_username,
                     admin_password,
+                    identity_file=identity_file,
+                    ssh_port=ssh_port,
                 )
             else:
                 hatch_lib.add_event(
@@ -617,12 +758,16 @@ def sync_hatch_status(
                 if ip and provision_lib.guest_remoting_ready(ip):
                     db_record = hatch_lib.get_vm_record(session_id, vm_name)
                     hatch_lib.reset_scripts_for_retry(session_id, vm_name)
+                    clutch_vm = _clutch_vm_for_session(session_id, vm_name)
+                    identity_file, ssh_port = _guest_ssh_client_defaults(clutch_vm)
                     spawn_provision_thread(
                         session_id,
                         vm_name,
                         ip,
                         (db_record or {}).get("admin_username") or "",
                         (db_record or {}).get("admin_password") or "",
+                        identity_file=identity_file,
+                        ssh_port=ssh_port,
                     )
 
 
@@ -794,12 +939,16 @@ def retry_failed_vm(session_id: str, vm_name: str) -> dict:
         ip = None
 
     if ip and provision_lib.guest_remoting_ready(ip):
+        clutch_vm = _clutch_vm_for_session(session_id, vm_name)
+        identity_file, ssh_port = _guest_ssh_client_defaults(clutch_vm)
         spawn_provision_thread(
             session_id,
             vm_name,
             ip,
             db_record.get("admin_username") or "",
             db_record.get("admin_password") or "",
+            identity_file=identity_file,
+            ssh_port=ssh_port,
         )
         return {"queued": True, "message": None}
 

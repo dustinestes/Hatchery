@@ -239,7 +239,7 @@ Controller SSH identity catalog shared by Nest and Guest planes ([ADR-0030](../a
 | `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 | `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
 
-Clutch YAML (guest authorize; not a DB table): `remoting.ssh.authorize: [<identity_id>, …]` plus optional port - binding lands in [#524](https://github.com/dustinestes/Hatchery/issues/524). Nest `remoting_identity_id` lands in [#523](https://github.com/dustinestes/Hatchery/issues/523).
+Clutch YAML (guest authorize; not a DB table): `remoting.ssh.authorize: [<identity_id>, …]` plus optional port ([#524](https://github.com/dustinestes/Hatchery/issues/524)). Nest rows bind via `remoting_identity_id` ([#523](https://github.com/dustinestes/Hatchery/issues/523)).
 
 #### Managed by
 

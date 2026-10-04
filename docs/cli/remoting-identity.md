@@ -12,7 +12,7 @@ Code: [`lib/cli/remoting_identity.py`](../../lib/cli/remoting_identity.py). Lib:
 
 ## Purpose
 
-Manage the Controller **remoting identities** catalog (Hatchery-managed + operator path keys). Nest and Guest transport bind to these ids explicitly; this command does not bind Nests or authorize guests ([#523](https://github.com/dustinestes/Hatchery/issues/523) / [#524](https://github.com/dustinestes/Hatchery/issues/524)).
+Manage the Controller **remoting identities** catalog (Hatchery-managed + operator path keys). Nest rows bind via `remoting_identity_id` ([#523](https://github.com/dustinestes/Hatchery/issues/523)); guests authorize via Clutch `remoting.ssh.authorize` ([#524](https://github.com/dustinestes/Hatchery/issues/524)). This command manages the catalog only - it does not write Nest or Clutch bindings.
 
 Private key **bytes** are never stored in SQLite - only path references.
 
