@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS nests (
     identity_file         TEXT,
     cert_path             TEXT,
     identity_expires_at   TEXT,
+    remoting_identity_id  TEXT,
     known_hosts           TEXT,
     winrm_user            TEXT,
     credential_ref        TEXT,
@@ -217,6 +218,10 @@ def init_db(db_path: Path) -> None:
         conn.commit()
     finally:
         conn.close()
+    # After commit: Nest identity paths → remoting catalog + remoting_identity_id (#523).
+    from lib import nests as nests_lib
+
+    nests_lib.migrate_legacy_identity_bindings()
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
@@ -235,6 +240,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_hatch_vm_status_guest_os(conn)
     _migrate_hatch_sessions_clutch_snapshot(conn)
     _migrate_remoting_identities(conn)
+    _migrate_nest_remoting_identity_id(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -1039,6 +1045,18 @@ def _migrate_nests_columns(conn: sqlite3.Connection) -> None:
               )
             """
         )
+
+
+def _migrate_nest_remoting_identity_id(conn: sqlite3.Connection) -> None:
+    """Add nests.remoting_identity_id for explicit catalog binding (ADR-0030 / #523)."""
+    nest_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='nests'"
+    ).fetchone()
+    if not nest_table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(nests)").fetchall()}
+    if "remoting_identity_id" not in cols:
+        conn.execute("ALTER TABLE nests ADD COLUMN remoting_identity_id TEXT")
 
 
 def is_initialized() -> bool:

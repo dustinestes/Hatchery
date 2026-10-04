@@ -13,11 +13,12 @@ import lib.nests as nests_lib
 
 @pytest.fixture(autouse=True)
 def isolate_db(tmp_path, monkeypatch):
-    db_module.init_db(tmp_path / "hatchery.db")
+    data = tmp_path / "data"
+    data.mkdir()
+    monkeypatch.setattr(config, "data_dir", lambda: data)
+    db_module.init_db(data / "hatchery.db")
     monkeypatch.setattr(config, "nest_ssh_identities", lambda: [])
-    monkeypatch.setattr(
-        config, "get", lambda: {"nest_ssh_identities": [], "data_dir": str(tmp_path)}
-    )
+    monkeypatch.setattr(config, "get", lambda: {"nest_ssh_identities": [], "data_dir": str(data)})
     monkeypatch.setattr(config, "save", lambda _c: None)
     yield
     db_module._db_path = None
@@ -486,3 +487,95 @@ class TestConnectionConfig:
         )
         assert nest["location"] == "remote"
         assert nest["host"] == "ignored.example"
+
+
+class TestRemotingIdentityBinding:
+    def test_resolve_prefers_catalog(self, tmp_path):
+        import os
+        import shutil
+        import stat
+        import subprocess
+
+        import lib.remoting_identities as ri
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+        key = tmp_path / "bound_key"
+        subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
+        ri.add_path_identity(identity_id="bound", identity_file=str(key))
+        nest = nests_lib.normalize_nest(
+            {
+                "id": "r1",
+                "name": "Remote",
+                "provider_type": "libvirt",
+                "location": "remote",
+                "transport": "ssh",
+                "host": "h.example",
+                "remoting_identity_id": "bound",
+                "identity_file": "/ignored/legacy",
+            }
+        )
+        assert nest["remoting_identity_id"] == "bound"
+        assert nest["identity_file"] is None
+        assert nests_lib.resolve_identity_file(nest) == str(key.resolve())
+
+    def test_unknown_remoting_identity_rejected(self):
+        with pytest.raises(ValueError, match="remoting_identity_id"):
+            nests_lib.normalize_nest(
+                {
+                    "id": "r1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "h.example",
+                    "remoting_identity_id": "missing",
+                }
+            )
+
+    def test_migrate_legacy_identity_bindings(self, tmp_path):
+        import os
+        import shutil
+        import stat
+        import subprocess
+
+        import lib.remoting_identities as ri
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+        key = tmp_path / "legacy_nest"
+        subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
+        nests_lib.replace_nests(
+            [
+                {
+                    "id": "lab",
+                    "name": "Lab",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "lab.example",
+                    "identity_file": str(key),
+                }
+            ]
+        )
+        # Force legacy shape (replace_nests with only identity_file).
+        assert nests_lib.get_nest("lab")["identity_file"] == str(key)
+        n = nests_lib.migrate_legacy_identity_bindings()
+        assert n == 1
+        nest = nests_lib.get_nest("lab")
+        assert nest["remoting_identity_id"]
+        assert nest["identity_file"] is None
+        assert ri.get_identity(nest["remoting_identity_id"]) is not None
+        assert nests_lib.resolve_identity_file(nest) == str(key.resolve())

@@ -142,22 +142,16 @@
                      placeholder="Remote login name (or leave blank for ssh defaults)">
             </div>
             <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
-              <label class="form-label">Identity file</label>
-              <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
-                     value="{{ nest.identity_file or '' }}"
-                     placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
-            </div>
-            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
-              <label class="form-label">Certificate path</label>
-              <input type="text" name="nest_cert_path" class="form-input nest-cert-path-input"
-                     value="{{ nest.cert_path or '' }}"
-                     placeholder="OpenSSH cert (or identity_file-cert.pub)">
-            </div>
-            <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
-              <label class="form-label">Identity expiry</label>
-              <input type="date" name="nest_identity_expires_at" class="form-input nest-identity-expires-input"
-                     value="{{ (nest.identity_expires_at or '')[:10] }}">
-              <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+              <label class="form-label">Remoting Identity</label>
+              <select name="nest_remoting_identity_id" class="form-select nest-remoting-identity-input">
+                <option value="">None</option>
+                {% for ident in remoting_identity_options %}
+                <option value="{{ ident.id }}"
+                        {% if nest.remoting_identity_id == ident.id %}selected{% endif %}>
+                  {{ ident.name }} ({{ ident.id }})
+                </option>
+                {% endfor %}
+              </select>
             </div>
             <div class="form-group nest-ssh-only" {% if nest.location != 'remote' or nest.transport == 'winrm' %}hidden{% endif %}>
               <label class="form-label">Known hosts</label>
@@ -1405,20 +1399,13 @@
                  value="" placeholder="Remote login name (or leave blank for ssh defaults)">
         </div>
         <div class="form-group nest-ssh-only">
-          <label class="form-label">Identity file</label>
-          <input type="text" name="nest_identity_file" class="form-input nest-identity-file-input"
-                 value="" placeholder="~/.ssh/id_ed25519 - Hatchery host path (never key bytes)">
-        </div>
-        <div class="form-group nest-ssh-only">
-          <label class="form-label">Certificate path</label>
-          <input type="text" name="nest_cert_path" class="form-input nest-cert-path-input"
-                 value="" placeholder="OpenSSH cert (or identity_file-cert.pub)">
-        </div>
-        <div class="form-group nest-ssh-only">
-          <label class="form-label">Identity expiry</label>
-          <input type="date" name="nest_identity_expires_at" class="form-input nest-identity-expires-input"
-                 value="">
-          <p class="form-help-text">Plain keys have no in-file expiry readable by Hatchery alerting.</p>
+          <label class="form-label">Remoting Identity</label>
+          <select name="nest_remoting_identity_id" class="form-select nest-remoting-identity-input">
+            <option value="" selected>None</option>
+            {% for ident in remoting_identity_options %}
+            <option value="{{ ident.id }}">{{ ident.name }} ({{ ident.id }})</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="form-group nest-ssh-only">
           <label class="form-label">Known hosts</label>
@@ -1601,9 +1588,7 @@
       host: (row.querySelector('.nest-host-input') || {}).value || '',
       port: (row.querySelector('.nest-port-input') || {}).value || '',
       ssh_user: (row.querySelector('.nest-ssh-user-input') || {}).value || '',
-      identity_file: (row.querySelector('.nest-identity-file-input') || {}).value || '',
-      cert_path: (row.querySelector('.nest-cert-path-input') || {}).value || '',
-      identity_expires_at: (row.querySelector('.nest-identity-expires-input') || {}).value || '',
+      remoting_identity_id: (row.querySelector('.nest-remoting-identity-input') || {}).value || '',
       known_hosts: (row.querySelector('.nest-known-hosts-input') || {}).value || 'default',
       winrm_user: (row.querySelector('.nest-winrm-user-input') || {}).value || '',
       credential_ref: (row.querySelector('.nest-credential-ref-input') || {}).value || '',

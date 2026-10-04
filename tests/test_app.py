@@ -878,8 +878,26 @@ class TestNestSettings:
         assert 'name="nest_id"' in html
         assert "Test Nest connection" in html
 
-    def test_nests_post_adds_remote(self, client):
+    def test_nests_post_adds_remote(self, client, tmp_path):
+        import os
+        import shutil
+        import stat
+        import subprocess
+
         import lib.nests as nests_lib
+        import lib.remoting_identities as ri
+
+        if shutil.which("ssh-keygen") is None:
+            pytest.skip("ssh-keygen required")
+        key = tmp_path / "nest_key"
+        subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
+        ri.add_path_identity(identity_id="lab-key", identity_file=str(key), name="Lab")
 
         resp = client.post(
             "/settings/nests",
@@ -892,9 +910,7 @@ class TestNestSettings:
                 "nest_host": ["", "nest.example"],
                 "nest_port": ["", "22"],
                 "nest_ssh_user": ["", "ops"],
-                "nest_identity_file": ["", "~/.ssh/id"],
-                "nest_cert_path": ["", ""],
-                "nest_identity_expires_at": ["", "2026-12-01"],
+                "nest_remoting_identity_id": ["", "lab-key"],
                 "nest_known_hosts": ["default", "default"],
                 "nest_winrm_user": ["", ""],
                 "nest_credential_ref": ["", ""],
@@ -902,9 +918,11 @@ class TestNestSettings:
         )
         assert resp.status_code == 302
         assert "/settings/nests" in resp.headers["Location"]
-        assert nests_lib.get_nest("lab1")["host"] == "nest.example"
-        assert nests_lib.get_nest("lab1")["identity_file"] == "~/.ssh/id"
-        assert nests_lib.get_nest("lab1")["identity_expires_at"].startswith("2026-12-01")
+        nest = nests_lib.get_nest("lab1")
+        assert nest["host"] == "nest.example"
+        assert nest["remoting_identity_id"] == "lab-key"
+        assert nest["identity_file"] is None
+        assert "nest_remoting_identity_id" in client.get("/settings/nests").data.decode()
 
     def test_api_test_local_nest(self, client):
         with patch("lib.requirements.check_nest", return_value=[]):

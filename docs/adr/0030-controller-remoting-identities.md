@@ -79,7 +79,7 @@ Generalize Nest key expiry ([`nest_key_expiry`](../../lib/validators/builtins.py
 | `identity_expires_at` | Optional operator policy date |
 | `created_at` / `updated_at` | ISO timestamps |
 
-**Nest row:** add `remoting_identity_id`; migrate existing `identity_file` / `cert_path` / `identity_expires_at` into catalog rows where practical; prefer identity id going forward.
+**Nest row:** `remoting_identity_id` binds the catalog ([#523](https://github.com/dustinestes/Hatchery/issues/523)); existing `identity_file` / `cert_path` / `identity_expires_at` migrate into catalog rows where practical; prefer identity id going forward.
 
 **Clutch VM (YAML sketch):**
 

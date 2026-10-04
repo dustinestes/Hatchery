@@ -206,10 +206,10 @@ Registered Nest connections (where VMs live). Fresh databases start with an **em
 | `host` | `TEXT` | | Remote hostname or IP |
 | `port` | `INTEGER` | | SSH/WinRM port |
 | `ssh_user` | `TEXT` | | Optional SSH username |
-| `identity_file` | `TEXT` | | Path to OpenSSH private key **on the Hatchery host** (never key bytes). Migrates toward [remoting_identities](#remoting_identities-planned) ([ADR-0030](../adr/0030-controller-remoting-identities.md)) |
-| `cert_path` | `TEXT` | | Optional OpenSSH certificate path for Valid-before expiry (moves onto identity record) |
-| `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601); plain keys have no in-file expiry (moves onto identity record) |
-| `remoting_identity_id` | `TEXT` | | **Planned** FK-style id into `remoting_identities` (explicit Nest binding; no round-robin) |
+| `identity_file` | `TEXT` | | Legacy path to OpenSSH private key (migration fallback). Prefer [remoting_identities](#remoting_identities) via `remoting_identity_id` ([ADR-0030](../adr/0030-controller-remoting-identities.md) / [#523](https://github.com/dustinestes/Hatchery/issues/523)) |
+| `cert_path` | `TEXT` | | Legacy certificate path (cleared when bound to a remoting identity) |
+| `identity_expires_at` | `TEXT` | | Legacy operator policy expiry (cleared when bound to a remoting identity) |
+| `remoting_identity_id` | `TEXT` | | Explicit id into `remoting_identities` (dropdown binding; no round-robin) |
 | `known_hosts` | `TEXT` | | `default`, `accept-new`, or `skip` |
 | `winrm_user` | `TEXT` | | WinRM username when transport is `winrm` |
 | `credential_ref` | `TEXT` | | Placeholder for secrets store (#110) - not a password |

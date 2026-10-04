@@ -3,9 +3,11 @@
 Registry lives in SQLite (``nests`` table). Provider selection for inventory /
 lifecycle is #206; this module owns CRUD, validation, and Test Nest connection.
 
-SSH identity fields (path, optional cert path, optional expiry) live on each Nest
-row — not in Security Settings. Private key bytes are never stored (path refs only;
-WinRM passwords are session/test-only until #110).
+Remote Nest SSH keys bind via ``remoting_identity_id`` into the Controller
+remoting identities catalog (ADR-0030 / #523). Legacy ``identity_file`` /
+``cert_path`` / ``identity_expires_at`` columns remain for migration fallback.
+Private key bytes are never stored (path refs only; WinRM passwords are
+session/test-only until #110).
 """
 
 from __future__ import annotations
@@ -48,6 +50,9 @@ def _row_to_dict(row) -> dict:
     identity_file = row["identity_file"] if "identity_file" in row.keys() else None
     if not identity_file and "identity_ref" in row.keys():
         identity_file = row["identity_ref"]
+    remoting_identity_id = None
+    if "remoting_identity_id" in row.keys():
+        remoting_identity_id = row["remoting_identity_id"]
     return {
         "id": row["id"],
         "name": row["name"],
@@ -62,6 +67,7 @@ def _row_to_dict(row) -> dict:
         "identity_expires_at": row["identity_expires_at"]
         if "identity_expires_at" in row.keys()
         else None,
+        "remoting_identity_id": remoting_identity_id,
         "known_hosts": row["known_hosts"] or "default",
         "winrm_user": row["winrm_user"],
         "credential_ref": row["credential_ref"],
@@ -136,8 +142,11 @@ def ensure_local_nest() -> dict:
             INSERT INTO nests (
                 id, name, provider_type, location, transport,
                 host, port, ssh_user, identity_file, cert_path, identity_expires_at,
-                known_hosts, winrm_user, credential_ref, extra_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
+                remoting_identity_id, known_hosts, winrm_user, credential_ref,
+                extra_json, created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?
+            )
             """,
             (LOCAL_NEST_ID, "Local", "libvirt", "local", now, now),
         )
@@ -249,6 +258,7 @@ def _normalize_one(item: dict) -> dict:
     host = _optional_str(item.get("host"))
     port = _optional_int(item.get("port"), label="port")
     ssh_user = _optional_str(item.get("ssh_user"))
+    remoting_identity_id = _optional_str(item.get("remoting_identity_id"))
     # identity_ref accepted as alias for older forms / drafts.
     identity_file = _optional_str(item.get("identity_file") or item.get("identity_ref"))
     cert_path = _optional_str(item.get("cert_path"))
@@ -265,6 +275,7 @@ def _normalize_one(item: dict) -> dict:
         host = None
         port = None
         ssh_user = None
+        remoting_identity_id = None
         identity_file = None
         cert_path = None
         identity_expires_at = None
@@ -283,13 +294,26 @@ def _normalize_one(item: dict) -> dict:
                 port = 22
             winrm_user = None
             credential_ref = None
+            if remoting_identity_id:
+                from lib import remoting_identities as ri
+
+                if ri.get_identity(remoting_identity_id) is None:
+                    raise ValueError(
+                        f"Nest '{name}' remoting_identity_id "
+                        f"{remoting_identity_id!r} is not in the remoting identity catalog"
+                    )
+                # Catalog owns path/cert/expiry; do not duplicate on the Nest row.
+                identity_file = None
+                cert_path = None
+                identity_expires_at = None
         else:
             if port is None:
                 port = 5985
             if not winrm_user:
                 raise ValueError(f"Nest '{name}' requires a WinRM username when transport is winrm")
-            # Password is never persisted here — credential_ref is a placeholder for #110.
+            # Password is never persisted here - credential_ref is a placeholder for #110.
             ssh_user = None
+            remoting_identity_id = None
             identity_file = None
             cert_path = None
             identity_expires_at = None
@@ -306,6 +330,7 @@ def _normalize_one(item: dict) -> dict:
         "identity_file": identity_file,
         "cert_path": cert_path,
         "identity_expires_at": identity_expires_at,
+        "remoting_identity_id": remoting_identity_id,
         "known_hosts": known_hosts,
         "winrm_user": winrm_user,
         "credential_ref": credential_ref,
@@ -374,8 +399,9 @@ def replace_nests(raw: list | None) -> list[dict]:
                 INSERT INTO nests (
                     id, name, provider_type, location, transport,
                     host, port, ssh_user, identity_file, cert_path, identity_expires_at,
-                    known_hosts, winrm_user, credential_ref, extra_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    remoting_identity_id, known_hosts, winrm_user, credential_ref,
+                    extra_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     nest["id"],
@@ -389,6 +415,7 @@ def replace_nests(raw: list | None) -> list[dict]:
                     nest["identity_file"],
                     nest["cert_path"],
                     nest["identity_expires_at"],
+                    nest.get("remoting_identity_id"),
                     nest["known_hosts"] if nest["location"] == "remote" else None,
                     nest["winrm_user"],
                     nest["credential_ref"],
@@ -410,7 +437,19 @@ def replace_nests(raw: list | None) -> list[dict]:
 
 
 def resolve_identity_file(nest: dict) -> str | None:
-    """Return the Nest's OpenSSH identity path (tilde expanded for transport)."""
+    """Return the Nest's OpenSSH private key path for transport.
+
+    Prefers ``remoting_identity_id`` (catalog resolve). Falls back to legacy
+    Nest-row ``identity_file`` until migration clears those columns.
+    """
+    rid = (nest.get("remoting_identity_id") or "").strip()
+    if rid:
+        from lib import remoting_identities as ri
+
+        try:
+            return str(ri.identity_private_path(rid))
+        except ri.RemotingIdentityError:
+            return None
     path = nest.get("identity_file")
     if not path:
         return None
@@ -535,12 +574,18 @@ def test_connection(
 
 
 def identities_for_expiry() -> list[nest_key_expiry_lib.NestSshIdentity]:
-    """Build expiry-check identities from Nest rows (SSH path / cert / expiry)."""
+    """Build expiry-check identities from Nest rows still on legacy path fields.
+
+    Nests bound via ``remoting_identity_id`` are covered by the remoting catalog
+    expiry feed (``remoting_identities.identities_for_expiry``).
+    """
     out: list[nest_key_expiry_lib.NestSshIdentity] = []
     for nest in list_nests():
         if nest.get("location") != "remote":
             continue
         if (nest.get("transport") or "ssh") != "ssh":
+            continue
+        if (nest.get("remoting_identity_id") or "").strip():
             continue
         path = nest.get("identity_file")
         cert = nest.get("cert_path")
@@ -565,6 +610,79 @@ def identities_for_expiry() -> list[nest_key_expiry_lib.NestSshIdentity]:
             )
         )
     return out
+
+
+def migrate_legacy_identity_bindings() -> int:
+    """Move Nest-row identity path/cert/expiry into remoting_identities (#523).
+
+    For each remote SSH Nest that still has ``identity_file`` and no
+    ``remoting_identity_id``, register (or reuse) a path catalog row and bind
+    ``remoting_identity_id``. Clears duplicated Nest identity columns after bind.
+    Returns the number of Nests updated.
+    """
+    if not db_module.is_initialized():
+        return 0
+    from lib import remoting_identities as ri
+
+    nests = list_nests()
+    updated = 0
+    out: list[dict] = []
+    for nest in nests:
+        row = dict(nest)
+        if (
+            row.get("location") == "remote"
+            and (row.get("transport") or "ssh") == "ssh"
+            and not (row.get("remoting_identity_id") or "").strip()
+            and (row.get("identity_file") or "").strip()
+        ):
+            path_raw = str(row["identity_file"]).strip()
+            try:
+                resolved = ri.resolve_identity_path(path_raw)
+            except ri.RemotingIdentityError:
+                out.append(row)
+                continue
+            if not resolved.is_file():
+                # Keep legacy columns; operator can fix path or bind later.
+                out.append(row)
+                continue
+            existing_id = None
+            for ident in ri.list_identities():
+                try:
+                    if ident.resolved_path() == resolved:
+                        existing_id = ident.id
+                        break
+                except ri.RemotingIdentityError:
+                    continue
+            if existing_id:
+                rid = existing_id
+            else:
+                candidate = f"nest-{row['id']}"
+                if not _ID_RE.match(candidate):
+                    candidate = f"nest-{new_id()}"
+                # Avoid colliding with hatchery or an unrelated id.
+                if ri.get_identity(candidate) is not None:
+                    candidate = f"nest-{new_id()}"
+                try:
+                    created = ri.add_path_identity(
+                        identity_id=candidate,
+                        identity_file=str(resolved),
+                        name=f"{row.get('name') or row['id']} Nest key",
+                        cert_path=row.get("cert_path"),
+                        identity_expires_at=row.get("identity_expires_at"),
+                    )
+                    rid = created.id
+                except ri.RemotingIdentityError:
+                    out.append(row)
+                    continue
+            row["remoting_identity_id"] = rid
+            row["identity_file"] = None
+            row["cert_path"] = None
+            row["identity_expires_at"] = None
+            updated += 1
+        out.append(row)
+    if updated:
+        replace_nests(out)
+    return updated
 
 
 def migrate_legacy_ssh_identities() -> bool:
