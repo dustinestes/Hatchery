@@ -20,6 +20,7 @@ How Hatchery talks to a Nest (hypervisor host) over the network - the control pl
 - [Remote Nest Patterns](#remote-nest-patterns)
 - [Windows Nest: OpenSSH Server](#windows-nest-openssh-server)
 - [Local Nests](#local-nests)
+- [Operator how-to](#operator-how-to)
 
 ---
 
@@ -115,7 +116,9 @@ The Settings button always refreshes UI status surfaces after the request so bel
 
 ## Windows Nest: OpenSSH Server
 
-For SSH to a Windows Hyper-V Nest, install and enable **OpenSSH Server** on that machine, allow the Hatchery host’s public key in the Nest user’s `authorized_keys`, and open TCP 22 (or your chosen port) as appropriate for the lab network.
+For SSH to a Windows Hyper-V Nest, install and enable **OpenSSH Server** on that machine, allow the Controller remoting identity **public** key in Nest `authorized_keys` / `administrators_authorized_keys`, and open TCP 22 (or your chosen port).
+
+Prefer Hatchery Library scripts: [`authorize-hatchery-nest-ssh-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/authorize-hatchery-nest-ssh-windows.ps1) and [`enable-hyperv-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-hyperv-windows.ps1). Step-by-step: [Nest SSH](nest-ssh.md) and [Getting Started - Add a Remote Nest](getting-started.md#add-a-remote-nest).
 
 If OpenSSH cannot be enabled, set the Nest transport to **WinRM** and open the WinRM listener (typically TCP 5985).
 
@@ -124,6 +127,16 @@ If OpenSSH cannot be enabled, set the Nest transport to **WinRM** and open the W
 ## Local Nests
 
 `NestConnectionConfig(location="local")` needs no transport - providers talk to the hypervisor on the same machine as Hatchery.
+
+<br>
+
+## Operator how-to
+
+| Doc | Covers |
+|---|---|
+| [Nest SSH](nest-ssh.md) | Trust model, remoting identities, authorize, troubleshooting |
+| [Getting Started - Add a Remote Nest](getting-started.md#add-a-remote-nest) | Paste-ready Nest-prep + register |
+| [Nest key expiry](nest-key-expiry.md) | Optional identity expiry / alert tiers |
 
 <br>
 

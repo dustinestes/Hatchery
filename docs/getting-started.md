@@ -23,11 +23,13 @@ How to set up your Ubuntu host and hatch your first VM.
   - [Running as a Service](#running-as-a-service)
   - [Uninstalling the Service](#uninstalling-the-service)
 - [Hatching Your First VM](#hatching-your-first-vm)
+- [Add a Remote Nest](#add-a-remote-nest)
 - [VirtIO Drivers](#virtio-drivers)
 - [Windows 11 and Server 2025](#windows-11-and-server-2025)
 - [Appendix: Alternative Media Access Configurations](#appendix-alternative-media-access-configurations)
   - [Open world-execute on the path chain](#open-world-execute-on-the-path-chain)
   - [Move the data directory outside `/home`](#move-the-data-directory-outside-home)
+- [Appendix: Lab Hyper-V Nest (nested virtualization)](#appendix-lab-hyper-v-nest-nested-virtualization)
 
 ---
 
@@ -203,6 +205,66 @@ Admin Username / Password are **hatch-scoped through fledged**: Hatchery uses th
 
 <br>
 
+## Add a Remote Nest
+
+Use this when the hypervisor host is **not** the same machine as the Controller (for example a Windows Hyper-V Nest). Trust model and troubleshooting: [Nest SSH](nest-ssh.md). Transport details: [Nest transport](nest-transport.md).
+
+### 1. Copy the Controller public key
+
+Settings → **Security** → expand the Hatchery remoting identity → copy the **public** key line.
+
+Or from the CLI:
+
+```bash
+uv run hatchery remoting-identity generate   # if you have not created it yet
+uv run hatchery remoting-identity show hatchery
+# JSON: uv run hatchery --json remoting-identity show hatchery
+```
+
+### 2. Prepare the Nest host
+
+On a Windows Hyper-V Nest, pull or download the Hatchery Library Nest-prep scripts, then run elevated PowerShell:
+
+```powershell
+# Paste the pubkey from step 1
+$pub = "ssh-ed25519 AAAA... hatchery"
+
+# From your pull/cache or a checkout of Hatchery-Library:
+.\authorize-hatchery-nest-ssh-windows.ps1 -PublicKey $pub
+.\enable-hyperv-windows.ps1
+# Restart if enable-hyperv warns that a reboot is needed
+```
+
+From a file your MDM or internal process pushed:
+
+```powershell
+.\authorize-hatchery-nest-ssh-windows.ps1 -PublicKeyPath C:\ProgramData\hatchery\hatchery.pub
+.\enable-hyperv-windows.ps1
+```
+
+Scripts:
+
+- [`authorize-hatchery-nest-ssh-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/authorize-hatchery-nest-ssh-windows.ps1)
+- [`enable-hyperv-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-hyperv-windows.ps1)
+
+You can skip the scripts if your own automation installs OpenSSH Server, appends the same pubkey, enables Hyper-V, and opens TCP 22.
+
+### 3. Register the Nest in Hatchery
+
+1. **Nests → Connections** → add Nest
+2. Location **remote**; host / SSH user / port
+3. Bind the same **Remoting identity** you copied in step 1
+4. Provider type **hyperv** (for a Hyper-V Nest)
+5. **Test Nest connection**
+
+When the test is green, the Controller can reach the Nest over Nest transport. Hyper-V VM lifecycle on that Nest lands with provider work ([#213](https://github.com/dustinestes/Hatchery/issues/213)).
+
+To simulate a Hyper-V Nest on a Linux lab host, see [Appendix: Lab Hyper-V Nest](#appendix-lab-hyper-v-nest-nested-virtualization).
+
+---
+
+<br>
+
 ## VirtIO Drivers
 
 For better disk and network performance, pass a VirtIO driver ISO alongside the Windows ISO. Download the latest stable ISO from the [Fedora VirtIO project](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/) and add it via **Import** on **Media → VirtIO**, or copy it into your media directory.
@@ -259,6 +321,63 @@ sudo chown $USER:$USER /srv/hatchery
 ```
 
 Point Hatchery's data directory at this path via **Settings**. Directories outside `/home` are typically mode `755`, so `libvirt-qemu` can access them without any permission changes. This is the natural fit for NAS or shared-storage setups.
+
+---
+
+<br>
+
+## Appendix: Lab Hyper-V Nest (nested virtualization)
+
+Use this when you want a **Remote Hyper-V Nest** for validation without a second physical Windows box: a Windows guest on your local libvirt Nest, with nested virtualization, prepared with the same Nest-prep scripts as production ([#548](https://github.com/dustinestes/Hatchery/issues/548)).
+
+This is a lab path. It is not required for day-to-day Controller use, and it is not a CI gate.
+
+### Prerequisites
+
+- Linux Controller with a working **local libvirt** Nest (this Getting Started path)
+- CPU nested virtualization enabled on the host (Intel VT-x / AMD-V; nested KVM)
+- Windows Server or Windows Pro/Enterprise ISO that supports the Hyper-V role
+- Enough RAM/disk for the Nest VM **and** guests you may hatch inside it later
+
+### 1. Create a nested Windows guest on libvirt
+
+Example `virt-install` shape (adjust ISO paths, names, and sizes). Nested virt requires the CPU mode that exposes host virtualization to the guest:
+
+```bash
+# Confirm nested virt is available on the KVM host
+cat /sys/module/kvm_intel/parameters/nested   # Intel: Y/1
+# or: cat /sys/module/kvm_amd/parameters/nested
+
+virt-install \
+  --name hatchery-hyperv-nest \
+  --memory 16384 \
+  --vcpus 8 \
+  --cpu host-passthrough \
+  --disk size=120,format=qcow2,bus=virtio \
+  --cdrom /path/to/windows-server.iso \
+  --network network=default,model=virtio \
+  --graphics spice \
+  --boot uefi \
+  --os-variant win2k22
+```
+
+Complete Windows setup (or hatch this guest via Hatchery on the local Nest if you prefer). Give the Nest VM a stable IP or DNS name the Controller can reach.
+
+After install, shut down and ensure the domain CPU exposes virtualization (host-passthrough or equivalent). Then start the Nest VM again.
+
+### 2. Nest-prep (same as production)
+
+On the Windows Nest VM, run the Library scripts from [Add a Remote Nest](#add-a-remote-nest) (authorize Hatchery pubkey + enable Hyper-V). Reboot if Hyper-V enable requests it.
+
+### 3. Register as a Remote Nest
+
+In Hatchery on the Linux Controller:
+
+1. **Nests → Connections** → remote Nest → host = Nest VM IP
+2. Bind remoting identity → provider **hyperv**
+3. **Test Nest connection**
+
+Success: Nest SSH probe is green. Hyper-V list/power/hatch against this Nest follow provider work ([#213](https://github.com/dustinestes/Hatchery/issues/213)). Real-host matrix tracking: [#267](https://github.com/dustinestes/Hatchery/issues/267).
 
 <br>
 
