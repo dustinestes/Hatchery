@@ -187,6 +187,38 @@
             </span>
           </button>
           <div class="library-conn-row-actions-icons">
+            {# Copy tray: Path | Public key (#550). Hidden until Hatchery key is generated. #}
+            {% set remoting_copy_path = (remoting_hatchery.resolved_path or remoting_hatchery.identity_file or '') if remoting_hatchery else '' %}
+            {% set remoting_copy_pubkey = (remoting_hatchery.pubkey or '') if remoting_hatchery else '' %}
+            <div class="import-dropdown scripts-copy-dropdown remoting-hatchery-copy-dropdown"
+                 id="remoting-hatchery-copy-dropdown"
+                 {% if not hatchery_ready %}hidden{% endif %}
+                 data-copy-path="{{ remoting_copy_path|e }}"
+                 data-copy-pubkey="{{ remoting_copy_pubkey|e }}">
+              <button type="button"
+                      class="btn-icon"
+                      id="remoting-hatchery-copy-menu-btn"
+                      aria-haspopup="true"
+                      aria-expanded="false"
+                      aria-controls="remoting-hatchery-copy-menu"
+                      title="Copy"
+                      aria-label="Copy Hatchery remoting identity Path or Public key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+              <div class="dropdown-menu import-dropdown-menu" id="remoting-hatchery-copy-menu"
+                   hidden role="menu" aria-label="Copy options">
+                <button type="button" class="dropdown-item" role="menuitem"
+                        id="remoting-hatchery-copy-path-item"
+                        {% if not remoting_copy_path %}disabled{% endif %}>Path</button>
+                <button type="button" class="dropdown-item" role="menuitem"
+                        id="remoting-hatchery-copy-pubkey-item"
+                        {% if not remoting_copy_pubkey %}disabled{% endif %}>Public key</button>
+              </div>
+            </div>
             <span class="btn-icon-wrap"
                   {% if hatchery_ready %}title="Hatchery-managed key already exists. Use Rotate to replace it."{% endif %}>
               <button type="button" class="btn-icon remoting-generate-btn"
@@ -1036,6 +1068,80 @@
       closeConfirm();
     }
   });
+
+  // Hatchery-managed remoting identity Copy tray (#550): Path | Public key
+  (function () {
+    const copyDropdown = document.getElementById('remoting-hatchery-copy-dropdown');
+    const copyMenuBtn = document.getElementById('remoting-hatchery-copy-menu-btn');
+    const copyMenu = document.getElementById('remoting-hatchery-copy-menu');
+    const copyPathItem = document.getElementById('remoting-hatchery-copy-path-item');
+    const copyPubkeyItem = document.getElementById('remoting-hatchery-copy-pubkey-item');
+    if (!copyDropdown || !copyMenuBtn || !copyMenu) return;
+
+    function closeRemotingCopyMenu() {
+      copyMenu.hidden = true;
+      copyMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+    function openRemotingCopyMenu() {
+      copyMenu.hidden = false;
+      copyMenuBtn.setAttribute('aria-expanded', 'true');
+    }
+    function notifyRemotingCopy(ok, kind) {
+      const noun = kind === 'pubkey' ? 'Public key' : 'Path';
+      const msg = ok ? (noun + ' copied') : ('Could not copy ' + noun.toLowerCase());
+      setStatus(msg);
+      if (window.hatchery && hatchery.showToast) {
+        hatchery.showToast(msg, ok ? 'info' : 'warning', 2200);
+      }
+    }
+    function copyRemotingText(text, kind) {
+      if (!text) {
+        notifyRemotingCopy(false, kind);
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          notifyRemotingCopy(true, kind);
+        }).catch(function () {
+          notifyRemotingCopy(false, kind);
+        });
+      } else {
+        notifyRemotingCopy(false, kind);
+      }
+    }
+
+    copyMenuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (copyDropdown.hidden) return;
+      if (copyMenu.hidden) openRemotingCopyMenu();
+      else closeRemotingCopyMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (copyMenu.hidden) return;
+      if (copyDropdown.contains(e.target)) return;
+      closeRemotingCopyMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !copyMenu.hidden) {
+        closeRemotingCopyMenu();
+        copyMenuBtn.focus();
+      }
+    });
+    if (copyPathItem) {
+      copyPathItem.addEventListener('click', function () {
+        if (copyPathItem.disabled) return;
+        closeRemotingCopyMenu();
+        copyRemotingText(copyDropdown.getAttribute('data-copy-path') || '', 'path');
+      });
+    }
+    if (copyPubkeyItem) {
+      copyPubkeyItem.addEventListener('click', function () {
+        if (copyPubkeyItem.disabled) return;
+        closeRemotingCopyMenu();
+        copyRemotingText(copyDropdown.getAttribute('data-copy-pubkey') || '', 'pubkey');
+      });
+    }
+  })();
 
   if (remotingRows) {
     remotingRows.addEventListener('click', function (e) {

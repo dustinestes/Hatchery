@@ -134,7 +134,7 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 Hatchery talks to remote Nests as an **SSH client**. Private keys stay on the Controller (remoting identities catalog); Nests trust the matching **public** key.
 
-1. Settings → **Security** → copy the Hatchery remoting identity **public** key (or `hatchery remoting-identity show hatchery`)
+1. Settings → **Security** → Hatchery remoting identity → **Copy** → **Public key** (or `hatchery remoting-identity show hatchery`)
 2. On the Nest: authorize that pubkey and enable the Nest hypervisor (Windows Hyper-V Library scripts: [`authorize-hatchery-nest-ssh-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/authorize-hatchery-nest-ssh-windows.ps1) + [`enable-hyperv-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-hyperv-windows.ps1))
 3. **Nests → Connections** → add a remote Nest → bind the same remoting identity → **Test Nest connection**
 
