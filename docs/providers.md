@@ -53,7 +53,7 @@ Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.m
 
 | Feature | libvirt local | libvirt remote | UTM local | UTM remote | Hyper-V local | Hyper-V remote |
 |---|---|---|---|---|---|---|
-| Hatch (`create_vm`) | Works | Planned | Planned | Planned | Planned | Planned |
+| Hatch (`create_vm`) | Works | Planned | Planned | Planned | Works (local Nest) | Planned (#215) |
 | Destroy (`destroy_vm`) | Works | Planned | Planned | Planned | Works | Works |
 | List / status | Works | Planned | Planned | Planned | Works | Works |
 | Start / Stop / Force stop | Works | Planned | Planned | Planned | Works | Works |
@@ -87,12 +87,12 @@ Guest health check is available via operator CLI `hatchery vm health` and the VM
 
 | Feature | libvirt local | libvirt remote | UTM local | UTM remote | Hyper-V local | Hyper-V remote |
 |---|---|---|---|---|---|---|
-| Answer File attach (`supports_answer_file_attach`) | Works (floppy) | Planned | Planned / N/A | Planned / N/A | Planned (often DVD/ISO) | Planned |
+| Answer File attach (`supports_answer_file_attach`) | Works (floppy) | Planned | Planned / N/A | Planned / N/A | Works (DVD/ISO) | Planned (#215) |
 | Guest WinRM provision | Works | Planned | Planned | Planned | Planned | Planned |
-| Media layout (`media/iso`, VirtIO) | Works | Partial | Planned | Planned | Planned | Planned |
-| Hatch media to remote Nest | N/A | Planned | N/A | Planned | N/A | Planned |
+| Media layout (`media/iso`, VirtIO) | Works | Partial | Planned | Planned | Works (ISO; VirtIO Planned) | Planned |
+| Hatch media to remote Nest | N/A | Planned | N/A | Planned | N/A | Planned (#215) |
 
-Answer File **bytes** are Nest-agnostic; **attach** is provider-specific via Nest id → factory (`BaseProvider.supports_answer_file_attach` / `prepare_answer_file_media`). Libvirt local packs a FAT floppy with Autounattend + companions. Hyper-V Gen2 often needs a second DVD/ISO rather than floppy; UTM depends on guest. Hatch fails early when a Clutch needs Answer File attach and the Nest cannot. See [Answer Files - Nest attach](answer-files.md#nest-attach).
+Answer File **bytes** are Nest-agnostic; **attach** is provider-specific via Nest id → factory (`BaseProvider.supports_answer_file_attach` / `prepare_answer_file_media`). Libvirt local packs a FAT floppy with Autounattend + companions. Hyper-V local packs a second DVD/ISO (``pycdlib``) for Gen2/Gen1 attach; Remote Hyper-V hatch waits on Nest-cache ensure/copy (#215). UTM depends on guest. Hatch fails early when a Clutch needs Answer File attach and the Nest cannot. See [Answer Files - Nest attach](answer-files.md#nest-attach).
 
 Media for local libvirt uses the Hatchery data directory on the Nest (operator cache = Nest cache). Remote hatch must use Nest-local cache (or Nest-mounted share) after ensure/sync - not operator paths over WAN. See [Library and Nest cache](library.md) and [#215](https://github.com/dustinestes/Hatchery/issues/215) / [#234](https://github.com/dustinestes/Hatchery/issues/234). Guest provision stays in `lib/provision.py` regardless of Nest type.
 
@@ -111,7 +111,7 @@ How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport
 | Nest connection registry | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Nests → Connections / [ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)) |
 | Provider factory by Nest id | Works ([#206](https://github.com/dustinestes/Hatchery/issues/206); `lib/providers/factory.py`) |
 
-`get_provider(nest_id)` returns `LibvirtProvider` for a local libvirt Nest, or `HyperVProvider` for Hyper-V (local PowerShell or remote Nest transport SSH/WinRM). Remote libvirt and UTM still raise `UnsupportedProviderError` (API inventory returns 501; Hatch Clutch surfaces the error) until those adapters land. Hyper-V hatch / Answer File attach remain Planned.
+`get_provider(nest_id)` returns `LibvirtProvider` for a local libvirt Nest, or `HyperVProvider` for Hyper-V (local PowerShell or remote Nest transport SSH/WinRM). Local Hyper-V hatch and Answer File DVD/ISO attach work; Remote Hyper-V hatch waits on Nest-cache ensure/copy (#215). Remote libvirt and UTM still raise `UnsupportedProviderError` until those adapters land.
 
 <br>
 

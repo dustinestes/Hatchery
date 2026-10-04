@@ -213,8 +213,15 @@ class TestIdentity:
             provider.set_poweroff_action("vm1", "suspend")
 
 
-class TestDeferred:
-    def test_create_vm_raises(self, provider):
+class TestHatch:
+    def test_supports_answer_file_attach(self):
+        assert HyperVProvider.supports_answer_file_attach is True
+
+    def test_remote_create_vm_blocked(self):
+        from lib.nest_transport import NestSshConfig, SshNestTransport
+
+        ssh = SshNestTransport(NestSshConfig(host="n.example", user="u"))
+        p = HyperVProvider("hv1", transport=ssh)
         vm = VMConfig(
             name="new",
             os="windows",
@@ -222,9 +229,99 @@ class TestDeferred:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
+            answer_file="win11.xml",
+            firmware="uefi",
+            tpm=True,
         )
-        with pytest.raises(RuntimeError, match="create_vm"):
-            provider.create_vm(vm)
+        with pytest.raises(RuntimeError, match="#215"):
+            p.create_vm(vm)
+
+    def test_create_vm_local_script(self, tmp_path, scripts):
+        iso_dir = tmp_path / "media" / "iso"
+        auto_dir = tmp_path / "automation" / "answerfiles"
+        iso_dir.mkdir(parents=True)
+        auto_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"iso")
+        (auto_dir / "win11.xml").write_text(
+            "<unattend>{{ vm_name }}{{ admin_username }}{{ admin_password }}</unattend>",
+            encoding="utf-8",
+        )
+
+        def runner(script: str) -> str:
+            scripts.append(script)
+            return _json_line({"ok": True})
+
+        p = HyperVProvider(
+            "hv1",
+            runner=runner,
+            iso_dir=iso_dir,
+            automation_dir=auto_dir,
+        )
+        vm = VMConfig(
+            name="labvm",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml",
+            firmware="uefi",
+            tpm=True,
+        )
+        p.create_vm(vm, admin_password="Secret1!")
+        joined = "\n".join(scripts)
+        assert "New-VM -Name 'labvm'" in joined
+        assert "New-VHD" in joined
+        assert "Generation 2" in joined
+        assert "Enable-VMTPM" in joined
+        assert "Add-VMDvdDrive" in joined
+        assert "win11.iso" in joined
+        assert "autounattend.iso" in joined
+        assert "Start-VM -Name 'labvm'" in joined
+        assert p._answer_iso_path("labvm").exists()
+
+    def test_prepare_answer_iso(self, tmp_path):
+        auto_dir = tmp_path / "automation"
+        auto_dir.mkdir()
+        (auto_dir / "win11.xml").write_text(
+            "<unattend>{{ vm_name }}</unattend>",
+            encoding="utf-8",
+        )
+        p = HyperVProvider(
+            "hv1", automation_dir=auto_dir, runner=lambda s: _json_line({"ok": True})
+        )
+        vm = VMConfig(
+            name="iso-vm",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            answer_file="win11.xml",
+        )
+        path = p.prepare_answer_file_media(vm, admin_password="x")
+        assert path is not None
+        assert path.suffix == ".iso"
+        assert path.exists()
+        path.unlink()
+
+    def test_virtio_rejected(self, tmp_path, scripts):
+        iso_dir = tmp_path / "iso"
+        iso_dir.mkdir()
+        (iso_dir / "win11.iso").write_bytes(b"iso")
+        p = HyperVProvider("hv1", runner=lambda s: _json_line({"ok": True}), iso_dir=iso_dir)
+        vm = VMConfig(
+            name="v",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            virtio_drivers="virtio.iso",
+            answer_file="a.xml",
+        )
+        with pytest.raises(ValueError, match="VirtIO"):
+            p.create_vm(vm)
 
     def test_send_key_raises(self, provider):
         with pytest.raises(RuntimeError, match="send_key"):
@@ -235,6 +332,21 @@ class TestDeferred:
         assert len(specs) == 1
         assert specs[0].name == "Get-VM"
         assert specs[0].check == "hyperv_get_vm"
+
+    def test_create_command_description(self, tmp_path):
+        p = HyperVProvider("hv1", iso_dir=tmp_path)
+        vm = VMConfig(
+            name="desc",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            firmware="uefi",
+        )
+        desc = p.create_command_description(vm)
+        assert "Hyper-V New-VM 'desc'" in desc
+        assert "Gen2" in desc
 
 
 class TestTransportPaths:
