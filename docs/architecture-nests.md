@@ -77,7 +77,7 @@ The Nest registry may be empty (Controller-only). Local Nest id `local` is optio
   Remote)    Remote)    Remote)
 ```
 
-**Nest transport** (SSH default, WinRM fallback) talks to the Nest *machine*. **Guest transport** (SSH primary, WinRM Windows fallback) talks to the guest VM - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md).
+**Nest transport** (SSH default, WinRM fallback) talks to the Nest *machine*. **Guest transport** (SSH primary, WinRM Windows fallback) talks to the guest VM - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md). Shared remoting **identities** (path references; Hatchery-managed + operator) are locked in [ADR-0030](adr/0030-controller-remoting-identities.md): private keys stay on the Controller; public keys must be installed on Remote Nest hosts and on guests that use SSH. A Controller-only install with Remote Nests is first-class (Controller need not sit on a Nest).
 
 <br>
 

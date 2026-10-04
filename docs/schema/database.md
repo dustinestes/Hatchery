@@ -17,6 +17,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [alerts](#alerts)
   - [app\_settings](#app_settings)
   - [nests](#nests)
+  - [remoting\_identities](#remoting_identities-planned)
   - [hatch\_sessions](#hatch_sessions)
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
@@ -205,9 +206,10 @@ Registered Nest connections (where VMs live). Fresh databases start with an **em
 | `host` | `TEXT` | | Remote hostname or IP |
 | `port` | `INTEGER` | | SSH/WinRM port |
 | `ssh_user` | `TEXT` | | Optional SSH username |
-| `identity_file` | `TEXT` | | Path to OpenSSH private key **on the Hatchery host** (never key bytes) |
-| `cert_path` | `TEXT` | | Optional OpenSSH certificate path for Valid-before expiry |
-| `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601); plain keys have no in-file expiry |
+| `identity_file` | `TEXT` | | Path to OpenSSH private key **on the Hatchery host** (never key bytes). Migrates toward [remoting_identities](#remoting_identities-planned) ([ADR-0030](../adr/0030-controller-remoting-identities.md)) |
+| `cert_path` | `TEXT` | | Optional OpenSSH certificate path for Valid-before expiry (moves onto identity record) |
+| `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601); plain keys have no in-file expiry (moves onto identity record) |
+| `remoting_identity_id` | `TEXT` | | **Planned** FK-style id into `remoting_identities` (explicit Nest binding; no round-robin) |
 | `known_hosts` | `TEXT` | | `default`, `accept-new`, or `skip` |
 | `winrm_user` | `TEXT` | | WinRM username when transport is `winrm` |
 | `credential_ref` | `TEXT` | | Placeholder for secrets store (#110) - not a password |
@@ -218,6 +220,30 @@ Registered Nest connections (where VMs live). Fresh databases start with an **em
 #### Managed by
 
 `lib/nests.py` - `list_nests()`, `get_nest()`, `replace_nests()`, `ensure_local_nest()` (opt-in `--nest-local`), `default_nest_id()`, `test_connection()`, `identities_for_expiry()`
+
+<br>
+
+### remoting_identities (planned)
+
+Controller SSH identity catalog shared by Nest and Guest planes ([ADR-0030](../adr/0030-controller-remoting-identities.md) / [#519](https://github.com/dustinestes/Hatchery/issues/519)). **Not implemented yet** - sketch for implementers. System of record is this table (not `app_settings`). Private key **bytes** are never stored.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `TEXT` | `PRIMARY KEY` | Stable identity id (e.g. `hatchery`) |
+| `name` | `TEXT` | `NOT NULL` | Display label |
+| `kind` | `TEXT` | `NOT NULL` | `hatchery` (managed under `data_dir`) or `path` (operator path) |
+| `identity_file` | `TEXT` | `NOT NULL` | Path on Controller host |
+| `pubkey` | `TEXT` | | Optional cached OpenSSH pubkey line |
+| `cert_path` | `TEXT` | | Optional certificate path |
+| `identity_expires_at` | `TEXT` | | Optional operator policy expiry (ISO 8601) |
+| `created_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+| `updated_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC |
+
+Clutch YAML (guest authorize; not a DB table): `remoting.ssh.authorize: [<identity_id>, …]` plus optional port. Default new Clutches authorize the Hatchery-managed identity after impl.
+
+#### Managed by (planned)
+
+`lib/remoting_identities.py` + product CLI sketch `hatchery remoting-identity …`
 
 <br>
 
@@ -377,7 +403,7 @@ When a real migration framework becomes necessary:
 
 ## Credential storage
 
-Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** during hatch: Automation Scripts need them to authenticate over Guest transport (SSH primary; WinRM Windows fallback) until the VM reaches **fledged**. Re-entering credentials mid-hatch would break unattended provisioning. Guest key identity is a follow-on ([#519](https://github.com/dustinestes/Hatchery/issues/519)).
+Admin credentials (`admin_username`, `admin_password`) are stored in `hatch_vm_status` for every VM hatched through Hatchery. **This is not optional** during hatch: Automation Scripts need them to authenticate over Guest transport until the VM reaches **fledged** (today password SSH/WinRM; after [ADR-0030](../adr/0030-controller-remoting-identities.md) impl, key SSH preferred and password SSH disabled post-verify; WinRM password until [#156](https://github.com/dustinestes/Hatchery/issues/156)). Re-entering credentials mid-hatch would break unattended provisioning.
 
 Product intent (ADR-0024 / [#455](https://github.com/dustinestes/Hatchery/issues/455)): credentials are **hatch-scoped through fledged**, not Hatchery’s long-term manage credential for the guest. Operator how-to: [Answer Files - Hatch-scoped through fledged](../answer-files.md#hatch-scoped-through-fledged).
 
