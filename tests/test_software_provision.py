@@ -808,9 +808,7 @@ def test_install_null_exit_succeeds_when_detect_present(tmp_path, monkeypatch):
     pkg = _software_pkg_yaml(
         tmp_path,
         install_block=(
-            "      install:\n"
-            "        command: msiexec\n"
-            "        success_exit_codes: [0]\n"
+            "      install:\n        command: msiexec\n        success_exit_codes: [0]\n"
         ),
     )
     monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
