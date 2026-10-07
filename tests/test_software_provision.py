@@ -426,6 +426,9 @@ def test_run_in_package_command_and_script(monkeypatch):
     assert "Set-Location" in seen[0]
     assert r"msiexec.exe /i .\foo.msi /qn" in seen[0]
     assert "cmd.exe" not in seen[0]
+    assert "HATCHERY_NULL_EXIT" in seen[0]
+    assert f"exit {soft_prov.NULL_EXIT_CODE}" in seen[0]
+    assert "exit 0\n" not in seen[0]
     soft_prov.run_in_package(
         "10.0.0.1",
         "a",
@@ -744,3 +747,243 @@ def test_run_software_entry_honors_success_exit_codes(tmp_path, monkeypatch):
     )
     assert code == 0
     assert detect_n["n"] == 2
+
+
+def _software_pkg_yaml(tmp_path, *, install_block: str) -> Path:
+    pkg = tmp_path / "Pkg.1.0.0"
+    pkg.mkdir()
+    (pkg / "software.yaml").write_text(
+        "hatchery:\n  publisher: P\n  product: Prod\n  version: '1.0.0'\n"
+        "platforms:\n  windows:\n    any:\n"
+        f"{install_block}"
+        "      uninstall:\n        command: echo u\n"
+        "      detect:\n        command: echo d\n",
+        encoding="utf-8",
+    )
+    return pkg
+
+
+def test_install_null_exit_fails_without_retry(tmp_path, monkeypatch):
+    pkg = _software_pkg_yaml(
+        tmp_path,
+        install_block=(
+            "      install:\n        command: msiexec\n        success_exit_codes: [0]\n"
+        ),
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+    install_calls = {"n": 0}
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "echo d" in command:
+            return 1, "absent"
+        if command == "msiexec":
+            install_calls["n"] += 1
+            return soft_prov.NULL_EXIT_CODE, "HATCHERY_NULL_EXIT"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    events: list[tuple[str, str]] = []
+    try:
+        soft_prov.run_software_entry(
+            "10.0.0.1",
+            "a",
+            "b",
+            package_id="Pkg.1.0.0",
+            guest_os="windows",
+            clean_payload_on_success=False,
+            on_event=lambda lvl, msg: events.append((lvl, msg)),
+        )
+        raise AssertionError("expected install failure")
+    except RuntimeError as exc:
+        assert "null exit" in str(exc)
+    assert install_calls["n"] == 1
+    assert any("checking detect" in msg for lvl, msg in events if lvl == "WARN")
+    assert any("still absent" in msg for lvl, msg in events if lvl == "WARN")
+
+
+def test_install_null_exit_succeeds_when_detect_present(tmp_path, monkeypatch):
+    """msiexec often omits LASTEXITCODE even after a successful install (#546)."""
+    pkg = _software_pkg_yaml(
+        tmp_path,
+        install_block=(
+            "      install:\n"
+            "        command: msiexec\n"
+            "        success_exit_codes: [0]\n"
+        ),
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+    install_n = {"n": 0}
+    detect_n = {"n": 0}
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "echo d" in command:
+            detect_n["n"] += 1
+            if detect_n["n"] == 1:
+                return 1, "absent"
+            return 0, "present"
+        if command == "msiexec":
+            install_n["n"] += 1
+            return soft_prov.NULL_EXIT_CODE, "msiexec produced no exit code"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    monkeypatch.setattr(soft_prov, "remove_guest_package", lambda *a, **k: None)
+    events: list[tuple[str, str]] = []
+    code, _, _ = soft_prov.run_software_entry(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_id="Pkg.1.0.0",
+        guest_os="windows",
+        clean_payload_on_success=False,
+        on_event=lambda lvl, msg: events.append((lvl, msg)),
+    )
+    assert code == 0
+    assert install_n["n"] == 1
+    assert any("treating install as success" in msg for _, msg in events)
+
+
+def test_install_retry_recovers_after_null_exit(tmp_path, monkeypatch):
+    pkg = _software_pkg_yaml(
+        tmp_path,
+        install_block=(
+            "      install:\n"
+            "        command: msiexec\n"
+            "        success_exit_codes: [0]\n"
+            "        retry:\n"
+            "          max_attempts: 3\n"
+            "          delay_seconds: 0\n"
+            "          on_null_exit: true\n"
+        ),
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+    install_n = {"n": 0}
+    detect_n = {"n": 0}
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "echo d" in command:
+            detect_n["n"] += 1
+            # 1=pre absent, 2=null-exit probe absent, 3+=verify present
+            if detect_n["n"] <= 2:
+                return 1, "absent"
+            return 0, "present"
+        if command == "msiexec":
+            install_n["n"] += 1
+            if install_n["n"] == 1:
+                return soft_prov.NULL_EXIT_CODE, "HATCHERY_NULL_EXIT"
+            return 0, "ok"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    monkeypatch.setattr(soft_prov, "remove_guest_package", lambda *a, **k: None)
+    events: list[tuple[str, str]] = []
+    code, _, _ = soft_prov.run_software_entry(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_id="Pkg.1.0.0",
+        guest_os="windows",
+        clean_payload_on_success=False,
+        on_event=lambda lvl, msg: events.append((lvl, msg)),
+    )
+    assert code == 0
+    assert install_n["n"] == 2
+    assert any(
+        lvl == "WARN" and "null exit" in msg and "retrying in 0s" in msg for lvl, msg in events
+    )
+
+
+def test_install_retry_exhausted(tmp_path, monkeypatch):
+    pkg = _software_pkg_yaml(
+        tmp_path,
+        install_block=(
+            "      install:\n"
+            "        command: msiexec\n"
+            "        retry: {max_attempts: 2, delay_seconds: 0}\n"
+        ),
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+    install_n = {"n": 0}
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "echo d" in command:
+            return 1, "absent"
+        if command == "msiexec":
+            install_n["n"] += 1
+            return 1603, "fatal"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    events: list[tuple[str, str]] = []
+    try:
+        soft_prov.run_software_entry(
+            "10.0.0.1",
+            "a",
+            "b",
+            package_id="Pkg.1.0.0",
+            guest_os="windows",
+            clean_payload_on_success=False,
+            on_event=lambda lvl, msg: events.append((lvl, msg)),
+        )
+        raise AssertionError("expected failure")
+    except RuntimeError as exc:
+        assert "after 2 attempt" in str(exc)
+        assert "exit 1603" in str(exc)
+    assert install_n["n"] == 2
+    assert any("exit 1603" in msg and "retrying" in msg for lvl, msg in events if lvl == "WARN")
+
+
+def test_install_on_null_exit_false_no_retry(tmp_path, monkeypatch):
+    pkg = _software_pkg_yaml(
+        tmp_path,
+        install_block=(
+            "      install:\n"
+            "        command: msiexec\n"
+            "        retry:\n"
+            "          max_attempts: 3\n"
+            "          delay_seconds: 0\n"
+            "          on_null_exit: false\n"
+        ),
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+    monkeypatch.setattr(soft_prov, "stage_payload", lambda *a, **k: [])
+    install_n = {"n": 0}
+    slept: list[int] = []
+
+    def fake_run(*args, command=None, **kwargs):
+        if command and "echo d" in command:
+            return 1, "absent"
+        if command == "msiexec":
+            install_n["n"] += 1
+            return soft_prov.NULL_EXIT_CODE, "HATCHERY_NULL_EXIT"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    monkeypatch.setattr(soft_prov.time, "sleep", lambda s: slept.append(s))
+    events: list[tuple[str, str]] = []
+    try:
+        soft_prov.run_software_entry(
+            "10.0.0.1",
+            "a",
+            "b",
+            package_id="Pkg.1.0.0",
+            guest_os="windows",
+            clean_payload_on_success=False,
+            on_event=lambda lvl, msg: events.append((lvl, msg)),
+        )
+        raise AssertionError("expected failure")
+    except RuntimeError as exc:
+        assert "null exit" in str(exc)
+    assert install_n["n"] == 1
+    assert slept == []
+    assert any("checking detect" in msg for lvl, msg in events if lvl == "WARN")
+    assert not any("retrying" in msg for lvl, msg in events if lvl == "WARN")

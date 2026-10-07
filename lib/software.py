@@ -43,12 +43,37 @@ class HookStep(BaseModel):
         return self
 
 
+class CommandRetry(BaseModel):
+    """Optional in-walk retry policy for install/uninstall commands (#546)."""
+
+    model_config = {"extra": "forbid"}
+
+    max_attempts: int = 3
+    delay_seconds: int = 15
+    on_null_exit: bool = True
+
+    @field_validator("max_attempts")
+    @classmethod
+    def attempts_in_range(cls, v: int) -> int:
+        if v < 1 or v > 10:
+            raise ValueError("max_attempts must be between 1 and 10")
+        return v
+
+    @field_validator("delay_seconds")
+    @classmethod
+    def delay_nonnegative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("delay_seconds must be >= 0")
+        return v
+
+
 class InstallStep(BaseModel):
     model_config = {"extra": "forbid"}
 
     command: str
     success_exit_codes: list[int] = Field(default_factory=lambda: [0])
     reboot_after: bool = False
+    retry: CommandRetry | None = None
 
     @field_validator("command")
     @classmethod
@@ -73,6 +98,9 @@ class CommandStep(BaseModel):
 
     command: str
     success_exit_codes: list[int] = Field(default_factory=lambda: [0])
+    # Uninstall may declare retry for forward-compatible YAML; hatch walk does
+    # not invoke uninstall yet (#546). Detect must not use retry.
+    retry: CommandRetry | None = None
 
     @field_validator("command")
     @classmethod

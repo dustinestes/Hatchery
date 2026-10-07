@@ -33,6 +33,9 @@ _UPLOAD_CHUNK = 256_000
 _UPLOAD_ATTEMPTS = 3
 _WINRM_MAX_ENVELOPE_KB = 8192
 _POWERSHELL_EXE = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+# Guest runner sentinel when $LASTEXITCODE stays null after a command (#546).
+# Never treat as success; authors must not use ``exit [int]$LASTEXITCODE``.
+NULL_EXIT_CODE = 255
 
 _TRANSIENT_UPLOAD_MARKERS = (
     "pipe has been ended",
@@ -472,6 +475,36 @@ def _exit_ok(exit_code: int, success_codes: list[int]) -> bool:
     return exit_code in success_codes
 
 
+def _brief_guest_out(out: str, *, limit: int = 400) -> str:
+    """Shorten guest stdout/stderr for error messages (avoid dumping the runner script)."""
+    text = (out or "").strip()
+    if not text:
+        return ""
+    # Prefer the Write-Error / sentinel marker when remoting dumps the whole script.
+    for marker in ("msiexec produced no exit code", "HATCHERY_NULL_EXIT", "Write-Error"):
+        idx = text.rfind(marker)
+        if idx >= 0:
+            start = max(0, idx - 40)
+            snippet = text[start : start + limit]
+            return ("…" if start else "") + snippet
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) >= 2:
+        text = " | ".join(lines[-5:])
+    if len(text) > limit:
+        return "…" + text[-(limit - 1) :]
+    return text
+
+
+def _exit_footer() -> str:
+    """PowerShell footer: native exit, else $? failure, else null-exit sentinel (#546)."""
+    return (
+        "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
+        "if (-not $?) { exit 1 }\n"
+        f"Write-Output 'HATCHERY_NULL_EXIT'\n"
+        f"exit {NULL_EXIT_CODE}\n"
+    )
+
+
 def run_in_package(
     ip: str,
     admin_username: str,
@@ -492,6 +525,11 @@ def run_in_package(
 
     When ``require_cwd`` is False (pre-detect), Set-Location only if the package
     dir already exists so registry/ARP detects work before staging.
+
+    A missing native ``$LASTEXITCODE`` with ``$?`` true is **not** success: the
+    footer exits ``NULL_EXIT_CODE`` (255). Authored ``exit [int]$LASTEXITCODE``
+    when null still coerces to 0 before the footer - packages must check null
+    explicitly (#546).
     """
     pkg = _ps_quote(guest_package_dir)
     if command and script_rel:
@@ -503,27 +541,14 @@ def run_in_package(
         prefix += f"Set-Location -LiteralPath {pkg}\n"
     else:
         prefix += f"if (Test-Path -LiteralPath {pkg}) {{ Set-Location -LiteralPath {pkg} }}\n"
+    footer = _exit_footer()
     if command:
-        body = (
-            prefix
-            + "$LASTEXITCODE = $null\n"
-            + f"{command.rstrip()}\n"
-            + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
-            + "if (-not $?) { exit 1 }\n"
-            + "exit 0\n"
-        )
+        body = prefix + "$LASTEXITCODE = $null\n" + f"{command.rstrip()}\n" + footer
     elif script_rel:
         # Relative path under staged payload; use guest path separators.
         rel = script_rel.replace("/", "\\").lstrip(".\\")
         script_path = _ps_quote(guest_package_dir.rstrip("\\") + "\\" + rel)
-        body = (
-            prefix
-            + "$LASTEXITCODE = $null\n"
-            + f"& {script_path}\n"
-            + "if ($null -ne $LASTEXITCODE) { exit [int]$LASTEXITCODE }\n"
-            + "if (-not $?) { exit 1 }\n"
-            + "exit 0\n"
-        )
+        body = prefix + "$LASTEXITCODE = $null\n" + f"& {script_path}\n" + footer
     else:
         raise ValueError("command or script_rel is required")
     return _run_ps(ip, admin_username, admin_password, body, timeout=timeout)
@@ -660,16 +685,68 @@ def run_software_entry(
 
     run_hooks("pre_install", unit.pre_install)
 
-    emit("INFO", f"Running install: {unit_path}.install.command")
-    code, out = run_pkg(command=unit.install.command, timeout=900)
-    outputs.append(f"[install exit={code}]\n{out}")
-    emit("INFO", f"Install finished with exit {code}")
-    if not _exit_ok(code, unit.install.success_exit_codes):
-        detail = (out or "").strip()
-        raise RuntimeError(
-            f"install failed with exit {code} (allowed {unit.install.success_exit_codes})"
-            + (f": {detail}" if detail else "")
+    retry = unit.install.retry
+    max_attempts = retry.max_attempts if retry is not None else 1
+    delay_seconds = retry.delay_seconds if retry is not None else 0
+    on_null_exit = retry.on_null_exit if retry is not None else True
+    code = -1
+    out = ""
+    for attempt in range(1, max_attempts + 1):
+        emit(
+            "INFO",
+            f"Running install: {unit_path}.install.command (attempt {attempt}/{max_attempts})",
         )
+        code, out = run_pkg(command=unit.install.command, timeout=900)
+        outputs.append(f"[install attempt {attempt}/{max_attempts} exit={code}]\n{out}")
+        emit("INFO", f"Install finished with exit {code}")
+        if _exit_ok(code, unit.install.success_exit_codes):
+            break
+        # msiexec (and some EXEs) over Guest transport often leave $LASTEXITCODE
+        # null even when the product installed. Disambiguate with detect before
+        # failing or retrying (#546).
+        if code == NULL_EXIT_CODE:
+            emit(
+                "WARN",
+                f"Install attempt {attempt}/{max_attempts}: null exit code - "
+                "checking detect (msiexec may omit LASTEXITCODE after success)",
+            )
+            probe_code, probe_out = run_pkg(
+                command=unit.detect.command,
+                timeout=300,
+                require_cwd=False,
+            )
+            outputs.append(
+                f"[detect after null-exit attempt {attempt}/{max_attempts} "
+                f"exit={probe_code}]\n{probe_out}"
+            )
+            if _exit_ok(probe_code, unit.detect.success_exit_codes):
+                emit(
+                    "INFO",
+                    "Detect present after null install exit - treating install as success",
+                )
+                code = 0
+                break
+            emit("WARN", "Detect still absent after null install exit")
+        reason = "null exit code" if code == NULL_EXIT_CODE else f"exit {code}"
+        # Null sentinel with on_null_exit false: fail immediately (no retry).
+        if code == NULL_EXIT_CODE and not on_null_exit:
+            detail = _brief_guest_out(out)
+            raise RuntimeError(
+                f"install failed with {reason} (allowed {unit.install.success_exit_codes})"
+                + (f": {detail}" if detail else "")
+            )
+        if attempt >= max_attempts:
+            detail = _brief_guest_out(out)
+            raise RuntimeError(
+                f"install failed with {reason} after {max_attempts} attempt(s) "
+                f"(allowed {unit.install.success_exit_codes})" + (f": {detail}" if detail else "")
+            )
+        emit(
+            "WARN",
+            f"Install attempt {attempt}/{max_attempts}: {reason}; retrying in {delay_seconds}s",
+        )
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
 
     install_reboot = bool(unit.install.reboot_after)
     if install_reboot:
