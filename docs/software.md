@@ -116,6 +116,10 @@ platforms:
         command: '.\VSCodeSetup-x64.exe /VERYSILENT /NORESTART'
         success_exit_codes: [0]   # optional; default [0]
         reboot_after: false       # optional; default false
+        retry:                    # optional; omit = single attempt (#546)
+          max_attempts: 3
+          delay_seconds: 15
+          on_null_exit: true
       post_install: []
       uninstall:
         command: '...'
@@ -151,9 +155,25 @@ platforms:
 | `install` / `uninstall` / `detect` | Required per arch unit; `command` required and non-empty |
 | `success_exit_codes` | Default `[0]` when omitted; must not be empty when present |
 | `install.reboot_after` | Optional bool; default `false`. Mid-walk reboot after install (not the Clutch automation checkbox; see [Clutch automations](#clutch-automations)) |
+| `install.retry` / `uninstall.retry` | Optional. When omitted: single attempt. When present: `max_attempts` (1–10, default 3), `delay_seconds` (≥ 0, default 15), `on_null_exit` (default `true`). Hatch walk retries **install** only ([#546](https://github.com/dustinestes/Hatchery/issues/546)) |
 | Order | Hook array index order; stop the software step on first non-success exit |
 | cwd | `software_package(id)` (same as install) |
 | Runner | Hatchery sets reserved + Clutch user env, sets cwd, runs the authored `command`/`script`, waits for exit. No installer-specific rewriting. Env contract: [ADR-0026](adr/0026-guest-clutch-environment.md) / [#501](https://github.com/dustinestes/Hatchery/issues/501) |
+
+**Exit codes ([#546](https://github.com/dustinestes/Hatchery/issues/546)):** A missing native `$LASTEXITCODE` (with `$?` true) is **not** treated as an automatic success (the runner exits sentinel **255**). msiexec over Guest transport often omits `$LASTEXITCODE` even after a real install, so Hatchery **probes `detect`** after a null install exit: if the product is present, the install step succeeds; if still absent, it fails or retries per `install.retry`. Do **not** use `exit [int]$LASTEXITCODE` in authored commands (`[int]$null` is `0`). Safe pattern after `msiexec.exe` / `Setup.exe`:
+
+```powershell
+msiexec.exe /i $msi /qn /norestart /l*v $log
+if ($null -eq $LASTEXITCODE) {
+  Write-Error 'installer produced no exit code'
+  exit 255
+}
+exit $LASTEXITCODE
+```
+
+Pure PowerShell detect/install snippets should end with an explicit `exit N`.
+
+**In-walk install retry:** When `install.retry` is set, Hatchery re-runs the install command (no re-stage between attempts; see [re-stage skip](#offline-payloads)) until `success_exit_codes` match or attempts are exhausted. `WARN` events include attempt number, reason (`null exit code` / `exit N`), and delay. Distinct from UI **Retry Failed Hatch** ([#534](https://github.com/dustinestes/Hatchery/issues/534)). With `on_null_exit: false`, exit 255 fails immediately without retry; other non-success exits still retry.
 
 There is **no** `hatchery.architecture` field. Unknown top-level, OS, or arch keys are rejected. Inventory and the package content API surface load-time validation errors without failing the rail list (missing/invalid YAML still appears as a package).
 
@@ -177,7 +197,7 @@ large offline trees; do not rely on 1 KiB EncodedCommand append as a product pat
 
 **Re-stage skip ([#545](https://github.com/dustinestes/Hatchery/issues/545)):** Before uploading, Hatchery hashes existing files under guest `software_package(id)` in one PowerShell round-trip and skips transfer when guest SHA-256 already matches the Controller source. Hatch events include both digests (`expected=` Controller / Nest source, `found=` guest, or `found=(missing)`). Missing or mismatched files still upload and verify. This is distinct from product **skip-if-present** ([#502](https://github.com/dustinestes/Hatchery/issues/502)), which skips staging entirely when `detect` says the product is already installed.
 
-Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller.
+Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller. Propagate native exit codes without coercing null (see [Exit codes](#definition-file) / [#546](https://github.com/dustinestes/Hatchery/issues/546)).
 
 **Windows UAC (lab/dev posture):** Guest transport runs Software `install.command` via `run_ps` as the hatch admin with no elevated/SYSTEM wrapper. Default UAC can make silent MSI installs exit 0 without product registration. Library `hatchery-setup-windows.ps1` therefore sets UAC to Never notify at first boot ([#543](https://github.com/dustinestes/Hatchery/issues/543)); that is weaker than the Windows default slider and is intentional for reliable silent installs. `LocalAccountTokenFilterPolicy` is unrelated (WinRM token filter only). `hatchery-cleanup-windows.ps1` restores prior/default UAC when operators run cleanup. See [orchestration - first-boot steps](orchestration.md#the-orchestrator-script-hatchery-setup-windowsps1).
 
@@ -344,7 +364,7 @@ Clutch ordered automations
        → else if payload dir exists: stage platforms/{os}/{arch}/ → software_package(id)
          (skip files whose guest sha256 already matches; #545)
          else: log command-only skip staging (#564); no SSH/WinRM upload
-       → pre_install[] → install → post_install[]
+       → pre_install[] → install (optional in-walk retry; #546) → post_install[]
        → detect (verify present after install)
        → optional remove software_package(id) when staged (#474)
 ```

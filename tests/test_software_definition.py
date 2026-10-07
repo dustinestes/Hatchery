@@ -53,6 +53,64 @@ class TestSoftwareDefinitionSchema:
         defn = software_lib.load_definition(path)
         assert defn.any_install_reboot_after() is True
 
+    def test_install_retry_defaults_and_validation(self, tmp_path):
+        path = tmp_path / "software.yaml"
+        path.write_text(
+            _VALID_WINDOWS.replace(
+                "reboot_after: false",
+                "reboot_after: false\n        retry: {}\n",
+            )
+        )
+        defn = software_lib.load_definition(path)
+        retry = defn.platforms["windows"]["x64"].install.retry
+        assert retry is not None
+        assert retry.max_attempts == 3
+        assert retry.delay_seconds == 15
+        assert retry.on_null_exit is True
+
+        path.write_text(
+            _VALID_WINDOWS.replace(
+                "reboot_after: false",
+                "reboot_after: false\n        retry:\n          max_attempts: 0\n",
+            )
+        )
+        with pytest.raises(ValueError, match="max_attempts"):
+            software_lib.load_definition(path)
+
+        path.write_text(
+            _VALID_WINDOWS.replace(
+                "reboot_after: false",
+                "reboot_after: false\n        retry:\n          delay_seconds: -1\n",
+            )
+        )
+        with pytest.raises(ValueError, match="delay_seconds"):
+            software_lib.load_definition(path)
+
+        # Omitted retry stays None (single attempt).
+        path.write_text(_VALID_WINDOWS)
+        assert software_lib.load_definition(path).platforms["windows"]["x64"].install.retry is None
+
+    def test_uninstall_may_declare_retry(self, tmp_path):
+        path = tmp_path / "software.yaml"
+        path.write_text(
+            "hatchery:\n"
+            "  kind: software\n"
+            "  publisher: Acme\n"
+            "  product: Widget\n"
+            "  version: '1.0.0'\n"
+            "platforms:\n"
+            "  windows:\n"
+            "    x64:\n"
+            "      install: {command: '.\\Setup.exe'}\n"
+            "      uninstall:\n"
+            "        command: 'u'\n"
+            "        retry: {max_attempts: 2, delay_seconds: 5}\n"
+            "      detect: {command: 'd'}\n"
+        )
+        defn = software_lib.load_definition(path)
+        assert defn.platforms["windows"]["x64"].uninstall.retry is not None
+        assert defn.platforms["windows"]["x64"].uninstall.retry.max_attempts == 2
+
     def test_multi_arch_and_any_exclusive(self, tmp_path):
         path = tmp_path / "software.yaml"
         path.write_text(
