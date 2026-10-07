@@ -180,7 +180,77 @@ def test_run_software_entry_skips_when_already_present(tmp_path, monkeypatch):
     assert any("already present" in m for _, m in events)
 
 
+def test_run_software_entry_skips_staging_when_no_payload_dir(tmp_path, monkeypatch):
+    """YAML-only packages must not open staging remoting (#564)."""
+    pkg = tmp_path / "Online.Pkg.1.0.0"
+    pkg.mkdir()
+    (pkg / "software.yaml").write_text(
+        "hatchery:\n  publisher: Online\n  product: Pkg\n  version: '1.0.0'\n"
+        "platforms:\n  windows:\n    x64:\n"
+        "      install:\n        command: echo install\n"
+        "        reboot_after: true\n"
+        "      uninstall:\n        command: echo u\n"
+        "      detect:\n        command: echo detect\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(soft_prov.software_lib, "resolve_package_path", lambda _: pkg)
+    monkeypatch.setattr(soft_prov, "detect_guest_arch", lambda *a, **k: "x64")
+
+    def boom_stage(*a, **k):
+        raise AssertionError("stage_payload must not run when payload dir is missing")
+
+    monkeypatch.setattr(soft_prov, "stage_payload", boom_stage)
+
+    calls: list[tuple[str | None, bool]] = []
+    detect_n = {"n": 0}
+
+    def fake_run(*args, command=None, require_cwd=True, **kwargs):
+        calls.append((command, require_cwd))
+        if command and "detect" in command:
+            detect_n["n"] += 1
+            if detect_n["n"] == 1:
+                return 1, "absent"
+            return 0, "present"
+        return 0, "ok"
+
+    monkeypatch.setattr(soft_prov, "run_in_package", fake_run)
+    cleaned: list[str] = []
+    monkeypatch.setattr(
+        soft_prov,
+        "remove_guest_package",
+        lambda *a, **k: cleaned.append("cleaned"),
+    )
+    reboots: list[str] = []
+    monkeypatch.setattr(
+        soft_prov.provision_lib,
+        "reboot_guest_and_wait",
+        lambda *a, **k: reboots.append("rebooted"),
+    )
+
+    events: list[tuple[str, str]] = []
+    code, _out, reboot = soft_prov.run_software_entry(
+        "10.0.0.1",
+        "a",
+        "b",
+        package_id="Online.Pkg.1.0.0",
+        guest_os="windows",
+        clean_payload_on_success=True,
+        on_event=lambda level, msg: events.append((level, msg)),
+    )
+    assert code == 0
+    assert reboot is True
+    assert reboots == ["rebooted"]
+    assert not cleaned
+    assert any("command-only install (skip staging)" in m for _, m in events)
+    assert not any("Staging via" in m or "Staged 0" in m for _, m in events)
+    assert any("software.yaml install.reboot_after is true" in m for _, m in events)
+    # Install must not require guest package cwd when nothing was staged.
+    install_calls = [c for c in calls if c[0] == "echo install"]
+    assert install_calls and install_calls[0][1] is False
+
+
 def test_run_software_entry_fails_when_detect_misses(tmp_path, monkeypatch):
+
     pkg = tmp_path / "Pkg.1.0.0"
     pkg.mkdir()
     (pkg / "software.yaml").write_text(

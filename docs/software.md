@@ -200,7 +200,9 @@ On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest a
 
 ## Online / command-only packages
 
-When a package has no `{os}/{arch}/` payload directory, Hatchery still loads `software.yaml`, resolves the guest OS + arch unit, runs detect (skip-if-present), and runs `install.command` with **zero files staged**. That is the **online / command-only** shape ([ADR-0033](adr/0033-software-online-command-only.md) / [#561](https://github.com/dustinestes/Hatchery/issues/561)).
+When a package has no `{os}/{arch}/` payload directory, Hatchery still loads `software.yaml`, resolves the guest OS + arch unit, runs detect (skip-if-present), and runs `install.command` without guest file staging. Hatch logs that there is no offline payload and **skips** the SSH/SCP (or WinRM) staging path entirely ([#564](https://github.com/dustinestes/Hatchery/issues/564)) - it does not open staging remoting only to upload zero files. That is the **online / command-only** shape ([ADR-0033](adr/0033-software-online-command-only.md) / [#561](https://github.com/dustinestes/Hatchery/issues/561)).
+
+Definition `install.reboot_after: true` (in `software.yaml`) triggers a mid-walk guest reboot after a successful install exit; hatch events say this comes from `software.yaml`, not from the Clutch **Reboot after** checkbox ([#563](https://github.com/dustinestes/Hatchery/issues/563) will surface that in the UI).
 
 | Still required | Not required |
 |---|---|
@@ -328,8 +330,8 @@ Clutch ordered automations
   → type: software
        → load software.yaml
        → detect (skip-if-present; no stage if already present)
-       → else stage platforms/{os}/{arch}/ → software_package(id)
-         (skip staging when payload dir missing: online / command-only)
+       → else if payload dir exists: stage platforms/{os}/{arch}/ → software_package(id)
+         else: log command-only skip staging (#564); no SSH/WinRM upload
        → pre_install[] → install → post_install[]
        → detect (verify present after install)
        → optional remove software_package(id) when staged (#474)
