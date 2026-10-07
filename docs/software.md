@@ -175,6 +175,8 @@ Offline installer trees under `platforms/{os}/{arch}/` are staged into the guest
 `WINRS_SKIP_CMD_SHELL`, and verifies SHA-256 after transfer. Prefer SSH for
 large offline trees; do not rely on 1 KiB EncodedCommand append as a product path.
 
+**Re-stage skip ([#545](https://github.com/dustinestes/Hatchery/issues/545)):** Before uploading, Hatchery hashes existing files under guest `software_package(id)` in one PowerShell round-trip and skips transfer when guest SHA-256 already matches the Controller source. Hatch events include both digests (`expected=` Controller / Nest source, `found=` guest, or `found=(missing)`). Missing or mismatched files still upload and verify. This is distinct from product **skip-if-present** ([#502](https://github.com/dustinestes/Hatchery/issues/502)), which skips staging entirely when `detect` says the product is already installed.
+
 Install and hook commands run with cwd = that per-package staging folder (e.g. `.\Setup.exe …`), never `.\windows\x64\…`. On Windows, prefer bare `msiexec.exe …` over `Start-Process -Wait` under WinRM (filtered admin tokens can hang). Authors may log with MSI `/l*v $env:HATCHERY_SOFTWARE_LOG` and resolve payload files under `$env:HATCHERY_SOFTWARE_PACKAGE` ([ADR-0026](adr/0026-guest-clutch-environment.md)). Hatchery does not wrap msiexec in the Controller.
 
 **Windows UAC (lab/dev posture):** Guest transport runs Software `install.command` via `run_ps` as the hatch admin with no elevated/SYSTEM wrapper. Default UAC can make silent MSI installs exit 0 without product registration. Library `hatchery-setup-windows.ps1` therefore sets UAC to Never notify at first boot ([#543](https://github.com/dustinestes/Hatchery/issues/543)); that is weaker than the Windows default slider and is intentional for reliable silent installs. `LocalAccountTokenFilterPolicy` is unrelated (WinRM token filter only). `hatchery-cleanup-windows.ps1` restores prior/default UAC when operators run cleanup. See [orchestration - first-boot steps](orchestration.md#the-orchestrator-script-hatchery-setup-windowsps1).
@@ -323,6 +325,8 @@ Detection runs the platform `detect.command` over Guest transport (SSH primary; 
 
 **Skip-if-present ([#502](https://github.com/dustinestes/Hatchery/issues/502)):** hatch runs detect **before** staging. If present, the step succeeds without payload transfer or install. If absent, Hatchery stages, installs, then runs detect again to verify. Pre-detect does not require the package staging directory to exist (registry/ARP detects). Nest/VM present/missing UI status rails land in [#477](https://github.com/dustinestes/Hatchery/issues/477). There is no in-guest agent daemon and no guest login UI requirement for detect.
 
+When detect says absent but a previous attempt already left matching offline files on the guest, **re-stage skip** ([#545](https://github.com/dustinestes/Hatchery/issues/545)) avoids re-copying those files (see [Offline payloads](#offline-payloads)).
+
 <br>
 
 ---
@@ -338,6 +342,7 @@ Clutch ordered automations
        → load software.yaml
        → detect (skip-if-present; no stage if already present)
        → else if payload dir exists: stage platforms/{os}/{arch}/ → software_package(id)
+         (skip files whose guest sha256 already matches; #545)
          else: log command-only skip staging (#564); no SSH/WinRM upload
        → pre_install[] → install → post_install[]
        → detect (verify present after install)

@@ -3,8 +3,9 @@
 Runs detect (skip-if-present), else stages ``platforms/{os}/{arch}/`` into
 ``software_package(id)``, then pre_install → install → post_install → detect
 (verify). Prefers SSH put when guest transport resolves to SSH; WinRM chunked
-stdin remains the Windows fallback. Deep offline/remote Nest upload polish
-tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
+stdin remains the Windows fallback. Re-stage skips files whose guest SHA-256
+already matches the Controller source (#545). Deep offline/remote Nest upload
+polish tracks [#475](https://github.com/dustinestes/Hatchery/issues/475).
 """
 
 from __future__ import annotations
@@ -336,6 +337,61 @@ def _upload_file_ssh(
         on_event("INFO", f"SSH upload of {local_path.name} verified (sha256)")
 
 
+def _parse_guest_hash_lines(out: str) -> dict[str, str]:
+    """Parse ``sha256\\trel`` lines from a guest hash listing script."""
+    result: dict[str, str] = {}
+    for line in out.splitlines():
+        text = line.strip()
+        if not text or "\t" not in text:
+            continue
+        digest, rel = text.split("\t", 1)
+        digest = digest.strip().lower()
+        rel_n = rel.strip().replace("\\", "/")
+        if not rel_n:
+            continue
+        if len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
+            result[rel_n] = digest
+    return result
+
+
+def _guest_payload_hashes(
+    ip: str,
+    admin_username: str,
+    admin_password: str,
+    guest_package_dir: str,
+) -> dict[str, str]:
+    """Return ``{rel_posix: sha256}`` for files already under the guest package dir.
+
+    One PowerShell round-trip for the whole tree (#545). On failure returns an
+    empty map so staging falls back to uploading every file.
+    """
+    script = (
+        f"$root = {_ps_quote(guest_package_dir)}\n"
+        "if (-not (Test-Path -LiteralPath $root)) { return }\n"
+        "$rootFull = (Resolve-Path -LiteralPath $root).Path\n"
+        "Get-ChildItem -LiteralPath $rootFull -Recurse -File "
+        "-ErrorAction SilentlyContinue | ForEach-Object {\n"
+        "  try {\n"
+        "    $rel = $_.FullName.Substring($rootFull.Length).TrimStart('\\','/')\n"
+        "    $rel = ($rel -replace '\\\\','/')\n"
+        "    $h = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName)"
+        ".Hash.ToLowerInvariant()\n"
+        '    Write-Output ("$h`t$rel")\n'
+        "  } catch {}\n"
+        "}\n"
+    )
+    code, out = _run_ps(ip, admin_username, admin_password, script, timeout=300)
+    if code != 0:
+        log.warning(
+            "guest payload hash listing failed for %s (exit %s); will re-upload: %s",
+            guest_package_dir,
+            code,
+            (out or "").strip()[:200],
+        )
+        return {}
+    return _parse_guest_hash_lines(out)
+
+
 def stage_payload(
     ip: str,
     admin_username: str,
@@ -349,9 +405,11 @@ def stage_payload(
     """Copy payload tree contents into ``guest_package_dir`` (no nested os/arch).
 
     Prefers SSH/SCP when guest transport resolves to SSH (#497); otherwise WinRM
-    chunked stdin. Returns relative paths uploaded (posix-style). Empty when
-    there is no payload dir (no remoting) - callers should skip this helper for
-    YAML-only / command-only packages (#564).
+    chunked stdin. Skips transfer when a guest file already matches the local
+    SHA-256 (#545). Returns relative paths that are present after staging
+    (uploaded or skipped; posix-style). Empty when there is no payload dir (no
+    remoting) - callers should skip this helper for YAML-only / command-only
+    packages (#564).
     """
     if not payload_rel:
         return []
@@ -371,20 +429,43 @@ def stage_payload(
             on_event("INFO", "Software staging via WinRM (SSH unavailable)")
         _ensure_winrm_envelope_size(ip, admin_username, admin_password, on_event=on_event)
         _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
-    uploaded: list[str] = []
+
+    guest_hashes = _guest_payload_hashes(ip, admin_username, admin_password, guest_package_dir)
+    if on_event and guest_hashes:
+        on_event(
+            "INFO",
+            f"Found {len(guest_hashes)} existing guest payload file(s) to compare",
+        )
+
+    ready: list[str] = []
     for path in sorted(src.rglob("*")):
         if not path.is_file():
             continue
         rel = path.relative_to(src).as_posix()
         remote = str(PureWindowsPath(guest_package_dir).joinpath(*rel.split("/")))
+        local_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        guest_hash = guest_hashes.get(rel)
+        if guest_hash == local_hash:
+            if on_event:
+                on_event(
+                    "INFO",
+                    f"Skipping {rel} (sha256 match; expected={local_hash} found={guest_hash})",
+                )
+            ready.append(rel)
+            continue
         if on_event:
-            on_event("INFO", f"Uploading {rel} ({path.stat().st_size} bytes)")
+            found = guest_hash if guest_hash else "(missing)"
+            on_event(
+                "INFO",
+                f"Uploading {rel} ({path.stat().st_size} bytes; "
+                f"expected={local_hash} found={found})",
+            )
         if use_ssh:
             _upload_file_ssh(transport, path, remote, on_event=on_event)
         else:
             _upload_file(ip, admin_username, admin_password, path, remote, on_event=on_event)
-        uploaded.append(rel)
-    return uploaded
+        ready.append(rel)
+    return ready
 
 
 def _exit_ok(exit_code: int, success_codes: list[int]) -> bool:
