@@ -36,6 +36,30 @@ class TestSoftwareInventory:
         assert "Acme" in item["subtitle"]
         assert item["has_definition"] is True
         assert item["relative_path"] == "automation/software/Acme.Widget.1.0.0"
+        assert item["definition_reboot_after"] is False
+
+    def test_scan_definition_reboot_after_any_unit(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        pkg = tmp_path / "automation" / "software" / "Acme.Reboot.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n"
+            "  kind: software\n"
+            "  publisher: Acme\n"
+            "  product: Reboot\n"
+            "  version: '1.0.0'\n"
+            "platforms:\n"
+            "  windows:\n"
+            "    x64:\n"
+            "      install: {command: '.\\Setup.exe', reboot_after: true}\n"
+            "      uninstall: {command: 'u'}\n"
+            "      detect: {command: 'd'}\n"
+        )
+
+        items = software_lib.scan_inventory()
+        assert items[0]["definition_reboot_after"] is True
+        assert software_lib.package_definition_reboot_after("Acme.Reboot.1.0.0") is True
+        assert software_lib.package_definition_reboot_after("Missing.Pkg.0.0.0") is False
 
     def test_scan_tolerates_missing_yaml(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -47,6 +71,7 @@ class TestSoftwareInventory:
         assert items[0]["publisher"] == ""
         assert items[0]["subtitle"] == "Software"
         assert items[0]["has_definition"] is False
+        assert items[0]["definition_reboot_after"] is False
 
     def test_resolve_rejects_traversal(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)

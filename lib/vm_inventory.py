@@ -10,12 +10,36 @@ from typing import Any
 from lib import config
 from lib import hatch as hatch_lib
 from lib import nests as nests_lib
+from lib import software as software_lib
 from lib.providers.factory import (
     NoNestSelectedError,
     UnknownNestError,
     UnsupportedProviderError,
     get_provider,
 )
+
+
+def _enrich_script_reboot_source(script: dict[str, Any]) -> None:
+    """Attach reboot-after source for Nest/VM detail automation rows (#563).
+
+    Clutch ``reboot_after`` is stored on the hatch row. Software may also force
+    a mid-walk reboot via ``software.yaml`` ``install.reboot_after``.
+    """
+    clutch = bool(script.get("reboot_after"))
+    yaml_reboot = False
+    if (script.get("entry_type") or "script") == "software":
+        yaml_reboot = software_lib.package_definition_reboot_after(script.get("script_name") or "")
+    script["definition_reboot_after"] = yaml_reboot
+    if clutch and yaml_reboot:
+        source = "both"
+    elif yaml_reboot:
+        source = "yaml"
+    elif clutch:
+        source = "clutch"
+    else:
+        source = "none"
+    script["reboot_after_source"] = source
+    script["reboot_after_effective"] = clutch or yaml_reboot
 
 
 class VmInventoryError(Exception):
@@ -259,6 +283,7 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
             last_events = hatch_lib.get_last_script_event_messages(sid, name)
             for script in scripts:
                 script["last_event"] = last_events.get(script["script_name"])
+                _enrich_script_reboot_source(script)
             record["scripts"] = scripts
 
         result.append(record)
