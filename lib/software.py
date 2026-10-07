@@ -161,6 +161,14 @@ class SoftwareDefinition(BaseModel):
             labels.update(arches)
         return sorted(labels)
 
+    def any_install_reboot_after(self) -> bool:
+        """True if any ``platforms.*.*.install.reboot_after`` is set (#563)."""
+        for arches in self.platforms.values():
+            for unit in arches.values():
+                if unit.install.reboot_after:
+                    return True
+        return False
+
     def resolve_unit(self, os_key: str, arch_key: str) -> tuple[str, ArchUnit] | None:
         """Return ``(arch_used, unit)`` for guest OS + preferred arch.
 
@@ -337,12 +345,14 @@ def scan_inventory() -> list[dict[str, Any]]:
         modified = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         definition_valid: bool | None = None
         definition_error = ""
+        definition_reboot_after = False
         if definition.is_file():
             parsed, err = try_load_definition(definition)
             definition_valid = err is None
             definition_error = err or ""
             if parsed is not None:
                 meta["architecture"] = ", ".join(parsed.architecture_labels())
+                definition_reboot_after = parsed.any_install_reboot_after()
         items.append(
             {
                 "name": entry.name,
@@ -357,9 +367,21 @@ def scan_inventory() -> list[dict[str, Any]]:
                 "has_definition": definition.is_file(),
                 "definition_valid": definition_valid,
                 "definition_error": definition_error,
+                "definition_reboot_after": definition_reboot_after,
             }
         )
     return items
+
+
+def package_definition_reboot_after(package_id: str) -> bool:
+    """Return whether any platform unit forces install reboot for ``package_id``."""
+    path = resolve_definition_path(package_id)
+    if path is None or not path.is_file():
+        return False
+    parsed, _err = try_load_definition(path)
+    if parsed is None:
+        return False
+    return parsed.any_install_reboot_after()
 
 
 def delete_package(package_id: str) -> tuple[bool, str]:

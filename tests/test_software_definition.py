@@ -45,6 +45,13 @@ class TestSoftwareDefinitionSchema:
         assert win.post_install[0].script == ".\\hooks\\post.ps1"
         assert defn.payload_relpath("windows", "x64") == "windows/x64"
         assert defn.resolve_unit("windows", "x64")[0] == "x64"
+        assert defn.any_install_reboot_after() is False
+
+    def test_any_install_reboot_after(self, tmp_path):
+        path = tmp_path / "software.yaml"
+        path.write_text(_VALID_WINDOWS.replace("reboot_after: false", "reboot_after: true"))
+        defn = software_lib.load_definition(path)
+        assert defn.any_install_reboot_after() is True
 
     def test_multi_arch_and_any_exclusive(self, tmp_path):
         path = tmp_path / "software.yaml"

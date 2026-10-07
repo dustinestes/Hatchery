@@ -150,7 +150,7 @@ platforms:
 | Each hook item | Exactly one of `command` (inline) or `script` (relative path under staged payload) |
 | `install` / `uninstall` / `detect` | Required per arch unit; `command` required and non-empty |
 | `success_exit_codes` | Default `[0]` when omitted; must not be empty when present |
-| `install.reboot_after` | Optional bool; default `false` |
+| `install.reboot_after` | Optional bool; default `false`. Mid-walk reboot after install (not the Clutch automation checkbox; see [Clutch automations](#clutch-automations)) |
 | Order | Hook array index order; stop the software step on first non-success exit |
 | cwd | `software_package(id)` (same as install) |
 | Runner | Hatchery sets reserved + Clutch user env, sets cwd, runs the authored `command`/`script`, waits for exit. No installer-specific rewriting. Env contract: [ADR-0026](adr/0026-guest-clutch-environment.md) / [#501](https://github.com/dustinestes/Hatchery/issues/501) |
@@ -202,7 +202,7 @@ On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest a
 
 When a package has no `{os}/{arch}/` payload directory, Hatchery still loads `software.yaml`, resolves the guest OS + arch unit, runs detect (skip-if-present), and runs `install.command` without guest file staging. Hatch logs that there is no offline payload and **skips** the SSH/SCP (or WinRM) staging path entirely ([#564](https://github.com/dustinestes/Hatchery/issues/564)) - it does not open staging remoting only to upload zero files. That is the **online / command-only** shape ([ADR-0033](adr/0033-software-online-command-only.md) / [#561](https://github.com/dustinestes/Hatchery/issues/561)).
 
-Definition `install.reboot_after: true` (in `software.yaml`) triggers a mid-walk guest reboot after a successful install exit; hatch events say this comes from `software.yaml`, not from the Clutch **Reboot after** checkbox ([#563](https://github.com/dustinestes/Hatchery/issues/563) will surface that in the UI).
+Definition `install.reboot_after: true` (in `software.yaml`) triggers a mid-walk guest reboot after a successful install exit. That is separate from the Clutch automation-row **Reboot after** checkbox (which runs after the whole Software step finishes). The Clutch editor shows a checked, disabled **Reboot after** control with a yaml helper when any platform unit forces definition reboot; Nest/VM detail automation rows show **Reboot after** and **Source** (`Clutch`, `Software yaml`, both, or none) ([#563](https://github.com/dustinestes/Hatchery/issues/563)).
 
 | Still required | Not required |
 |---|---|
@@ -288,11 +288,18 @@ automations:
 |---|---|---|
 | `type` | required | required |
 | `name` | script basename under `automation/scripts/` | package id under `automation/software/` |
-| `reboot_after` | yes | yes |
+| `reboot_after` | yes | yes (Clutch layer; see below) |
 | `parameters` | yes (existing) | no (v1) |
 | `clean_payload_on_success` | n/a | yes (default true) - remove `software_package(id)` after install OK |
 
-Hatch lifecycle: `script` → today’s script runner; `software` → detect (skip-if-present) → else stage → `pre_install` → `install` → `post_install` → `detect` (verify) → reboot/exit → optional clean when staged.
+**Two reboot-after layers** (do not merge without an ADR):
+
+| Layer | When it runs |
+|---|---|
+| Definition `platforms.*.*.install.reboot_after` | Mid Software walk (after install exit, before post_install / verify) |
+| Clutch `automations[].reboot_after` | After the automation row completes (same pattern as scripts) |
+
+Hatch lifecycle: `script` → today’s script runner; `software` → detect (skip-if-present) → else stage → `pre_install` → `install` → (optional definition reboot) → `post_install` → `detect` (verify) → optional Clutch reboot → optional clean when staged.
 
 <br>
 

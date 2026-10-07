@@ -403,6 +403,24 @@
       '<div class="vm-env-detail-body" role="table" aria-label="Environment variables">' + rows + '</div>';
   }
 
+  function rebootAfterLabel(entry) {
+    const effective = entry.reboot_after_effective;
+    if (effective === true || effective === 1) return 'Yes';
+    if (effective === false || effective === 0) return 'No';
+    // Fallback when API omitted enrichment (older Controllers)
+    return (entry.reboot_after === true || entry.reboot_after === 1) ? 'Yes' : 'No';
+  }
+
+  function rebootSourceLabel(entry) {
+    const source = entry.reboot_after_source;
+    if (source === 'both') return 'Clutch + Software yaml';
+    if (source === 'yaml') return 'Software yaml';
+    if (source === 'clutch') return 'Clutch';
+    if (source === 'none') return '—';
+    if (entry.reboot_after === true || entry.reboot_after === 1) return 'Clutch';
+    return '—';
+  }
+
   function automationRowsHtml(entries, nameLabel, emptyMessage) {
     if (!entries.length) {
       return '<p class="detail-section-empty" role="status">' + esc(emptyMessage) + '</p>';
@@ -413,16 +431,22 @@
       const elapsed = s.status === 'pending' ? '—' : scriptElapsed(s);
       const exit = (s.exit_code !== null && s.exit_code !== undefined) ? esc(String(s.exit_code)) : '—';
       const lastLine = esc(s.last_event || scriptLastLine(s.output));
-      return '<div class="script-row">' +
+      const reboot = esc(rebootAfterLabel(s));
+      const source = esc(rebootSourceLabel(s));
+      return '<div class="script-row script-row-reboot">' +
         '<span class="script-col-name">' + esc(s.script_name) + '</span>' +
         '<span class="script-col-elapsed">' + elapsed + '</span>' +
         '<span class="script-col-exit">' + exit + '</span>' +
         '<span class="script-col-last-output">' + lastLine + '</span>' +
+        '<span class="script-col-reboot" title="Reboot after">' + reboot + '</span>' +
+        '<span class="script-col-reboot-source" title="Reboot after source">' + source + '</span>' +
         '<span class="script-col-status script-status ' + cls + '">' + lbl + '</span>' +
         '<span class="script-col-actions"></span></div>';
     }).join('');
-    return '<div class="script-cols-header"><span>' + esc(nameLabel) + '</span><span>Elapsed</span>' +
-      '<span>Exit</span><span>Last Output</span><span>Status</span><span>Actions</span></div>' + rows;
+    return '<div class="script-cols-header script-cols-reboot">' +
+      '<span>' + esc(nameLabel) + '</span><span>Elapsed</span>' +
+      '<span>Exit</span><span>Last Output</span><span>Reboot after</span><span>Source</span>' +
+      '<span>Status</span><span>Actions</span></div>' + rows;
   }
 
   function splitAutomations(vm) {

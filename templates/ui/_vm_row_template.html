@@ -183,7 +183,10 @@
               <select class="form-select vm-software-select" aria-label="Select a software package to add">
                 <option value="">- select software to add -</option>
                 {% for f in software_files %}
-                  <option value="{{ f }}">{{ f }}</option>
+                  <option
+                    value="{{ f.name }}"
+                    {% if f.definition_reboot_after %}data-definition-reboot-after="1"{% endif %}
+                  >{{ f.name }}</option>
                 {% endfor %}
               </select>
               <button type="button" class="btn vm-add-software">Add</button>

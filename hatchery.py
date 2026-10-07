@@ -2649,7 +2649,7 @@ def _build_template_ctx(*, page_title: str | None = None):
         virtio_files=_scan_dir("media/virtio"),
         answer_file_files=_scan_dir("automation/answerfiles", extensions=[".j2"]),
         scripts_files=_scan_dir("automation/scripts"),
-        software_files=[s["name"] for s in _scan_software_inventory()],
+        software_files=_scan_software_inventory(),
     )
     if page_title:
         ctx["page_title"] = page_title

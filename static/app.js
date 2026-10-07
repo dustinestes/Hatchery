@@ -505,9 +505,70 @@ hatchery.vmRows = (function () {
       });
     }
 
+    var softwareMetaByName = null;
+
+    function ensureSoftwareMeta(cb) {
+      if (softwareMetaByName) {
+        cb(softwareMetaByName);
+        return;
+      }
+      fetch('/api/automation/software')
+        .then(function (r) { return r.json(); })
+        .then(function (items) {
+          var map = {};
+          (items || []).forEach(function (item) {
+            var pkgName = typeof item === 'string' ? item : item.name;
+            if (!pkgName) return;
+            map[pkgName] = {
+              definitionRebootAfter: !!(item && item.definition_reboot_after),
+            };
+          });
+          softwareMetaByName = map;
+          cb(map);
+        })
+        .catch(function () {
+          softwareMetaByName = softwareMetaByName || {};
+          cb(softwareMetaByName);
+        });
+    }
+
+    function applySoftwareRebootUi(item, clutchRebootAfter, definitionRebootAfter) {
+      var rebootCb = item.querySelector('.vm-script-reboot');
+      var rebootLabel = item.querySelector('.script-item-reboot-label');
+      var hint = item.querySelector('.script-item-reboot-hint');
+      if (!rebootCb || !rebootLabel) return;
+      if (definitionRebootAfter) {
+        item.dataset.definitionRebootAfter = '1';
+        rebootCb.checked = true;
+        rebootCb.disabled = true;
+        rebootCb.setAttribute(
+          'aria-describedby',
+          hint ? hint.id : ''
+        );
+        rebootLabel.title =
+          'Set in software.yaml (definition forces reboot after install)';
+        if (hint) {
+          hint.hidden = false;
+          hint.textContent =
+            'Set in software.yaml (definition forces reboot after install)';
+        }
+      } else {
+        delete item.dataset.definitionRebootAfter;
+        rebootCb.checked = !!clutchRebootAfter;
+        rebootCb.disabled = false;
+        rebootCb.removeAttribute('aria-describedby');
+        rebootLabel.title = 'Reboot guest after this automation step completes';
+        if (hint) {
+          hint.hidden = true;
+          hint.textContent = '';
+        }
+      }
+    }
+
     function addAutomationItem(list, type, name, opts) {
       opts = opts || {};
       var rebootAfter = !!opts.rebootAfter;
+      var definitionRebootAfter = !!opts.definitionRebootAfter;
       var cleanPayload = opts.cleanPayloadOnSuccess !== false;
       var savedParams = opts.savedParams || null;
       var item = document.createElement('div');
@@ -518,15 +579,19 @@ hatchery.vmRows = (function () {
       item.dataset.scriptName = name;
       var kindLabel = type === 'software' ? 'Software' : 'Script';
       var removeLabel = type === 'software' ? 'Remove software' : 'Remove script';
+      var hintId = 'reboot-hint-' + type + '-' + String(list.querySelectorAll('.script-item').length) +
+        '-' + Date.now();
       var CHEVRON_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
       var CHEVRON_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
       var CLOSE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
       var optionsHtml =
-        '<label class="script-item-option">' +
-          '<input type="checkbox" class="vm-script-reboot"' + (rebootAfter ? ' checked' : '') + '> Reboot after' +
+        '<label class="script-item-option script-item-reboot-label">' +
+          '<input type="checkbox" class="vm-script-reboot"' + (rebootAfter ? ' checked' : '') +
+          '> Reboot after' +
         '</label>';
       if (type === 'software') {
         optionsHtml +=
+          '<span class="script-item-reboot-hint form-hint" id="' + hintId + '" hidden></span>' +
           '<label class="script-item-option" title="Clean installer files on success">' +
             '<input type="checkbox" class="vm-software-clean"' + (cleanPayload ? ' checked' : '') +
             '> Clean on success' +
@@ -563,6 +628,20 @@ hatchery.vmRows = (function () {
 
       list.appendChild(item);
 
+      if (type === 'software') {
+        if (definitionRebootAfter) {
+          applySoftwareRebootUi(item, rebootAfter, true);
+        } else {
+          applySoftwareRebootUi(item, rebootAfter, false);
+          ensureSoftwareMeta(function (map) {
+            var meta = map[name];
+            if (meta && meta.definitionRebootAfter) {
+              applySoftwareRebootUi(item, rebootAfter, true);
+            }
+          });
+        }
+      }
+
       if (type === 'script') {
         fetch('/api/automation/scripts/' + encodeURIComponent(name) + '/params')
           .then(function (r) { return r.json(); })
@@ -598,8 +677,11 @@ hatchery.vmRows = (function () {
           var name = softwareSelect.value;
           if (!name) return;
           if (automationAlreadyInList(list, 'software', name)) return;
+          var selected = softwareSelect.selectedOptions[0];
+          var defReboot = !!(selected && selected.dataset.definitionRebootAfter === '1');
           addAutomationItem(list, 'software', name, {
             rebootAfter: false,
+            definitionRebootAfter: defReboot,
             cleanPayloadOnSuccess: true,
           });
           softwareSelect.value = '';
@@ -636,15 +718,20 @@ hatchery.vmRows = (function () {
             .then(function (items) {
               var current = softwareSelect.value;
               softwareSelect.innerHTML = '<option value="">- select software to add -</option>';
+              var map = {};
               (items || []).forEach(function (item) {
                 var name = typeof item === 'string' ? item : item.name;
                 if (!name) return;
+                var defReboot = !!(item && item.definition_reboot_after);
+                map[name] = { definitionRebootAfter: defReboot };
                 var opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
+                if (defReboot) opt.dataset.definitionRebootAfter = '1';
                 if (name === current) opt.selected = true;
                 softwareSelect.appendChild(opt);
               });
+              softwareMetaByName = map;
             })
             .catch(function () {})
             .finally(function () { refreshSoftwareBtn.disabled = false; });
@@ -811,9 +898,11 @@ hatchery.vmRows = (function () {
             var type = item.dataset.automationType === 'software' ? 'software' : 'script';
             var name = item.dataset.automationName || item.dataset.scriptName;
             var entry = { type: type, name: name };
-            var rebootAfter = item.querySelector('.vm-script-reboot')
-              ? item.querySelector('.vm-script-reboot').checked
-              : false;
+            // Definition-forced reboot is mid-walk (software.yaml); do not persist
+            // it as Clutch automations[].reboot_after (#563).
+            var rebootCb = item.querySelector('.vm-script-reboot');
+            var definitionForced = item.dataset.definitionRebootAfter === '1';
+            var rebootAfter = !!(rebootCb && !definitionForced && rebootCb.checked);
             if (rebootAfter) entry.reboot_after = true;
             if (type === 'script') {
               var params = {};

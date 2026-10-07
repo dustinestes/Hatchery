@@ -5323,6 +5323,55 @@ class TestApiNestVms:
             resp = client.get("/api/nests/local/vms?include_external=1")
         data = resp.get_json()
         assert data[0]["scripts"][0]["script_name"] == "setup.ps1"
+        assert data[0]["scripts"][0]["reboot_after_source"] == "none"
+        assert data[0]["scripts"][0]["reboot_after_effective"] is False
+
+    def test_software_reboot_source_from_yaml(self, client, tmp_path, monkeypatch):
+        import lib.config as cfg
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        pkg = tmp_path / "automation" / "software" / "Acme.VirtIO.1.0.0"
+        pkg.mkdir(parents=True)
+        (pkg / "software.yaml").write_text(
+            "hatchery:\n"
+            "  kind: software\n"
+            "  publisher: Acme\n"
+            "  product: VirtIO\n"
+            "  version: '1.0.0'\n"
+            "platforms:\n"
+            "  windows:\n"
+            "    x64:\n"
+            "      install: {command: 'winget install x', reboot_after: true}\n"
+            "      uninstall: {command: 'u'}\n"
+            "      detect: {command: 'd'}\n",
+            encoding="utf-8",
+        )
+
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+
+        class _Sw:
+            type = "software"
+            name = "Acme.VirtIO.1.0.0"
+            reboot_after = False
+            clean_payload_on_success = True
+            parameters = None
+
+        hatch_lib.add_vm_scripts(sid, "dc01", [_Sw()])
+
+        with patch("lib.vm_inventory.get_provider") as mock_prov:
+            prov = self._mock_provider(
+                vms=[{"name": "dc01", "status": "running"}],
+                tag={"session_id": sid, "clutch_file": "lab.yaml"},
+            )
+            mock_prov.return_value = prov
+            resp = client.get("/api/nests/local/vms?include_external=1")
+        row = resp.get_json()[0]["scripts"][0]
+        assert row["entry_type"] == "software"
+        assert row["definition_reboot_after"] is True
+        assert row["reboot_after_source"] == "yaml"
+        assert row["reboot_after_effective"] is True
 
     def test_scripts_empty_when_untagged(self, client):
         with patch("lib.vm_inventory.get_provider") as mock_prov:
