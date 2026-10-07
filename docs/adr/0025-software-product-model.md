@@ -130,6 +130,7 @@ Exact keys are finalized in the definition-schema and Clutch-form children; samp
 ## Related docs
 
 - Operator how-to: [`docs/software.md`](../software.md)
+- Online / command-only packages: [ADR-0033](0033-software-online-command-only.md) / [#561](https://github.com/dustinestes/Hatchery/issues/561)
 - Scripts (post-boot): [`docs/automations.md`](../automations.md)
 - Answer Files (install-time): [`docs/answer-files.md`](../answer-files.md)
 - Library: [`docs/library.md`](../library.md)
