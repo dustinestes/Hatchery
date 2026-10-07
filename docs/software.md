@@ -18,6 +18,7 @@ Post-boot guest application packages - Automations sibling of [Scripts](automati
 - [Storage and identity](#storage-and-identity)
 - [Definition file](#definition-file)
 - [Offline payloads](#offline-payloads)
+- [Online / command-only packages](#online--command-only-packages)
 - [Guest path roles](#guest-path-roles)
 - [Clutch automations](#clutch-automations)
 - [Library](#library)
@@ -31,9 +32,9 @@ Post-boot guest application packages - Automations sibling of [Scripts](automati
 
 ## Overview
 
-**Software** is Hatchery’s product noun for staging offline installer payloads on a guest and running defined install / uninstall / detect commands as ordered Clutch steps after the guest is reachable.
+**Software** is Hatchery’s product noun for running defined install / uninstall / detect commands as ordered Clutch steps after the guest is reachable. Packages may stage **optional** offline installer payloads, or be **YAML-only** (online / command-only): the guest downloads an installer or calls a package manager such as winget.
 
-Product shape is locked in [ADR-0025](adr/0025-software-product-model.md). Inventory, Library domain, hatch provision, and Nest/VM UI land in child issues under [#199](https://github.com/dustinestes/Hatchery/issues/199).
+Product shape is locked in [ADR-0025](adr/0025-software-product-model.md) and [ADR-0033](adr/0033-software-online-command-only.md). Inventory, Library domain, hatch provision, and Nest/VM UI land in child issues under [#199](https://github.com/dustinestes/Hatchery/issues/199).
 
 <br>
 
@@ -47,7 +48,7 @@ Product shape is locked in [ADR-0025](adr/0025-software-product-model.md). Inven
 |---|---|---|---|
 | When | After the guest is reachable (ordered with Scripts) | After the guest is reachable | During OS install / first-boot media |
 | Who consumes | Guest shell (SSH primary; WinRM Windows fallback) | Guest shell | Guest **installer** / early boot |
-| What | Package definition + optional OS payload tree | Script file under `automation/scripts/` | Template under `automation/answerfiles/` |
+| What | Package definition + optional OS payload tree (or YAML-only online install) | Script file under `automation/scripts/` | Template under `automation/answerfiles/` |
 | Clutch | `type: software` entry in `automations` | `type: script` entry in `automations` | `answer_file:` / parameters (install-time) |
 
 Scripts remain for cross-cutting guest work. Software hooks (`pre_install` / `post_install`) keep product-specific prep/config with the payload.
@@ -197,6 +198,32 @@ On hatch, Hatchery copies **only** the guest OS + selected arch subtree (guest a
 
 <br>
 
+## Online / command-only packages
+
+When a package has no `{os}/{arch}/` payload directory, Hatchery still loads `software.yaml`, resolves the guest OS + arch unit, runs detect (skip-if-present), and runs `install.command` with **zero files staged**. That is the **online / command-only** shape ([ADR-0033](adr/0033-software-online-command-only.md) / [#561](https://github.com/dustinestes/Hatchery/issues/561)).
+
+| Still required | Not required |
+|---|---|
+| `platforms.{os}.{arch}` with install / uninstall / detect | Shipping binaries under `{os}/{arch}/` |
+| Per-OS command text (PowerShell, bash, winget, apt, …) | Controller download into the Software cache |
+| Guest outbound HTTPS and/or guest package manager when the command needs them | Baking winget into `hatchery-setup-windows.ps1` |
+
+Typical patterns (URLs and package ids live inside the authored command, not a `source:` schema key):
+
+1. **HTTPS download + install** - guest `Invoke-WebRequest` (or equivalent) to a known installer URL, then silent EXE/MSI switches.
+2. **Guest package manager** - e.g. `winget install -e --id … --silent --accept-package-agreements --accept-source-agreements` (QEMU Guest Agent, VirtIO guest tools).
+3. **Opt-in tool bootstrap** - a separate Software package that installs App Installer / winget via HTTPS when the image lacks it; place it **before** winget-based rows in Clutch `automations`.
+
+Hatchery-Library samples for these shapes are YAML-only living packages (including post-install VirtIO without an attached ISO); the Library README keeps a short shapes sketch. Full contract stays in this doc. Attaching VirtIO media at hatch remains preferred when Windows Setup must load `viostor` during install.
+
+Guest internet, TLS, and UAC/driver silent-install caveats are the same class of operator concern as offline Software ([#543](https://github.com/dustinestes/Hatchery/issues/543) UAC lab posture). Some driver installers (for example SPICE Guest Tools) document Local System for fully silent driver approval; hatch admin remoting may still need lab validation.
+
+<br>
+
+---
+
+<br>
+
 ## Guest path roles
 
 Path roles are the same tokens in docs, ADR, and code. They resolve from **Clutch Guest OS** (guest plane), never Controller OS, via `guest_paths_for(GuestOS)` (or equivalent).
@@ -302,12 +329,13 @@ Clutch ordered automations
        → load software.yaml
        → detect (skip-if-present; no stage if already present)
        → else stage platforms/{os}/{arch}/ → software_package(id)
+         (skip staging when payload dir missing: online / command-only)
        → pre_install[] → install → post_install[]
        → detect (verify present after install)
        → optional remove software_package(id) when staged (#474)
 ```
 
-Nest cache gains an `automation/software` artifact kind for definition + selected OS payload tree. Guest paths always go through the role map above.
+Nest cache gains an `automation/software` artifact kind for definition + selected OS payload tree (tree may be definition-only). Guest paths always go through the role map above.
 
 <br>
 
@@ -318,11 +346,13 @@ Nest cache gains an `automation/software` artifact kind for definition + selecte
 ## Related
 
 - [ADR-0025](adr/0025-software-product-model.md) - Software product model
+- [ADR-0033](adr/0033-software-online-command-only.md) - Online / command-only packages
 - [Automations (Scripts)](automations.md) - post-boot scripts
 - [Answer Files](answer-files.md) - install-time templates
 - [Library](library.md) - pull / bindings
 - [Orchestration](orchestration.md) - hatch lifecycle and guest directory
 - Epic [#199](https://github.com/dustinestes/Hatchery/issues/199)
+- YAML-only Library examples [#561](https://github.com/dustinestes/Hatchery/issues/561)
 
 <br>
 
