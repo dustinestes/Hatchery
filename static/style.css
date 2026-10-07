@@ -2018,14 +2018,6 @@ html.sidebar-collapsed-init .topbar-name {
   opacity: 0.9;
 }
 
-.script-item-reboot-hint {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.3;
-  color: var(--color-text-muted);
-}
-
 .script-item-actions {
   display: flex;
   align-items: center;

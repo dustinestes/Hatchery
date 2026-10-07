@@ -535,33 +535,17 @@ hatchery.vmRows = (function () {
     function applySoftwareRebootUi(item, clutchRebootAfter, definitionRebootAfter) {
       var rebootCb = item.querySelector('.vm-script-reboot');
       var rebootLabel = item.querySelector('.script-item-reboot-label');
-      var hint = item.querySelector('.script-item-reboot-hint');
       if (!rebootCb || !rebootLabel) return;
       if (definitionRebootAfter) {
         item.dataset.definitionRebootAfter = '1';
         rebootCb.checked = true;
         rebootCb.disabled = true;
-        rebootCb.setAttribute(
-          'aria-describedby',
-          hint ? hint.id : ''
-        );
-        rebootLabel.title =
-          'Set in software.yaml (definition forces reboot after install)';
-        if (hint) {
-          hint.hidden = false;
-          hint.textContent =
-            'Set in software.yaml (definition forces reboot after install)';
-        }
+        rebootLabel.title = 'Set in software.yaml';
       } else {
         delete item.dataset.definitionRebootAfter;
         rebootCb.checked = !!clutchRebootAfter;
         rebootCb.disabled = false;
-        rebootCb.removeAttribute('aria-describedby');
         rebootLabel.title = 'Reboot guest after this automation step completes';
-        if (hint) {
-          hint.hidden = true;
-          hint.textContent = '';
-        }
       }
     }
 
@@ -579,8 +563,6 @@ hatchery.vmRows = (function () {
       item.dataset.scriptName = name;
       var kindLabel = type === 'software' ? 'Software' : 'Script';
       var removeLabel = type === 'software' ? 'Remove software' : 'Remove script';
-      var hintId = 'reboot-hint-' + type + '-' + String(list.querySelectorAll('.script-item').length) +
-        '-' + Date.now();
       var CHEVRON_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
       var CHEVRON_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
       var CLOSE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -591,7 +573,6 @@ hatchery.vmRows = (function () {
         '</label>';
       if (type === 'software') {
         optionsHtml +=
-          '<span class="script-item-reboot-hint form-hint" id="' + hintId + '" hidden></span>' +
           '<label class="script-item-option" title="Clean installer files on success">' +
             '<input type="checkbox" class="vm-software-clean"' + (cleanPayload ? ' checked' : '') +
             '> Clean on success' +
