@@ -40,7 +40,9 @@ def test_stage_payload_uploads_files(tmp_path, monkeypatch):
     monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Winrm())
     monkeypatch.setattr(soft_prov, "_ensure_winrm_envelope_size", lambda *a, **k: None)
     monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
+    monkeypatch.setattr(soft_prov, "_guest_payload_hashes", lambda *a, **k: {})
     monkeypatch.setattr(soft_prov, "_upload_file", fake_upload)
+    events: list[str] = []
 
     rels = soft_prov.stage_payload(
         "10.0.0.1",
@@ -49,10 +51,123 @@ def test_stage_payload_uploads_files(tmp_path, monkeypatch):
         package_dir=pkg,
         payload_rel="windows/x64",
         guest_package_dir=r"C:\Program Files\Hatchery\software\Hatchery.SoftwareExample.1.0.0",
+        on_event=lambda lvl, msg: events.append(msg),
     )
     assert rels == ["Setup.msi"]
     assert uploaded[0][0] == "Setup.msi"
     assert uploaded[0][1].endswith(r"\Setup.msi")
+    up = next(e for e in events if e.startswith("Uploading Setup.msi"))
+    assert "found=(missing)" in up
+    assert "expected=" in up
+
+
+def test_stage_payload_skips_sha_match(tmp_path, monkeypatch):
+    import hashlib
+
+    pkg = tmp_path / "Pkg"
+    payload = pkg / "windows" / "x64"
+    payload.mkdir(parents=True)
+    data = b"already-staged"
+    (payload / "Setup.msi").write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    uploads: list[str] = []
+    events: list[str] = []
+
+    class _Winrm:
+        kind = "winrm"
+
+    monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Winrm())
+    monkeypatch.setattr(soft_prov, "_ensure_winrm_envelope_size", lambda *a, **k: None)
+    monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
+    monkeypatch.setattr(
+        soft_prov,
+        "_guest_payload_hashes",
+        lambda *a, **k: {"Setup.msi": digest},
+    )
+    monkeypatch.setattr(
+        soft_prov,
+        "_upload_file",
+        lambda *a, **k: uploads.append("upload"),
+    )
+
+    rels = soft_prov.stage_payload(
+        "10.0.0.1",
+        "admin",
+        "pw",
+        package_dir=pkg,
+        payload_rel="windows/x64",
+        guest_package_dir=r"C:\pkg",
+        on_event=lambda lvl, msg: events.append(msg),
+    )
+    assert rels == ["Setup.msi"]
+    assert uploads == []
+    skip = next(e for e in events if e.startswith("Skipping Setup.msi"))
+    assert f"expected={digest}" in skip
+    assert f"found={digest}" in skip
+    assert "sha256 match" in skip
+
+
+def test_stage_payload_reuploads_on_hash_mismatch(tmp_path, monkeypatch):
+    import hashlib
+
+    pkg = tmp_path / "Pkg"
+    payload = pkg / "windows" / "x64" / "nested"
+    payload.mkdir(parents=True)
+    data = b"new-bytes"
+    (payload / "a.bin").write_bytes(data)
+    local_digest = hashlib.sha256(data).hexdigest()
+    guest_digest = "0" * 64
+    uploads: list[str] = []
+    events: list[str] = []
+
+    class _Winrm:
+        kind = "winrm"
+
+    monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Winrm())
+    monkeypatch.setattr(soft_prov, "_ensure_winrm_envelope_size", lambda *a, **k: None)
+    monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
+    monkeypatch.setattr(
+        soft_prov,
+        "_guest_payload_hashes",
+        lambda *a, **k: {"nested/a.bin": guest_digest},
+    )
+    monkeypatch.setattr(
+        soft_prov,
+        "_upload_file",
+        lambda *a, **k: uploads.append("upload"),
+    )
+
+    rels = soft_prov.stage_payload(
+        "10.0.0.1",
+        "admin",
+        "pw",
+        package_dir=pkg,
+        payload_rel="windows/x64",
+        guest_package_dir=r"C:\pkg",
+        on_event=lambda lvl, msg: events.append(msg),
+    )
+    assert rels == ["nested/a.bin"]
+    assert uploads == ["upload"]
+    up = next(e for e in events if e.startswith("Uploading nested/a.bin"))
+    assert f"expected={local_digest}" in up
+    assert f"found={guest_digest}" in up
+
+
+def test_parse_guest_hash_lines():
+    out = (
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\tSetup.msi\r\n"
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\tnested\\a.bin\n"
+        "not-a-hash\tskip.me\n"
+    )
+    parsed = soft_prov._parse_guest_hash_lines(out)
+    assert parsed["Setup.msi"].startswith("aaaa")
+    assert parsed["nested/a.bin"].startswith("bbbb")
+    assert "skip.me" not in parsed
+
+
+def test_guest_payload_hashes_returns_empty_on_ps_failure(monkeypatch):
+    monkeypatch.setattr(soft_prov, "_run_ps", lambda *a, **k: (1, "boom"))
+    assert soft_prov._guest_payload_hashes("10.0.0.1", "a", "b", r"C:\pkg") == {}
 
 
 def test_run_software_entry_happy_path(tmp_path, monkeypatch):
@@ -415,6 +530,7 @@ def test_stage_payload_uses_ssh_when_resolved(tmp_path, monkeypatch):
 
     monkeypatch.setattr(soft_prov.provision_lib, "_guest_transport", lambda *a, **k: _Ssh())
     monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: None)
+    monkeypatch.setattr(soft_prov, "_guest_payload_hashes", lambda *a, **k: {})
     monkeypatch.setattr(
         soft_prov,
         "_upload_file_ssh",
@@ -452,6 +568,7 @@ def test_stage_payload_ensures_envelope(tmp_path, monkeypatch):
         lambda *a, **k: calls.append("envelope"),
     )
     monkeypatch.setattr(soft_prov, "_ensure_guest_dir", lambda *a, **k: calls.append("dir"))
+    monkeypatch.setattr(soft_prov, "_guest_payload_hashes", lambda *a, **k: {})
     monkeypatch.setattr(
         soft_prov,
         "_upload_file",
