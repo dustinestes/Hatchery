@@ -350,8 +350,16 @@ def stage_payload(
 
     Prefers SSH/SCP when guest transport resolves to SSH (#497); otherwise WinRM
     chunked stdin. Returns relative paths uploaded (posix-style). Empty when
-    there is no payload dir.
+    there is no payload dir (no remoting) - callers should skip this helper for
+    YAML-only / command-only packages (#564).
     """
+    if not payload_rel:
+        return []
+    src = package_dir / payload_rel
+    if not src.is_dir():
+        # Unit may exist without offline files (command-only install).
+        return []
+
     transport = provision_lib._guest_transport(ip, admin_username, admin_password)
     use_ssh = transport.kind == "ssh"
     if use_ssh:
@@ -363,14 +371,6 @@ def stage_payload(
             on_event("INFO", "Software staging via WinRM (SSH unavailable)")
         _ensure_winrm_envelope_size(ip, admin_username, admin_password, on_event=on_event)
         _ensure_guest_dir(ip, admin_username, admin_password, guest_package_dir)
-
-    if not payload_rel:
-        return []
-    src = package_dir / payload_rel
-    if not src.is_dir():
-        # Unit may exist without offline files (command-only install).
-        return []
-
     uploaded: list[str] = []
     for path in sorted(src.rglob("*")):
         if not path.is_file():
@@ -473,13 +473,14 @@ def run_software_entry(
 ) -> tuple[int, str, bool]:
     """Execute one Software automation entry.
 
-    Walk: detect (skip-if-present) → else stage → pre_install → install →
-    post_install → detect (verify). Returns ``(exit_code, output,
-    install_requested_reboot)``. When install sets ``reboot_after``, restarts the
-    guest and waits for WinRM before ``post_install``. The third tuple value is
-    True when that mid-walk reboot already happened (caller should not
-    double-reboot for install alone; clutch-level ``reboot_after`` is still the
-    caller's job). Skip-if-present returns reboot False.
+    Walk: detect (skip-if-present) → else stage (or skip when no offline payload
+    dir, #564) → pre_install → install → post_install → detect (verify).
+    Returns ``(exit_code, output, install_requested_reboot)``. When
+    ``software.yaml`` ``install.reboot_after`` is true, restarts the guest and
+    waits for remoting before ``post_install``. The third tuple value is True
+    when that mid-walk reboot already happened (caller should not double-reboot
+    for install alone; clutch-level ``reboot_after`` is still the caller's job).
+    Skip-if-present returns reboot False.
     """
 
     def emit(level: str, message: str) -> None:
@@ -511,13 +512,18 @@ def run_software_entry(
     )
     outputs: list[str] = []
 
+    # Offline payload present → require staged package cwd. YAML-only / command-only
+    # installs (#564 / ADR-0033) skip staging and do not require that directory.
+    has_offline_payload = (pkg_path / payload_rel).is_dir()
+
     def run_pkg(
         *,
         command: str | None = None,
         script_rel: str | None = None,
         timeout: int = 600,
-        require_cwd: bool = True,
+        require_cwd: bool | None = None,
     ) -> tuple[int, str]:
+        cwd = has_offline_payload if require_cwd is None else require_cwd
         return run_in_package(
             ip,
             admin_username,
@@ -526,7 +532,7 @@ def run_software_entry(
             command=command,
             script_rel=script_rel,
             timeout=timeout,
-            require_cwd=require_cwd,
+            require_cwd=cwd,
             env=guest_env,
         )
 
@@ -543,17 +549,23 @@ def run_software_entry(
         emit("INFO", "Software already present - skipping stage/install")
         return 0, "\n".join(outputs), False
 
-    emit("INFO", f"Staging payload {payload_rel} → {guest_pkg}")
-    uploaded = stage_payload(
-        ip,
-        admin_username,
-        admin_password,
-        package_dir=pkg_path,
-        payload_rel=payload_rel if (pkg_path / payload_rel).is_dir() else None,
-        guest_package_dir=guest_pkg,
-        on_event=emit,
-    )
-    emit("INFO", f"Staged {len(uploaded)} file(s)")
+    if has_offline_payload:
+        emit("INFO", f"Staging payload {payload_rel} → {guest_pkg}")
+        uploaded = stage_payload(
+            ip,
+            admin_username,
+            admin_password,
+            package_dir=pkg_path,
+            payload_rel=payload_rel,
+            guest_package_dir=guest_pkg,
+            on_event=emit,
+        )
+        emit("INFO", f"Staged {len(uploaded)} file(s)")
+    else:
+        emit(
+            "INFO",
+            f"No offline payload under {payload_rel} - command-only install (skip staging)",
+        )
 
     def run_hooks(label: str, hooks: list) -> None:
         for i, hook in enumerate(hooks):
@@ -580,13 +592,16 @@ def run_software_entry(
 
     install_reboot = bool(unit.install.reboot_after)
     if install_reboot:
-        emit("INFO", "Install requested reboot - waiting for LastBootUpTime change")
+        emit(
+            "INFO",
+            "software.yaml install.reboot_after is true - waiting for LastBootUpTime change",
+        )
         provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=emit)
 
     run_hooks("post_install", unit.post_install)
 
     emit("INFO", "Running detect (verify install)")
-    det_code, det_out = run_pkg(command=unit.detect.command, timeout=300)
+    det_code, det_out = run_pkg(command=unit.detect.command, timeout=300, require_cwd=False)
     outputs.append(f"[detect verify exit={det_code}]\n{det_out}")
     if not _exit_ok(det_code, unit.detect.success_exit_codes):
         raise RuntimeError(
@@ -595,7 +610,7 @@ def run_software_entry(
             "install reported success but the product was not detected"
         )
 
-    if clean_payload_on_success:
+    if clean_payload_on_success and has_offline_payload:
         emit("INFO", f"Cleaning staged package {guest_pkg}")
         remove_guest_package(ip, admin_username, admin_password, guest_pkg)
 
