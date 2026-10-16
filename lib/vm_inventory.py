@@ -209,7 +209,12 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
     if show_passwords is None:
         show_passwords = config.show_passwords()
 
-    vms = provider.list_vms()
+    # Transport / hypervisor failures must not 500 the page: treat like
+    # provider unavailable so cross-Nest inventory can skip this Nest.
+    try:
+        vms = provider.list_vms()
+    except Exception as exc:
+        raise NestProviderUnavailableError(str(exc)) from exc
     result: list[dict[str, Any]] = []
     for vm in vms:
         name = vm["name"]
@@ -313,6 +318,10 @@ def list_enriched_vms_all_nests(
         try:
             rows = list_enriched_vms(nid, show_passwords=show_passwords)
         except (NestNotFoundError, NestProviderUnavailableError):
+            unavailable.append(nid)
+            continue
+        except Exception:
+            # Belt-and-suspenders: never fail the whole inventory for one Nest.
             unavailable.append(nid)
             continue
         if hatchery_sourced_only:
