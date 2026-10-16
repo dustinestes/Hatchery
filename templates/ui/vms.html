@@ -51,6 +51,7 @@
 
   <p class="scripts-nav-empty" id="vms-empty" hidden>No VMs found across registered Nests.</p>
   <p class="scripts-nav-empty" id="vms-filtered-empty" hidden role="status">No VMs match the current filters.</p>
+  <p class="form-help-text" id="vms-nests-unavailable" hidden role="status" aria-live="polite"></p>
 
   <ul class="inventory-tile-grid" id="vms-tile-grid" aria-label="VM inventory"></ul>
 </div>
@@ -62,6 +63,7 @@
   const grid = document.getElementById('vms-tile-grid');
   const empty = document.getElementById('vms-empty');
   const filteredEmpty = document.getElementById('vms-filtered-empty');
+  const nestsUnavailableEl = document.getElementById('vms-nests-unavailable');
   const filterQ = document.getElementById('vms-filter-q');
   const filterNest = document.getElementById('vms-filter-nest');
   const filterClutch = document.getElementById('vms-filter-clutch');
@@ -69,6 +71,7 @@
   const filterState = document.getElementById('vms-filter-state');
 
   let vms = [];
+  let nestsUnavailable = [];
 
   const POWER_LABEL = {
     'running': 'Running',
@@ -174,19 +177,40 @@
     });
   }
 
+  function renderNestsUnavailable() {
+    if (!nestsUnavailableEl) return;
+    if (!nestsUnavailable.length) {
+      nestsUnavailableEl.hidden = true;
+      nestsUnavailableEl.textContent = '';
+      return;
+    }
+    const ids = nestsUnavailable.map(esc).join(', ');
+    const n = nestsUnavailable.length;
+    nestsUnavailableEl.hidden = false;
+    nestsUnavailableEl.textContent = n === 1
+      ? 'Nest unavailable (skipped): ' + ids + '. Other Nests still listed.'
+      : n + ' Nests unavailable (skipped): ' + ids + '. Other Nests still listed.';
+  }
+
   async function refresh() {
     try {
       const resp = await fetch('/api/vms');
       if (!resp.ok) throw new Error('Failed to load VMs');
       const data = await resp.json();
       vms = Array.isArray(data.vms) ? data.vms : [];
+      nestsUnavailable = Array.isArray(data.nests_unavailable) ? data.nests_unavailable : [];
       updateFacetOptions();
       renderTiles();
+      renderNestsUnavailable();
     } catch (err) {
       empty.hidden = false;
       empty.textContent = err.message || 'Failed to load VMs';
       filteredEmpty.hidden = true;
       grid.innerHTML = '';
+      if (nestsUnavailableEl) {
+        nestsUnavailableEl.hidden = true;
+        nestsUnavailableEl.textContent = '';
+      }
     }
   }
 

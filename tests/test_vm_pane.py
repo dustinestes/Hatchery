@@ -151,6 +151,71 @@ def test_api_vms_and_mutate(client):
         assert resp.get_json()["ok"] is True
 
 
+def test_list_enriched_vms_all_nests_skips_unreachable_transport(client):
+    """One Nest list_vms transport failure must not 500 the whole inventory."""
+    from lib import nests as nests_lib
+    from lib import vm_inventory as inv
+
+    local = nests_lib.get_nest("local")
+    assert local is not None
+    nests_lib.replace_nests(
+        [
+            local,
+            {
+                "id": "hv1",
+                "name": "Hyper-V remote",
+                "provider_type": "hyperv",
+                "location": "remote",
+                "host": "192.168.122.171",
+                "transport": "ssh",
+                "ssh_user": "admin",
+                "port": 22,
+            },
+        ]
+    )
+
+    local_prov = MagicMock()
+    local_prov.list_vms.return_value = [{"name": "ok-vm", "status": "running"}]
+    local_prov.get_vm_ip.return_value = None
+    local_prov.get_vm_session_tag.return_value = None
+
+    bad_prov = MagicMock()
+    bad_prov.list_vms.side_effect = RuntimeError(
+        "ssh: connect to host 192.168.122.171 port 22: No route to host"
+    )
+
+    def _get_provider(nid):
+        if nid == "local":
+            return local_prov
+        if nid == "hv1":
+            return bad_prov
+        raise AssertionError(f"unexpected nest {nid}")
+
+    with (
+        patch("lib.vm_inventory.get_provider", side_effect=_get_provider),
+        patch.object(cfg, "vms_show_external", return_value=True),
+    ):
+        payload = inv.list_enriched_vms_all_nests(hatchery_sourced_only=False)
+        resp = client.get("/api/vms")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "ok-vm" in {v["name"] for v in data["vms"]}
+    assert "hv1" in data["nests_unavailable"]
+    assert "hv1" in payload["nests_unavailable"]
+    assert any(v["name"] == "ok-vm" for v in payload["vms"])
+
+
+def test_list_enriched_vms_raises_unavailable_on_list_vms_error(client):
+    from lib import vm_inventory as inv
+
+    prov = MagicMock()
+    prov.list_vms.side_effect = RuntimeError("No route to host")
+    with patch("lib.vm_inventory.get_provider", return_value=prov):
+        with pytest.raises(inv.NestProviderUnavailableError, match="No route to host"):
+            inv.list_enriched_vms("local")
+
+
 def test_vm_ops_lifecycle_and_snap():
     from lib import vm_ops as ops
 
