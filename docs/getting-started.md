@@ -195,11 +195,11 @@ bash scripts/uninstall-service.sh
 4. Click **Hatch**
 5. Hatchery creates the VM, generates the `Autounattend.xml` answer file, and boots the installer
 6. Windows installs unattended - no interaction needed
-7. After first boot, Hatchery connects over WinRM and runs the provisioning sequence
+7. After first boot, Hatchery connects over guest remoting (SSH primary; WinRM Windows fallback) and runs the provisioning sequence
 
 The VM appears on the dashboard while hatching. Provisioning completes in the background; the VM status updates to **fledged** when ready.
 
-Admin Username / Password are **hatch-scoped through fledged**: Hatchery uses them for unattended install tokens and WinRM while Scripts run. After fledged, rotating or hardening that account is your responsibility (a final Clutch automation, or out-of-band). Hatchery-Library’s cleanup scripts remove guest Hatchery artifacts; they do not change the admin password. Details: [Answer Files - Hatch-scoped through fledged](answer-files.md#hatch-scoped-through-fledged).
+Admin Username / Password are **hatch-scoped through fledged**: Hatchery uses them for unattended install tokens and guest remoting while Scripts run. After fledged, rotating or hardening that account is your responsibility (a final Clutch automation, or out-of-band). Hatchery-Library’s cleanup scripts remove guest Hatchery artifacts; they do not change the admin password. Details: [Answer Files - Hatch-scoped through fledged](answer-files.md#hatch-scoped-through-fledged).
 
 ---
 
@@ -273,7 +273,7 @@ In the creation form, select it from the **VirtIO Drivers** dropdown. Hatchery w
 
 Leave this field empty to use standard IDE/e1000 adapters - slower, but zero extra setup. Driver installation after hatch is also optional.
 
-To install drivers and the QEMU guest agent from the attached ISO over WinRM, pull [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library) into `automation/scripts/` and add it to the VM's automations. Full steps: [Automations - VirtIO driver automation](automations.md#virtio-driver-automation).
+To install drivers and the QEMU guest agent from the attached ISO over guest remoting, pull [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) from [Hatchery Library](https://github.com/dustinestes/Hatchery-Library) into `automation/scripts/` and add it to the VM's automations. Full steps: [Automations - VirtIO driver automation](automations.md#virtio-driver-automation).
 
 ---
 

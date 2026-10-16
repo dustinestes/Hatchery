@@ -87,7 +87,7 @@ Each event row in `hatch_events` has these columns:
 |---|---|
 | `INFO` | Normal progress - stage started, stage completed, values observed |
 | `WARN` | Non-fatal advisory - fallback taken, optional step skipped |
-| `ERROR` | Failure - VM creation failed, script failed, WinRM connection lost |
+| `ERROR` | Failure - VM creation failed, script failed, guest remoting connection lost |
 
 <br>
 
@@ -179,12 +179,12 @@ Emitted in `_provision_vm_thread` (per-VM background thread). Events are written
 | `INFO` | `Script complete: <name>.ps1 - Exit Code: 0` | `<name>.ps1` | Script returned exit code 0 |
 | `INFO` | `Software complete: <package-id> - Exit Code: 0` | package id | Software entry returned exit code 0 |
 | `ERROR` | `Script failed: <name>.ps1 - Exit Code: <n>` | `<name>.ps1` | Script returned a non-zero exit code |
-| `ERROR` | `Script failed: WinRM connection error - <detail>` | `<name>.ps1` | Guest remoting raised an exception before or during script execution |
+| `ERROR` | `Script failed: <detail>` | `<name>.ps1` | Guest remoting raised an exception before or during script execution |
 | `INFO` | `Rebooting VM after script: <name>.ps1` | `<name>.ps1` | Script has `reboot_after: true`; guest restart initiated |
 | `INFO` | `Guest reboot confirmed: <UTC ISO> (LastBootUpTime=<FILETIME>)` | `<name>.ps1` | Guest boot time changed after `reboot_after`; ISO matches event log timestamps ([#499](https://github.com/dustinestes/Hatchery/issues/499)) |
-| `INFO` | `Waiting for WinRM to stabilize after reboot (N consecutive probes)` | `<name>.ps1` | Post-reboot settle before the next automation |
-| `INFO` | `WinRM stable after reboot (N consecutive probes)` | `<name>.ps1` | Settle complete; safe to continue |
-| `WARN` | `WinRM probe failed during settle - resetting stability count…` | `<name>.ps1` | Transient remoting flake during settle |
+| `INFO` | `Waiting for guest remoting to stabilize after reboot (N consecutive probes)` | `<name>.ps1` | Post-reboot settle before the next automation |
+| `INFO` | `Guest remoting stable after reboot (N consecutive probes via <kind>)` | `<name>.ps1` | Settle complete; `<kind>` is `ssh` or `winrm` |
+| `WARN` | `Guest remoting probe failed during settle - resetting stability count…` | `<name>.ps1` | Transient remoting flake during settle |
 | `INFO` | `Raised guest WinRM MaxEnvelopeSizekb for Software staging (…)` | Software id | Guest envelope raised before payload Send |
 | `INFO` | `Running detect (pre-install)` | Software id | Pre-stage detect; present skips transfer/install |
 | `INFO` | `Software already present - skipping stage/install` | Software id | Pre-install detect present; step succeeds without staging |
