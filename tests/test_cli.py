@@ -548,6 +548,75 @@ class TestOperatorInspect:
         assert rc == 1
         assert "Password required" in capsys.readouterr().err
 
+    def test_hatch_rejects_invalid_script_params(self, isolated_config, tmp_path, capsys):
+        import lib.cli.hatch as hatch_cmd
+        from lib import clutch as clutch_lib
+        from lib.clutch import AutomationEntry, Clutch, VMConfig
+        from lib.script_params import ParamSpec
+
+        sandbox = tmp_path / "sandbox"
+        self._seed_local_nest(sandbox)
+        clutches = sandbox / "clutches"
+        clutches.mkdir(parents=True, exist_ok=True)
+        answers = sandbox / "automation" / "answerfiles"
+        answers.mkdir(parents=True, exist_ok=True)
+        (answers / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+        scripts = sandbox / "automation" / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / "enable.ps1").write_text("param([bool]$IncludeManagementTools)\n")
+        clutch = Clutch(
+            name="Lab",
+            vms=[
+                VMConfig(
+                    name="dc01",
+                    os="windows",
+                    vcpus=2,
+                    ram_gb=4,
+                    disk_gb=40,
+                    os_media="win.iso",
+                    answer_file="win11.xml.j2",
+                    automations=[
+                        AutomationEntry(
+                            type="script",
+                            name="enable.ps1",
+                            parameters={"IncludeManagementTools": "not-a-bool"},
+                        )
+                    ],
+                )
+            ],
+        )
+        clutch_lib.save(clutch, clutches / "lab.yaml")
+        args = cli.build_parser().parse_args(
+            [
+                "hatch",
+                "--data-dir",
+                str(sandbox),
+                "--clutch",
+                "lab.yaml",
+                "--nest",
+                "local",
+                "--no-wait",
+            ]
+        )
+
+        def fake_introspect(path):
+            return [
+                ParamSpec(
+                    name="IncludeManagementTools",
+                    kind="bool",
+                    source_kind="powershell",
+                )
+            ]
+
+        with (
+            patch("lib.script_params.introspect", side_effect=fake_introspect),
+            patch("lib.providers.factory.get_provider", return_value=MagicMock()) as get_prov,
+        ):
+            rc = hatch_cmd.run(args)
+        assert rc == 1
+        assert "IncludeManagementTools" in capsys.readouterr().err
+        get_prov.assert_not_called()
+
     def test_hatch_runs_create_and_poll(self, isolated_config, tmp_path, capsys):
         import lib.cli.hatch as hatch_cmd
         from lib import clutch as clutch_lib

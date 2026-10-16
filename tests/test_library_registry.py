@@ -245,7 +245,10 @@ def test_ensure_hatchery_library_seeds_empty_registry(tmp_path, monkeypatch):
     media = registry.list_bindings(domain="media")
     answerfiles = registry.list_bindings(domain="answerfiles")
     software = registry.list_bindings(domain="software")
-    assert [(b["label"], b["filter"]) for b in scripts] == [("All Scripts", "*scripts/*")]
+    assert [(b["label"], b["filter"], b["enabled"]) for b in scripts] == [
+        ("All Scripts", "scripts/*", True),
+        ("Test Scripts", "tests/scripts/*", False),
+    ]
     assert [(b["label"], b["filter"]) for b in clutches] == [("All Clutches", "*clutches/*")]
     by_target = {(b["target"], b["label"], b["filter"]) for b in media}
     assert by_target == {
@@ -329,10 +332,84 @@ def test_ensure_software_library_defaults_scopes_legacy_star_filters(tmp_path, m
     )
     assert registry.ensure_software_library_defaults() is True
     scripts = {b["id"]: b for b in registry.list_bindings(domain="scripts")}
-    assert scripts["hatchery-library-scripts"]["filter"] == "*scripts/*"
+    assert scripts["hatchery-library-scripts"]["filter"] == "scripts/*"
     # Non-seed binding with * is left alone.
     assert scripts["hatchery-library-scripts-custom"]["filter"] == "*"
+    # Test Scripts binding is backfilled disabled (#573).
+    assert scripts["hatchery-library-test-scripts"]["filter"] == "tests/scripts/*"
+    assert scripts["hatchery-library-test-scripts"]["enabled"] is False
     assert registry.ensure_software_library_defaults() is False
+
+
+def test_ensure_migrates_star_scripts_filter_and_adds_test_scripts(tmp_path, monkeypatch):
+    """Legacy ``*scripts/*`` All Scripts → ``scripts/*``; insert Test Scripts (#573)."""
+    _init(tmp_path, monkeypatch)
+    cid = registry.HATCHERY_LIBRARY_CONNECTION_ID
+    registry.upsert_connection(
+        {
+            "id": cid,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": registry.HATCHERY_LIBRARY_BASE_URI,
+            "token": "",
+            "kinds": ["scripts", "clutches", "media", "answerfiles", "software"],
+            "enabled": True,
+        }
+    )
+    registry.upsert_binding(
+        {
+            "id": "hatchery-library-scripts",
+            "connection_id": cid,
+            "domain": "scripts",
+            "label": "All Scripts",
+            "filter": "*scripts/*",
+            "enabled": True,
+        }
+    )
+    assert registry.ensure_software_library_defaults() is True
+    scripts = {b["id"]: b for b in registry.list_bindings(domain="scripts")}
+    assert scripts["hatchery-library-scripts"]["filter"] == "scripts/*"
+    assert scripts["hatchery-library-test-scripts"]["filter"] == "tests/scripts/*"
+    assert scripts["hatchery-library-test-scripts"]["enabled"] is False
+    assert registry.ensure_software_library_defaults() is False
+
+
+def test_ensure_finds_hatchery_library_by_base_uri(tmp_path, monkeypatch):
+    """Re-added Library forge (new id) still gets Test Scripts + All Scripts migrate (#573)."""
+    _init(tmp_path, monkeypatch)
+    cid = "41a6418a6dc1"
+    registry.upsert_connection(
+        {
+            "id": cid,
+            "label": "Hatchery Library",
+            "type": "forge",
+            "provider": "github",
+            "base_uri": "https://github.com/dustinestes/Hatchery-Library",
+            "token": "",
+            "kinds": ["scripts", "clutches", "media", "answerfiles", "software"],
+            "enabled": True,
+        }
+    )
+    registry.upsert_binding(
+        {
+            "id": "4e440c78c9dd",
+            "connection_id": cid,
+            "domain": "scripts",
+            "label": "All Scripts",
+            "filter": "*",
+            "enabled": True,
+        }
+    )
+    assert registry.get_connection(registry.HATCHERY_LIBRARY_CONNECTION_ID) is None
+    found = registry.find_hatchery_library_connection()
+    assert found is not None and found["id"] == cid
+    assert registry.ensure_software_library_defaults() is True
+    scripts = {b["id"]: b for b in registry.list_bindings(domain="scripts")}
+    assert scripts["4e440c78c9dd"]["filter"] == "scripts/*"
+    assert scripts["hatchery-library-test-scripts"]["connection_id"] == cid
+    assert scripts["hatchery-library-test-scripts"]["filter"] == "tests/scripts/*"
+    assert scripts["hatchery-library-test-scripts"]["enabled"] is False
 
 
 def test_ensure_hatchery_library_skips_nonempty_registry(tmp_path, monkeypatch):

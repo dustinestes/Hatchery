@@ -541,6 +541,7 @@ HATCHERY_LIBRARY_BASE_URI = "https://github.com/dustinestes/Hatchery-Library"
 
 
 # Canonical Hatchery Library seed bindings (label order = alphabetical).
+# All Scripts uses ``scripts/*`` (not ``*scripts/*``) so ``tests/scripts/`` is excluded (#573).
 _HATCHERY_LIBRARY_BINDINGS: tuple[dict, ...] = (
     {
         "id": "hatchery-library-answerfiles",
@@ -565,7 +566,7 @@ _HATCHERY_LIBRARY_BINDINGS: tuple[dict, ...] = (
         "id": "hatchery-library-scripts",
         "domain": "scripts",
         "label": "All Scripts",
-        "filter": "*scripts/*",
+        "filter": "scripts/*",
     },
     {
         "id": "hatchery-library-software",
@@ -580,7 +581,52 @@ _HATCHERY_LIBRARY_BINDINGS: tuple[dict, ...] = (
         "label": "All VirtIO",
         "filter": "*media/virtio/*",
     },
+    {
+        "id": "hatchery-library-test-scripts",
+        "domain": "scripts",
+        "label": "Test Scripts",
+        "filter": "tests/scripts/*",
+        # Opt-in fixtures; Controllers enable for debug / validation pulls (#573).
+        "enabled": False,
+    },
 )
+
+# Legacy All Scripts filters rewritten to ``scripts/*`` on ensure (#573).
+_LEGACY_ALL_SCRIPTS_FILTERS = frozenset({"*", "*scripts/*"})
+
+
+def _normalize_forge_base_uri(uri: str) -> str:
+    """Normalize GitHub forge base URIs for Hatchery Library identity matching."""
+    text = (uri or "").strip().rstrip("/")
+    if text.endswith(".git"):
+        text = text[:-4]
+    lower = text.lower()
+    # Accept owner/repo shorthand used in some Connection forms.
+    if lower.count("/") == 1 and "://" not in lower:
+        return f"https://github.com/{lower}"
+    return text
+
+
+def find_hatchery_library_connection() -> dict | None:
+    """Return the Hatchery Library forge connection, if registered.
+
+    Prefers the well-known seed id. Falls back to forge+github with a matching
+    base URI so Controllers that re-added the catalog under a new id still get
+    seed binding updates (#573).
+    """
+    known = get_connection(HATCHERY_LIBRARY_CONNECTION_ID)
+    if known is not None:
+        return known
+    want = _normalize_forge_base_uri(HATCHERY_LIBRARY_BASE_URI).lower()
+    for conn in list_connections():
+        if (conn.get("type") or "").strip().lower() != "forge":
+            continue
+        if (conn.get("provider") or "").strip().lower() != "github":
+            continue
+        got = _normalize_forge_base_uri(str(conn.get("base_uri") or "")).lower()
+        if got == want:
+            return conn
+    return None
 
 
 def ensure_hatchery_library() -> bool:
@@ -617,7 +663,7 @@ def ensure_hatchery_library() -> bool:
             "domain": spec["domain"],
             "label": spec["label"],
             "filter": spec["filter"],
-            "enabled": True,
+            "enabled": bool(spec.get("enabled", True)),
         }
         if "target" in spec:
             item["target"] = spec["target"]
@@ -630,17 +676,19 @@ def ensure_hatchery_library() -> bool:
 
 
 def ensure_software_library_defaults() -> bool:
-    """Ensure Hatchery Library has ``software`` kind + scoped seed bindings (#470).
+    """Ensure Hatchery Library seed bindings stay current (#470 / #573).
 
-    Safe for Controllers that already seeded before the software domain existed,
-    or that still have legacy ``filter: *`` on the well-known binding ids.
-    Returns True if anything was added or updated.
+    Safe for Controllers that already seeded before the software domain or
+    Test Scripts binding existed, or that still have legacy All Scripts filters
+    (``*`` / ``*scripts/*``). Matches the Library forge connection by well-known
+    id or base URI. Returns True if anything was added or updated.
     """
     if not db_module.is_initialized():
         return False
-    conn = get_connection(HATCHERY_LIBRARY_CONNECTION_ID)
+    conn = find_hatchery_library_connection()
     if conn is None:
         return False
+    cid = conn["id"]
     changed = False
     kinds = list(conn.get("kinds") or [])
     if "software" not in kinds:
@@ -650,31 +698,46 @@ def ensure_software_library_defaults() -> bool:
         upsert_connection({**conn, "kinds": kinds})
         changed = True
 
-    by_id = {b["id"]: b for b in list_bindings()}
+    on_conn = [b for b in list_bindings() if b.get("connection_id") == cid]
+    by_id = {b["id"]: b for b in on_conn}
+
+    def _find_by_label(domain: str, label: str) -> dict | None:
+        want = label.strip().lower()
+        for b in on_conn:
+            if (b.get("domain") or "") != domain:
+                continue
+            if (b.get("label") or "").strip().lower() == want:
+                return b
+        return None
+
     for spec in _HATCHERY_LIBRARY_BINDINGS:
         bid = spec["id"]
-        existing = by_id.get(bid)
+        existing = by_id.get(bid) or _find_by_label(spec["domain"], spec["label"])
         if existing is None:
-            # Only auto-insert software (other domains may have been removed on purpose).
-            if spec["domain"] != "software":
-                continue
-            item = {
-                "id": bid,
-                "connection_id": HATCHERY_LIBRARY_CONNECTION_ID,
-                "domain": spec["domain"],
-                "label": spec["label"],
-                "filter": spec["filter"],
-                "enabled": True,
-            }
-            if "target" in spec:
-                item["target"] = spec["target"]
-            upsert_binding(item)
-            changed = True
+            # Auto-insert software + Test Scripts only; other domains may have
+            # been removed on purpose.
+            if spec["domain"] == "software" or bid == "hatchery-library-test-scripts":
+                item = {
+                    "id": bid,
+                    "connection_id": cid,
+                    "domain": spec["domain"],
+                    "label": spec["label"],
+                    "filter": spec["filter"],
+                    "enabled": bool(spec.get("enabled", True)),
+                }
+                if "target" in spec:
+                    item["target"] = spec["target"]
+                upsert_binding(item)
+                changed = True
             continue
-        if existing.get("connection_id") != HATCHERY_LIBRARY_CONNECTION_ID:
-            continue
-        # Migrate legacy unscoped seed filter without clobbering operator edits.
-        if (existing.get("filter") or "").strip() == "*":
+        filt = (existing.get("filter") or "").strip()
+        # Migrate legacy seed filters without clobbering operator edits.
+        is_all_scripts = (
+            bid == "hatchery-library-scripts"
+            or (existing.get("label") or "").strip().lower() == "all scripts"
+        )
+        legacy = filt == "*" or (is_all_scripts and filt in _LEGACY_ALL_SCRIPTS_FILTERS)
+        if legacy and filt != spec["filter"] and is_all_scripts:
             item = {
                 **existing,
                 "filter": spec["filter"],
@@ -684,4 +747,17 @@ def ensure_software_library_defaults() -> bool:
                 item["target"] = existing.get("target") or spec["target"]
             upsert_binding(item)
             changed = True
+            continue
+        if filt == "*" and bid != "hatchery-library-scripts" and spec["domain"] != "scripts":
+            # Legacy unscoped seed filter on well-known non-scripts domains.
+            if existing.get("id") == bid:
+                item = {
+                    **existing,
+                    "filter": spec["filter"],
+                    "label": existing.get("label") or spec["label"],
+                }
+                if "target" in spec:
+                    item["target"] = existing.get("target") or spec["target"]
+                upsert_binding(item)
+                changed = True
     return changed

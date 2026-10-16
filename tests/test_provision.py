@@ -227,6 +227,18 @@ class TestBuildPsInvocation:
         assert "-Env 'dev'" in result
         assert "Write-Host $Env" in result
 
+    def test_build_ps_invocation_bool_uses_dollar_true(self):
+        from lib.script_params import ParamSpec
+
+        specs = [ParamSpec(name="IncludeManagementTools", kind="bool", source_kind="powershell")]
+        result = provision_lib._build_ps_invocation(
+            "param([bool]$IncludeManagementTools)\n",
+            {"IncludeManagementTools": "True"},
+            specs=specs,
+        )
+        assert "-IncludeManagementTools $true" in result
+        assert "'True'" not in result
+
     def test_env_outside_user_scriptblock_when_wrapping(self):
         prefix = "$env:FOO = '1'\n"
         content = "param($Name)\nWrite-Host $Name"
@@ -301,6 +313,37 @@ class TestRunScriptWithParameters:
         assert "& {" in sent
         assert "-Env 'dev'" in sent
         assert "function Write-HatchEvent" not in sent
+
+    def test_param_binding_failure_not_reported_success(self, tmp_path, monkeypatch):
+        """Guest bind errors must not look like exit 0 success (#571 backstop)."""
+        from lib.script_params import ParamSpec
+
+        script = tmp_path / "enable.ps1"
+        script.write_text("param([bool]$IncludeManagementTools)\n")
+        monkeypatch.setattr(
+            "lib.script_params.introspect",
+            lambda _p: [
+                ParamSpec(
+                    name="IncludeManagementTools",
+                    kind="bool",
+                    source_kind="powershell",
+                )
+            ],
+        )
+        bind_err = b"Cannot process argument transformation on parameter 'IncludeManagementTools'."
+        with patch("lib.provision.winrm.Session") as mock_sess:
+            mock_sess.return_value.run_ps.return_value = self._make_result(0, b"", bind_err)
+            code, output = provision_lib.run_script(
+                "1.2.3.4",
+                "admin",
+                "pass",
+                script,
+                parameters={"IncludeManagementTools": True},
+            )
+        assert code == 1
+        assert "IncludeManagementTools" in output
+        sent = mock_sess.return_value.run_ps.call_args[0][0]
+        assert "-IncludeManagementTools $true" in sent
 
     def test_header_includes_params_line(self, tmp_path):
         script = tmp_path / "setup.ps1"

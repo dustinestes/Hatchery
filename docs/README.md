@@ -36,7 +36,8 @@ Reference documentation for Hatchery.
 | [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
 | [`errors.md`](errors.md) | Error handling model - HTTP codes, VM operation errors, UI surfacing |
 | [`examples.md`](examples.md) | Real-world scenarios - hatching VMs, managing snapshots, teardown |
-| [`automations.md`](automations.md) | Automation scripts - writing, parameterizing, and wiring scripts to VMs in Clutch files |
+| [`automations.md`](automations.md) | Automation scripts - writing, wiring scripts to VMs in Clutch files |
+| [`script-parameters.md`](script-parameters.md) | Typed Clutch script parameters - kinds, constraints, gates, invoke encoding |
 | [`software.md`](software.md) | Software - post-boot guest packages (Automations sibling of Scripts / Answer Files) |
 | [`answer-files.md`](answer-files.md) | Answer Files - install-time templates, tokens, per-OS usage (distinct from Scripts) |
 | [`orchestration.md`](orchestration.md) | Hatching lifecycle - VM creation, OS install, setup-complete handoff, automation, and retry |

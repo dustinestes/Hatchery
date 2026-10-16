@@ -1,7 +1,5 @@
 import json
 import os
-import shutil
-import subprocess
 import threading
 
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
@@ -84,6 +82,7 @@ _spawn_provision_thread = hatch_lifecycle_lib.spawn_provision_thread
 _provision_vm_thread = hatch_lifecycle_lib._provision_vm_thread
 _missing_passwords = hatch_lifecycle_lib.missing_passwords
 _answer_file_errors = hatch_lifecycle_lib.answer_file_errors
+_script_param_errors = hatch_lifecycle_lib.script_param_errors
 
 
 def _sync_hatch_status() -> None:
@@ -2362,6 +2361,16 @@ def hatch_clutch_post():
             selected_nest_id=nest_id,
         )
 
+    param_errors = _script_param_errors(clutch_obj.vms)
+    if param_errors:
+        return _render_hatch_clutch_form(
+            clutch_files,
+            preselected=filename,
+            clutch_obj=clutch_obj,
+            form_error="; ".join(param_errors),
+            selected_nest_id=nest_id,
+        )
+
     if not nest_id:
         return _render_hatch_clutch_form(
             clutch_files,
@@ -2696,6 +2705,10 @@ def build_post():
     except Exception as exc:
         return _rerender(str(exc))
 
+    param_errors = _script_param_errors(c.vms)
+    if param_errors:
+        return _rerender("; ".join(param_errors))
+
     try:
         clutch_lib.export(c, filename, config.data_dir() / "clutches")
     except FileExistsError:
@@ -2796,6 +2809,10 @@ def edit_post():
         return _rerender("; ".join(msgs))
     except Exception as exc:
         return _rerender(str(exc))
+
+    param_errors = _script_param_errors(c.vms)
+    if param_errors:
+        return _rerender("; ".join(param_errors))
 
     clutches_dir = config.data_dir() / "clutches"
     new_path = clutches_dir / new_filename
@@ -3110,49 +3127,20 @@ def api_automation_software_content(name):
 
 @app.route("/api/automation/scripts/<path:name>/params")
 def api_automation_script_params(name):
-    """Return PowerShell param() metadata for a script file.
+    """Return discovered script parameter metadata (#571).
 
-    Uses pwsh on the host to introspect the script. Returns [] if pwsh is not
-    installed or the script has no param() block — callers degrade gracefully.
+    Kind adapters read the script; empty list when there is no reader, the
+    tool is missing, or the script declares no parameters. Callers must not
+    invent constraints.
     """
-    if not shutil.which("pwsh"):
-        return jsonify([])
+    from lib import script_params as script_params_lib
+
     script_path = _resolve_script_path(name)
     if script_path is None or not script_path.is_file():
         return jsonify({"error": "not found"}), 404
-    ps_code = (
-        "$p = (Get-Command -ErrorAction Stop '" + str(script_path) + "').Parameters.Values;"
-        " $p | Select-Object Name,"
-        " @{n='Type';e={$_.ParameterType.Name}},"
-        " @{n='Mandatory';e={[bool]($_.Attributes | Where-Object {$_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory})}}, "
-        " @{n='HelpMessage';e={($_.Attributes | Where-Object {$_ -is [System.Management.Automation.ParameterAttribute]}).HelpMessage}},"
-        " @{n='Default';e={if($_.DefaultValue -ne $null){[string]$_.DefaultValue}else{$null}}}"
-        " | Where-Object { $_.Name -notin @('Verbose','Debug','ErrorAction','WarningAction','InformationAction','ProgressAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable','WhatIf','Confirm') }"
-        " | ConvertTo-Json -Depth 3"
-    )
     try:
-        result = subprocess.run(
-            ["pwsh", "-NonInteractive", "-Command", ps_code],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        if result.returncode != 0 or not result.stdout.strip():
-            return jsonify([])
-        raw = json.loads(result.stdout)
-        if isinstance(raw, dict):
-            raw = [raw]
-        params = [
-            {
-                "name": p.get("Name"),
-                "type": p.get("Type", "String"),
-                "mandatory": bool(p.get("Mandatory")),
-                "default": p.get("Default"),
-                "help": p.get("HelpMessage") or None,
-            }
-            for p in raw
-        ]
-        return jsonify(params)
+        specs = script_params_lib.introspect(script_path)
+        return jsonify(script_params_lib.specs_to_api(specs))
     except Exception:
         return jsonify([])
 

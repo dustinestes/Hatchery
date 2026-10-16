@@ -915,6 +915,18 @@ def answer_file_errors(vms, passwords: dict | None = None) -> list[str]:
     )
 
 
+def script_param_errors(vms) -> list[str]:
+    """Return hatch/save blockers for script params that violate discovered specs (#571).
+
+    Empty when introspection yields no metadata (honest degrade) or values are OK.
+    """
+    from lib import config as config_lib
+    from lib import script_params as script_params_lib
+
+    scripts_dir = config_lib.data_dir() / "automation" / "scripts"
+    return script_params_lib.validate_clutch_vms(list(vms), scripts_dir=scripts_dir)
+
+
 def answer_file_attach_errors(provider: BaseProvider, vms) -> list[str]:
     """Return hatch blockers when VMs need Answer File attach the Nest cannot do."""
     from lib import answerfile as answerfile_lib

@@ -58,7 +58,8 @@ class AutomationEntry(BaseModel):
     type: str
     name: str
     reboot_after: bool = False
-    parameters: dict[str, str] = Field(default_factory=dict)
+    # Typed natives preferred (#571); stringly values coerced at validate/invoke when specs exist.
+    parameters: dict[str, Any] = Field(default_factory=dict)
     clean_payload_on_success: bool = True
 
     @field_validator("type")

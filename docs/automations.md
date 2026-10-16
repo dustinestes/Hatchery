@@ -6,7 +6,7 @@
 <h1>Automation Scripts</h1>
 <br clear="both">
 
-How to write, configure, and run automation scripts against guest VMs after first boot. For guest application packages, see [Software](software.md). For install-time unattended templates, see [Answer Files](answer-files.md).
+How to write, configure, and run automation scripts against guest VMs after first boot. For typed Clutch parameter kinds, constraints, and invoke encoding, see [Script parameters](script-parameters.md). For guest application packages, see [Software](software.md). For install-time unattended templates, see [Answer Files](answer-files.md).
 
 <br>
 
@@ -20,9 +20,10 @@ How to write, configure, and run automation scripts against guest VMs after firs
   - [Conventions](#conventions)
   - [Exit Codes](#exit-codes)
   - [Parameters](#parameters)
-- [Parameter Introspection (pwsh)](#parameter-introspection-pwsh)
 - [Clutch YAML Syntax](#clutch-yaml-syntax)
+  - [Migration from bare-string automations](#migration-from-bare-string-automations)
 - [Example Files](#example-files)
+  - [VirtIO driver automation](#virtio-driver-automation)
 - [Related](#related)
 
 ---
@@ -49,7 +50,7 @@ Hatchery connects to the guest over WinRM using `pywinrm` and executes each scri
 
 `Write-HatchEvent` comes from the Hatchery PowerShell module installed by the guest environment ensure job (`HATCHERY_ROOT\modules\Hatchery`, on `PSModulePath`). You do not need to define it, source it, or import it - PowerShell autoloads it. Hatchery does **not** splice helper function bodies into your script text. See [Write-HatchEvent](#write-hatchevent).
 
-If the script declares parameters (see [Parameters](#parameters)), Hatchery wraps the **user** content in a PowerShell scriptblock and appends the Clutch values as named arguments. Reserved / Clutch process env is applied in an outer scope so `param()` stays first inside your scriptblock:
+If the script declares parameters (see [Parameters](#parameters) and [Script parameters](script-parameters.md)), Hatchery wraps the **user** content in a PowerShell scriptblock and appends the Clutch values as named arguments (typed encoding when introspection metadata exists). Reserved / Clutch process env is applied in an outer scope so `param()` stays first inside your scriptblock:
 
 ```powershell
 $env:HATCHERY_ROOT = '...'   # outer scope (Hatchery process env)
@@ -173,16 +174,9 @@ try {
 
 ### Parameters
 
-Scripts can declare a `param()` block to accept configurable inputs. Hatchery reads two PowerShell parameter attributes:
+Scripts can declare a `param()` block to accept configurable inputs. Hatchery introspects declared types and constraints (when Controller `pwsh` is available) and renders matching Clutch fields. Full kind / constraint / encode reference: **[Script parameters](script-parameters.md)** ([ADR-0034](adr/0034-script-param-discover-dont-invent.md), [#571](https://github.com/dustinestes/Hatchery/issues/571)).
 
-| Attribute | Effect in Hatchery |
-|---|---|
-| `Mandatory = $true` | Field is marked required in the Clutch builder UI; saving is blocked until a value is provided |
-| `HelpMessage = "..."` | Shown as tooltip text on the help icon next to the field in the UI |
-
-PowerShell's built-in common parameters (`Verbose`, `Debug`, `ErrorAction`, `WarningAction`, `InformationAction`, `ProgressAction`, `WhatIf`, `Confirm`, and related variable parameters) are automatically excluded from the Hatchery UI - they are injected by the PowerShell runtime and are not user-configurable via the Clutch builder.
-
-Example parameter block:
+Minimal example:
 
 ```powershell
 param(
@@ -197,34 +191,7 @@ param(
 
 Parameters with a default value are optional in the UI - the field is pre-populated with the default and can be left as-is or overridden per-VM in the Clutch builder.
 
-<br>
-
----
-
-<br>
-
-## Parameter Introspection (pwsh)
-
-To automatically discover and render parameter fields in the Clutch builder UI, Hatchery needs `pwsh` (PowerShell Core) installed on the **Ubuntu host** - not the guest VM. When `pwsh` is available, Hatchery runs:
-
-```bash
-pwsh -Command "(Get-Command <script-path>).Parameters.Values | ConvertTo-Json"
-```
-
-This introspects the script's `param()` block and returns metadata (name, mandatory flag, help message, default value) that Hatchery uses to render the appropriate input fields in the Clutch builder.
-
-**`pwsh` is optional.** If it is not installed, you can still use automation scripts - you just configure parameters manually in the Clutch YAML file under each script's `parameters` key. The Clutch builder will still show scripts in the automations list, but no inline parameter fields will be rendered for them.
-
-**Installing `pwsh` on Ubuntu:**
-
-```bash
-# Install the Microsoft package feed, then:
-sudo apt-get install -y powershell
-```
-
-Full installation instructions: [https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux)
-
-After installation, the Requirements check in the Settings pane will show `pwsh` as satisfied and parameter introspection will activate automatically.
+PowerShell **parameter sets** (`ParameterSetName`) are not supported: Hatchery flattens all declared params into one form. Prefer a single flat `param()` for Clutch scripts until that lands. Details: [Script parameters - PowerShell parameter sets](script-parameters.md#powershell-parameter-sets).
 
 <br>
 
@@ -269,7 +236,7 @@ automations:
 | `type` | `script` \| `software` | required | both | Automation kind |
 | `name` | string | required | both | Script basename under `automation/scripts/`, or package id under `automation/software/` |
 | `reboot_after` | boolean | `false` | both | Reboot the VM after this step succeeds before running the next |
-| `parameters` | map | `{}` | script only | Named values passed to the script's `param()` block |
+| `parameters` | map | `{}` | script only | Named values for the script's declared params (typed natives preferred: bool/number/string) |
 | `clean_payload_on_success` | boolean | `true` | software only | Remove staged installer payload after a successful install |
 
 Software hatch execution (stage → install → optional clean) is tracked in [#474](https://github.com/dustinestes/Hatchery/issues/474). Until then, Software rows are saved on the Clutch and shown in the form; hatch logs a warning and skips running them.
@@ -307,6 +274,7 @@ Sample scripts, Clutches, and media ship in the public **[Hatchery Library](http
 |---|---|
 | [`hatchery-script-template-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-script-template-windows.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
 | [`configure-vm-basics-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/configure-vm-basics-windows.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
+| [`test-param-smoke-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/tests/scripts/windows/test-param-smoke-windows.ps1) | Test fixture for typed Clutch params ([#571](https://github.com/dustinestes/Hatchery/issues/571)): string + `ValidateSet` / `ValidateLength`, `[bool]`, `[switch]`, `[int]`, `[double]`. Under `tests/scripts/` (opt-in **Test Scripts** binding, [#573](https://github.com/dustinestes/Hatchery/issues/573)). Dumps bound values via `Write-HatchEvent`, stdout, and a guest file under `HATCHERY_LOGS` |
 | [`enable-rdp-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-rdp-windows.ps1) | Enables Remote Desktop and the firewall group; optional `RdpUsers` (comma-separated) adds non-admin accounts to Remote Desktop Users (Administrators already have RDP access) |
 | [`remove-appx-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/remove-appx-windows.ps1) | Removes AppX packages by comma-separated `PackageNames`, or all non-framework packages when `RemoveAll` is true |
 | [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) | Installs VirtIO guest tools / drivers from the attached VirtIO ISO (`DriveLetter` or `IsoLabel`); see [VirtIO driver automation](#virtio-driver-automation) |
@@ -316,7 +284,7 @@ Linux and macOS counterparts live under `scripts/linux/` and `scripts/macos/` in
 
 Pull into `automation/scripts/` via Library, or download a starting point manually. The Windows template is the recommended starting point for new PowerShell scripts.
 
-Clutch parameters are always strings. For multi-value inputs (`RdpUsers`, `PackageNames`), pass a comma-separated list. For booleans (`RemoveAll`), use `"true"` or `"false"`.
+Prefer YAML natives that match the script (see [Script parameters - YAML and invoke encoding](script-parameters.md#yaml-and-invoke-encoding)). For multi-value string inputs (`RdpUsers`, `PackageNames`), pass a comma-separated list.
 
 <br>
 
@@ -350,6 +318,7 @@ Also covered in [Getting started - VirtIO Drivers](getting-started.md#virtio-dri
 
 ## Related
 
+- [Script parameters](script-parameters.md) - kinds, constraints, gates, invoke encoding
 - [Software](software.md) - post-boot guest packages (ordered with Scripts in Clutch `automations`)
 - [ADR-0025](adr/0025-software-product-model.md) - Software product model
 - [Answer Files](answer-files.md) - install-time templates (not Scripts)

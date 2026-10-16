@@ -2160,6 +2160,58 @@ class TestBuildRoute:
         assert [s.name for s in c.vms[0].automations] == ["setup.ps1", "configure.ps1"]
         assert all(s.type == "script" for s in c.vms[0].automations)
 
+    def test_build_post_rejects_invalid_script_params(self, client, tmp_path, monkeypatch):
+        """Typed script param failures block Clutch save (#571)."""
+        from lib.script_params import ParamSpec
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "enable.ps1").write_text("param([bool]$IncludeManagementTools)\n")
+
+        def fake_introspect(path):
+            assert path.name == "enable.ps1"
+            return [
+                ParamSpec(
+                    name="IncludeManagementTools",
+                    kind="bool",
+                    source_kind="powershell",
+                )
+            ]
+
+        monkeypatch.setattr("lib.script_params.introspect", fake_introspect)
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_automations[]": (
+                '[{"type":"script","name":"enable.ps1",'
+                '"parameters":{"IncludeManagementTools":"not-a-bool"}}]'
+            ),
+        }
+        resp = client.post("/build", data=form)
+        assert resp.status_code == 200
+        assert "IncludeManagementTools" in resp.data.decode()
+        assert not (tmp_path / "clutches" / "test-lab.yaml").exists()
+
+    def test_build_post_saves_typed_bool_script_params(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "enable.ps1").write_text("param([bool]$IncludeManagementTools)\n")
+        monkeypatch.setattr("lib.script_params.introspect", lambda _p: [])
+        form = {
+            **VALID_BUILD_FORM,
+            "vm_automations[]": (
+                '[{"type":"script","name":"enable.ps1",'
+                '"parameters":{"IncludeManagementTools":true}}]'
+            ),
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        saved = clutch_lib.load(tmp_path / "clutches" / "test-lab.yaml")
+        assert saved.vms[0].automations[0].parameters["IncludeManagementTools"] is True
+
     def test_build_post_admin_username_saved_to_clutch(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         (tmp_path / "clutches").mkdir()
@@ -2617,6 +2669,57 @@ class TestHatchClutchRoute:
             resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
         assert resp.status_code == 200
         assert "Answer File is required" in resp.data.decode()
+        mock_run.assert_not_called()
+
+    def test_post_rejects_invalid_script_params(self, client, tmp_path, monkeypatch):
+        """Hatch preflight blocks bad script params before session create (#571)."""
+        from lib.clutch import AutomationEntry
+        from lib.script_params import ParamSpec
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        clutches_dir = tmp_path / "clutches"
+        clutches_dir.mkdir()
+        iso_dir = tmp_path / "media" / "iso"
+        iso_dir.mkdir(parents=True)
+        (iso_dir / "win11.iso").write_bytes(b"test-iso")
+        answer_dir = tmp_path / "automation" / "answerfiles"
+        answer_dir.mkdir(parents=True)
+        (answer_dir / "win11.xml.j2").write_text("<unattend/>\n", encoding="utf-8")
+        scripts = tmp_path / "automation" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "enable.ps1").write_text("param([bool]$IncludeManagementTools)\n")
+        vm = VMConfig(
+            name="dc01",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=60,
+            os_media="win11.iso",
+            answer_file="win11.xml.j2",
+            automations=[
+                AutomationEntry(
+                    type="script",
+                    name="enable.ps1",
+                    parameters={"IncludeManagementTools": "not-a-bool"},
+                )
+            ],
+        )
+        clutch_lib.export(Clutch(name="my-lab", vms=[vm]), "my-lab", clutches_dir)
+
+        def fake_introspect(path):
+            return [
+                ParamSpec(
+                    name="IncludeManagementTools",
+                    kind="bool",
+                    source_kind="powershell",
+                )
+            ]
+
+        monkeypatch.setattr("lib.script_params.introspect", fake_introspect)
+        with patch("lib.hatch_lifecycle.run_hatch_session") as mock_run:
+            resp = client.post("/hatch-clutch", data={"clutch_file": "my-lab.yaml"})
+        assert resp.status_code == 200
+        assert "IncludeManagementTools" in resp.data.decode()
         mock_run.assert_not_called()
 
     def test_post_creates_session_and_redirects_to_vms(self, client, tmp_path, monkeypatch):
@@ -4391,6 +4494,40 @@ class TestAPIRoutes:
             resp = client.get("/api/automation/scripts/setup.ps1/params")
         assert resp.status_code == 200
         assert resp.get_json() == []
+
+    def test_api_script_params_returns_kind_and_constraints(self, client, tmp_path, monkeypatch):
+        from lib.script_params import ParamSpec
+
+        scripts_dir = tmp_path / "automation" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (scripts_dir / "setup.ps1").write_text("param([string]$Env)\n")
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+
+        def fake_introspect(path):
+            assert path.name == "setup.ps1"
+            return [
+                ParamSpec(
+                    name="Env",
+                    kind="string",
+                    mandatory=True,
+                    allowed_values=("dev", "prod"),
+                    min_length=1,
+                    max_length=8,
+                    source_kind="powershell",
+                    raw_type="String",
+                )
+            ]
+
+        monkeypatch.setattr("lib.script_params.introspect", fake_introspect)
+        resp = client.get("/api/automation/scripts/setup.ps1/params")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Env"
+        assert data[0]["kind"] == "string"
+        assert data[0]["allowed_values"] == ["dev", "prod"]
+        assert data[0]["min_length"] == 1
+        assert data[0]["max_length"] == 8
 
     def test_api_script_params_returns_404_when_file_missing(self, client, tmp_path, monkeypatch):
         from unittest.mock import patch
