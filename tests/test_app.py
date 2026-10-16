@@ -5976,8 +5976,7 @@ class TestProvisionVmThread:
                     )
                     on_event(
                         "INFO",
-                        "Guest remoting stable after reboot "
-                        "(3 consecutive probes via ssh)",
+                        "Guest remoting stable after reboot (3 consecutive probes via ssh)",
                     )
                 return "134350310025000000"
 
