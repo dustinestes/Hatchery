@@ -78,6 +78,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0031](0031-sticky-submenu-and-nests-connections.md) | Sticky submenu shell and Nests Connections IA | Accepted |
 | [0032](0032-guest-environment-ensure-job.md) | Guest environment ensure as one hatch job block | Accepted |
 | [0033](0033-software-online-command-only.md) | Online / command-only Software packages (guest HTTPS / winget) | Accepted |
+| [0034](0034-script-param-discover-dont-invent.md) | Script parameters - discover, don't invent (typed Clutch fields) | Accepted |
 
 <br>
 

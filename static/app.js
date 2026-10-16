@@ -1,5 +1,165 @@
 /* VM row builder — shared between /build and /edit */
 window.hatchery = window.hatchery || {};
+
+/**
+ * Shared field-details popover (#571 UI).
+ * Structured alternative to hover tooltips for parameter / field metadata.
+ *
+ * open({
+ *   anchor: HTMLElement,
+ *   title: string,
+ *   description?: string,
+ *   rows?: [{ label: string, value: string }]
+ * })
+ */
+hatchery.fieldDetails = (function () {
+  var panel = null;
+  var lastAnchor = null;
+  var previouslyFocused = null;
+
+  function ensurePanel() {
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = 'hatchery-field-details';
+    panel.className = 'field-details-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.hidden = true;
+    panel.innerHTML =
+      '<div class="field-details-header">' +
+        '<h3 class="field-details-title" id="hatchery-field-details-title"></h3>' +
+        '<button type="button" class="field-details-close" aria-label="Close details">&times;</button>' +
+      '</div>' +
+      '<p class="field-details-desc" hidden></p>' +
+      '<dl class="field-details-rows"></dl>';
+    document.body.appendChild(panel);
+    panel.querySelector('.field-details-close').addEventListener('click', close);
+    panel.setAttribute('aria-labelledby', 'hatchery-field-details-title');
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && panel && !panel.hidden) {
+        e.preventDefault();
+        close();
+      }
+    });
+    document.addEventListener('mousedown', function (e) {
+      if (!panel || panel.hidden) return;
+      if (panel.contains(e.target)) return;
+      if (lastAnchor && (lastAnchor === e.target || lastAnchor.contains(e.target))) return;
+      close();
+    });
+    return panel;
+  }
+
+  function position(anchor) {
+    var rect = anchor.getBoundingClientRect();
+    var margin = 8;
+    var width = Math.min(320, window.innerWidth - margin * 2);
+    panel.style.width = width + 'px';
+    var left = rect.left;
+    if (left + width > window.innerWidth - margin) {
+      left = window.innerWidth - margin - width;
+    }
+    if (left < margin) left = margin;
+    var top = rect.bottom + margin;
+    panel.style.left = left + 'px';
+    panel.style.top = top + 'px';
+    // Flip above if near bottom of viewport.
+    requestAnimationFrame(function () {
+      var h = panel.offsetHeight;
+      if (top + h > window.innerHeight - margin && rect.top - margin - h > margin) {
+        panel.style.top = (rect.top - margin - h) + 'px';
+      }
+    });
+  }
+
+  function open(opts) {
+    opts = opts || {};
+    var anchor = opts.anchor;
+    if (!anchor) return;
+    var el = ensurePanel();
+    previouslyFocused = document.activeElement;
+    lastAnchor = anchor;
+    el.querySelector('.field-details-title').textContent = opts.title || 'Details';
+    var desc = el.querySelector('.field-details-desc');
+    if (opts.description) {
+      desc.textContent = opts.description;
+      desc.hidden = false;
+    } else {
+      desc.textContent = '';
+      desc.hidden = true;
+    }
+    var dl = el.querySelector('.field-details-rows');
+    dl.innerHTML = '';
+    (opts.rows || []).forEach(function (row) {
+      if (!row || row.value == null || row.value === '') return;
+      var dt = document.createElement('dt');
+      dt.textContent = row.label;
+      var dd = document.createElement('dd');
+      dd.textContent = String(row.value);
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    });
+    el.hidden = false;
+    position(anchor);
+    var closeBtn = el.querySelector('.field-details-close');
+    if (closeBtn) closeBtn.focus();
+    if (anchor.setAttribute) anchor.setAttribute('aria-expanded', 'true');
+  }
+
+  function close() {
+    if (!panel || panel.hidden) return;
+    panel.hidden = true;
+    if (lastAnchor && lastAnchor.setAttribute) {
+      lastAnchor.setAttribute('aria-expanded', 'false');
+    }
+    var restore = previouslyFocused;
+    lastAnchor = null;
+    previouslyFocused = null;
+    if (restore && typeof restore.focus === 'function') {
+      try { restore.focus(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function toggle(opts) {
+    opts = opts || {};
+    if (panel && !panel.hidden && lastAnchor === opts.anchor) {
+      close();
+      return;
+    }
+    open(opts);
+  }
+
+  /**
+   * Build a details trigger button for a field label row.
+   * @param {object} meta
+   * @param {string} meta.title
+   * @param {string} [meta.description]
+   * @param {Array<{label:string,value:string}>} [meta.rows]
+   */
+  function createButton(meta) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'field-details-btn';
+    btn.textContent = 'i';
+    btn.setAttribute('aria-label', 'Details for ' + (meta.title || 'field'));
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle({
+        anchor: btn,
+        title: meta.title,
+        description: meta.description,
+        rows: meta.rows,
+      });
+    });
+    return btn;
+  }
+
+  return { open: open, close: close, toggle: toggle, createButton: createButton };
+})();
+
 hatchery.vmRows = (function () {
   function init(containerId, templateId) {
     var container = document.getElementById(containerId);
@@ -95,30 +255,266 @@ hatchery.vmRows = (function () {
 
     // ── Automation row helpers (shared across initAutomationList and addRow) ──
 
+    function bindScriptParamValidation(control, fieldRow) {
+      function refresh() {
+        var msg = '';
+        var kind = control.dataset.paramKind || 'string';
+        var raw = (control.type === 'checkbox')
+          ? ''
+          : String(control.value || '').trim();
+        if (control.type !== 'checkbox' && control.required && !raw) {
+          msg = 'Required';
+        } else if (kind === 'int' && raw) {
+          if (!/^-?\d+$/.test(raw)) {
+            msg = 'Must be an integer';
+          } else {
+            var asInt = parseInt(raw, 10);
+            var minV = control.min !== '' && control.min != null ? Number(control.min) : null;
+            var maxV = control.max !== '' && control.max != null ? Number(control.max) : null;
+            if (minV != null && !Number.isNaN(minV) && asInt < minV) {
+              msg = 'Must be at least ' + minV;
+            } else if (maxV != null && !Number.isNaN(maxV) && asInt > maxV) {
+              msg = 'Must be at most ' + maxV;
+            }
+          }
+        } else if (kind === 'float' && raw) {
+          if (Number.isNaN(Number(raw))) {
+            msg = 'Must be a number';
+          } else {
+            var asFloat = Number(raw);
+            var minF = control.min !== '' && control.min != null ? Number(control.min) : null;
+            var maxF = control.max !== '' && control.max != null ? Number(control.max) : null;
+            if (minF != null && !Number.isNaN(minF) && asFloat < minF) {
+              msg = 'Must be at least ' + minF;
+            } else if (maxF != null && !Number.isNaN(maxF) && asFloat > maxF) {
+              msg = 'Must be at most ' + maxF;
+            }
+          }
+        } else if (kind === 'string' && raw) {
+          var minL = control.minLength > 0 ? control.minLength : null;
+          var maxL = control.maxLength > 0 ? control.maxLength : null;
+          if (minL != null && raw.length < minL) {
+            msg = 'Length must be at least ' + minL;
+          } else if (maxL != null && raw.length > maxL) {
+            msg = 'Length must be at most ' + maxL;
+          }
+        }
+        if (typeof control.setCustomValidity === 'function') {
+          control.setCustomValidity(msg);
+        }
+        if (msg) {
+          fieldRow.classList.add('script-param-row--error');
+          control.setAttribute('aria-invalid', 'true');
+        } else {
+          fieldRow.classList.remove('script-param-row--error');
+          control.removeAttribute('aria-invalid');
+        }
+        var err = fieldRow.querySelector('.script-param-error');
+        if (err) {
+          err.textContent = msg;
+          err.hidden = !msg;
+        }
+      }
+      control.addEventListener('input', refresh);
+      control.addEventListener('change', refresh);
+      refresh();
+    }
+
+    function scriptParamControlLabel(p) {
+      var kind = p.kind || 'string';
+      var allowed = p.allowed_values || p.validate_set || [];
+      if (allowed && allowed.length) return 'Dropdown';
+      if (kind === 'bool' || kind === 'switch') return 'Checkbox';
+      if (kind === 'int' || kind === 'float') return 'Number';
+      return 'Text';
+    }
+
+    function scriptParamTypeLabel(p) {
+      var raw = p.type || p.raw_type;
+      if (raw) return String(raw);
+      var kind = p.kind || 'string';
+      if (kind === 'switch') return 'SwitchParameter';
+      if (kind === 'bool') return 'Boolean';
+      if (kind === 'int') return 'Int32';
+      if (kind === 'float') return 'Double';
+      return 'String';
+    }
+
+    function scriptParamDefaultDisplay(p) {
+      if (p.default == null || p.default === '') {
+        if ((p.kind || '') === 'switch') return 'false (omitted)';
+        return null;
+      }
+      return String(p.default);
+    }
+
+    function scriptParamDetailRows(p) {
+      var rows = [];
+      // PowerShell / CLR type from [Type]$Name — primary operator-facing type.
+      rows.push({ label: 'Type', value: scriptParamTypeLabel(p) });
+      // How Hatchery presents it in this form (widget), when useful to contrast.
+      rows.push({ label: 'Control', value: scriptParamControlLabel(p) });
+      rows.push({ label: 'Required', value: p.mandatory ? 'Yes' : 'No' });
+      var defDisp = scriptParamDefaultDisplay(p);
+      if (defDisp != null) {
+        rows.push({
+          label: 'Default',
+          value: defDisp + ' (script default; change the field to override)',
+        });
+      }
+      var allowed = p.allowed_values || p.validate_set || [];
+      if (allowed.length) {
+        rows.push({ label: 'Allowed values', value: allowed.join(', ') });
+      }
+      if (p.min_length != null || p.max_length != null) {
+        var lenParts = [];
+        if (p.min_length != null) lenParts.push('min ' + p.min_length);
+        if (p.max_length != null) lenParts.push('max ' + p.max_length);
+        rows.push({ label: 'Length', value: lenParts.join(', ') });
+      }
+      if (p.min_value != null || p.max_value != null) {
+        var rangeParts = [];
+        if (p.min_value != null) rangeParts.push('min ' + p.min_value);
+        if (p.max_value != null) rangeParts.push('max ' + p.max_value);
+        rows.push({ label: 'Numeric range', value: rangeParts.join(', ') });
+      }
+      return rows;
+    }
+
+    function buildScriptParamRow(p, idx, savedParams) {
+      var fieldRow = document.createElement('div');
+      fieldRow.className = 'script-param-row';
+      var controlId = 'script-param-' + (p.name || 'p') + '-' + idx + '-'
+        + String(Math.random()).slice(2, 8);
+
+      var labelWrap = document.createElement('div');
+      labelWrap.className = 'script-param-label-wrap';
+      var label = document.createElement('label');
+      label.className = 'script-param-label';
+      label.setAttribute('for', controlId);
+      label.textContent = p.name + (p.mandatory ? ' *' : '');
+      labelWrap.appendChild(label);
+      labelWrap.appendChild(hatchery.fieldDetails.createButton({
+        title: p.name,
+        description: p.help || null,
+        rows: scriptParamDetailRows(p),
+      }));
+
+      var kind = p.kind || 'string';
+      var allowed = p.allowed_values || p.validate_set || [];
+      var hasSaved = savedParams && Object.prototype.hasOwnProperty.call(savedParams, p.name)
+        && savedParams[p.name] != null
+        && savedParams[p.name] !== '';
+      var saved = hasSaved ? savedParams[p.name] : null;
+      var control;
+
+      if (kind === 'bool' || kind === 'switch') {
+        control = document.createElement('input');
+        control.type = 'checkbox';
+        control.className = 'script-param-input';
+        control.id = controlId;
+        control.dataset.param = p.name;
+        control.dataset.paramKind = kind;
+        var checked = false;
+        if (hasSaved) {
+          if (saved === true || saved === 'true' || saved === 'True' || saved === '1') {
+            checked = true;
+          } else if (saved === false || saved === 'false' || saved === 'False' || saved === '0') {
+            checked = false;
+          }
+        } else if (p.default != null) {
+          var d = String(p.default).toLowerCase();
+          checked = (d === 'true' || d === '1' || d === 'yes' || d === 'on');
+        }
+        control.checked = checked;
+        if (p.default != null) control.dataset.paramDefault = String(p.default);
+      } else if (allowed && allowed.length) {
+        control = document.createElement('select');
+        control.className = 'script-param-input';
+        control.id = controlId;
+        control.dataset.param = p.name;
+        control.dataset.paramKind = 'string';
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = p.mandatory ? 'Select…' : '(optional)';
+        control.appendChild(blank);
+        allowed.forEach(function (opt) {
+          var o = document.createElement('option');
+          o.value = String(opt);
+          o.textContent = String(opt);
+          control.appendChild(o);
+        });
+        if (hasSaved) control.value = String(saved);
+        else if (p.default != null) control.value = String(p.default);
+        if (p.default != null) control.dataset.paramDefault = String(p.default);
+        if (p.mandatory && p.default == null) control.required = true;
+      } else {
+        control = document.createElement('input');
+        control.className = 'script-param-input';
+        control.id = controlId;
+        control.dataset.param = p.name;
+        control.dataset.paramKind = kind;
+        if (kind === 'int' || kind === 'float') {
+          control.type = 'number';
+          if (kind === 'int') control.step = '1';
+          if (p.min_value != null) control.min = String(p.min_value);
+          if (p.max_value != null) control.max = String(p.max_value);
+        } else {
+          control.type = 'text';
+        }
+        // Prefill script default into the field so operators edit from the default
+        // rather than discovering it only as a placeholder.
+        if (hasSaved) {
+          control.value = String(saved);
+        } else if (p.default != null && p.default !== '') {
+          control.value = String(p.default);
+        } else {
+          control.value = '';
+        }
+        if (p.default != null && p.default !== '') {
+          control.dataset.paramDefault = String(p.default);
+          control.placeholder = 'Default: ' + String(p.default);
+        }
+        if (p.min_length != null) control.minLength = p.min_length;
+        if (p.max_length != null) control.maxLength = p.max_length;
+        if (p.mandatory && p.default == null) control.required = true;
+      }
+
+      fieldRow.appendChild(labelWrap);
+      fieldRow.appendChild(control);
+      var err = document.createElement('span');
+      err.className = 'script-param-error';
+      err.id = controlId + '-error';
+      err.setAttribute('role', 'alert');
+      err.hidden = true;
+      fieldRow.appendChild(err);
+      control.setAttribute('aria-describedby', err.id);
+      bindScriptParamValidation(control, fieldRow);
+      control.addEventListener('change', function () { isDirty = true; });
+      control.addEventListener('input', function () { isDirty = true; });
+      return fieldRow;
+    }
+
     function renderParamFields(scriptItem, params, savedParams) {
       var existing = scriptItem.querySelector('.script-params');
       if (existing) existing.remove();
       if (!params || !params.length) return;
       var div = document.createElement('div');
       div.className = 'script-params';
-      params.forEach(function (p) {
-        var fieldRow = document.createElement('div');
-        fieldRow.className = 'script-param-row';
-        var label = document.createElement('label');
-        label.className = 'script-param-label';
-        label.textContent = p.name + (p.mandatory ? ' *' : '');
-        if (p.help) label.title = p.help;
-        var input = document.createElement('input');
-        input.className = 'script-param-input';
-        input.type = 'text';
-        input.dataset.param = p.name;
-        input.placeholder = p.default != null ? String(p.default) : '';
-        input.value = (savedParams && savedParams[p.name] != null) ? savedParams[p.name] : '';
-        if (p.mandatory && p.default == null) input.required = true;
-        fieldRow.appendChild(label);
-        fieldRow.appendChild(input);
-        div.appendChild(fieldRow);
+      // Column-major fill: script order down column 1, then column 2.
+      // Odd count → column 1 gets the extra row.
+      var col1 = document.createElement('div');
+      col1.className = 'script-params-col';
+      var col2 = document.createElement('div');
+      col2.className = 'script-params-col';
+      var split = Math.ceil(params.length / 2);
+      params.forEach(function (p, idx) {
+        var row = buildScriptParamRow(p, idx, savedParams);
+        if (idx < split) col1.appendChild(row);
+        else col2.appendChild(row);
       });
+      div.appendChild(col1);
+      if (params.length > 1) div.appendChild(col2);
       scriptItem.querySelector('.script-item-params').appendChild(div);
     }
 
@@ -127,25 +523,58 @@ hatchery.vmRows = (function () {
       if (!params || !params.length) return;
       var div = document.createElement('div');
       div.className = 'script-params';
-      params.forEach(function (p) {
+      var col1 = document.createElement('div');
+      col1.className = 'script-params-col';
+      var col2 = document.createElement('div');
+      col2.className = 'script-params-col';
+      var split = Math.ceil(params.length / 2);
+      params.forEach(function (p, idx) {
         var fieldRow = document.createElement('div');
         fieldRow.className = 'script-param-row';
+        var labelWrap = document.createElement('div');
+        labelWrap.className = 'script-param-label-wrap';
         var label = document.createElement('label');
         label.className = 'script-param-label';
         var displayName = p.label || p.name;
         label.textContent = displayName + (p.mandatory ? ' *' : '');
-        if (p.help) label.title = p.help;
+        labelWrap.appendChild(label);
+        var detailRows = [
+          { label: 'Type', value: p.type ? String(p.type) : 'String' },
+          { label: 'Name', value: p.name },
+          { label: 'Required', value: p.mandatory ? 'Yes' : 'No' },
+        ];
+        if (p.default != null && p.default !== '') {
+          detailRows.push({
+            label: 'Default',
+            value: String(p.default) + ' (template default; change the field to override)',
+          });
+        }
+        labelWrap.appendChild(hatchery.fieldDetails.createButton({
+          title: displayName,
+          description: p.help || null,
+          rows: detailRows,
+        }));
         var input = document.createElement('input');
         input.className = 'script-param-input vm-answer-file-param-input';
         input.type = 'text';
         input.dataset.param = p.name;
-        input.placeholder = p.default != null ? String(p.default) : '';
-        input.value = (savedParams && savedParams[p.name] != null) ? savedParams[p.name] : '';
+        var hasSaved = savedParams && savedParams[p.name] != null && savedParams[p.name] !== '';
+        if (hasSaved) {
+          input.value = String(savedParams[p.name]);
+        } else if (p.default != null && p.default !== '') {
+          input.value = String(p.default);
+          input.placeholder = 'Default: ' + String(p.default);
+        } else {
+          input.value = '';
+        }
         if (p.mandatory && p.default == null) input.required = true;
-        fieldRow.appendChild(label);
+        fieldRow.appendChild(labelWrap);
         fieldRow.appendChild(input);
-        div.appendChild(fieldRow);
+        if (idx < split) col1.appendChild(fieldRow);
+        else col2.appendChild(fieldRow);
       });
+      div.appendChild(col1);
+      if (params.length > 1) div.appendChild(col2);
       mount.appendChild(div);
     }
 
@@ -888,7 +1317,28 @@ hatchery.vmRows = (function () {
             if (type === 'script') {
               var params = {};
               item.querySelectorAll('.script-param-input').forEach(function (input) {
-                if (input.value.trim()) params[input.dataset.param] = input.value.trim();
+                var key = input.dataset.param;
+                if (!key) return;
+                var kind = input.dataset.paramKind || 'string';
+                if (input.type === 'checkbox') {
+                  params[key] = !!input.checked;
+                  return;
+                }
+                if (input.tagName === 'SELECT') {
+                  if (input.value !== '') params[key] = input.value;
+                  return;
+                }
+                var raw = (input.value || '').trim();
+                if (!raw) return;
+                if (kind === 'int') {
+                  var asInt = parseInt(raw, 10);
+                  params[key] = Number.isNaN(asInt) ? raw : asInt;
+                } else if (kind === 'float') {
+                  var asFloat = parseFloat(raw);
+                  params[key] = Number.isNaN(asFloat) ? raw : asFloat;
+                } else {
+                  params[key] = raw;
+                }
               });
               if (Object.keys(params).length) entry.parameters = params;
             } else {
@@ -920,8 +1370,16 @@ hatchery.vmRows = (function () {
         var toggle = row.querySelector('.vm-row-toggle');
         if (body && body.hidden) {
           var hasEmpty = Array.from(body.querySelectorAll('[required]'))
-            .some(function (inp) { return !inp.value.trim(); });
-          if (hasEmpty) {
+            .some(function (inp) {
+              if (inp.type === 'checkbox') return false;
+              return !(inp.value || '').trim();
+            });
+          var hasInvalidParam = Array.from(body.querySelectorAll('.script-param-input'))
+            .some(function (inp) {
+              return inp.getAttribute('aria-invalid') === 'true'
+                || (typeof inp.validity === 'object' && inp.validity && !inp.validity.valid);
+            });
+          if (hasEmpty || hasInvalidParam) {
             body.hidden = false;
             if (toggle) toggle.setAttribute('aria-expanded', 'true');
           }

@@ -180,11 +180,16 @@ Public demo repo: [dustinestes/Hatchery-Library](https://github.com/dustinestes/
 | **Answer Files** | label `All Answer Files` · filter `*answerfiles/*` |
 | **Clutches** | label `All Clutches` · filter `*clutches/*` |
 | **Media ISO** | label `All ISOs` · filter `*media/iso/*` · target `iso` |
-| **Scripts** | label `All Scripts` · filter `*scripts/*` |
+| **Scripts** | label `All Scripts` · filter `scripts/*` (production tree only; not `tests/scripts/`) |
 | **Software** | label `All Software` · filter `*software/*` (package dirs with `software.yaml`; pull copies the whole package tree) |
 | **Media VirtIO** | label `All VirtIO` · filter `*media/virtio/*` · target `virtio` |
+| **Test Scripts** | label `Test Scripts` · filter `tests/scripts/*` · **disabled by default** ([#573](https://github.com/dustinestes/Hatchery/issues/573)) |
 
 Token optional for this public repo (add a PAT for higher GitHub rate limits). Pull what you need from **Library → Content → Available**; hatch with your own Windows eval ISO (the shipped `tiny.iso` is a catalog fixture only). Narrower path globs (e.g. `scripts/windows/**/*.ps1`) remain valid if you prefer.
+
+**Test fixtures:** Hatchery-Library keeps non-production scripts under `tests/scripts/{windows,linux,macos}/` with a `test-` basename prefix. They are excluded from All Scripts. For debug Controllers, enable **Test Scripts** under Library → Connections → Hatchery Library (Scripts section), then pull from Content → Available. `ensure_software_library_defaults` finds that forge connection by the well-known seed id **or** by matching GitHub base URI (so Controllers that re-added the catalog under a new id still get the binding). It also migrates legacy All Scripts filters (`*` / `*scripts/*`) → `scripts/*` ([#573](https://github.com/dustinestes/Hatchery/issues/573)).
+
+Until `tests/` is published on the public Library default branch, a **path** connection pointed at a local Hatchery-Library checkout is the way to pull fixtures (add or enable a Scripts binding with filter `tests/scripts/*`).
 
 ### API connections (#255)
 

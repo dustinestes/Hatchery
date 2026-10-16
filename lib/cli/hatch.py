@@ -122,6 +122,12 @@ def _hatch(args: argparse.Namespace) -> int:
             bootstrap.print_err(msg)
         return 1
 
+    param_errors = hatch_lifecycle_lib.script_param_errors(clutch_obj.vms)
+    if param_errors:
+        for msg in param_errors:
+            bootstrap.print_err(msg)
+        return 1
+
     try:
         provider = get_provider(nest_id)
     except (NoNestSelectedError, UnknownNestError, UnsupportedProviderError) as exc:

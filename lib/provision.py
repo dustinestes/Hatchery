@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import winrm
 
@@ -246,9 +247,10 @@ def _extract_param_block(content: str) -> tuple[str, str]:
 
 def _build_ps_invocation(
     content: str,
-    parameters: dict[str, str],
+    parameters: dict[str, Any],
     *,
     env_prefix: str = "",
+    specs: list | None = None,
 ) -> str:
     """Build the remoting payload: optional outer env, then user script + clutch params.
 
@@ -260,11 +262,20 @@ def _build_ps_invocation(
     (``& { param(...) <user body> } -Key 'val'``). When the script declares
     ``param()`` but the Clutch passes no values, the scriptblock still runs so
     defaults apply and outer env stays outside ``param()``.
+
+    When ``specs`` is non-empty (#571), arguments are encoded from discovered kinds
+    (bool → ``$true``/``$false``, not quoted strings). Without specs, values are
+    quoted strings (legacy / no-metadata degrade).
     """
+    from lib import script_params as script_params_lib
+
     param_block, rest = _extract_param_block(content)
     if parameters:
         inner = (param_block + "\n" + rest) if param_block else content
-        args = " ".join(f"-{k} {_ps_quote(v)}" for k, v in parameters.items())
+        if specs:
+            args = script_params_lib.encode_powershell_args(specs, parameters)
+        else:
+            args = " ".join(f"-{k} {_ps_quote(str(v))}" for k, v in parameters.items())
         user = f"& {{\n{inner}\n}} {args}"
     elif param_block and env_prefix:
         # Keep param() first inside the user scriptblock; env stays outside.
@@ -281,7 +292,7 @@ def run_script(
     admin_username: str,
     admin_password: str,
     script_path: str | Path,
-    parameters: dict[str, str] | None = None,
+    parameters: dict[str, Any] | None = None,
     timeout: int = 300,
     environment: dict[str, str] | None = None,
 ) -> tuple[int, str]:
@@ -297,10 +308,18 @@ def run_script(
     Raises an exception if guest remoting cannot be established.
     """
     from lib import guest_env as guest_env_lib
+    from lib import script_params as script_params_lib
 
     script_path = Path(script_path)
     content = script_path.read_text(encoding="utf-8")
-    params = parameters or {}
+    params = dict(parameters or {})
+    specs = script_params_lib.introspect(script_path)
+    if specs and params:
+        try:
+            params = script_params_lib.coerce_parameters(specs, params)
+        except ValueError:
+            # Leave raw params; encode/validate paths surface clearer errors upstream.
+            pass
 
     transport = _guest_transport(ip, admin_username, admin_password)
     defaults = _guest_transport_defaults.get()
@@ -327,9 +346,13 @@ def run_script(
     if "HATCHERY_MODULES" not in job_env:
         job_env["HATCHERY_MODULES"] = _WINDOWS_PATHS.modules
     env_prefix = guest_env_lib.powershell_job_preamble(job_env)
-    ps_code = _build_ps_invocation(content, params, env_prefix=env_prefix)
+    ps_code = _build_ps_invocation(content, params, env_prefix=env_prefix, specs=specs or None)
     status, body = transport.run_ps(ps_code, timeout=timeout)
-    return status, header + body
+    output = header + body
+    if status == 0 and script_params_lib.looks_like_param_binding_failure(body):
+        # Backstop: param bind failures must not look like success (#571).
+        return 1, output
+    return status, output
 
 
 def check_setup_complete(ip: str, admin_username: str, admin_password: str) -> bool:
