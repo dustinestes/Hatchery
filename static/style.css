@@ -736,6 +736,27 @@ html.sidebar-collapsed-init .topbar-name {
   list-style: none;
 }
 
+/* Dense data grids inside detail tiles (Env / Scripts / Software) - same scroll
+   contract as Events (.list-shell-body), without a vertical max-height (#579). */
+.detail-section-tile > .list-shell-body {
+  flex: 0 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.detail-section-tile > .list-shell-body .detail-section-empty {
+  margin: 0;
+  padding: 8px 12px;
+  min-height: 0;
+  height: auto;
+}
+
+.detail-section-tile > .list-shell-body .script-cols-header,
+.detail-section-tile > .list-shell-body .script-row {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
 /* Inventory tile grids (VMs / Nests) */
 .inventory-tile-shell {
   display: flex;
@@ -2355,45 +2376,6 @@ html.sidebar-collapsed-init .topbar-name {
   line-height: 1.4;
 }
 
-.vm-environment-detail {
-  margin-top: 12px;
-}
-
-.vm-env-cols-header,
-.vm-env-detail-row {
-  display: grid;
-  grid-template-columns: minmax(7rem, 1.4fr) minmax(8rem, 2fr) 5.5rem 5.5rem 4.5rem 5.5rem;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.vm-env-cols-header {
-  padding: 2px 0 4px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-family: var(--font-heading);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.vm-env-detail-row {
-  padding: 5px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.vm-env-detail-row .vm-env-col-name {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  word-break: break-all;
-}
-
-.vm-env-detail-row .vm-env-col-value {
-  word-break: break-word;
-  color: var(--color-text);
-}
-
 .listbox-item:hover {
   background: var(--color-nav-hover-bg);
 }
@@ -4011,6 +3993,34 @@ html.sidebar-collapsed-init .topbar-name {
   grid-template-columns:
     minmax(120px, 2fr) 60px 40px minmax(60px, 2fr)
     72px minmax(88px, 1.2fr) 90px minmax(72px, auto);
+}
+
+/* VM detail: environment variables (#579) - same header/row chrome as scripts */
+.script-cols-header.script-cols-env,
+.script-row.script-row-env {
+  grid-template-columns:
+    minmax(7rem, 1.4fr) minmax(8rem, 2fr) 5.5rem 5.5rem 4.5rem 5.5rem;
+}
+
+.script-row-env .script-col-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-all;
+}
+
+.script-col-env-value {
+  min-width: 0;
+  word-break: break-word;
+  color: var(--color-text);
+}
+
+.script-col-env-meta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .script-col-reboot,

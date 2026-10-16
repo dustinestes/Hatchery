@@ -103,7 +103,7 @@
               aria-label="About environment variables">i</span>
       </h2>
     </div>
-    <div id="vms-env-body"></div>
+    <div class="list-shell-body" id="vms-env-body"></div>
   </section>
 
   <section class="detail-section-tile" aria-labelledby="vms-scripts-heading" id="vms-scripts-section" hidden>
@@ -129,7 +129,7 @@
         </button>
       </div>
     </div>
-    <div id="vms-scripts-body"></div>
+    <div class="list-shell-body" id="vms-scripts-body"></div>
   </section>
 
   <section class="detail-section-tile" aria-labelledby="vms-software-heading" id="vms-software-section" hidden>
@@ -155,7 +155,7 @@
         </button>
       </div>
     </div>
-    <div id="vms-software-body"></div>
+    <div class="list-shell-body" id="vms-software-body"></div>
   </section>
 
   <section class="detail-section-tile" aria-labelledby="vms-snaps-heading">
@@ -389,18 +389,18 @@
         : (item.persist === 'no' || item.persist === false
           ? 'no'
           : (item.persist === 'job' ? 'job' : '—'));
-      return '<div class="vm-env-detail-row" role="row">' +
-        '<span class="vm-env-col-name" title="' + esc(source) + '">' + esc(item.name) + '</span>' +
-        '<span class="vm-env-col-value">' + esc(item.value || '') + '</span>' +
-        '<span class="vm-env-col-source">' + esc(source) + '</span>' +
-        '<span class="vm-env-col-scope">' + esc(item.scope || '—') + '</span>' +
-        '<span class="vm-env-col-persist">' + esc(persist) + '</span>' +
-        '<span class="vm-env-col-mode">' + esc(item.mode || '—') + '</span></div>';
+      return '<div class="script-row script-row-env">' +
+        '<span class="script-col-name" title="' + esc(source) + '">' + esc(item.name) + '</span>' +
+        '<span class="script-col-env-value">' + esc(item.value || '') + '</span>' +
+        '<span class="script-col-env-meta">' + esc(source) + '</span>' +
+        '<span class="script-col-env-meta">' + esc(item.scope || '—') + '</span>' +
+        '<span class="script-col-env-meta">' + esc(persist) + '</span>' +
+        '<span class="script-col-env-meta">' + esc(item.mode || '—') + '</span></div>';
     }).join('');
     envBody.innerHTML =
-      '<div class="vm-env-cols-header" role="row"><span>Name</span><span>Value</span><span>Source</span>' +
-      '<span>Scope</span><span>Persist</span><span>Mode</span></div>' +
-      '<div class="vm-env-detail-body" role="table" aria-label="Environment variables">' + rows + '</div>';
+      '<div class="script-cols-header script-cols-env" role="row">' +
+      '<span>Name</span><span>Value</span><span>Source</span>' +
+      '<span>Scope</span><span>Persist</span><span>Mode</span></div>' + rows;
   }
 
   function rebootAfterLabel(entry) {
