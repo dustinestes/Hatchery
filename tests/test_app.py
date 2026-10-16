@@ -5971,11 +5971,13 @@ class TestProvisionVmThread:
                     )
                     on_event(
                         "INFO",
-                        "Waiting for WinRM to stabilize after reboot (3 consecutive probes)",
+                        "Waiting for guest remoting to stabilize after reboot "
+                        "(3 consecutive probes)",
                     )
                     on_event(
                         "INFO",
-                        "WinRM stable after reboot (3 consecutive probes)",
+                        "Guest remoting stable after reboot "
+                        "(3 consecutive probes via ssh)",
                     )
                 return "134350310025000000"
 
@@ -5994,8 +5996,8 @@ class TestProvisionVmThread:
             and "LastBootUpTime=134350310025000000" in m
             for m in events
         )
-        assert any("Waiting for WinRM to stabilize" in m for m in events)
-        assert any("WinRM stable after reboot" in m for m in events)
+        assert any("Waiting for guest remoting to stabilize" in m for m in events)
+        assert any("Guest remoting stable after reboot" in m for m in events)
 
     def test_removes_from_provisioning_set_on_completion(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib

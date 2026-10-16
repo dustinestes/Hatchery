@@ -232,7 +232,7 @@ Scripts run **sequentially** in the order they are declared in the Clutch file. 
 1. Status is set to `running` in the database
 2. The script file is read from `~/.local/share/hatchery/automation/scripts/`
 3. Clutch parameter values are bound into a PowerShell scriptblock: `& { param(...) <user body> } -Param 'value'`. Reserved + Clutch user env (and a process `PSModulePath` append for `HATCHERY_MODULES`) are applied in an **outer** scope so user script text is not rewritten with Hatchery helpers (#554). `param()` stays first inside the user scriptblock, including when the Clutch passes no values and the script only uses `param()` defaults.
-4. The script is executed on the guest over WinRM via `pywinrm`
+4. The script is executed on the guest over **guest remoting** (SSH primary; WinRM Windows fallback - [Guest transport](guest-transport.md))
 5. All stdout and stderr output is captured and stored against the script record
 6. The exit code determines what happens next:
 
@@ -241,11 +241,11 @@ Scripts run **sequentially** in the order they are declared in the Clutch file. 
 | `0` | Script marked `succeeded`; next script runs |
 | Non-zero | Script marked `failed`; remaining scripts marked `skipped`; VM marked `failed` |
 
-If a WinRM connection error occurs (e.g. the VM rebooted unexpectedly), the script is marked `failed` with exit code `-1` and provisioning halts.
+If a guest remoting error occurs (e.g. the VM rebooted unexpectedly), the script is marked `failed` with exit code `-1` and provisioning halts.
 
 ### Reboot after
 
-If a script has `reboot_after: true`, Hatchery captures the guest's `Win32_OperatingSystem.LastBootUpTime`, issues `Restart-Computer -Force` over WinRM, then polls until WinRM accepts an authenticated probe **and** `LastBootUpTime` differs from the pre-reboot value (`lib.provision.reboot_guest_and_wait`; [#499](https://github.com/dustinestes/Hatchery/issues/499)). After the boot identity changes, Hatchery requires several consecutive successful WinRM probes so the next step does not hit a half-ready remoting stack (common cause of WinRM "pipe has been ended" during Software staging). TCP alone is not enough: the pre-reboot OS often still accepts port 5985 before the restart completes. Timeout is 10 minutes for the boot-identity wait; failure aborts the hatch (no silent continue). Software `install.reboot_after` uses the same helper.
+If a script has `reboot_after: true`, Hatchery captures the guest's `Win32_OperatingSystem.LastBootUpTime`, issues `Restart-Computer -Force` over guest remoting, then polls until remoting accepts an authenticated probe **and** `LastBootUpTime` differs from the pre-reboot value (`lib.provision.reboot_guest_and_wait`; [#499](https://github.com/dustinestes/Hatchery/issues/499)). After the boot identity changes, Hatchery requires several consecutive successful remoting probes (`wait_for_guest_stable`) so the next step does not hit a half-ready stack (common cause of dropped pipes during Software staging). TCP alone is not enough: the pre-reboot OS often still accepts SSH/WinRM ports before the restart completes. Timeout is 10 minutes for the boot-identity wait; failure aborts the hatch (no silent continue). Software `install.reboot_after` uses the same helper.
 
 ### Completion
 

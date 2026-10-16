@@ -32,7 +32,7 @@ How to write, configure, and run automation scripts against guest VMs after firs
 
 ## Overview
 
-Automation scripts are PowerShell scripts that Hatchery executes against a guest VM over WinRM after it has completed its unattended Windows install. They are the primary mechanism for post-install provisioning - installing software, configuring the OS, renaming the machine, joining a domain, or anything else that needs to happen before a VM is considered fledged.
+Automation scripts are PowerShell scripts that Hatchery executes against a guest VM over guest remoting (SSH primary; WinRM Windows fallback - [Guest transport](guest-transport.md)) after it has completed its unattended Windows install. They are the primary mechanism for post-install provisioning - installing software, configuring the OS, renaming the machine, joining a domain, or anything else that needs to happen before a VM is considered fledged.
 
 Scripts are stored in the `automation/scripts/` subdirectory of your Hatchery data directory (`~/.local/share/hatchery/automation/scripts/` by default). Add scripts with **Import** on Automations → Scripts, or place files there on the Nest; remove them with the trash control in the script detail header. Any `.ps1` (and other supported script types) becomes available for selection in the Clutch builder. The Automations → Scripts pane inventories those files for discovery and audit (metadata, Clutch usage, read-only content, copy path) - editing stays in your host editor.
 
@@ -46,7 +46,7 @@ Scripts are declared per VM in a Clutch file under the `automations` key and run
 
 ## How Hatchery Runs Scripts
 
-Hatchery connects to the guest over WinRM using `pywinrm` and executes each script's content. The connection uses the admin credentials declared in the Clutch file.
+Hatchery connects to the guest over guest remoting (SSH primary; WinRM Windows fallback) and executes each script's content. Auth uses the Clutch admin credentials and, when SSH is authorized, Controller remoting identities ([Guest transport](guest-transport.md)).
 
 `Write-HatchEvent` comes from the Hatchery PowerShell module installed by the guest environment ensure job (`HATCHERY_ROOT\modules\Hatchery`, on `PSModulePath`). You do not need to define it, source it, or import it - PowerShell autoloads it. Hatchery does **not** splice helper function bodies into your script text. See [Write-HatchEvent](#write-hatchevent).
 
@@ -72,7 +72,7 @@ All script output (stdout and stderr) is captured and stored per-script in the d
 
 The actual non-zero exit code is stored and shown in the Nests panel, so you can use specific codes (e.g. `exit 2`, `exit 99`) for diagnostic purposes.
 
-If `reboot_after: true` is set for a script, Hatchery reboots the VM after the script succeeds and waits until the guest reports a new `LastBootUpTime` (not merely TCP WinRM) before running the next script. This is required for operations like computer rename that only take effect after a restart.
+If `reboot_after: true` is set for a script, Hatchery reboots the VM after the script succeeds and waits until the guest reports a new `LastBootUpTime` (not merely TCP SSH/WinRM) before running the next script. This is required for operations like computer rename that only take effect after a restart.
 
 <br>
 
@@ -308,7 +308,7 @@ automations:
       IsoLabel: virtio-win
 ```
 
-4. After OS install, Hatchery runs the script over WinRM. Prefer the guest-tools MSI when present on the ISO; otherwise it falls back to `pnputil` plus the QEMU guest agent MSI under `guest-agent\`.
+4. After OS install, Hatchery runs the script over guest remoting. Prefer the guest-tools MSI when present on the ISO; otherwise it falls back to `pnputil` plus the QEMU guest agent MSI under `guest-agent\`.
 
 Also covered in [Getting started - VirtIO Drivers](getting-started.md#virtio-drivers).
 
