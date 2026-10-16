@@ -122,9 +122,11 @@ exit 1
 
 `Write-HatchEvent` emits lines in the format `[HATCH:LEVEL] message` or `[HATCH:LEVEL][Component] message`. Hatchery parses these after each script completes and stores them as individual events in the database.
 
+Internally it writes the transcript line with `[Console]::Out.WriteLine` (not `Write-Output`) so events stay on remoting stdout even when a helper’s return value is captured (`if (Helper) { }`). It also tees a timestamped copy to the guest job log: `$env:HATCHERY_SCRIPT_LOG` when set (per-script under `HATCHERY_LOGS`), otherwise `HATCHERY_LOGS\hatchery-events.log` (#574).
+
 The parser also accepts an optional ISO timestamp bracket: `[HATCH:LEVEL][Component][2026-07-20T12:34:56+00:00] message`. When present, the timestamp is stored as `received_at` instead of the host clock - this is used by the first-boot setup log (`hatchery-setup-windows.log`) so guest-side step timing is preserved on import. The timestamp uses the same `+00:00` UTC form as host-written events. User automation scripts do not need to include timestamps.
 
-> **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events.
+> **Note:** Use `Write-HatchEvent` in place of bare `Write-Output` for any line you want visible in the event log. Raw `Write-Output` lines are captured in the script's stored output but do not appear as structured feed events. Do not implement your own progress helpers with `Write-Output` if those helpers also return values - use `Write-HatchEvent` so logging never pollutes the success pipeline.
 
 <br>
 
@@ -308,7 +310,7 @@ Sample scripts, Clutches, and media ship in the public **[Hatchery Library](http
 | [`hatchery-script-template-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-script-template-windows.ps1) | Commented template showing all conventions, a sample `param()` block, `Write-HatchEvent` usage, and the `try/catch/exit` pattern |
 | [`configure-vm-basics-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/configure-vm-basics-windows.ps1) | Real working script - renames the computer and sets the timezone; demonstrates `Mandatory`, `HelpMessage`, `ValidateLength`, and `reboot_after` usage |
 | [`enable-rdp-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-rdp-windows.ps1) | Enables Remote Desktop and the firewall group; optional `RdpUsers` (comma-separated) adds non-admin accounts to Remote Desktop Users (Administrators already have RDP access) |
-| [`remove-appx-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/remove-appx-windows.ps1) | Removes AppX packages by comma-separated `PackageNames`, or all non-framework packages when `RemoveAll` is true |
+| [`remove-appx-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/remove-appx-windows.ps1) | Removes AppX packages by `PackageNames`, or removable non-framework packages when `RemoveAll` is true; `KeepPackageNames` / `KeepDefaults` skip lab keepers |
 | [`install-virtio-drivers-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/install-virtio-drivers-windows.ps1) | Installs VirtIO guest tools / drivers from the attached VirtIO ISO (`DriveLetter` or `IsoLabel`); see [VirtIO driver automation](#virtio-driver-automation) |
 | [`hatchery-cleanup-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/hatchery-cleanup-windows.ps1) | Restores UAC lowered at first boot ([#543](https://github.com/dustinestes/Hatchery/issues/543)), removes `C:\Program Files\Hatchery\`, and clears persisted reserved Machine env; add as the last automation if you want no Hatchery artifacts left after provisioning |
 

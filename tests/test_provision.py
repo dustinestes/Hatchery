@@ -202,6 +202,10 @@ class TestHatcheryModuleSource:
         assert "function Write-HatchEvent" in body
         assert "Export-ModuleMember" in body
         assert "$env:HATCHERY_SCRIPT_LOG" in body
+        # Must not use Write-Output: that joins the success pipeline and is
+        # swallowed when callers capture return values (#574).
+        assert "Write-Output" not in body
+        assert "[Console]::Out.WriteLine" in body
 
     def test_psd1_points_at_psm1(self):
         manifest = provision_lib.hatchery_module_psd1_source()

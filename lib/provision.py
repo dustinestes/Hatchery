@@ -95,10 +95,15 @@ function Write-HatchEvent {
         [string]$Level = 'INFO',
         [string]$Component = ''
     )
+    # Remoting transcript line: write to the console out handle so the text is
+    # captured on SSH/WinRM stdout without joining the PowerShell success
+    # pipeline (success-stream logging is swallowed when callers capture return
+    # values, e.g. if (Helper) { }, and can make @($false) conditions truthy).
     $prefix = if ($Component) { "[HATCH:$Level][$Component]" } else { "[HATCH:$Level]" }
-    Write-Output "$prefix $Message"
+    [Console]::Out.WriteLine("$prefix $Message")
     $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss+00:00")
     $line = if ($Component) { "[HATCH:$Level][$Component][$ts] $Message" } else { "[HATCH:$Level][$ts] $Message" }
+    # Guest tee: per-script job log (HATCHERY_SCRIPT_LOG) or shared events file.
     $logFile = $env:HATCHERY_SCRIPT_LOG
     if (-not $logFile -and $env:HATCHERY_LOGS) {
         $logFile = Join-Path $env:HATCHERY_LOGS 'hatchery-events.log'
