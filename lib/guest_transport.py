@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import base64
 import logging
+import shutil
+import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -42,6 +44,9 @@ _ENCODED_COMMAND_MAX = 6000
 # created by ensure itself; #591).
 _REMOTE_RUN_PS1 = r"C:\Windows\Temp\hatchery-run.ps1"
 
+# Relative to Controller data_dir (ADR-0037 / #593).
+_GUEST_KNOWN_HOSTS_REL = Path("remoting") / "known_hosts" / "guest"
+
 
 class GuestTransportError(RuntimeError):
     """Raised when guest remoting cannot connect or a remote command fails."""
@@ -50,6 +55,48 @@ class GuestTransportError(RuntimeError):
 def _ps_single_quote(value: str) -> str:
     """PowerShell single-quoted string literal."""
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def guest_known_hosts_path() -> Path:
+    """Return ``{data_dir}/remoting/known_hosts/guest``, creating parents/file."""
+    from lib import config as config_lib
+
+    path = config_lib.data_dir() / _GUEST_KNOWN_HOSTS_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.touch()
+    return path
+
+
+def remove_guest_known_host(vm_id: str | None) -> None:
+    """Best-effort remove ``HostKeyAlias`` entry for ``vm_id`` from guest trust (#593)."""
+    alias = (vm_id or "").strip()
+    if not alias:
+        return
+    path = guest_known_hosts_path()
+    if not path.is_file() or path.stat().st_size == 0:
+        return
+    ssh_keygen = shutil.which("ssh-keygen")
+    if ssh_keygen is None:
+        log.debug("ssh-keygen not on PATH; skip guest known_hosts prune for %s", alias)
+        return
+    try:
+        subprocess.run(
+            [ssh_keygen, "-R", alias, "-f", str(path)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.debug("guest known_hosts prune failed for %s: %s", alias, exc)
+        return
+    # ssh-keygen leaves a .old backup beside the file; drop it quietly.
+    old = path.with_name(path.name + ".old")
+    try:
+        old.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -63,6 +110,8 @@ class GuestEndpoint:
     winrm_port: int = 5985
     # Path reference only (#519); never Nest identity_file by default (ADR-0029).
     identity_file: str | None = None
+    # Pre-minted VM UUID for HostKeyAlias (ADR-0036 / #593).
+    vm_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.host or not str(self.host).strip():
@@ -213,6 +262,15 @@ class SshGuestTransport:
             return None
         return self.endpoint.password or None
 
+    def _ssh_trust_kwargs(self) -> dict:
+        """Hatchery-owned guest known_hosts + HostKeyAlias when vm_id is set (#593)."""
+        alias = (self.endpoint.vm_id or "").strip() or None
+        return {
+            "known_hosts": "accept-new",
+            "user_known_hosts_file": str(guest_known_hosts_path()),
+            "host_key_alias": alias,
+        }
+
     def _ssh_argv(self, remote_command: str, *, connect_timeout: int) -> list[str]:
         password = self._password()
         # When an identity file is set, disable the agent so BatchMode verify
@@ -224,9 +282,9 @@ class SshGuestTransport:
             remote_command=remote_command,
             identity_file=self.endpoint.identity_file,
             use_agent=False if self.endpoint.identity_file else True,
-            known_hosts="accept-new",
             connect_timeout_seconds=connect_timeout,
             batch_mode=password is None,
+            **self._ssh_trust_kwargs(),
         )
 
     def run_ps(self, code: str, *, timeout: int = 300) -> tuple[int, str]:
@@ -309,9 +367,9 @@ class SshGuestTransport:
                 remote_path=remote_path,
                 identity_file=self.endpoint.identity_file,
                 use_agent=False if self.endpoint.identity_file else True,
-                known_hosts="accept-new",
                 connect_timeout_seconds=min(30, max(5, timeout)),
                 batch_mode=password is None,
+                **self._ssh_trust_kwargs(),
             )
             result = run_openssh(argv, timeout=float(timeout), password=password)
         except OpenSshClientError as exc:
@@ -337,6 +395,7 @@ def resolve_guest_transport(
     identity_file: str | None = None,
     ssh_port: int = 22,
     winrm_port: int = 5985,
+    vm_id: str | None = None,
     on_fallback: Callable[[str], None] | None = None,
 ) -> WinrmGuestTransport | SshGuestTransport:
     """Return SSH guest transport when usable; otherwise WinRM Windows fallback.
@@ -351,6 +410,7 @@ def resolve_guest_transport(
         ssh_port=ssh_port,
         winrm_port=winrm_port,
         identity_file=identity_file,
+        vm_id=vm_id,
     )
 
     if prefer_ssh and check_ssh(host, port=ssh_port):
@@ -386,6 +446,7 @@ def get_guest_transport(
     identity_file: str | None = None,
     ssh_port: int = 22,
     winrm_port: int = 5985,
+    vm_id: str | None = None,
 ) -> WinrmGuestTransport | SshGuestTransport:
     """Return a transport of the requested kind, or resolve preference when None."""
     if kind is None:
@@ -396,6 +457,7 @@ def get_guest_transport(
             identity_file=identity_file,
             ssh_port=ssh_port,
             winrm_port=winrm_port,
+            vm_id=vm_id,
         )
     endpoint = GuestEndpoint(
         host=host,
@@ -404,6 +466,7 @@ def get_guest_transport(
         ssh_port=ssh_port,
         winrm_port=winrm_port,
         identity_file=identity_file,
+        vm_id=vm_id,
     )
     if kind == "ssh":
         return SshGuestTransport(endpoint)

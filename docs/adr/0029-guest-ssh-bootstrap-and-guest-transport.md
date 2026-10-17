@@ -62,6 +62,7 @@ Deferred in this ADR; product shape locked in [ADR-0030](0030-controller-remotin
 - Operators see a Preview/Beta-only upstream channel; docs explain why Hatchery still uses latest.
 - #497 lands `guest_transport` with clear nouns and shared SSH client helpers (`lib/openssh_client.py`).
 - Offline and Library-packaged OpenSSH remain follow-ons (#475 / #517).
+- Guest SSH host-key trust is Hatchery-owned and keyed by VM UUID ([ADR-0037](0037-guest-ssh-known-hosts-hostkeyalias.md) / [#593](https://github.com/dustinestes/Hatchery/issues/593)); Nest trust stays a separate plane ([#594](https://github.com/dustinestes/Hatchery/issues/594)).
 
 ## Alternatives considered
 

@@ -11,6 +11,42 @@ from lib import guest_transport as gt
 from lib.guest_transport import GuestEndpoint, SshGuestTransport, WinrmGuestTransport
 
 
+class TestGuestKnownHosts:
+    def test_guest_known_hosts_path_under_data_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        path = gt.guest_known_hosts_path()
+        assert path == tmp_path / "remoting" / "known_hosts" / "guest"
+        assert path.is_file()
+
+    def test_remove_guest_known_host_calls_ssh_keygen(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        kh = gt.guest_known_hosts_path()
+        kh.write_text("alias ssh-ed25519 AAAA\n", encoding="utf-8")
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(list(argv))
+            return MagicMock(returncode=0)
+
+        with (
+            patch("lib.guest_transport.shutil.which", return_value="/usr/bin/ssh-keygen"),
+            patch("lib.guest_transport.subprocess.run", side_effect=fake_run),
+        ):
+            gt.remove_guest_known_host("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert calls
+        assert calls[0][0] == "/usr/bin/ssh-keygen"
+        assert "-R" in calls[0]
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in calls[0]
+        assert str(kh) in calls[0]
+
+    def test_remove_guest_known_host_noop_without_vm_id(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        with patch("lib.guest_transport.subprocess.run") as run:
+            gt.remove_guest_known_host(None)
+            gt.remove_guest_known_host("  ")
+        run.assert_not_called()
+
+
 class TestGuestEndpoint:
     def test_requires_host_and_user(self):
         with pytest.raises(ValueError, match="host"):
@@ -65,8 +101,14 @@ class TestResolveGuestTransport:
 
 
 class TestSshGuestTransport:
-    def test_run_ps_uses_encoded_command(self):
-        endpoint = GuestEndpoint(host="10.0.0.1", username="admin", password="secret")
+    def test_run_ps_uses_encoded_command(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        endpoint = GuestEndpoint(
+            host="10.0.0.1",
+            username="admin",
+            password="secret",
+            vm_id="11111111-2222-3333-4444-555555555555",
+        )
         transport = SshGuestTransport(endpoint)
         mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
         with (
@@ -81,6 +123,32 @@ class TestSshGuestTransport:
         joined = " ".join(argv)
         assert "EncodedCommand" in joined
         assert "BatchMode=yes" not in joined
+        assert "HostKeyAlias=11111111-2222-3333-4444-555555555555" in joined
+        assert f"UserKnownHostsFile={tmp_path / 'remoting' / 'known_hosts' / 'guest'}" in joined
+        assert "GlobalKnownHostsFile=/dev/null" in joined
+
+    def test_recycled_ip_uses_distinct_host_key_alias(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
+        aliases: list[str | None] = []
+
+        def capture_ssh(**kwargs):
+            aliases.append(kwargs.get("host_key_alias"))
+            return ["ssh", "placeholder"]
+
+        for vm_id in ("uuid-a", "uuid-b"):
+            transport = SshGuestTransport(
+                GuestEndpoint(
+                    host="192.168.122.221",
+                    username="admin",
+                    password="secret",
+                    vm_id=vm_id,
+                )
+            )
+            with patch("lib.guest_transport.build_ssh_argv", side_effect=capture_ssh):
+                with patch("lib.guest_transport.run_openssh") as run:
+                    run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+                    transport.run_ps("Write-Output ok", timeout=10)
+        assert aliases == ["uuid-a", "uuid-b"]
 
     def test_put_file_uses_scp(self, tmp_path):
         local = tmp_path / "payload.bin"

@@ -171,6 +171,7 @@ def verify_key_ssh(
     identity_file: str,
     *,
     ssh_port: int = 22,
+    vm_id: str | None = None,
 ) -> None:
     """Probe guest SSH with BatchMode + identity path (no password)."""
     try:
@@ -181,6 +182,7 @@ def verify_key_ssh(
             kind="ssh",
             identity_file=identity_file,
             ssh_port=ssh_port,
+            vm_id=vm_id,
         )
     except GuestTransportError as exc:
         raise GuestAuthorizeError(f"key SSH transport failed: {exc}") from exc
@@ -216,6 +218,7 @@ def apply_guest_ssh_authorize(
     *,
     authorize_ids: list[str],
     ssh_port: int = 22,
+    vm_id: str | None = None,
     password_transport: GuestTransport | None = None,
 ) -> GuestAuthorizeResult:
     """Inject → verify key SSH → disable password auth (ADR-0030 order).
@@ -249,10 +252,11 @@ def apply_guest_ssh_authorize(
             username,
             password,
             ssh_port=ssh_port,
+            vm_id=vm_id,
         )
 
     inject_authorized_keys(transport, pubkeys)
-    verify_key_ssh(host, username, identity_path, ssh_port=ssh_port)
+    verify_key_ssh(host, username, identity_path, ssh_port=ssh_port, vm_id=vm_id)
 
     # Prefer key SSH for the disable step when possible; fall back to the
     # password/WinRM transport that performed inject.
@@ -265,6 +269,7 @@ def apply_guest_ssh_authorize(
             kind="ssh",
             identity_file=identity_path,
             ssh_port=ssh_port,
+            vm_id=vm_id,
         )
     except GuestTransportError:
         disable_transport = transport

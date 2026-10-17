@@ -23,11 +23,12 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class GuestTransportDefaults:
-    """Thread/async-scoped defaults for guest SSH client identity (#524)."""
+    """Thread/async-scoped defaults for guest SSH client identity (#524 / #593)."""
 
     identity_file: str | None = None
     ssh_port: int = 22
     winrm_port: int = 5985
+    vm_id: str | None = None
 
 
 _guest_transport_defaults: contextvars.ContextVar[GuestTransportDefaults] = contextvars.ContextVar(
@@ -42,13 +43,15 @@ def guest_transport_defaults(
     identity_file: str | None = None,
     ssh_port: int = 22,
     winrm_port: int = 5985,
+    vm_id: str | None = None,
 ) -> Iterator[None]:
-    """Bind guest SSH identity/port for ``_guest_transport`` in this context."""
+    """Bind guest SSH identity/port/vm_id for ``_guest_transport`` in this context."""
     token = _guest_transport_defaults.set(
         GuestTransportDefaults(
             identity_file=identity_file,
             ssh_port=ssh_port,
             winrm_port=winrm_port,
+            vm_id=vm_id,
         )
     )
     try:
@@ -199,8 +202,9 @@ def _guest_transport(
     identity_file: str | None = None,
     ssh_port: int | None = None,
     winrm_port: int | None = None,
+    vm_id: str | None = None,
 ):
-    """Resolve SSH-primary / WinRM-fallback guest remoting (#497 / #524)."""
+    """Resolve SSH-primary / WinRM-fallback guest remoting (#497 / #524 / #593)."""
     from lib import guest_transport as gt
 
     defaults = _guest_transport_defaults.get()
@@ -212,6 +216,7 @@ def _guest_transport(
         identity_file=identity_file if identity_file is not None else defaults.identity_file,
         ssh_port=ssh_port if ssh_port is not None else defaults.ssh_port,
         winrm_port=winrm_port if winrm_port is not None else defaults.winrm_port,
+        vm_id=vm_id if vm_id is not None else defaults.vm_id,
     )
 
 

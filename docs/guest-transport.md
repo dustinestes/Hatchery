@@ -25,6 +25,19 @@ Empty `authorize` is invalid. Nest `remoting_identity_id` is **never** auto-copi
 
 Inject uses pubkey material that matches the Controller private key on disk (`.pub` / `ssh-keygen -y`), not a stale `remoting_identities.pubkey` catalog column. The Remoting identities validator alerts when catalog and disk diverge ([#537](https://github.com/dustinestes/Hatchery/issues/537)).
 
+## Host key trust (#593 / ADR-0037)
+
+Guest SSH does **not** use the operator personal `~/.ssh/known_hosts`. The Controller OpenSSH client uses:
+
+| Option | Value |
+|---|---|
+| `UserKnownHostsFile` | `{data_dir}/remoting/known_hosts/guest` |
+| `GlobalKnownHostsFile` | `/dev/null` |
+| `HostKeyAlias` | Pre-minted VM UUID (`vm_id` / `libvirt_uuid`) |
+| `StrictHostKeyChecking` | `accept-new` against that file |
+
+Trust is namespaced by VM identity so recycled Nest DHCP IPs do not collide. Nest plane trust is separate (`remoting/known_hosts/nest` in [#594](https://github.com/dustinestes/Hatchery/issues/594)). Destroy / gone detection best-effort prunes the alias entry; the alias itself is the durable guard.
+
 ### Public key distribution
 
 Private keys stay on the Controller disk (path references only). Matching **public** keys must be installed where SSH servers accept them:
@@ -62,5 +75,6 @@ When SSH cannot be used, hatch events record a WARN fallback reason and INFO not
 
 - Nest plane: [nest-transport.md](nest-transport.md)
 - Remoting identities: [ADR-0030](adr/0030-controller-remoting-identities.md)
+- Guest host-key trust: [ADR-0037](adr/0037-guest-ssh-known-hosts-hostkeyalias.md)
 - Software staging: [software.md](software.md)
-- Issue: [#497](https://github.com/dustinestes/Hatchery/issues/497)
+- Issues: [#497](https://github.com/dustinestes/Hatchery/issues/497), [#593](https://github.com/dustinestes/Hatchery/issues/593)

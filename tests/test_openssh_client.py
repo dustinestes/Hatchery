@@ -39,6 +39,26 @@ def test_build_scp_argv_accept_new():
     assert argv[-2] == "/tmp/a.bin"
 
 
+def test_build_ssh_argv_hatchery_known_hosts_and_alias():
+    with patch("lib.openssh_client.shutil.which", return_value="/usr/bin/ssh"):
+        argv = osc.build_ssh_argv(
+            host="192.168.122.50",
+            user="admin",
+            port=22,
+            remote_command="true",
+            known_hosts="accept-new",
+            user_known_hosts_file="/data/remoting/known_hosts/guest",
+            host_key_alias="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            batch_mode=True,
+        )
+    joined = " ".join(argv)
+    assert "UserKnownHostsFile=/data/remoting/known_hosts/guest" in joined
+    assert "GlobalKnownHostsFile=/dev/null" in joined
+    assert "HostKeyAlias=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in joined
+    assert "accept-new" in joined
+    assert "admin@192.168.122.50" in argv
+
+
 def test_run_openssh_askpass_when_no_sshpass(tmp_path):
     mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
 
