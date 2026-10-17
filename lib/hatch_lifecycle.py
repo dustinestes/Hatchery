@@ -35,6 +35,11 @@ _KIND_LABEL = {
 _provisioning: set[tuple[str, str]] = set()
 _provisioning_lock = threading.Lock()
 
+# Tracks (session_id, vm_name) while ``create_vm`` runs after a pre-minted UUID
+# is stored (#602). Sync must not treat a missing UUID as Destroy in this window.
+_creating: set[tuple[str, str]] = set()
+_creating_lock = threading.Lock()
+
 _BOOT_KEY_POLL_ATTEMPTS = 60  # poll up to 60s (1s intervals) for VM to reach running state
 _BOOT_KEY_SETTLE_SECONDS = 3  # UEFI POST often trails libvirt "running"
 _BOOT_KEY_BURST_ATTEMPTS = 60  # send key 60 times (0.5s intervals) = 30s burst
@@ -102,6 +107,7 @@ def run_hatch_session(
         return
 
     for vm in vms:
+        create_key = (session_id, vm.name)
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
             # Pre-mint VM identity for nest_storage/{vm_id}/ before create (#587).
@@ -119,19 +125,30 @@ def run_hatch_session(
                 args=(provider, vm.name),
                 daemon=True,
             ).start()
-            provider.create_vm(
-                vm,
-                admin_password=passwords[vm.name],
-                storage_path=storage_path,
-                vm_id=vm_id,
-            )
+            with _creating_lock:
+                _creating.add(create_key)
+            try:
+                provider.create_vm(
+                    vm,
+                    admin_password=passwords[vm.name],
+                    storage_path=storage_path,
+                    vm_id=vm_id,
+                )
+            finally:
+                with _creating_lock:
+                    _creating.discard(create_key)
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", "VM created successfully")
             try:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
             except Exception:
                 pass  # best-effort: metadata tagging does not block hatching
+            # Domain exists on Nest: allow gone-detection; keep hatching for install (#602).
+            hatch_lib.mark_vm_nest_seen(session_id, vm.name)
+            hatch_lib.set_vm_status(session_id, vm.name, "hatching")
             # vm_id was pre-minted and persisted above; keep it as Nest storage identity.
         except PermissionError as exc:
+            with _creating_lock:
+                _creating.discard(create_key)
             hatch_lib.add_event(
                 session_id,
                 vm.name,
@@ -142,6 +159,8 @@ def run_hatch_session(
             alerts_lib.record_alert(str(exc).splitlines()[0])
             hatch_lib.set_vm_status(session_id, vm.name, "failed", error=str(exc))
         except Exception as exc:
+            with _creating_lock:
+                _creating.discard(create_key)
             hatch_lib.add_event(
                 session_id, vm.name, "hatchery", "ERROR", f"VM creation failed: {exc}"
             )
@@ -715,6 +734,7 @@ def sync_hatch_status(
             v["vm_name"],
             v.get("libvirt_uuid"),
             v["status"],
+            bool(v.get("nest_seen")),
         )
         for s in sessions
         for v in s["vms"]
@@ -730,7 +750,7 @@ def sync_hatch_status(
             providers[nest_id] = resolve(nest_id)
         return providers[nest_id]
 
-    for session_id, nest_id, vm_name, libvirt_uuid, vm_status in monitored:
+    for session_id, nest_id, vm_name, libvirt_uuid, vm_status, nest_seen in monitored:
         if not libvirt_uuid:
             continue
         provider = _cached(nest_id)
@@ -739,12 +759,23 @@ def sync_hatch_status(
 
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
         if current_name is None:
+            # Pre-mint UUID is stored before create returns (#587). Do not treat
+            # "not on Nest yet" as Destroy until create finished or Nest saw it (#602).
+            with _creating_lock:
+                create_in_flight = (session_id, vm_name) in _creating
+            if create_in_flight:
+                continue
+            if vm_status == "hatching" and not nest_seen:
+                continue
             from lib import guest_transport as gt
 
             gt.remove_guest_known_host(libvirt_uuid)
             hatch_lib.set_vm_status(session_id, vm_name, "destroyed")
             hatch_lib.archive_if_terminal(session_id)
             continue
+
+        if not nest_seen:
+            hatch_lib.mark_vm_nest_seen(session_id, vm_name)
 
         if current_name != vm_name:
             hatch_lib.update_vm_name(session_id, vm_name, current_name)

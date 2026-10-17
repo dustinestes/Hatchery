@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS hatch_vm_status (
     admin_password TEXT,
     error          TEXT,
     guest_os       TEXT,
+    nest_seen      INTEGER NOT NULL DEFAULT 0,
     UNIQUE(session_id, vm_name)
 );
 
@@ -238,6 +239,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_library_software_domain(conn)
     _migrate_hatch_vm_scripts_typed(conn)
     _migrate_hatch_vm_status_guest_os(conn)
+    _migrate_hatch_vm_status_nest_seen(conn)
     _migrate_hatch_sessions_clutch_snapshot(conn)
     _migrate_remoting_identities(conn)
     _migrate_nest_remoting_identity_id(conn)
@@ -981,6 +983,18 @@ def _migrate_hatch_vm_status_guest_os(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_vm_status)").fetchall()}
     if "guest_os" not in cols:
         conn.execute("ALTER TABLE hatch_vm_status ADD COLUMN guest_os TEXT")
+
+
+def _migrate_hatch_vm_status_nest_seen(conn: sqlite3.Connection) -> None:
+    """Track whether a pre-minted UUID has been observed on the Nest (#602)."""
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='hatch_vm_status'"
+    ).fetchone()
+    if not table:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(hatch_vm_status)").fetchall()}
+    if "nest_seen" not in cols:
+        conn.execute("ALTER TABLE hatch_vm_status ADD COLUMN nest_seen INTEGER NOT NULL DEFAULT 0")
 
 
 def _migrate_hatch_sessions_clutch_snapshot(conn: sqlite3.Connection) -> None:

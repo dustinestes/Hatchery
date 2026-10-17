@@ -3300,7 +3300,53 @@ class TestSyncHatchStatus:
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
 
-    def test_marks_destroyed_when_uuid_not_found_on_host(self, tmp_path, monkeypatch):
+    def test_premint_uuid_missing_does_not_destroy_before_nest_seen(self, tmp_path, monkeypatch):
+        """Pre-mint UUID before create returns must not archive mid-create (#602)."""
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+            app_module._sync_hatch_status()
+        sessions = hatch_lib.list_sessions()
+        s = next(s for s in sessions if s["id"] == sid)
+        assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
+        assert len(sessions) == 1
+
+    def test_create_in_flight_skips_destroy(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+        import lib.hatch_lifecycle as hl
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        key = (sid, "dc01")
+        with hl._creating_lock:
+            hl._creating.add(key)
+        try:
+            with patch("hatchery._provider") as mock_prov:
+                mock_prov.return_value.get_vm_name_by_uuid.return_value = None
+                app_module._sync_hatch_status()
+            sessions = hatch_lib.list_sessions()
+            assert len(sessions) == 1
+            assert next(v["status"] for v in sessions[0]["vms"]) == "hatching"
+        finally:
+            with hl._creating_lock:
+                hl._creating.discard(key)
+
+    def test_sync_marks_nest_seen_when_uuid_found(self, tmp_path, monkeypatch):
+        import lib.hatch as hatch_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        assert hatch_lib.get_vm_record(sid, "dc01")["nest_seen"] is False
+        with patch("hatchery._provider") as mock_prov:
+            mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
+            mock_prov.return_value.get_vm_ip.return_value = None
+            app_module._sync_hatch_status()
+        assert hatch_lib.get_vm_record(sid, "dc01")["nest_seen"] is True
+
+    def test_marks_destroyed_when_uuid_not_found_after_nest_seen(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -3311,6 +3357,7 @@ class TestSyncHatchStatus:
         hatch_lib.add_vm(sid, "ws01")
         hatch_lib.set_vm_status(sid, "dc01", "hatching")
         hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        hatch_lib.mark_vm_nest_seen(sid, "dc01")
         hatch_lib.set_vm_status(sid, "ws01", "hatching")
         ws_uuid = "bbbbccdd-1234-5678-abcd-000000000002"
         hatch_lib.set_vm_uuid(sid, "ws01", ws_uuid)
@@ -3400,7 +3447,8 @@ class TestSyncHatchStatus:
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        self._setup_hatching(tmp_path)
+        sid = self._setup_hatching(tmp_path)
+        hatch_lib.mark_vm_nest_seen(sid, "dc01")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = None
             app_module._sync_hatch_status()
@@ -3415,6 +3463,7 @@ class TestSyncHatchStatus:
         hatch_lib.add_vm(sid, "ws01")
         hatch_lib.set_vm_status(sid, "dc01", "hatching")
         hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
+        hatch_lib.mark_vm_nest_seen(sid, "dc01")
         hatch_lib.set_vm_status(sid, "ws01", "hatching")
         hatch_lib.set_vm_uuid(sid, "ws01", "bbbbccdd-1234-5678-abcd-000000000002")
         with patch("hatchery._provider") as mock_prov:
