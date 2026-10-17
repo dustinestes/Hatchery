@@ -56,9 +56,23 @@ Hatchery uses the host **OpenSSH client** (`ssh` on PATH). Identities are **refe
 | `port` | SSH port (default `22`) |
 | `identity_file` | Path to an existing private key on the Hatchery host (resolved from remoting identity after ADR-0030 impl) |
 | `use_agent` | Allow `ssh-agent` (default true); set false to force the identity file only |
-| `known_hosts` | `default` \| `accept-new` \| `skip` |
+| `known_hosts` | `default` \| `accept-new` \| `skip` (applied to the Hatchery Nest trust file below) |
 
 Private key bytes are never written into the Hatchery database for Nest auth. Matching **public** keys must be present in the Nest host `authorized_keys` (see [guest-transport.md](guest-transport.md) distribution diagram).
+
+<br>
+
+## Known hosts (Nest plane)
+
+Nest SSH does **not** use the operator personal `~/.ssh/known_hosts`. The Controller OpenSSH client uses:
+
+| Option | Value |
+|---|---|
+| `UserKnownHostsFile` | `{data_dir}/remoting/known_hosts/nest` |
+| `GlobalKnownHostsFile` | `/dev/null` |
+| `HostKeyAlias` | Nest registry id (when built from a Nest row) |
+
+The Nest row `known_hosts` policy still controls StrictHostKeyChecking against that file. Guest plane trust is separate (`remoting/known_hosts/guest`; [ADR-0037](adr/0037-guest-ssh-known-hosts-hostkeyalias.md)). Removing a Nest from the registry best-effort prunes its alias entry ([ADR-0038](adr/0038-nest-ssh-known-hosts-hostkeyalias.md)).
 
 <br>
 

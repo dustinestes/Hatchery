@@ -51,7 +51,7 @@ def _append_known_hosts_opts(
         if known_hosts == "accept-new":
             argv.extend(["-o", "StrictHostKeyChecking=accept-new"])
         if user_known_hosts_file:
-            # Hatchery-owned trust store: ignore personal/global known_hosts (#593).
+            # Hatchery-owned trust store: ignore personal/global known_hosts (#593/#594).
             argv.extend(
                 [
                     "-o",

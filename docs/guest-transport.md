@@ -36,7 +36,7 @@ Guest SSH does **not** use the operator personal `~/.ssh/known_hosts`. The Contr
 | `HostKeyAlias` | Pre-minted VM UUID (`vm_id` / `libvirt_uuid`) |
 | `StrictHostKeyChecking` | `accept-new` against that file |
 
-Trust is namespaced by VM identity so recycled Nest DHCP IPs do not collide. Nest plane trust is separate (`remoting/known_hosts/nest` in [#594](https://github.com/dustinestes/Hatchery/issues/594)). Destroy / gone detection best-effort prunes the alias entry; the alias itself is the durable guard.
+Trust is namespaced by VM identity so recycled Nest DHCP IPs do not collide. Nest plane trust is separate (`remoting/known_hosts/nest`; [ADR-0038](adr/0038-nest-ssh-known-hosts-hostkeyalias.md)). Destroy / gone detection best-effort prunes the alias entry; the alias itself is the durable guard.
 
 ### Public key distribution
 

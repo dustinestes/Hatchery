@@ -136,6 +136,26 @@ class TestReplaceNests:
         assert len(history) == 2
         assert all(r["resolved"] == 1 for r in history)
 
+    def test_removing_nest_prunes_known_hosts_alias(self):
+        nests_lib.ensure_local_nest()
+        local = nests_lib.get_nest("local")
+        nests_lib.replace_nests(
+            [
+                local,
+                {
+                    "id": "lab1",
+                    "name": "Lab",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "transport": "ssh",
+                    "host": "nest.example",
+                },
+            ]
+        )
+        with patch("lib.nest_transport.remove_nest_known_host") as prune:
+            nests_lib.replace_nests([local])
+        prune.assert_called_once_with("lab1")
+
 
 class TestConnectionConfig:
     def test_local_has_no_transport(self):
@@ -304,6 +324,7 @@ class TestConnectionConfig:
         assert cfg.ssh is not None
         assert cfg.ssh.port == 2222
         assert cfg.ssh.identity_file == "/tmp/key"
+        assert cfg.ssh.host_key_alias == "s1"
 
         win = nests_lib.normalize_nest(
             {

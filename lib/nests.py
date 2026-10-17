@@ -428,8 +428,11 @@ def replace_nests(raw: list | None) -> list[dict]:
     finally:
         conn.close()
     if removed_ids:
+        from lib import nest_transport as nest_transport_lib
+
         for nest_id in removed_ids:
             alerts_lib.resolve_alerts_for_nest_id(nest_id)
+            nest_transport_lib.remove_nest_known_host(nest_id)
         from lib import nest_reachability as nest_reachability_lib
 
         nest_reachability_lib.prune_removed_nests(kept_ids)
@@ -481,6 +484,7 @@ def to_connection_config(
                 port=int(nest.get("port") or 22),
                 identity_file=identity,
                 known_hosts=nest.get("known_hosts") or "default",  # type: ignore[arg-type]
+                host_key_alias=str(nest["id"]),
             ),
             extra=dict(nest.get("extra") or {}),
         )

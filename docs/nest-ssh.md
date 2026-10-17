@@ -106,7 +106,7 @@ Connectivity stages (endpoint TCP vs authenticated transport) are documented in 
 
 ## Known hosts
 
-Nest SSH `known_hosts` policy on the Nest connection: `default` | `accept-new` | `skip` (see Nest transport). Lab Nests often use `accept-new` once; production should pin host keys under `default` after the first trust.
+Nest SSH `known_hosts` policy on the Nest connection: `default` | `accept-new` | `skip` (see [Nest transport](nest-transport.md#known-hosts-nest-plane)). Trust is stored under `{data_dir}/remoting/known_hosts/nest` and keyed by Nest registry id (`HostKeyAlias`), not the operator personal `~/.ssh/known_hosts`. Lab Nests often use `accept-new` once; production should pin host keys under `default` after the first trust. Deleting a Nest best-effort removes its alias entry from that file.
 
 <br>
 

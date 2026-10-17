@@ -82,6 +82,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0035](0035-nest-install-media-lifecycle.md) | Nest install media lifecycle (durable hatch-work + post-ready cleanup) | Accepted (path layout superseded by [0036](0036-pre-mint-vm-uuid-nest-storage.md)) |
 | [0036](0036-pre-mint-vm-uuid-nest-storage.md) | Pre-mint VM UUID and nest_storage/{vm_id} colocation | Accepted |
 | [0037](0037-guest-ssh-known-hosts-hostkeyalias.md) | Guest SSH known_hosts under data_dir keyed by VM UUID | Accepted |
+| [0038](0038-nest-ssh-known-hosts-hostkeyalias.md) | Nest SSH known_hosts under data_dir keyed by Nest id | Accepted |
 
 <br>
 
