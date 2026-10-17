@@ -166,6 +166,7 @@ def _reboot_guest_after_automation(
     script_name: str,
     identity_file: str | None = None,
     ssh_port: int = 22,
+    vm_id: str | None = None,
 ) -> None:
     """Restart the guest and wait until LastBootUpTime changes (#499)."""
 
@@ -182,6 +183,7 @@ def _reboot_guest_after_automation(
     with provision_lib.guest_transport_defaults(
         identity_file=identity_file,
         ssh_port=ssh_port,
+        vm_id=vm_id,
     ):
         provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
 
@@ -240,6 +242,7 @@ def _apply_guest_ssh_authorize(
     admin_password: str,
     *,
     password_transport,
+    vm_id: str | None = None,
 ) -> tuple[str | None, int]:
     """Inject authorize pubkeys, verify key SSH, disable password auth (#524).
 
@@ -271,6 +274,7 @@ def _apply_guest_ssh_authorize(
             admin_password,
             authorize_ids=authorize_ids,
             ssh_port=ssh_port,
+            vm_id=vm_id,
             password_transport=password_transport,
         )
     except ga.GuestAuthorizeError as exc:
@@ -314,6 +318,7 @@ def _provision_vm_thread(
     *,
     identity_file: str | None = None,
     ssh_port: int = 22,
+    vm_id: str | None = None,
 ) -> None:
     """Run pending automations (script|software) sequentially, updating DB per step."""
     from lib import guest_env as guest_env_lib
@@ -321,13 +326,15 @@ def _provision_vm_thread(
     from lib.clutch import GuestOS
 
     try:
+        vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
+        resolved_vm_id = (vm_id or vm_record.get("libvirt_uuid") or "").strip() or None
         with provision_lib.guest_transport_defaults(
             identity_file=identity_file,
             ssh_port=ssh_port,
+            vm_id=resolved_vm_id,
         ):
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             data_dir = config.data_dir()
-            vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
             guest_os = vm_record.get("guest_os") or GuestOS.WINDOWS.value
             clutch_vm = _clutch_vm_for_session(session_id, vm_name)
             user_entries = list(clutch_vm.environment) if clutch_vm else []
@@ -559,6 +566,7 @@ def _provision_vm_thread(
                         script_name=sname,
                         identity_file=identity_file,
                         ssh_port=ssh_port,
+                        vm_id=resolved_vm_id,
                     )
 
             hatch_lib.add_event(
@@ -661,6 +669,7 @@ def spawn_provision_thread(
     *,
     identity_file: str | None = None,
     ssh_port: int = 22,
+    vm_id: str | None = None,
 ) -> None:
     with _provisioning_lock:
         if (session_id, vm_name) in _provisioning:
@@ -676,6 +685,7 @@ def spawn_provision_thread(
             "admin_password": admin_password,
             "identity_file": identity_file,
             "ssh_port": ssh_port,
+            "vm_id": vm_id,
         },
         daemon=True,
     )
@@ -729,6 +739,9 @@ def sync_hatch_status(
 
         current_name = provider.get_vm_name_by_uuid(libvirt_uuid)
         if current_name is None:
+            from lib import guest_transport as gt
+
+            gt.remove_guest_known_host(libvirt_uuid)
             hatch_lib.set_vm_status(session_id, vm_name, "destroyed")
             hatch_lib.archive_if_terminal(session_id)
             continue
@@ -770,100 +783,106 @@ def sync_hatch_status(
             db_record = hatch_lib.get_vm_record(session_id, vm_name)
             admin_username = (db_record or {}).get("admin_username") or ""
             admin_password = (db_record or {}).get("admin_password") or ""
+            vm_id = (libvirt_uuid or "").strip() or None
 
-            # Gate on the setup-complete flag so automation never starts while
-            # FirstLogonCommands (SSH install, WinRM config, etc.) are still running.
-            # Prefers SSH ready-probe; WinRM is Windows fallback (#497 / ADR-0029).
-            if not provision_lib.check_setup_complete(ip, admin_username, admin_password):
-                continue
+            # Guest SSH trust keyed by vm_id for the whole ready→authorize window (#593).
+            with provision_lib.guest_transport_defaults(vm_id=vm_id):
+                # Gate on the setup-complete flag so automation never starts while
+                # FirstLogonCommands (SSH install, WinRM config, etc.) are still running.
+                # Prefers SSH ready-probe; WinRM is Windows fallback (#497 / ADR-0029).
+                if not provision_lib.check_setup_complete(ip, admin_username, admin_password):
+                    continue
 
-            def _guest_fallback(message: str) -> None:
-                hatch_lib.add_event(session_id, vm_name, "hatchery", "WARN", message)
+                def _guest_fallback(message: str) -> None:
+                    hatch_lib.add_event(session_id, vm_name, "hatchery", "WARN", message)
 
-            remoting_kind = "winrm"
-            transport = None
-            try:
-                transport = provision_lib._guest_transport(
+                remoting_kind = "winrm"
+                transport = None
+                try:
+                    transport = provision_lib._guest_transport(
+                        ip,
+                        admin_username,
+                        admin_password,
+                        on_fallback=_guest_fallback,
+                        vm_id=vm_id,
+                    )
+                    remoting_kind = transport.kind
+                except Exception:
+                    pass
+
+                # Import first-boot setup events before deleting guest artifacts.
+                try:
+                    setup_log = provision_lib.read_setup_log(ip, admin_username, admin_password)
+                    for event in hatch_lib.parse_hatch_event_lines(setup_log):
+                        hatch_lib.add_event(
+                            session_id,
+                            vm_name,
+                            "script",
+                            event["level"],
+                            event["message"],
+                            script_name="hatchery-setup-windows.ps1",
+                            component=event["component"],
+                            received_at=event["received_at"],
+                        )
+                    provision_lib.delete_setup_log(ip, admin_username, admin_password)
+                except Exception:
+                    pass
+
+                # Flag confirmed - delete it immediately so the guest stays clean.
+                try:
+                    provision_lib.delete_setup_flag(ip, admin_username, admin_password)
+                except Exception:
+                    pass
+
+                # Guest SSH authorize: inject → verify key → disable password (#524).
+                identity_file, ssh_port = _apply_guest_ssh_authorize(
+                    session_id,
+                    vm_name,
                     ip,
                     admin_username,
                     admin_password,
-                    on_fallback=_guest_fallback,
+                    password_transport=transport,
+                    vm_id=vm_id,
                 )
-                remoting_kind = transport.kind
-            except Exception:
-                pass
+                # Authorize hard-failure marks the VM failed; do not start provisioning.
+                post_auth = hatch_lib.get_vm_record(session_id, vm_name) or {}
+                if post_auth.get("status") == "failed":
+                    continue
 
-            # Import first-boot setup events before deleting guest artifacts.
-            try:
-                setup_log = provision_lib.read_setup_log(ip, admin_username, admin_password)
-                for event in hatch_lib.parse_hatch_event_lines(setup_log):
+                # Nest-plane install media cleanup (#144 / ADR-0035): after first-boot,
+                # before Ending Windows setup. Hygiene only - never abandons the hatch.
+                _run_install_media_cleanup(session_id, vm_name, provider)
+
+                scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
+                if scripts:
                     hatch_lib.add_event(
                         session_id,
                         vm_name,
-                        "script",
-                        event["level"],
-                        event["message"],
-                        script_name="hatchery-setup-windows.ps1",
-                        component=event["component"],
-                        received_at=event["received_at"],
+                        "hatchery",
+                        "INFO",
+                        f"Ending Windows setup (guest remoting via {remoting_kind})",
                     )
-                provision_lib.delete_setup_log(ip, admin_username, admin_password)
-            except Exception:
-                pass
-
-            # Flag confirmed - delete it immediately so the guest stays clean.
-            try:
-                provision_lib.delete_setup_flag(ip, admin_username, admin_password)
-            except Exception:
-                pass
-
-            # Guest SSH authorize: inject → verify key → disable password (#524).
-            identity_file, ssh_port = _apply_guest_ssh_authorize(
-                session_id,
-                vm_name,
-                ip,
-                admin_username,
-                admin_password,
-                password_transport=transport,
-            )
-            # Authorize hard-failure marks the VM failed; do not start provisioning.
-            post_auth = hatch_lib.get_vm_record(session_id, vm_name) or {}
-            if post_auth.get("status") == "failed":
-                continue
-
-            # Nest-plane install media cleanup (#144 / ADR-0035): after first-boot,
-            # before Ending Windows setup. Hygiene only - never abandons the hatch.
-            _run_install_media_cleanup(session_id, vm_name, provider)
-
-            scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
-            if scripts:
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "hatchery",
-                    "INFO",
-                    f"Ending Windows setup (guest remoting via {remoting_kind})",
-                )
-                hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
-                spawn_provision_thread(
-                    session_id,
-                    vm_name,
-                    ip,
-                    admin_username,
-                    admin_password,
-                    identity_file=identity_file,
-                    ssh_port=ssh_port,
-                )
-            else:
-                hatch_lib.add_event(
-                    session_id,
-                    vm_name,
-                    "hatchery",
-                    "INFO",
-                    f"Ending Windows setup (guest remoting via {remoting_kind}; "
-                    "no automations configured)",
-                )
-                hatch_lib.set_vm_status(session_id, vm_name, "fledged")
+                    hatch_lib.set_vm_status(session_id, vm_name, "provisioning")
+                    spawn_provision_thread(
+                        session_id,
+                        vm_name,
+                        ip,
+                        admin_username,
+                        admin_password,
+                        identity_file=identity_file,
+                        ssh_port=ssh_port,
+                        vm_id=vm_id,
+                    )
+                else:
+                    hatch_lib.add_event(
+                        session_id,
+                        vm_name,
+                        "hatchery",
+                        "INFO",
+                        f"Ending Windows setup (guest remoting via {remoting_kind}; "
+                        "no automations configured)",
+                    )
+                    hatch_lib.set_vm_status(session_id, vm_name, "fledged")
 
         elif vm_status == "provisioning":
             # Re-spawn provision thread if app restarted mid-provisioning.
@@ -884,6 +903,7 @@ def sync_hatch_status(
                         (db_record or {}).get("admin_password") or "",
                         identity_file=identity_file,
                         ssh_port=ssh_port,
+                        vm_id=(libvirt_uuid or "").strip() or None,
                     )
 
 
@@ -1077,6 +1097,7 @@ def retry_failed_vm(session_id: str, vm_name: str) -> dict:
             db_record.get("admin_password") or "",
             identity_file=identity_file,
             ssh_port=ssh_port,
+            vm_id=(db_record.get("libvirt_uuid") or "").strip() or None,
         )
         return {"queued": True, "message": None}
 

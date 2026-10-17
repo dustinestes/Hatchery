@@ -84,8 +84,17 @@ def resume_vm(nest_id: str, name: str) -> None:
 
 
 def destroy_vm(nest_id: str, name: str) -> None:
+    from lib import guest_transport as gt
+
     provider = _resolve_provider(nest_id)
+    vm_id: str | None = None
+    try:
+        vm_id = provider.get_vm_uuid(name)
+    except Exception:
+        vm_id = None
     _run(lambda: provider.destroy_vm(name))
+    # Best-effort prune HostKeyAlias after Nest destroy (#593).
+    gt.remove_guest_known_host(vm_id)
 
 
 def health_vm(nest_id: str, name: str) -> dict[str, Any]:

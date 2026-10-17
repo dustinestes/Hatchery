@@ -26,6 +26,9 @@ _DATA_SUBDIRS = [
     "automation/answerfiles",
     "automation/scripts",
     "automation/software",
+    # Controller remoting trust + managed keys (ADR-0030 / #593).
+    "remoting",
+    "remoting/known_hosts",
 ]
 
 # Keys that may live in the external bootstrap YAML (only data_dir for now).

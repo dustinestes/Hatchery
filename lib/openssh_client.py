@@ -37,6 +37,34 @@ def require_scp() -> str:
     return path
 
 
+def _append_known_hosts_opts(
+    argv: list[str],
+    *,
+    known_hosts: KnownHostsPolicy,
+    user_known_hosts_file: str | None,
+    host_key_alias: str | None,
+) -> None:
+    """Append StrictHostKeyChecking / known_hosts file / HostKeyAlias options."""
+    if known_hosts == "skip":
+        argv.extend(["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"])
+    else:
+        if known_hosts == "accept-new":
+            argv.extend(["-o", "StrictHostKeyChecking=accept-new"])
+        if user_known_hosts_file:
+            # Hatchery-owned trust store: ignore personal/global known_hosts (#593).
+            argv.extend(
+                [
+                    "-o",
+                    f"UserKnownHostsFile={user_known_hosts_file}",
+                    "-o",
+                    "GlobalKnownHostsFile=/dev/null",
+                ]
+            )
+    alias = (host_key_alias or "").strip()
+    if alias:
+        argv.extend(["-o", f"HostKeyAlias={alias}"])
+
+
 def build_ssh_argv(
     *,
     host: str,
@@ -48,6 +76,8 @@ def build_ssh_argv(
     known_hosts: KnownHostsPolicy = "default",
     connect_timeout_seconds: int = 10,
     batch_mode: bool = True,
+    user_known_hosts_file: str | None = None,
+    host_key_alias: str | None = None,
 ) -> list[str]:
     """Build an ``ssh`` argv. Does not run the process."""
     require_ssh()
@@ -66,10 +96,12 @@ def build_ssh_argv(
         argv.extend(["-i", identity_file])
     if not use_agent:
         argv.extend(["-o", "IdentityAgent=none"])
-    if known_hosts == "accept-new":
-        argv.extend(["-o", "StrictHostKeyChecking=accept-new"])
-    elif known_hosts == "skip":
-        argv.extend(["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"])
+    _append_known_hosts_opts(
+        argv,
+        known_hosts=known_hosts,
+        user_known_hosts_file=user_known_hosts_file,
+        host_key_alias=host_key_alias,
+    )
     target = f"{user}@{host}" if user else host
     argv.append(target)
     argv.append(remote_command)
@@ -88,6 +120,8 @@ def build_scp_argv(
     known_hosts: KnownHostsPolicy = "default",
     connect_timeout_seconds: int = 10,
     batch_mode: bool = True,
+    user_known_hosts_file: str | None = None,
+    host_key_alias: str | None = None,
 ) -> list[str]:
     """Build an ``scp`` argv to copy a local file to the remote host."""
     require_scp()
@@ -99,10 +133,12 @@ def build_scp_argv(
         argv.extend(["-i", identity_file])
     if not use_agent:
         argv.extend(["-o", "IdentityAgent=none"])
-    if known_hosts == "accept-new":
-        argv.extend(["-o", "StrictHostKeyChecking=accept-new"])
-    elif known_hosts == "skip":
-        argv.extend(["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"])
+    _append_known_hosts_opts(
+        argv,
+        known_hosts=known_hosts,
+        user_known_hosts_file=user_known_hosts_file,
+        host_key_alias=host_key_alias,
+    )
     target_host = f"{user}@{host}" if user else host
     argv.append(local_path)
     argv.append(f"{target_host}:{remote_path}")
