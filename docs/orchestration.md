@@ -85,7 +85,7 @@ does not support Answer File attach (`supports_answer_file_attach`) fail before
 [ADR-0024](adr/0024-answer-files-product-model.md). Libvirt local floppy is the working
 backend today; Hyper-V / UTM attach remain Planned ([providers.md](providers.md)).
 
-The floppy image is **not** cleaned up on success - it must persist on disk until Windows installation is complete and the VM is destroyed. `destroy_vm` handles final cleanup.
+The floppy image is written under Nest cache `nest-work/answer-media/` (not system temp) so it survives the Windows install window ([ADR-0035](adr/0035-nest-install-media-lifecycle.md)). After `hatchery-ready`, Nest-plane **install media cleanup** detaches the OS ISO, VirtIO CD (when attached), and answer floppy, then deletes the answer media file. `destroy_vm` still removes any leftover answer media.
 
 ### virt-install flags
 

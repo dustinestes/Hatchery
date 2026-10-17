@@ -88,11 +88,12 @@ Guest health check is available via operator CLI `hatchery vm health` and the VM
 | Feature | libvirt local | libvirt remote | UTM local | UTM remote | Hyper-V local | Hyper-V remote |
 |---|---|---|---|---|---|---|
 | Answer File attach (`supports_answer_file_attach`) | Works (floppy) | Planned | Planned / N/A | Planned / N/A | Works (DVD/ISO) | Planned (#215) |
+| Install media cleanup (`cleanup_install_media`) | Works (#144) | Planned | Planned | Planned | Works (#144) | Planned (#215) |
 | Guest WinRM provision | Works | Planned | Planned | Planned | Planned | Planned |
 | Media layout (`media/iso`, VirtIO) | Works | Partial | Planned | Planned | Works (ISO; VirtIO Planned) | Planned |
 | Hatch media to remote Nest | N/A | Planned | N/A | Planned | N/A | Planned (#215) |
 
-Answer File **bytes** are Nest-agnostic; **attach** is provider-specific via Nest id → factory (`BaseProvider.supports_answer_file_attach` / `prepare_answer_file_media`). Libvirt local packs a FAT floppy with Autounattend + companions. Hyper-V local packs a second DVD/ISO (``pycdlib``) for Gen2/Gen1 attach; Remote Hyper-V hatch waits on Nest-cache ensure/copy (#215). UTM depends on guest. Hatch fails early when a Clutch needs Answer File attach and the Nest cannot. See [Answer Files - Nest attach](answer-files.md#nest-attach).
+Answer File **bytes** are Nest-agnostic; **attach** is provider-specific via Nest id → factory (`BaseProvider.supports_answer_file_attach` / `prepare_answer_file_media`). Libvirt local packs a FAT floppy with Autounattend + companions under Nest cache `nest-work/answer-media/`. Hyper-V local packs a second DVD/ISO (``pycdlib``) in the same Nest-work dir; Remote Hyper-V hatch waits on Nest-cache ensure/copy (#215). After `hatchery-ready`, `cleanup_install_media` ejects install/answer/VirtIO media ([ADR-0035](adr/0035-nest-install-media-lifecycle.md)). UTM depends on guest. Hatch fails early when a Clutch needs Answer File attach and the Nest cannot. See [Answer Files - Nest attach](answer-files.md#nest-attach).
 
 Media for local libvirt uses the Hatchery data directory on the Nest (operator cache = Nest cache). Remote hatch must use Nest-local cache (or Nest-mounted share) after ensure/sync - not operator paths over WAN. See [Library and Nest cache](library.md) and [#215](https://github.com/dustinestes/Hatchery/issues/215) / [#234](https://github.com/dustinestes/Hatchery/issues/234). Guest provision stays in `lib/provision.py` regardless of Nest type.
 

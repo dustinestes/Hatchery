@@ -153,6 +153,28 @@ The "Starting VM" event may appear multiple times during a long Windows install 
 
 ---
 
+### Install media cleanup
+
+Emitted in `lib.hatch_lifecycle.sync_hatch_status` after `hatchery-ready` / guest SSH authorize and **before** Ending Windows setup ([#144](https://github.com/dustinestes/Hatchery/issues/144) / [ADR-0035](adr/0035-nest-install-media-lifecycle.md)). Nest-plane only (detach/eject + delete answer media). Failures are `WARN`; hatch continues.
+
+| Level | Message pattern | `script_name` | When |
+|---|---|---|---|
+| `INFO` | `Starting install media cleanup` | null | Section begins |
+| `INFO` | `Detaching installation media: <basename> on <target>` | null | Before OS ISO eject |
+| `INFO` | `Successfully detached installation media: <basename>` | null | OS ISO eject ok |
+| `INFO` | `Detaching drivers media: <basename> on <target>` | null | Before VirtIO CD eject (when attached) |
+| `INFO` | `Successfully detached drivers media: <basename>` | null | VirtIO eject ok |
+| `INFO` | `Detaching silent answer media: <basename> on <target>` | null | Before answer floppy/DVD eject |
+| `INFO` | `Successfully detached silent answer media: <basename>` | null | Answer media eject ok |
+| `INFO` | `Deleting silent answer media: <path>` | null | Before Nest-work file delete |
+| `INFO` | `Successfully deleted silent answer media` | null | Delete ok |
+| `WARN` | `Failed to detach <kind>: <basename>: <reason>` | null | Eject failed; hatch continues |
+| `WARN` | `Failed to delete silent answer media: <reason>` | null | Delete failed; hatch continues |
+| `INFO` | `Ending install media cleanup` | null | Section ends cleanly |
+| `INFO` | `Ending install media cleanup (with warnings)` | null | Section ends after one or more step failures |
+
+---
+
 ### Guest environment ensure
 
 Emitted at the start of `_provision_vm_thread` before user automations ([#554](https://github.com/dustinestes/Hatchery/issues/554) / [ADR-0032](adr/0032-guest-environment-ensure-job.md)).

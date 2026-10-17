@@ -3,13 +3,16 @@ from __future__ import annotations
 import getpass
 import os
 import subprocess
-import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from lib import answerfile as answerfile_lib
 from lib.clutch import GuestOS, VMConfig
-from lib.providers.base import BaseProvider
+from lib.providers.base import (
+    BaseProvider,
+    MediaCleanupStep,
+    answer_media_path,
+)
 from lib.requirements import NestToolSpec
 from lib.run_cmd import run_cmd
 
@@ -184,11 +187,14 @@ class LibvirtProvider(BaseProvider):
         virtio_dir: Path,
         automation_dir: Path,
         storage_pool: str = "default",
+        nest_cache: Path | None = None,
     ) -> None:
         self.iso_dir = Path(iso_dir)
         self.virtio_dir = Path(virtio_dir)
         self.automation_dir = Path(automation_dir)
         self.storage_pool = storage_pool
+        # Local Nest: operator data_dir is Nest cache (ADR-0007). Default from media layout.
+        self.nest_cache = Path(nest_cache) if nest_cache is not None else self.iso_dir.parent.parent
 
     @classmethod
     def nest_tool_specs(cls) -> list[NestToolSpec]:
@@ -260,7 +266,7 @@ class LibvirtProvider(BaseProvider):
             subprocess.run(cmd, check=True, env=_system_env())
         except Exception:
             # Clean up on failure only - on success the floppy must persist through
-            # Windows installation. destroy_vm handles final cleanup.
+            # Windows installation. Post-ready cleanup (#144) or destroy_vm removes it.
             if answer_img and answer_img.exists():
                 answer_img.unlink()
             raise
@@ -324,8 +330,10 @@ class LibvirtProvider(BaseProvider):
         return " ".join(self._build_create_cmd(config, os_media, virtio, storage_path))
 
     def _floppy_path(self, vm_name: str) -> Path:
-        """Return the stable path for a VM's answer file floppy image."""
-        return Path(tempfile.gettempdir()) / f"{vm_name}-autounattend.img"
+        """Return the Nest-cache path for a VM's answer file floppy image."""
+        path = answer_media_path(self.nest_cache, vm_name, ".img")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     def _create_answer_image(
         self,
@@ -337,7 +345,7 @@ class LibvirtProvider(BaseProvider):
 
         Uses mtools (mformat + mcopy) - no root or kernel access required.
         1.44 MB standard floppy: 2880 sectors × 512 bytes.
-        Image is written to a stable path so it persists through Windows installation.
+        Image lives under Nest cache ``nest-work/answer-media/`` through install (#144).
         ``companions`` is a list of ``(floppy_basename, file_content)``.
         """
         img = self._floppy_path(vm_name)
@@ -373,6 +381,160 @@ class LibvirtProvider(BaseProvider):
                 if tmp.exists():
                     tmp.unlink()
         return img
+
+    def _classify_disk_media(self, device: str, source: str) -> tuple[str, str] | None:
+        """Return ``(kind, basename)`` for hatch install media, or None if not cleanup target."""
+        if not source:
+            return None
+        path = Path(source)
+        basename = path.name
+        if device == "floppy":
+            return ("answer", basename)
+        if device != "cdrom":
+            return None
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        answer_dir = answer_media_path(self.nest_cache, "_", ".img").parent.resolve()
+        if resolved.parent == answer_dir or "autounattend" in basename.lower():
+            return ("answer", basename)
+        try:
+            virtio_root = self.virtio_dir.resolve()
+        except OSError:
+            virtio_root = self.virtio_dir
+        if "virtio" in basename.lower() or (
+            virtio_root in resolved.parents or resolved.parent == virtio_root
+        ):
+            return ("drivers", basename)
+        return ("installation", basename)
+
+    def _list_cleanup_disks(self, name: str) -> list[tuple[str, str, str, str]]:
+        """Return ``(kind, basename, target, source)`` for attached install media."""
+        xml = run_cmd(["virsh", "dumpxml", name]).stdout or ""
+        root = ET.fromstring(xml)
+        ns = ""
+        if root.tag.startswith("{"):
+            ns = root.tag.split("}")[0] + "}"
+        out: list[tuple[str, str, str, str]] = []
+        for disk in root.findall(f".//{ns}devices/{ns}disk"):
+            device = (disk.get("device") or "").strip().lower()
+            source_el = disk.find(f"{ns}source")
+            target_el = disk.find(f"{ns}target")
+            if source_el is None or target_el is None:
+                continue
+            source = (source_el.get("file") or source_el.get("dev") or "").strip()
+            target = (target_el.get("dev") or "").strip()
+            if not source or not target:
+                continue
+            classified = self._classify_disk_media(device, source)
+            if classified is None:
+                continue
+            kind, basename = classified
+            out.append((kind, basename, target, source))
+        # Prefer installation, then drivers, then answer (detach before delete).
+        order = {"installation": 0, "drivers": 1, "answer": 2}
+        out.sort(key=lambda row: order.get(row[0], 9))
+        return out
+
+    def _eject_media(self, name: str, target: str) -> None:
+        run_cmd(
+            [
+                "virsh",
+                "change-media",
+                name,
+                target,
+                "--eject",
+                "--live",
+                "--config",
+            ]
+        )
+
+    def cleanup_install_media(self, name: str) -> list[MediaCleanupStep]:
+        """Eject OS ISO / VirtIO / answer floppy; delete Nest answer media when detached."""
+        steps: list[MediaCleanupStep] = []
+        try:
+            disks = self._list_cleanup_disks(name)
+        except Exception as exc:
+            return [
+                MediaCleanupStep(
+                    kind="installation",
+                    action="detach",
+                    basename=name,
+                    target="-",
+                    ok=False,
+                    error=str(exc),
+                )
+            ]
+
+        answer_path: Path | None = None
+        answer_detached_ok = False
+        saw_answer_disk = False
+        for kind, basename, target, source in disks:
+            if kind == "answer":
+                saw_answer_disk = True
+                answer_path = Path(source)
+            try:
+                self._eject_media(name, target)
+                steps.append(
+                    MediaCleanupStep(
+                        kind=kind,  # type: ignore[arg-type]
+                        action="detach",
+                        basename=basename,
+                        target=target,
+                        path=source,
+                        ok=True,
+                    )
+                )
+                if kind == "answer":
+                    answer_detached_ok = True
+            except Exception as exc:
+                steps.append(
+                    MediaCleanupStep(
+                        kind=kind,  # type: ignore[arg-type]
+                        action="detach",
+                        basename=basename,
+                        target=target,
+                        path=source,
+                        ok=False,
+                        error=str(exc),
+                    )
+                )
+
+        # Orphan Nest-work file after a prior eject (not in domain XML anymore).
+        if not saw_answer_disk:
+            candidate = answer_media_path(self.nest_cache, name, ".img")
+            if candidate.exists():
+                answer_path = candidate
+                answer_detached_ok = True
+
+        if answer_path is not None and answer_detached_ok:
+            try:
+                if answer_path.exists():
+                    answer_path.unlink()
+                steps.append(
+                    MediaCleanupStep(
+                        kind="answer",
+                        action="delete",
+                        basename=answer_path.name,
+                        target="nest-work",
+                        path=str(answer_path),
+                        ok=True,
+                    )
+                )
+            except Exception as exc:
+                steps.append(
+                    MediaCleanupStep(
+                        kind="answer",
+                        action="delete",
+                        basename=answer_path.name,
+                        target="nest-work",
+                        path=str(answer_path),
+                        ok=False,
+                        error=str(exc),
+                    )
+                )
+        return steps
 
     # ── Power state ───────────────────────────────────────────────────────────
 
