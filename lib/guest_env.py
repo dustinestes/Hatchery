@@ -14,6 +14,7 @@ not collide with reserved ``HATCHERY_*`` names or Hatchery-managed system env
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 from lib.clutch import EnvMode, EnvScope, GuestOS
@@ -308,17 +309,37 @@ def powershell_ensure_script(
     *,
     reserved: Mapping[str, str],
     entries: Sequence[EnvironmentEntry],
-    module_psm1: str,
-    module_psd1: str,
+    module_psm1: str | None = None,
+    module_psd1: str | None = None,
 ) -> str:
-    """Windows ensure: persist env, dirs, Hatchery module, PSModulePath (#554)."""
+    """Windows ensure: persist env, dirs, Hatchery module, PSModulePath (#554).
+
+    When ``module_psm1`` / ``module_psd1`` are omitted, the script assumes those
+    files were already staged on the guest (preferred - keeps EncodedCommand
+    under the Windows ~8191 CreateProcess limit; #591).
+    """
     gp = guest_paths_for(GuestOS.WINDOWS)
     module_dir = rf"{gp.root}\{hatchery_module_relpath()}"
     psm1_path = rf"{module_dir}\Hatchery.psm1"
     psd1_path = rf"{module_dir}\Hatchery.psd1"
-    _reject_here_string_terminator(module_psm1, label="module_psm1")
-    _reject_here_string_terminator(module_psd1, label="module_psd1")
+    embed_module = module_psm1 is not None and module_psd1 is not None
+    if embed_module:
+        assert module_psm1 is not None and module_psd1 is not None
+        _reject_here_string_terminator(module_psm1, label="module_psm1")
+        _reject_here_string_terminator(module_psd1, label="module_psd1")
     persist = powershell_persist_script(reserved=reserved, entries=entries)
+    write_module = ""
+    if embed_module:
+        write_module = (
+            "$psm1Body = @'\n"
+            + module_psm1.rstrip()
+            + "\n'@\n"
+            + "$psd1Body = @'\n"
+            + module_psd1.rstrip()
+            + "\n'@\n"
+            + "Set-Content -LiteralPath $psm1 -Value $psm1Body -Encoding UTF8\n"
+            + "Set-Content -LiteralPath $psd1 -Value $psd1Body -Encoding UTF8\n"
+        )
     return (
         persist
         + f"$root = {_ps_quote(gp.root)}\n"
@@ -332,14 +353,7 @@ def powershell_ensure_script(
         + "foreach ($d in @($root, $logs, $temp, $software, $modules, $moduleDir)) {\n"
         + "  $null = New-Item -Path $d -ItemType Directory -Force\n"
         + "}\n"
-        + "$psm1Body = @'\n"
-        + module_psm1.rstrip()
-        + "\n'@\n"
-        + "$psd1Body = @'\n"
-        + module_psd1.rstrip()
-        + "\n'@\n"
-        + "Set-Content -LiteralPath $psm1 -Value $psm1Body -Encoding UTF8\n"
-        + "Set-Content -LiteralPath $psd1 -Value $psd1Body -Encoding UTF8\n"
+        + write_module
         + 'if (-not (Test-Path -LiteralPath $psm1)) { throw "module missing: $psm1" }\n'
         + 'if (-not (Test-Path -LiteralPath $psd1)) { throw "manifest missing: $psd1" }\n'
         # Append modules dir to Machine PSModulePath without dropping defaults.
@@ -400,6 +414,37 @@ def persist_guest_environment(
     return transport.run_ps(body, timeout=timeout)
 
 
+def _stage_hatchery_module(transport, *, timeout: int = 120) -> None:
+    """Copy Hatchery.psm1 / .psd1 onto the guest via put_file (#591)."""
+    import tempfile
+
+    from lib import provision as provision_lib
+
+    gp = guest_paths_for(GuestOS.WINDOWS)
+    module_dir = rf"{gp.root}\{hatchery_module_relpath()}"
+    remote_psm1 = rf"{module_dir}\Hatchery.psm1"
+    remote_psd1 = rf"{module_dir}\Hatchery.psd1"
+    # Ensure parent dirs exist with a short EncodedCommand-safe script.
+    mkdir = (
+        "$ErrorActionPreference = 'Stop'\n"
+        f"$dirs = @({_ps_quote(gp.root)}, {_ps_quote(gp.logs)}, {_ps_quote(gp.temp)}, "
+        f"{_ps_quote(gp.software)}, {_ps_quote(gp.modules)}, {_ps_quote(module_dir)})\n"
+        "foreach ($d in $dirs) { $null = New-Item -Path $d -ItemType Directory -Force }\n"
+        "exit 0\n"
+    )
+    code, out = transport.run_ps(mkdir, timeout=min(timeout, 60))
+    if code != 0:
+        raise RuntimeError(f"failed to create Hatchery guest dirs (exit {code}): {out}")
+
+    with tempfile.TemporaryDirectory(prefix="hatchery-module-") as tmp:
+        local_psm1 = Path(tmp) / "Hatchery.psm1"
+        local_psd1 = Path(tmp) / "Hatchery.psd1"
+        local_psm1.write_text(provision_lib.hatchery_module_psm1_source(), encoding="utf-8")
+        local_psd1.write_text(provision_lib.hatchery_module_psd1_source(), encoding="utf-8")
+        transport.put_file(local_psm1, remote_psm1, timeout=timeout)
+        transport.put_file(local_psd1, remote_psd1, timeout=timeout)
+
+
 def ensure_guest_environment(
     ip: str,
     admin_username: str,
@@ -412,6 +457,9 @@ def ensure_guest_environment(
     """Run the Windows guest environment ensure job (#554).
 
     Linux/macOS return ``(0, 'skipped:…')`` until platform payloads land (#557 / #558).
+
+    Module files are staged via ``put_file`` first so the ensure ``run_ps`` body
+    stays under the Windows command-line length limit (#591).
     """
     from lib import provision as provision_lib
 
@@ -421,11 +469,17 @@ def ensure_guest_environment(
 
     reserved = reserved_environment(guest_os)
     reserved_base = {k: reserved[k] for k in RESERVED_BASE}
+    transport = provision_lib._guest_transport(ip, admin_username, admin_password)
+    try:
+        _stage_hatchery_module(transport, timeout=min(timeout, 120))
+    except Exception as exc:
+        return 1, f"failed to stage Hatchery module: {exc}"
+
+    # Module already on disk - omit here-strings so EncodedCommand stays small.
     body = powershell_ensure_script(
         reserved=reserved_base,
         entries=list(entries),
-        module_psm1=provision_lib.hatchery_module_psm1_source(),
-        module_psd1=provision_lib.hatchery_module_psd1_source(),
+        module_psm1=None,
+        module_psd1=None,
     )
-    transport = provision_lib._guest_transport(ip, admin_username, admin_password)
     return transport.run_ps(body, timeout=timeout)

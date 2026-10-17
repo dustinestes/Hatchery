@@ -177,16 +177,44 @@ class TestEnsureGuestEnvironment:
         assert "MY_ROLE" in body
         assert "exit 0" in body
 
+    def test_powershell_ensure_script_without_embed_omits_here_strings(self):
+        body = guest_env.powershell_ensure_script(
+            reserved={
+                "HATCHERY_ROOT": r"C:\Program Files\Hatchery",
+                "HATCHERY_MODULES": r"C:\Program Files\Hatchery\modules",
+            },
+            entries=[],
+        )
+        assert "function Write-HatchEvent" not in body
+        assert "$psm1Body = @'" not in body
+        assert "module missing:" in body
+        assert "Import-Module Hatchery" in body
+
     def test_ensure_guest_environment_windows(self, monkeypatch):
         from lib.clutch import EnvironmentEntry
 
         class _Transport:
-            kind = "winrm"
+            kind = "ssh"
+
+            def __init__(self):
+                self.body = None
+                self.timeout = None
+                self.puts: list[str] = []
 
             def run_ps(self, body, *, timeout=180):
+                # mkdir stage + ensure body both call run_ps.
+                if (
+                    "New-Item" in body
+                    and "Hatchery.psm1" not in body
+                    and "Import-Module" not in body
+                ):
+                    return 0, ""
                 self.body = body
                 self.timeout = timeout
                 return 0, "ok"
+
+            def put_file(self, local_path, remote_path, *, timeout=600):
+                self.puts.append(remote_path)
 
         transport = _Transport()
         monkeypatch.setattr("lib.provision._guest_transport", lambda *a, **k: transport)
@@ -199,10 +227,15 @@ class TestEnsureGuestEnvironment:
         )
         assert code == 0
         assert out == "ok"
-        assert "function Write-HatchEvent" in transport.body
+        # Module staged via put_file - ensure body must not embed it (#591).
+        assert "function Write-HatchEvent" not in transport.body
+        assert "$psm1Body = @'" not in transport.body
+        assert any(p.endswith(r"\Hatchery.psm1") for p in transport.puts)
+        assert any(p.endswith(r"\Hatchery.psd1") for p in transport.puts)
         assert "HATCHERY_MODULES" in transport.body
         assert r"modules\Hatchery" in transport.body
         assert "PSModulePath" in transport.body
+        assert "MY_ROLE" in transport.body
 
     def test_ensure_guest_environment_skips_linux(self):
         code, out = guest_env.ensure_guest_environment(
