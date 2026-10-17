@@ -42,6 +42,44 @@ class TestGetProvider:
         assert isinstance(provider, LibvirtProvider)
         assert provider.automation_dir == tmp_path / "automation" / "answerfiles"
 
+    def test_local_nest_cache_ignores_stale_override(self, tmp_path):
+        nests_lib.ensure_local_nest()
+        override = tmp_path / "alt-nest-cache"
+        override.mkdir()
+        nests_lib.update_nest_extra("local", {"nest_cache": str(override)})
+        provider = get_provider("local")
+        assert isinstance(provider, LibvirtProvider)
+        assert provider.nest_cache == tmp_path
+        assert provider.iso_dir == tmp_path / "media" / "iso"
+        assert provider.virtio_dir == tmp_path / "media" / "virtio"
+
+    def test_remote_nest_cache_resolve_for_provider(self, tmp_path):
+        from lib.nest_cache import resolve_nest_cache_for_provider
+
+        nests_lib.ensure_local_nest()
+        override = tmp_path / "remote-nest-cache"
+        override.mkdir()
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "nest.example",
+                    "port": 22,
+                    "transport": "ssh",
+                    "extra": {"nest_cache": str(override)},
+                },
+            ]
+        )
+        nest = nests_lib.get_nest("remote1")
+        assert resolve_nest_cache_for_provider(nest) == override
+        # Remote libvirt VM ops still unsupported; resolve must still honor nest_cache.
+        with pytest.raises(UnsupportedProviderError, match="not available yet"):
+            get_provider("remote1")
+
     def test_unknown_nest_raises(self):
         with pytest.raises(UnknownNestError) as exc:
             get_provider("no-such-nest")

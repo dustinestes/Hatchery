@@ -141,9 +141,11 @@ def _hatch(args: argparse.Namespace) -> int:
         return 1
 
     try:
+        nest_root = nest_cache_lib.resolve_nest_cache(nest_row)
         nest_result = nest_cache_lib.preflight_clutch(
             clutch_obj,
             nest=nests_lib.to_connection_config(nest_row),
+            nest_root=nest_root,
             run_ensure=bool(args.ensure_cache),
         )
     except nest_cache_lib.NestCacheError as exc:

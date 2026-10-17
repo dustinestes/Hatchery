@@ -1840,6 +1840,56 @@ class TestLibraryContentPane:
         assert resp.status_code == 501
         assert "not available yet" in resp.get_json()["error"]
 
+    def test_nest_cache_path_api_local_readonly_remote_set(self, client, tmp_path, monkeypatch):
+        from lib import nests as nests_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        nests_lib.ensure_local_nest()
+        got = client.get("/api/nests/local/cache")
+        assert got.status_code == 200
+        body = got.get_json()
+        assert body["override"] is None
+        assert body["resolved"] == str(tmp_path)
+        assert body["is_default"] is True
+        assert body["editable"] is False
+
+        refused = client.put(
+            "/api/nests/local/cache",
+            json={"path": str(tmp_path / "alt-cache")},
+        )
+        assert refused.status_code == 400
+        assert "cannot be overridden" in refused.get_json()["error"]
+
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "nest.example",
+                    "port": 22,
+                    "transport": "ssh",
+                    "extra": {},
+                },
+            ]
+        )
+        override = tmp_path / "remote-cache"
+        put = client.put(
+            "/api/nests/remote1/cache",
+            json={"path": str(override)},
+        )
+        assert put.status_code == 200
+        assert put.get_json()["override"] == str(override)
+        assert put.get_json()["resolved"] == str(override)
+        assert put.get_json()["editable"] is True
+
+        cleared = client.put("/api/nests/remote1/cache", json={"path": None})
+        assert cleared.status_code == 200
+        assert cleared.get_json()["override"] is None
+        assert cleared.get_json()["resolved"] is None
+
     def test_library_clutch_catalog_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
         share.mkdir()

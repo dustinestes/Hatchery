@@ -1,18 +1,20 @@
 """Nest cache ensure and hatch preflight (basename + SHA-256).
 
-For a local Nest, the operator ``data_dir`` is the Nest cache — preflight is a
-filesystem check (no copy). Remote Nest copy/verify over Nest transport lands
-with #207 / #215; this module refuses remote ensure until that exists so hatch
-never attaches operator-only paths over the WAN.
+Local Nest: Nest cache is always Controller ``data_dir`` (read-only; no
+``extra.nest_cache`` override). Preflight is a filesystem check (no copy).
+Remote Nest: ``extra.nest_cache`` is required for hatch preflight; Nest-owned
+pull ensure lands in follow-on work (#609). This module refuses remote ensure
+until that exists so hatch never attaches operator-only paths over the WAN.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from lib import config as config_lib
+from lib import nests as nests_lib
 from lib.clutch import Clutch, VMConfig
 from lib.library import sha256_file
 from lib.nest_transport import NestConnectionConfig
@@ -40,6 +42,107 @@ ARTIFACT_KINDS = frozenset(_KIND_DIR)
 
 class NestCacheError(RuntimeError):
     """Raised when Nest cache ensure/preflight cannot proceed."""
+
+
+def get_nest_cache_override(nest: dict[str, Any]) -> str | None:
+    """Return ``extra.nest_cache`` when set, else None."""
+    extra = nest.get("extra") if isinstance(nest.get("extra"), dict) else {}
+    raw = str((extra or {}).get("nest_cache") or "").strip()
+    return raw or None
+
+
+def resolve_nest_cache(
+    nest: dict[str, Any],
+    *,
+    data_dir: Path | None = None,
+) -> Path:
+    """Resolve Nest content root for hatch / factory (#215 / #607).
+
+    Local Nest: always Controller ``data_dir`` (ignores any stale override).
+    Remote Nest: ``extra.nest_cache`` required; missing raises ``NestCacheError``.
+    """
+    location = str(nest.get("location") or "local").strip().lower()
+    controller_root = Path(data_dir) if data_dir is not None else config_lib.data_dir()
+    if location != "remote":
+        return controller_root
+    override = get_nest_cache_override(nest)
+    if override:
+        return Path(override)
+    nid = str(nest.get("id") or nest.get("name") or "?").strip()
+    raise NestCacheError(
+        f"Nest '{nid}' is remote and has no nest_cache path. "
+        "Set Nest cache on Nest detail (#215 / #607)."
+    )
+
+
+def resolve_nest_cache_for_provider(
+    nest: dict[str, Any],
+    *,
+    data_dir: Path | None = None,
+) -> Path:
+    """Resolve media roots for provider construction.
+
+    Same as ``resolve_nest_cache`` when a path is known. Remote Nest without
+    path falls back to Controller ``data_dir`` so power/inventory ops still
+    construct; hatch preflight must call ``resolve_nest_cache`` and fail closed.
+    """
+    try:
+        return resolve_nest_cache(nest, data_dir=data_dir)
+    except NestCacheError:
+        return Path(data_dir) if data_dir is not None else config_lib.data_dir()
+
+
+def nest_cache_status(nest: dict[str, Any], *, data_dir: Path | None = None) -> dict[str, Any]:
+    """Payload for Nest detail / API: path, editable flag, default flag."""
+    location = str(nest.get("location") or "local").strip().lower()
+    controller_root = Path(data_dir) if data_dir is not None else config_lib.data_dir()
+    editable = location == "remote"
+    # Local never surfaces or honors an override (stale rows are ignored).
+    override = get_nest_cache_override(nest) if editable else None
+    resolved: str | None
+    error: str | None = None
+    try:
+        resolved = str(resolve_nest_cache(nest, data_dir=controller_root))
+    except NestCacheError as exc:
+        resolved = None
+        error = str(exc)
+    return {
+        "override": override,
+        "resolved": resolved,
+        "location": location,
+        "editable": editable,
+        "is_default": (not editable) and resolved is not None,
+        "controller_data_dir": str(controller_root),
+        "error": error,
+    }
+
+
+def set_nest_cache(nest_id: str, path: str | None) -> dict[str, Any]:
+    """Set or clear Remote Nest ``extra.nest_cache``.
+
+    Local Nest refuses a path (cache is always Controller ``data_dir``).
+    Empty / None clears a Remote path (or any stale Local override).
+    """
+    nid = str(nest_id or "").strip()
+    nest = nests_lib.get_nest(nid)
+    if nest is None:
+        raise NestCacheError(f"Unknown Nest id: {nid}")
+    location = str(nest.get("location") or "local").strip().lower()
+    text = (path or "").strip()
+    if location != "remote":
+        if text:
+            raise NestCacheError(
+                "Local Nest cache is Controller data_dir and cannot be overridden. "
+                "Set nest_cache only on Remote Nests (#607)."
+            )
+        nests_lib.update_nest_extra(nid, {"nest_cache": None})
+    elif text:
+        nests_lib.update_nest_extra(nid, {"nest_cache": text})
+    else:
+        nests_lib.update_nest_extra(nid, {"nest_cache": None})
+    updated = nests_lib.get_nest(nid)
+    assert updated is not None
+    return nest_cache_status(updated)
 
 
 @dataclass(frozen=True)

@@ -18,8 +18,8 @@ We needed a content architecture that:
 ## Decision
 
 1. **Planes:** Library sources → operator cache (`data_dir`) → Nest cache → hypervisor attach/run
-2. For a **local Nest**, operator data dir **is** the Nest cache
-3. For a **remote Nest**, ensure/sync fills Nest cache before hatch; do not stream multi-GB ISOs over the control plane at attach time (v1)
+2. For a **local Nest**, operator ``data_dir`` **is** the Nest cache (read-only; no ``extra.nest_cache`` override) ([#607](https://github.com/dustinestes/Hatchery/issues/607))
+3. For a **remote Nest**, Nest ``extra.nest_cache`` is the content root on the Nest host (required; set from Nest detail). Ensure/sync fills that cache before hatch; do not stream multi-GB ISOs over the control plane at attach time (v1). Nest-owned pull from Controller HTTPS is follow-on ([#609](https://github.com/dustinestes/Hatchery/issues/609))
 4. **Identity:** basename + **SHA-256** (no GUID catalog)
 5. **Settings owns** source config; domain panes keep in-context Import (file always; library browse when enabled - see [ADR-0002](0002-library-in-pane-browser.md))
 6. Default hatch contract: **validate Nest cache** has required content before provider create/attach

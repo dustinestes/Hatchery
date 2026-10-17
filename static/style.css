@@ -655,6 +655,12 @@ html.sidebar-collapsed-init .topbar-name {
   padding: 0;
 }
 
+/* Nest Cache tile: two summary fields split evenly across the tile (#607). */
+.detail-section-tile .nest-cache-fields {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .detail-hero-subsection {
   margin-top: 4px;
   padding-top: 12px;

@@ -40,9 +40,9 @@ Module: [`lib/nest_health.py`](../../lib/nest_health.py).
 
 | Noun | Owns |
 |---|---|
-| **`nest_storage`** | Guest VM disk roots on the Nest (`{nest_storage}/{vm_id}/`) - Nest detail tile; primary path in Nest `extra.nest_storage` |
-| **`nest_cache`** | Library / media / automation content root ([#215](https://github.com/dustinestes/Hatchery/issues/215)) |
-| Provider default storage | Hatch fallback when Nest volumes are unset (libvirt pool path / Hyper-V VHD path) - not Clutch YAML ([#600](https://github.com/dustinestes/Hatchery/issues/600)) |
+| **`nest_storage`** | Guest VM disk roots on the Nest (`{nest_storage}/{vm_id}/`) - Nest detail Storage tile; primary path in Nest `extra.nest_storage` |
+| **`nest_cache`** | Library / media / automation content root - Nest detail Cache tile; Local = Controller `data_dir` (read-only); Remote = `extra.nest_cache` ([#215](https://github.com/dustinestes/Hatchery/issues/215) / [#607](https://github.com/dustinestes/Hatchery/issues/607)) |
+| Provider default storage | Hatch disk-root fallback when Nest volumes are unset (libvirt pool path / Hyper-V VHD path) - not Clutch YAML ([#600](https://github.com/dustinestes/Hatchery/issues/600)) |
 
 Free-space status on Nest storage rows: Connected / Disconnected / Warn / Error (text + non-color cue). Warn when free space is low; Error when too low to safely hatch (preflight consumption: [#50](https://github.com/dustinestes/Hatchery/issues/50)).
 
@@ -54,8 +54,9 @@ On Nest sticky detail:
 
 1. Hero **Health** - ad-hoc Nest Health run; updates the hero reachability badge and status dot, then refreshes status surfaces (footer / bell) without a full page reload
 2. **Nest Health** subsection - reachability, CPU, memory, last checked
-3. **Storage** tile - register paths (+), Refresh (re-runs Health). Add path uses the shared modal backdrop; pick a Nest **disk** from the latest Health discovery (volume root: Windows drive letter, POSIX mount) plus an optional subdirectory, or enter a full absolute path. Drive letters are Windows-only; the UI uses the universal **disk** noun.
-4. **Prerequisites** tile - present / missing Nest tools for the provider (Hyper-V: role/feature, Hyper-V PowerShell module/management tools, and `Get-VM` smoke)
+3. **Cache** tile - resolved `nest_cache` path. Local Nest is always Controller `data_dir` (read-only). Remote Nest requires an absolute Nest path; Edit uses the same disk + path modal as Storage (Nest Health discovery) ([#607](https://github.com/dustinestes/Hatchery/issues/607)). Content sync inventory is a follow-on ([#608](https://github.com/dustinestes/Hatchery/issues/608)).
+4. **Storage** tile - register paths (+), Refresh (re-runs Health). Add path uses the shared modal backdrop; pick a Nest **disk** from the latest Health discovery (volume root: Windows drive letter, POSIX mount) plus an optional subdirectory, or enter a full absolute path. Drive letters are Windows-only; the UI uses the universal **disk** noun.
+5. **Prerequisites** tile - present / missing Nest tools for the provider (Hyper-V: role/feature, Hyper-V PowerShell module/management tools, and `Get-VM` smoke)
 
 Connections still offers **Test Nest connection** for draft / unsaved Nest rows.
 

@@ -7,7 +7,8 @@
 {% block content %}
 <div class="sticky-detail-shell detail-tile-stack" id="nest-detail"
      data-nest-id="{{ nest.id }}"
-     data-nest-name="{{ nest.name }}">
+     data-nest-name="{{ nest.name }}"
+     data-nest-location="{{ nest.location }}">
 
   <section class="detail-hero-tile" aria-labelledby="nest-detail-name">
     <div class="detail-hero-header">
@@ -80,6 +81,31 @@
     </div>
   </section>
 
+  <section class="detail-section-tile" aria-labelledby="nest-cache-heading">
+    <div class="detail-section-header">
+      <h2 class="scripts-section-title" id="nest-cache-heading">Cache</h2>
+      <div class="detail-hero-actions" role="toolbar" aria-label="Nest cache actions">
+        {% if nest.location == 'remote' %}
+        <button type="button" class="detail-hero-action" id="nest-cache-edit-btn"
+                title="Edit Nest cache path" aria-label="Edit Nest cache path">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </button>
+        {% endif %}
+        <button type="button" class="detail-hero-action" id="nest-cache-refresh-btn"
+                title="Refresh Nest cache" aria-label="Refresh Nest cache">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="list-shell-body" id="nest-cache-body" role="status" aria-live="polite"></div>
+  </section>
+
   <section class="detail-section-tile" aria-labelledby="nest-storage-heading">
     <div class="detail-section-header">
       <h2 class="scripts-section-title" id="nest-storage-heading">Storage</h2>
@@ -125,6 +151,42 @@
     </div>
     <div class="list-shell-body" id="nest-sessions-body"></div>
   </section>
+</div>
+
+<div id="nest-cache-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nest-cache-dialog-title">
+    <h2 class="modal-title" id="nest-cache-dialog-title">Nest cache path</h2>
+    <form id="nest-cache-form">
+      <div class="modal-body">
+        <p class="form-help-text">
+          Content root on this Remote Nest (<code>nest_cache</code>): media, automation, Library
+          cache layout. Pick a discovered Nest disk (volume root), then an optional subdirectory -
+          or enter a full absolute path. Local Nest cache is always Controller
+          <code>data_dir</code> (not editable here). Not guest VM disks (<code>nest_storage</code>).
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="nest-cache-disk">Disk</label>
+          <select class="form-select" id="nest-cache-disk" name="disk"
+                  aria-describedby="nest-cache-disk-help">
+            <option value="">Custom (full path)</option>
+          </select>
+          <p class="form-help-text" id="nest-cache-disk-help">
+            Populated from the latest Nest Health disk discovery. Run Health if empty.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nest-cache-path" id="nest-cache-path-label">Path</label>
+          <input type="text" class="form-input" id="nest-cache-path" name="path"
+                 autocomplete="off"
+                 placeholder="C:\Hatchery\Cache or /var/lib/hatchery">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="nest-cache-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="nest-cache-submit">Save</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div id="nest-storage-backdrop" class="modal-backdrop" hidden>
@@ -175,6 +237,8 @@
   const root = document.getElementById('nest-detail');
   const nestId = root.dataset.nestId;
   const nestName = root.dataset.nestName || nestId;
+  const nestLocation = (root.dataset.nestLocation || 'local').toLowerCase();
+  const nestCacheEditable = nestLocation === 'remote';
   const healthBtn = document.getElementById('nest-health-btn');
   const healthFields = document.getElementById('nest-health-fields');
   const validated = document.getElementById('nest-health-validated');
@@ -184,6 +248,7 @@
   const sessionCount = document.getElementById('nest-session-count');
   const sessionsBody = document.getElementById('nest-sessions-body');
   const storageBody = document.getElementById('nest-storage-body');
+  const cacheBody = document.getElementById('nest-cache-body');
   const prereqsBody = document.getElementById('nest-prereqs-body');
   const storageBackdrop = document.getElementById('nest-storage-backdrop');
   const storageForm = document.getElementById('nest-storage-form');
@@ -194,10 +259,18 @@
   const storageCancel = document.getElementById('nest-storage-cancel');
   const storageSubmit = document.getElementById('nest-storage-submit');
   const storageDialogTitle = document.getElementById('nest-storage-dialog-title');
+  const cacheBackdrop = document.getElementById('nest-cache-backdrop');
+  const cacheForm = document.getElementById('nest-cache-form');
+  const cacheDiskSelect = document.getElementById('nest-cache-disk');
+  const cachePathInput = document.getElementById('nest-cache-path');
+  const cachePathLabel = document.getElementById('nest-cache-path-label');
+  const cacheCancel = document.getElementById('nest-cache-cancel');
   let resolvedTimezone = 'UTC';
   let lastHealth = null;
   let storageFocusReturn = null;
   let storageEditId = null;
+  let cacheFocusReturn = null;
+  let lastCache = null;
 
   if (window.hatchery && hatchery.stickyNav) {
     hatchery.stickyNav.open({
@@ -525,6 +598,101 @@
     }
   }
 
+  function renderCache(status) {
+    if (!cacheBody) return;
+    lastCache = status || null;
+    if (!status) {
+      cacheBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Unable to load Nest cache.</p>';
+      return;
+    }
+    const rows = [];
+    if (status.resolved) {
+      rows.push(field('Path', '<code>' + esc(status.resolved) + '</code>'));
+    } else if (status.error) {
+      rows.push(field('Path', esc(status.error)));
+    } else {
+      rows.push(field('Path', muted('—')));
+    }
+    if (status.location === 'local' || status.editable === false) {
+      rows.push(field('Source', 'Controller data_dir (Local Nest; read-only)'));
+    } else if (status.override) {
+      rows.push(field('Source', 'Nest path (Remote)'));
+    } else {
+      rows.push(field('Source', 'Not set (required for Remote Nest)'));
+    }
+    cacheBody.innerHTML =
+      '<div class="vm-row-fields nest-cache-fields">' + rows.join('') + '</div>';
+  }
+
+  async function loadCache() {
+    if (!cacheBody) return;
+    try {
+      const resp = await fetch('/api/nests/' + encodeURIComponent(nestId) + '/cache');
+      const body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        cacheBody.innerHTML =
+          '<p class="detail-section-empty" role="status">' + esc(body.error || 'Unavailable') + '</p>';
+        return;
+      }
+      renderCache(body);
+    } catch (e) {
+      cacheBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Unable to load Nest cache.</p>';
+    }
+  }
+
+  function syncCachePathLabel() {
+    const custom = !cacheDiskSelect || !cacheDiskSelect.value;
+    if (cachePathLabel) {
+      cachePathLabel.textContent = custom ? 'Full path' : 'Subdirectory (optional)';
+    }
+    if (cachePathInput) {
+      cachePathInput.placeholder = custom
+        ? 'C:\\Hatchery\\Cache or /var/lib/hatchery'
+        : 'Hatchery\\Cache or hatchery-cache';
+      cachePathInput.required = custom;
+    }
+  }
+
+  function openCacheModal() {
+    if (!nestCacheEditable) return;
+    populateNestDiskOptions(cacheDiskSelect);
+    if (cacheDiskSelect) cacheDiskSelect.value = '';
+    if (cachePathInput) {
+      cachePathInput.value = (lastCache && lastCache.override) ? lastCache.override : '';
+    }
+    syncCachePathLabel();
+    cacheFocusReturn = document.activeElement;
+    if (cacheBackdrop) {
+      cacheBackdrop.hidden = false;
+      if (cachePathInput) cachePathInput.focus();
+    }
+  }
+
+  function closeCacheModal() {
+    if (cacheBackdrop) cacheBackdrop.hidden = true;
+    if (cacheFocusReturn && typeof cacheFocusReturn.focus === 'function') {
+      cacheFocusReturn.focus();
+    }
+    cacheFocusReturn = null;
+  }
+
+  async function saveCachePath(pathValue) {
+    const resp = await fetch('/api/nests/' + encodeURIComponent(nestId) + '/cache', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: pathValue }),
+    });
+    const body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) {
+      window.alert(body.error || 'Save failed');
+      return false;
+    }
+    renderCache(body);
+    return true;
+  }
+
   async function loadRollups() {
     try {
       const [vmsResp, sessResp] = await Promise.all([
@@ -563,19 +731,19 @@
     return raw;
   }
 
-  function populateStorageDiskOptions() {
-    if (!storageDiskSelect) return;
+  function populateNestDiskOptions(selectEl) {
+    if (!selectEl) return;
     const disks = (lastHealth && lastHealth.deeper_ran && Array.isArray(lastHealth.disks))
       ? lastHealth.disks : [];
-    const keep = storageDiskSelect.querySelector('option[value=""]');
-    storageDiskSelect.innerHTML = '';
+    const keep = selectEl.querySelector('option[value=""]');
+    selectEl.innerHTML = '';
     if (keep) {
-      storageDiskSelect.appendChild(keep);
+      selectEl.appendChild(keep);
     } else {
       const opt = document.createElement('option');
       opt.value = '';
       opt.textContent = 'Custom (full path)';
-      storageDiskSelect.appendChild(opt);
+      selectEl.appendChild(opt);
     }
     disks.forEach(function (d) {
       const root = diskRootFromHealth(d);
@@ -585,8 +753,12 @@
       const free = (d.free_bytes !== null && d.free_bytes !== undefined)
         ? (' - ' + fmtBytes(d.free_bytes) + ' free') : '';
       opt.textContent = root + free;
-      storageDiskSelect.appendChild(opt);
+      selectEl.appendChild(opt);
     });
+  }
+
+  function populateStorageDiskOptions() {
+    populateNestDiskOptions(storageDiskSelect);
   }
 
   function joinNestStoragePath(diskRoot, subPath) {
@@ -671,6 +843,45 @@
     });
   }
 
+  const cacheEditBtn = document.getElementById('nest-cache-edit-btn');
+  const cacheRefreshBtn = document.getElementById('nest-cache-refresh-btn');
+  if (cacheEditBtn && nestCacheEditable) {
+    cacheEditBtn.addEventListener('click', openCacheModal);
+  }
+  if (cacheRefreshBtn) {
+    cacheRefreshBtn.addEventListener('click', function () { loadCache(); });
+  }
+  if (cacheDiskSelect) {
+    cacheDiskSelect.addEventListener('change', syncCachePathLabel);
+  }
+  if (cacheCancel) {
+    cacheCancel.addEventListener('click', closeCacheModal);
+  }
+  if (cacheForm) {
+    cacheForm.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      if (!nestCacheEditable) return;
+      const diskRoot = cacheDiskSelect ? cacheDiskSelect.value : '';
+      const typed = (cachePathInput && cachePathInput.value || '').trim();
+      const path = joinNestStoragePath(diskRoot, typed);
+      if (!path) {
+        window.alert('Choose a disk or enter a full path.');
+        return;
+      }
+      if (await saveCachePath(path)) closeCacheModal();
+    });
+  }
+  if (cacheBackdrop) {
+    cacheBackdrop.addEventListener('click', function (ev) {
+      if (ev.target === cacheBackdrop) closeCacheModal();
+    });
+  }
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && cacheBackdrop && !cacheBackdrop.hidden) {
+      closeCacheModal();
+    }
+  });
+
   if (storageForm) {
     storageForm.addEventListener('submit', async function (ev) {
       ev.preventDefault();
@@ -725,6 +936,7 @@
     .catch(function () {})
     .finally(function () {
       loadHealthCached();
+      loadCache();
       loadStorage();
       loadRollups();
       setInterval(loadRollups, 10000);

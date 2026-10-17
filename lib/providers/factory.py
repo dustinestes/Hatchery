@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from lib import config
+from lib import nest_cache as nest_cache_lib
 from lib import nests as nests_lib
 from lib.nest_transport import get_nest_transport
 from lib.providers.base import BaseProvider
@@ -69,12 +70,15 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     nest_storage_raw = (extra or {}).get("nest_storage")
     nest_storage = Path(str(nest_storage_raw)) if nest_storage_raw else None
 
+    # Nest nest_cache SoR: Local = Controller data_dir; Remote = extra.nest_cache (#215 / #607).
+    controller_root = data_dir or config.data_dir()
+    data = nest_cache_lib.resolve_nest_cache_for_provider(nest, data_dir=controller_root)
+
     if provider_type == "libvirt":
         if location == "remote":
             raise UnsupportedProviderError(
                 f"Remote Nest '{nid}' (libvirt) is registered but VM ops are not available yet"
             )
-        data = data_dir or config.data_dir()
         return LibvirtProvider(
             iso_dir=data / "media" / "iso",
             virtio_dir=data / "media" / "virtio",
@@ -92,7 +96,6 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
                 raise UnsupportedProviderError(
                     f"Remote Nest '{nid}' (hyperv) has no Nest transport"
                 )
-        data = data_dir or config.data_dir()
         return HyperVProvider(
             nid,
             transport=transport,
