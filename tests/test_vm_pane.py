@@ -348,6 +348,9 @@ def test_vms_detail_markers(client):
     assert 'id="vms-events-filter-q"' in html
     assert 'id="vms-events-filter-level"' in html
     assert 'id="vms-events-filter-scope"' in html
+    assert 'id="vms-events-filter-limit"' in html
+    assert 'id="vms-events-status"' in html
+    assert ">Component</th>" in html
     assert 'id="vms-events-filter-vm"' not in html
     assert "detail-section-header" in html
     assert "Notifications → Events" not in html

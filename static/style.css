@@ -866,10 +866,7 @@ html.sidebar-collapsed-init .topbar-name {
   color: var(--color-text-muted);
 }
 
-.vm-scoped-events {
-  margin-top: 1.25rem;
-}
-
+/* Spacing comes from .detail-tile-stack gap; do not add extra top margin. */
 .vm-scoped-events .events-console-body {
   min-height: 0;
   max-height: 20rem;
