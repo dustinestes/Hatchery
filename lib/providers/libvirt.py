@@ -3,6 +3,7 @@ from __future__ import annotations
 import getpass
 import os
 import subprocess
+import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -12,6 +13,12 @@ from lib.providers.base import (
     BaseProvider,
     MediaCleanupStep,
     answer_media_path,
+    is_answer_media_basename,
+    legacy_answer_media_path,
+    resolve_nest_storage_root,
+    rmdir_if_empty,
+    vm_disk_path,
+    vm_nest_dir,
 )
 from lib.requirements import NestToolSpec
 from lib.run_cmd import run_cmd
@@ -188,17 +195,51 @@ class LibvirtProvider(BaseProvider):
         automation_dir: Path,
         storage_pool: str = "default",
         nest_cache: Path | None = None,
+        nest_storage: Path | None = None,
     ) -> None:
         self.iso_dir = Path(iso_dir)
         self.virtio_dir = Path(virtio_dir)
         self.automation_dir = Path(automation_dir)
         self.storage_pool = storage_pool
-        # Local Nest: operator data_dir is Nest cache (ADR-0007). Default from media layout.
+        # Local Nest: operator data_dir is Nest cache (ADR-0007). Content only (#215).
         self.nest_cache = Path(nest_cache) if nest_cache is not None else self.iso_dir.parent.parent
+        self.nest_storage = Path(nest_storage) if nest_storage is not None else None
 
     @classmethod
     def nest_tool_specs(cls) -> list[NestToolSpec]:
         return list(_LIBVIRT_NEST_TOOLS)
+
+    # ── Nest storage ──────────────────────────────────────────────────────────
+
+    def _provider_default_storage_root(self) -> Path | None:
+        """Conventional libvirt default pool path when it exists on this Nest."""
+        candidate = Path("/var/lib/libvirt/images")
+        return candidate if candidate.is_dir() else None
+
+    def resolve_storage_root(self, clutch_storage_path: str | None = None) -> Path:
+        root = resolve_nest_storage_root(
+            nest_storage=self.nest_storage,
+            clutch_storage_path=clutch_storage_path,
+            provider_default=self._provider_default_storage_root(),
+        )
+        if root is None:
+            raise ValueError(
+                "Nest storage root is required for VM disk and answer media (#587). "
+                "Set Clutch storage_path, or Nest nest_storage when available (#538)."
+            )
+        if not root.is_dir():
+            raise FileNotFoundError(
+                f"Storage path does not exist: {root}\n"
+                "Create the directory before hatching, or set Clutch storage_path / Nest "
+                "nest_storage to an existing Nest directory."
+            )
+        return root
+
+    def _vm_dir_for(self, vm_id: str, clutch_storage_path: str | None = None) -> Path:
+        root = self.resolve_storage_root(clutch_storage_path)
+        path = vm_nest_dir(root, vm_id)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     # ── VM creation ───────────────────────────────────────────────────────────
 
@@ -207,6 +248,8 @@ class LibvirtProvider(BaseProvider):
         config: VMConfig,
         *,
         admin_password: str | None = None,
+        vm_id: str | None = None,
+        storage_path: str | None = None,
     ) -> Path | None:
         """Render the user Answer File and pack Autounattend + companions onto a floppy."""
         if not answerfile_lib.requires_answer_file(config.os):
@@ -217,6 +260,8 @@ class LibvirtProvider(BaseProvider):
                 f"'{config.name}'. Select an Answer File on the Clutch "
                 "before hatching."
             )
+        resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
+        vm_dir = self._vm_dir_for(resolved_id, storage_path)
         answer_src = self._resolve_automation(config.answer_file)
         xml, companion_names = answerfile_lib.render_user_answer_file(
             answer_src,
@@ -229,20 +274,17 @@ class LibvirtProvider(BaseProvider):
         for name in companion_names:
             companion_path = self._resolve_automation(name)
             companions.append((name, companion_path.read_text(encoding="utf-8")))
-        return self._create_answer_image(xml, config.name, companions)
+        return self._create_answer_image(xml, vm_dir, companions)
 
     def create_vm(
         self,
         config: VMConfig,
         admin_password: str | None = None,
         storage_path: str | None = None,
+        vm_id: str | None = None,
     ) -> None:
-        if storage_path and not Path(storage_path).is_dir():
-            raise FileNotFoundError(
-                f"Storage path does not exist: {storage_path}\n"
-                "Create the directory before hatching, or leave storage_path unset to use the "
-                "hypervisor default."
-            )
+        resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
+        vm_dir = self._vm_dir_for(resolved_id, storage_path)
 
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         virtio = (
@@ -255,11 +297,16 @@ class LibvirtProvider(BaseProvider):
         if virtio:
             _check_media_accessible(virtio)
 
-        cmd = self._build_create_cmd(config, os_media, virtio, storage_path)
+        cmd = self._build_create_cmd(config, os_media, virtio, vm_dir=vm_dir, vm_id=resolved_id)
         answer_img: Path | None = None
 
         try:
-            answer_img = self.prepare_answer_file_media(config, admin_password=admin_password)
+            answer_img = self.prepare_answer_file_media(
+                config,
+                admin_password=admin_password,
+                vm_id=resolved_id,
+                storage_path=storage_path,
+            )
             if answer_img:
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
 
@@ -269,6 +316,7 @@ class LibvirtProvider(BaseProvider):
             # Windows installation. Post-ready cleanup (#144) or destroy_vm removes it.
             if answer_img and answer_img.exists():
                 answer_img.unlink()
+            rmdir_if_empty(vm_dir)
             raise
 
     def _build_create_cmd(
@@ -276,17 +324,19 @@ class LibvirtProvider(BaseProvider):
         config: VMConfig,
         os_media: Path,
         virtio: Path | None,
-        storage_path: str | None = None,
+        *,
+        vm_dir: Path,
+        vm_id: str,
     ) -> list[str]:
-        if storage_path:
-            disk_arg = f"path={storage_path}/{config.name}.qcow2,size={config.disk_gb},format=qcow2"
-        else:
-            disk_arg = f"size={config.disk_gb},format=qcow2,pool={self.storage_pool}"
+        disk = vm_disk_path(vm_dir, ".qcow2")
+        disk_arg = f"path={disk},size={config.disk_gb},format=qcow2"
 
         cmd = [
             "virt-install",
             "--name",
             config.name,
+            "--uuid",
+            vm_id,
             "--memory",
             str(config.ram_gb * 1024),
             "--vcpus",
@@ -318,7 +368,12 @@ class LibvirtProvider(BaseProvider):
 
         return cmd
 
-    def create_command_description(self, config: VMConfig, storage_path: str | None = None) -> str:
+    def create_command_description(
+        self,
+        config: VMConfig,
+        storage_path: str | None = None,
+        vm_id: str | None = None,
+    ) -> str:
         """Return the virt-install command that will be used to create this VM."""
         os_media = Path(config.os_media)
         if not os_media.is_absolute():
@@ -327,28 +382,36 @@ class LibvirtProvider(BaseProvider):
         if config.virtio_drivers:
             vp = Path(config.virtio_drivers)
             virtio = vp if vp.is_absolute() else self.virtio_dir / config.virtio_drivers
-        return " ".join(self._build_create_cmd(config, os_media, virtio, storage_path))
+        resolved_id = (vm_id or "").strip() or "<vm-uuid>"
+        try:
+            root = self.resolve_storage_root(storage_path)
+            vm_dir = vm_nest_dir(root, resolved_id if vm_id else "_pending_")
+        except (ValueError, FileNotFoundError):
+            vm_dir = Path("<nest_storage>") / resolved_id
+        return " ".join(
+            self._build_create_cmd(config, os_media, virtio, vm_dir=vm_dir, vm_id=resolved_id)
+        )
 
-    def _floppy_path(self, vm_name: str) -> Path:
-        """Return the Nest-cache path for a VM's answer file floppy image."""
-        path = answer_media_path(self.nest_cache, vm_name, ".img")
+    def _floppy_path(self, vm_dir: Path) -> Path:
+        """Return the Nest-storage path for a VM's answer file floppy image."""
+        path = answer_media_path(vm_dir, ".img")
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
     def _create_answer_image(
         self,
         xml_content: str,
-        vm_name: str,
+        vm_dir: Path,
         companions: list[tuple[str, str]] | None = None,
     ) -> Path:  # pragma: no cover
         """Write rendered Autounattend.xml and companions into a FAT floppy image.
 
         Uses mtools (mformat + mcopy) - no root or kernel access required.
         1.44 MB standard floppy: 2880 sectors × 512 bytes.
-        Image lives under Nest cache ``nest-work/answer-media/`` through install (#144).
+        Image lives under ``{nest_storage}/{vm_id}/autounattend.img`` (#587).
         ``companions`` is a list of ``(floppy_basename, file_content)``.
         """
-        img = self._floppy_path(vm_name)
+        img = self._floppy_path(vm_dir)
         xml_file = img.with_suffix(".xml")
         companion_files: list[tuple[Path, str]] = []
         try:
@@ -392,17 +455,16 @@ class LibvirtProvider(BaseProvider):
             return ("answer", basename)
         if device != "cdrom":
             return None
-        try:
-            resolved = path.resolve()
-        except OSError:
-            resolved = path
-        answer_dir = answer_media_path(self.nest_cache, "_", ".img").parent.resolve()
-        if resolved.parent == answer_dir or "autounattend" in basename.lower():
+        if is_answer_media_basename(basename):
             return ("answer", basename)
         try:
             virtio_root = self.virtio_dir.resolve()
         except OSError:
             virtio_root = self.virtio_dir
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
         if "virtio" in basename.lower() or (
             virtio_root in resolved.parents or resolved.parent == virtio_root
         ):
@@ -501,12 +563,13 @@ class LibvirtProvider(BaseProvider):
                     )
                 )
 
-        # Orphan Nest-work file after a prior eject (not in domain XML anymore).
+        # Orphan answer file after a prior eject (not in domain XML anymore).
         if not saw_answer_disk:
-            candidate = answer_media_path(self.nest_cache, name, ".img")
-            if candidate.exists():
-                answer_path = candidate
-                answer_detached_ok = True
+            for candidate in self._orphan_answer_candidates(name):
+                if candidate.exists():
+                    answer_path = candidate
+                    answer_detached_ok = True
+                    break
 
         if answer_path is not None and answer_detached_ok:
             try:
@@ -517,24 +580,69 @@ class LibvirtProvider(BaseProvider):
                         kind="answer",
                         action="delete",
                         basename=answer_path.name,
-                        target="nest-work",
+                        target="nest_storage",
                         path=str(answer_path),
                         ok=True,
                     )
                 )
+                rmdir_if_empty(answer_path.parent)
             except Exception as exc:
                 steps.append(
                     MediaCleanupStep(
                         kind="answer",
                         action="delete",
                         basename=answer_path.name,
-                        target="nest-work",
+                        target="nest_storage",
                         path=str(answer_path),
                         ok=False,
                         error=str(exc),
                     )
                 )
         return steps
+
+    def _orphan_answer_candidates(self, name: str) -> list[Path]:
+        """Possible leftover answer media paths for cleanup/destroy."""
+        out: list[Path] = []
+        try:
+            uid = self.get_vm_uuid(name)
+        except Exception:
+            uid = None
+        if uid:
+            for root in self._storage_roots_to_scan():
+                out.append(answer_media_path(vm_nest_dir(root, uid), ".img"))
+        out.append(legacy_answer_media_path(self.nest_cache, name, ".img"))
+        return out
+
+    def _storage_roots_to_scan(self) -> list[Path]:
+        roots: list[Path] = []
+        if self.nest_storage is not None:
+            roots.append(self.nest_storage)
+        default = self._provider_default_storage_root()
+        if default is not None and default not in roots:
+            roots.append(default)
+        return roots
+
+    def _cleanup_nest_storage_after_destroy(self, name: str, vm_id: str | None) -> None:
+        """Delete answer/disk leftovers and empty VM dir after undefine."""
+        if vm_id:
+            for root in self._storage_roots_to_scan():
+                vm_dir = vm_nest_dir(root, vm_id)
+                for path in (
+                    answer_media_path(vm_dir, ".img"),
+                    vm_disk_path(vm_dir, ".qcow2"),
+                ):
+                    if path.exists():
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
+                rmdir_if_empty(vm_dir)
+        legacy = legacy_answer_media_path(self.nest_cache, name, ".img")
+        if legacy.exists():
+            try:
+                legacy.unlink()
+            except OSError:
+                pass
 
     # ── Power state ───────────────────────────────────────────────────────────
 
@@ -554,10 +662,12 @@ class LibvirtProvider(BaseProvider):
         run_cmd(["virsh", "resume", name])
 
     def destroy_vm(self, name: str) -> None:
+        try:
+            vm_id = self.get_vm_uuid(name)
+        except Exception:
+            vm_id = None
         run_cmd(["virsh", "undefine", name, "--remove-all-storage"])
-        floppy = self._floppy_path(name)
-        if floppy.exists():
-            floppy.unlink()
+        self._cleanup_nest_storage_after_destroy(name, vm_id)
 
     # ── Inventory ─────────────────────────────────────────────────────────────
 

@@ -2819,7 +2819,7 @@ class TestRunHatchSession:
         )
         observed = []
 
-        def fake_create_vm(vm_cfg, admin_password=None, storage_path=None):
+        def fake_create_vm(vm_cfg, admin_password=None, storage_path=None, vm_id=None):
             sessions = hatch_lib.list_sessions()
             s = next(s for s in sessions if s["id"] == sid)
             observed.append(next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01"))
@@ -2886,7 +2886,7 @@ class TestRunHatchSession:
         ]
         call_count = 0
 
-        def fake_create(vm_cfg, admin_password=None, storage_path=None):
+        def fake_create(vm_cfg, admin_password=None, storage_path=None, vm_id=None):
             nonlocal call_count
             call_count += 1
             if vm_cfg.name == "dc01":
@@ -2970,7 +2970,7 @@ class TestRunHatchSession:
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
         assert self._get_vm(sid)["status"] == "hatching"
 
-    def test_stores_uuid_after_create(self, tmp_path, monkeypatch):
+    def test_pre_mints_uuid_before_create(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -2980,24 +2980,17 @@ class TestRunHatchSession:
         )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            mock_prov.return_value.get_vm_uuid.return_value = "test-uuid-1234"
+            mock_prov.return_value.create_command_description = MagicMock(
+                return_value="virt-install"
+            )
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
+            _, kwargs = mock_prov.return_value.create_vm.call_args
+            assert "vm_id" in kwargs
+            assert kwargs["vm_id"]
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         vm_row = next(v for v in s["vms"] if v["vm_name"] == "dc01")
-        assert vm_row["libvirt_uuid"] == "test-uuid-1234"
-
-    def test_uuid_failure_does_not_block_hatching(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        sid = self._setup_session(tmp_path)
-        vm = VMConfig(
-            name="dc01", os="windows", vcpus=2, ram_gb=4, disk_gb=60, os_media="win11.iso"
-        )
-        with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
-            mock_prov.return_value.create_vm = MagicMock()
-            mock_prov.return_value.get_vm_uuid.side_effect = RuntimeError("virsh failed")
-            app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
-        assert self._get_vm(sid)["status"] == "hatching"
+        assert vm_row["libvirt_uuid"] == kwargs["vm_id"]
 
     def test_fails_when_nest_cannot_attach_answer_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)

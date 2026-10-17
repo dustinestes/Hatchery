@@ -8,6 +8,7 @@ from __future__ import annotations
 import atexit
 import threading
 import time
+import uuid
 from typing import Callable
 
 from lib import alerts as alerts_lib
@@ -103,7 +104,12 @@ def run_hatch_session(
     for vm in vms:
         try:
             hatch_lib.set_vm_status(session_id, vm.name, "hatching")
-            cmd_desc = provider.create_command_description(vm, storage_path=storage_path)
+            # Pre-mint VM identity for nest_storage/{vm_id}/ before create (#587).
+            vm_id = str(uuid.uuid4())
+            hatch_lib.set_vm_uuid(session_id, vm.name, vm_id)
+            cmd_desc = provider.create_command_description(
+                vm, storage_path=storage_path, vm_id=vm_id
+            )
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", f"Creating VM: {cmd_desc}")
             # Start boot key sender before create_vm so it can begin polling immediately.
             # virt-install takes a few seconds; starting concurrently maximises the chance
@@ -113,18 +119,18 @@ def run_hatch_session(
                 args=(provider, vm.name),
                 daemon=True,
             ).start()
-            provider.create_vm(vm, admin_password=passwords[vm.name], storage_path=storage_path)
+            provider.create_vm(
+                vm,
+                admin_password=passwords[vm.name],
+                storage_path=storage_path,
+                vm_id=vm_id,
+            )
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", "VM created successfully")
             try:
                 provider.tag_vm_session(vm.name, session_id, clutch_file)
             except Exception:
                 pass  # best-effort: metadata tagging does not block hatching
-            try:
-                uuid = provider.get_vm_uuid(vm.name)
-                if uuid:
-                    hatch_lib.set_vm_uuid(session_id, vm.name, uuid)
-            except Exception:
-                pass  # best-effort: UUID storage does not block hatching
+            # vm_id was pre-minted and persisted above; keep it as Nest storage identity.
         except PermissionError as exc:
             hatch_lib.add_event(
                 session_id,

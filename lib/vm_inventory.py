@@ -5,12 +5,14 @@ Live hypervisor list via Nest factory, plus Hatch session metadata when tagged.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from lib import config
 from lib import hatch as hatch_lib
 from lib import nests as nests_lib
 from lib import software as software_lib
+from lib.providers.base import resolve_nest_storage_root, vm_nest_dir
 from lib.providers.factory import (
     NoNestSelectedError,
     UnknownNestError,
@@ -191,6 +193,76 @@ def _clutch_vm_create_policy(
     return out
 
 
+def _clutch_storage_path(
+    *,
+    clutch_file: str | None,
+    session_id: str | None = None,
+    vm_name: str,
+) -> str | None:
+    """Return Clutch ``storage_path`` when set (legacy hatch disk root)."""
+    from lib import clutch as clutch_lib
+
+    if session_id:
+        snap = hatch_lib.load_session_clutch(session_id)
+        if snap is not None:
+            path = getattr(snap, "storage_path", None)
+            if path:
+                return str(path)
+    if not clutch_file:
+        return None
+    path = config.data_dir() / "clutches" / Path(clutch_file).name
+    try:
+        clutch = clutch_lib.load(path)
+    except Exception:
+        return None
+    return str(clutch.storage_path) if clutch.storage_path else None
+
+
+def _as_vm_id(value: Any) -> str | None:
+    """Return a string VM UUID, or None for missing/non-string values."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _resolve_nest_storage_path(
+    provider: Any,
+    *,
+    vm_id: str | None,
+    clutch_file: str | None,
+    session_id: str | None,
+    vm_name: str,
+) -> str | None:
+    """Return ``{nest_storage}/{vm_id}`` when root and uuid are known (#587).
+
+    Does not query Hyper-V host defaults during inventory (avoid Nest chatter).
+    """
+    if not vm_id:
+        return None
+    nest_storage = getattr(provider, "nest_storage", None)
+    clutch_storage = _clutch_storage_path(
+        clutch_file=clutch_file, session_id=session_id, vm_name=vm_name
+    )
+    provider_default = None
+    default_fn = getattr(provider, "_provider_default_storage_root", None)
+    if callable(default_fn):
+        try:
+            provider_default = default_fn()
+        except Exception:
+            provider_default = None
+    root = resolve_nest_storage_root(
+        nest_storage=nest_storage,
+        clutch_storage_path=clutch_storage,
+        provider_default=provider_default,
+    )
+    if root is None:
+        return None
+    return str(vm_nest_dir(root, vm_id))
+
+
 def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> list[dict[str, Any]]:
     """Return enriched VM rows for one Nest.
 
@@ -233,6 +305,8 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
             "os": None,
             "firmware": None,
             "tpm": None,
+            "vm_id": None,
+            "nest_storage_path": None,
             "environment": [],
             "scripts": [],
         }
@@ -248,6 +322,17 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
             tag = None
 
         if not tag:
+            try:
+                record["vm_id"] = _as_vm_id(provider.get_vm_uuid(name))
+            except Exception:
+                pass
+            record["nest_storage_path"] = _resolve_nest_storage_path(
+                provider,
+                vm_id=record.get("vm_id"),
+                clutch_file=None,
+                session_id=None,
+                vm_name=name,
+            )
             result.append(record)
             continue
 
@@ -268,6 +353,7 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
                 record["admin_username"] = db_row.get("admin_username")
                 if show_passwords:
                     record["admin_password"] = db_row.get("admin_password")
+                record["vm_id"] = _as_vm_id(db_row.get("libvirt_uuid"))
                 guest_os = db_row.get("guest_os")
                 if guest_os:
                     record["os"] = guest_os
@@ -290,6 +376,19 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
                 script["last_event"] = last_events.get(script["script_name"])
                 _enrich_script_reboot_source(script)
             record["scripts"] = scripts
+
+        if not record.get("vm_id"):
+            try:
+                record["vm_id"] = _as_vm_id(provider.get_vm_uuid(name))
+            except Exception:
+                pass
+        record["nest_storage_path"] = _resolve_nest_storage_path(
+            provider,
+            vm_id=record.get("vm_id"),
+            clutch_file=record.get("clutch_file"),
+            session_id=record.get("session_id"),
+            vm_name=name,
+        )
 
         result.append(record)
     return result

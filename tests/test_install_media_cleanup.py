@@ -1,4 +1,4 @@
-"""Install media cleanup (#144 / ADR-0035) - Nest-work paths and cleanup events."""
+"""Install media cleanup (#144 / ADR-0035) and nest_storage VM dirs (#587)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,12 @@ import pytest
 
 import lib.config as cfg
 import lib.db as db_module
-from lib.providers.base import MediaCleanupStep, answer_media_path
+from lib.providers.base import (
+    MediaCleanupStep,
+    answer_media_path,
+    resolve_nest_storage_root,
+    vm_nest_dir,
+)
 from lib.providers.hyperv import HyperVProvider, _JSON_MARKER
 from lib.providers.libvirt import LibvirtProvider
 
@@ -60,9 +65,11 @@ def nest_root(tmp_path):
     iso = tmp_path / "media" / "iso"
     virtio = tmp_path / "media" / "virtio"
     automation = tmp_path / "automation" / "answerfiles"
+    storage = tmp_path / "nest_storage"
     iso.mkdir(parents=True)
     virtio.mkdir(parents=True)
     automation.mkdir(parents=True)
+    storage.mkdir(parents=True)
     return tmp_path
 
 
@@ -73,26 +80,63 @@ def libvirt(nest_root):
         virtio_dir=nest_root / "media" / "virtio",
         automation_dir=nest_root / "automation" / "answerfiles",
         nest_cache=nest_root,
+        nest_storage=nest_root / "nest_storage",
     )
 
 
-class TestAnswerMediaPath:
-    def test_under_nest_work_not_temp(self, nest_root, libvirt, monkeypatch):
+class TestNestStoragePaths:
+    def test_resolve_priority(self, tmp_path):
+        nest = tmp_path / "nest"
+        clutch = tmp_path / "clutch"
+        default = tmp_path / "default"
+        nest.mkdir()
+        clutch.mkdir()
+        default.mkdir()
+        assert (
+            resolve_nest_storage_root(
+                nest_storage=nest, clutch_storage_path=clutch, provider_default=default
+            )
+            == nest
+        )
+        assert (
+            resolve_nest_storage_root(
+                nest_storage=None, clutch_storage_path=clutch, provider_default=default
+            )
+            == clutch
+        )
+        assert (
+            resolve_nest_storage_root(
+                nest_storage=None, clutch_storage_path=None, provider_default=default
+            )
+            == default
+        )
+        assert (
+            resolve_nest_storage_root(
+                nest_storage=None, clutch_storage_path=None, provider_default=None
+            )
+            is None
+        )
+
+    def test_answer_under_vm_dir_not_nest_cache(self, nest_root, libvirt, monkeypatch):
         import tempfile
 
         monkeypatch.setattr(tempfile, "gettempdir", lambda: "/should-not-use")
-        path = libvirt._floppy_path("win11-lab")
-        assert path == nest_root / "nest-work" / "answer-media" / "win11-lab-autounattend.img"
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        path = libvirt._floppy_path(libvirt._vm_dir_for(vm_id))
+        assert path == nest_root / "nest_storage" / vm_id / "autounattend.img"
         assert path.parent.is_dir()
-        assert "tmp" not in str(path).lower() or "nest-work" in str(path)
+        assert "nest-work" not in str(path)
+        assert "tmp" not in str(path).lower() or "nest_storage" in str(path)
 
-    def test_helper_matches_provider(self, nest_root):
-        assert answer_media_path(nest_root, "vm1", ".iso").name == "vm1-autounattend.iso"
+    def test_helper_matches_layout(self, nest_root):
+        vm_dir = vm_nest_dir(nest_root / "nest_storage", "vm-id")
+        assert answer_media_path(vm_dir, ".iso").name == "autounattend.iso"
 
 
 class TestLibvirtCleanup:
     def test_ejects_and_deletes_answer(self, nest_root, libvirt):
-        answer = nest_root / "nest-work" / "answer-media" / "lab-autounattend.img"
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        answer = nest_root / "nest_storage" / vm_id / "autounattend.img"
         answer.parent.mkdir(parents=True)
         answer.write_bytes(b"x")
         iso = nest_root / "media" / "iso" / "win.iso"
@@ -133,6 +177,7 @@ class TestLibvirtCleanup:
 
         assert ejects == ["sda", "sdb", "fda"]
         assert not answer.exists()
+        assert not answer.parent.exists()
         kinds = [(s.kind, s.action, s.ok) for s in steps]
         assert ("installation", "detach", True) in kinds
         assert ("drivers", "detach", True) in kinds
@@ -140,7 +185,8 @@ class TestLibvirtCleanup:
         assert ("answer", "delete", True) in kinds
 
     def test_skips_delete_when_answer_detach_fails(self, nest_root, libvirt):
-        answer = nest_root / "nest-work" / "answer-media" / "lab-autounattend.img"
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        answer = nest_root / "nest_storage" / vm_id / "autounattend.img"
         answer.parent.mkdir(parents=True)
         answer.write_bytes(b"x")
         xml = f"""
@@ -171,7 +217,8 @@ class TestLibvirtCleanup:
 
 class TestHyperVCleanup:
     def test_ejects_dvds_and_deletes_answer(self, nest_root):
-        answer = nest_root / "nest-work" / "answer-media" / "hv-autounattend.iso"
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        answer = nest_root / "nest_storage" / vm_id / "autounattend.iso"
         answer.parent.mkdir(parents=True)
         answer.write_bytes(b"iso")
         os_iso = nest_root / "media" / "iso" / "server.iso"
@@ -205,9 +252,11 @@ class TestHyperVCleanup:
             iso_dir=nest_root / "media" / "iso",
             virtio_dir=nest_root / "media" / "virtio",
             nest_cache=nest_root,
+            nest_storage=nest_root / "nest_storage",
         )
         steps = p.cleanup_install_media("hv")
         assert not answer.exists()
+        assert not answer.parent.exists()
         assert any(s.kind == "installation" and s.ok for s in steps)
         assert any(s.kind == "answer" and s.action == "delete" and s.ok for s in steps)
 
@@ -255,17 +304,17 @@ class TestLifecycleEvents:
                     MediaCleanupStep(
                         kind="answer",
                         action="detach",
-                        basename="vm1-autounattend.img",
+                        basename="autounattend.img",
                         target="fda",
-                        path="/data/nest-work/answer-media/vm1-autounattend.img",
+                        path="/nest_storage/vm-id/autounattend.img",
                         ok=True,
                     ),
                     MediaCleanupStep(
                         kind="answer",
                         action="delete",
-                        basename="vm1-autounattend.img",
-                        target="nest-work",
-                        path="/data/nest-work/answer-media/vm1-autounattend.img",
+                        basename="autounattend.img",
+                        target="nest_storage",
+                        path="/nest_storage/vm-id/autounattend.img",
                         ok=True,
                     ),
                 ]

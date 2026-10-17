@@ -1,9 +1,9 @@
 # ADR-0035: Nest install media lifecycle (durable hatch-work + post-ready cleanup)
 
-- **Status:** Accepted
+- **Status:** Accepted (answer media **path** layout superseded by [ADR-0036](0036-pre-mint-vm-uuid-nest-storage.md) / [#587](https://github.com/dustinestes/Hatchery/issues/587); cleanup section timing and WARN-continue remain)
 - **Date:** 2026-10-17
 - **Issues:** [#144](https://github.com/dustinestes/Hatchery/issues/144)
-- **Related:** [ADR-0007](0007-library-nest-content-planes.md), [ADR-0024](0024-answer-files-product-model.md), [ADR-0032](0032-guest-environment-ensure-job.md), [#215](https://github.com/dustinestes/Hatchery/issues/215)
+- **Related:** [ADR-0007](0007-library-nest-content-planes.md), [ADR-0024](0024-answer-files-product-model.md), [ADR-0032](0032-guest-environment-ensure-job.md), [ADR-0036](0036-pre-mint-vm-uuid-nest-storage.md), [#215](https://github.com/dustinestes/Hatchery/issues/215), [#587](https://github.com/dustinestes/Hatchery/issues/587)
 
 ## Context
 
@@ -11,13 +11,12 @@ Hatch attaches OS install ISO, optional VirtIO CD, and silent answer media (libv
 
 ## Decision
 
-1. **Durable answer media path:** Rendered answer media lives under Nest cache
-   `{nest_cache}/nest-work/answer-media/{vm_name}-autounattend.{img|iso}`.
-   For a local Nest, operator `data_dir` is Nest cache (ADR-0007). Do not use system temp.
-   Remote Nest uses the same relative path on the Nest cache once ensure/copy (#215) lands.
-   Ownership-prefixed ids: Nest registry / provider field **`nest_cache`** (content root).
-   Guest disk roots are **`nest_storage`** ([#538](https://github.com/dustinestes/Hatchery/issues/538));
-   do not reuse bare `storage_path` / `cache_root` for Nest-owned paths.
+1. **Durable answer media path:** Originally
+   `{nest_cache}/nest-work/answer-media/{vm_name}-autounattend.{img|iso}` (#144).
+   **Successor layout ([ADR-0036](0036-pre-mint-vm-uuid-nest-storage.md)):** 
+   `{nest_storage}/{vm_id}/autounattend.{img|iso}` colocated with `disk.qcow2|vhdx`.
+   Do not use system temp. Do not store answer media under `nest_cache`.
+   Ownership-prefixed ids: **`nest_cache`** (content root) vs **`nest_storage`** (per-VM Nest files).
 
 2. **Cleanup section:** After `hatchery-ready` and guest SSH authorize succeed, and **before**
    Ending Windows setup → guest environment / fledged, run a Nest-plane section

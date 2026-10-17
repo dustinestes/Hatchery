@@ -193,8 +193,8 @@ def get_vm_record(session_id: str, vm_name: str) -> dict | None:
     conn = db.get_connection()
     try:
         row = conn.execute(
-            """SELECT vm_name, status, started_at, fledged_at, admin_username, admin_password,
-                      guest_os
+            """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, admin_username,
+                      admin_password, guest_os
                FROM hatch_vm_status WHERE session_id=? AND vm_name=?""",
             (session_id, vm_name),
         ).fetchone()
