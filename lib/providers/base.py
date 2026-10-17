@@ -27,14 +27,14 @@ class MediaCleanupStep:
 def resolve_nest_storage_root(
     *,
     nest_storage: Path | str | None = None,
-    clutch_storage_path: Path | str | None = None,
     provider_default: Path | str | None = None,
 ) -> Path | None:
-    """Resolve Nest VM file root: nest_storage → Clutch storage_path → provider default.
+    """Resolve Nest VM file root: nest_storage → provider default (#600).
 
     Never falls back to Controller ``data_dir`` / ``nest_cache`` (#587).
+    Clutch ``storage_path`` is no longer a resolve input.
     """
-    for raw in (nest_storage, clutch_storage_path, provider_default):
+    for raw in (nest_storage, provider_default):
         if raw is None:
             continue
         text = str(raw).strip()
@@ -106,7 +106,6 @@ class BaseProvider(ABC):
         *,
         admin_password: str | None = None,
         vm_id: str | None = None,
-        storage_path: str | None = None,
     ) -> Path | None:
         """Render and pack Answer File media for Nest attach, or None if not required.
 
@@ -138,13 +137,13 @@ class BaseProvider(ABC):
         self,
         config: VMConfig,
         admin_password: str | None = None,
-        storage_path: str | None = None,
         vm_id: str | None = None,
     ) -> None:
         """Hatch a new VM from the given configuration.
 
         ``vm_id`` is a pre-minted UUID used as Nest storage directory name and
         hypervisor domain identity when the provider supports it (#587).
+        Disk root resolves Nest ``nest_storage`` → provider default (#600).
         """
 
     @abstractmethod

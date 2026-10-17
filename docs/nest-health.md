@@ -42,7 +42,7 @@ Module: [`lib/nest_health.py`](../../lib/nest_health.py).
 |---|---|
 | **`nest_storage`** | Guest VM disk roots on the Nest (`{nest_storage}/{vm_id}/`) - Nest detail tile; primary path in Nest `extra.nest_storage` |
 | **`nest_cache`** | Library / media / automation content root ([#215](https://github.com/dustinestes/Hatchery/issues/215)) |
-| Clutch **`storage_path`** | Legacy hatch fallback when Nest volumes are unset |
+| Provider default storage | Hatch fallback when Nest volumes are unset (libvirt pool path / Hyper-V VHD path) - not Clutch YAML ([#600](https://github.com/dustinestes/Hatchery/issues/600)) |
 
 Free-space status on Nest storage rows: Connected / Disconnected / Warn / Error (text + non-color cue). Warn when free space is low; Error when too low to safely hatch (preflight consumption: [#50](https://github.com/dustinestes/Hatchery/issues/50)).
 
