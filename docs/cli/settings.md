@@ -46,7 +46,7 @@ uv run hatchery settings set library_enabled true
 | `nest_ssh_identities` | JSON list | Tracked Nest SSH identities (legacy/alert use) |
 | `library_enabled` | bool | Same tokens as `show_passwords`; also `library enable\|disable` |
 
-**Not** Settings CLI keys: bootstrap `data_dir` (use `--data-dir` / serve), runtime `nest_reachability_status`, meta `_settings_rev`. Product meaning: [settings.md](../settings.md).
+**Not** Settings CLI keys: bootstrap `data_dir` (use `--data-dir` / serve), runtime `nest_reachability_status` / `nest_health_status`, meta `_settings_rev`. Product meaning: [settings.md](../settings.md).
 
 Shared writer: `lib.settings_io.set_exportable_setting` (also used by product convenience verbs such as `library enable`).
 

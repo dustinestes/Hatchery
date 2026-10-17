@@ -162,14 +162,17 @@ class TestConnectionConfig:
         nests_lib.ensure_local_nest()
         cfg = nests_lib.to_connection_config(nests_lib.get_nest("local"))
         assert cfg.location == "local"
-        with patch(
-            "lib.requirements.check_nest",
-            return_value=[],
+        with (
+            patch("lib.requirements.check_nest", return_value=[]),
+            patch(
+                "lib.nest_health._gather_resources_local",
+                return_value={"cpu": None, "memory": None, "disks": []},
+            ),
         ):
             nests_lib.ensure_local_nest()
             result = nests_lib.test_connection(nests_lib.get_nest("local"))
         assert result["ok"] is True
-        assert "capability" in result["message"].lower()
+        assert "nest health" in result["message"].lower()
 
     def test_draft_failure_skips_snapshot_and_alerts(self):
         """Unsaved Nest rows must not write reachability status or Alerts (#283)."""
@@ -204,8 +207,8 @@ class TestConnectionConfig:
         record.assert_not_called()
         sync_alert.assert_not_called()
 
-    def test_saved_failure_updates_snapshot_not_alerts(self):
-        """Saved Nest Test failure updates snapshot; validators open Alerts (#283)."""
+    def test_saved_failure_updates_snapshot_and_alerts(self):
+        """Saved Nest Health failure updates snapshot and syncs reachability Alerts (#538)."""
         from lib.nest_transport import NestHealthCheckResult
 
         nests_lib.ensure_local_nest()
@@ -241,7 +244,8 @@ class TestConnectionConfig:
             result = nests_lib.test_connection(nest)
         assert result["ok"] is False
         record.assert_called_once()
-        sync_alert.assert_not_called()
+        # Nest Health ad-hoc syncs reachability Alerts from the gate (#538).
+        sync_alert.assert_called_once()
 
     def test_saved_success_resolves_reachability_alert(self):
         """Saved Nest Test success updates snapshot and resolves Alerts (#283)."""
@@ -272,7 +276,10 @@ class TestConnectionConfig:
             patch("lib.nest_reachability.record_probe") as record,
             patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
             patch("lib.requirements.check_nest", return_value=[]),
-            patch("lib.validators.scheduler.run_validator", return_value=None),
+            patch(
+                "lib.nest_health._gather_resources",
+                return_value={"cpu": None, "memory": None, "disks": []},
+            ),
         ):
             result = nests_lib.test_connection(nest)
         assert result["ok"] is True

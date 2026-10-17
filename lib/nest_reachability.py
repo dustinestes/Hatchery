@@ -281,13 +281,28 @@ def sync_alert_for_probe(nest: dict, result: NestHealthCheckResult) -> None:
     alerts_lib.record_alert(alert_message(nest, detail))
 
 
+def record_last_run(*, checked: int, down: int) -> None:
+    """Update reachability snapshot last_run counters (Nest Health / probes)."""
+    snap = get_snapshot()
+    snap["last_run"] = {
+        "checked": int(checked),
+        "down": int(down),
+        "at": _utc_now(),
+    }
+    _save_snapshot(snap)
+
+
 def run_probes(
     *,
     nest_id: str | None = None,
     winrm_password: str | None = None,
     sync_alerts: bool = True,
 ) -> dict[str, Any]:
-    """Probe one Nest or all registered Nests; update snapshot and optional Alerts."""
+    """Probe one Nest or all registered Nests; update snapshot and optional Alerts.
+
+    Prefer ``lib.nest_health.run_health`` / Nest Health validator for scheduled
+    gathers (#538). This remains for direct reachability-only callers.
+    """
     rows = nests_lib.list_nests()
     if nest_id:
         rows = [n for n in rows if n.get("id") == nest_id]
@@ -310,14 +325,8 @@ def run_probes(
         checked += 1
         if not result.ok:
             down += 1
-    snap = get_snapshot()
-    snap["last_run"] = {
-        "checked": checked,
-        "down": down,
-        "at": _utc_now(),
-    }
-    _save_snapshot(snap)
-    return snap
+    record_last_run(checked=checked, down=down)
+    return get_snapshot()
 
 
 def prune_removed_nests(kept_ids: set[str]) -> None:

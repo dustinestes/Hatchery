@@ -25,7 +25,7 @@ _SESSION_STATUSES = ("in_progress", "completed", "failed", "degraded", "unknown"
 # Empty tuple with label "not implemented" = placeholder until a validator exists.
 # Alerts / Validators tiles omit stamps (no domain validator; max-of-all is noise).
 _TILE_VALIDATORS: dict[str, tuple[str, ...]] = {
-    "nests": ("nest_reachability", "nest_capability", "nest_key_expiry"),
+    "nests": ("nest_health", "nest_reachability", "nest_capability", "nest_key_expiry"),
     "clutches": ("clutch_files",),
     "library": ("library_connections", "library_cache_drift"),
 }

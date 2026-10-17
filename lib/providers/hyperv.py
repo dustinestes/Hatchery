@@ -63,8 +63,20 @@ _SESSION_NOTES_PREFIX = "hatchery-session:"
 
 _HYPERV_NEST_TOOLS: tuple[NestToolSpec, ...] = (
     NestToolSpec(
+        name="Hyper-V",
+        required_for="Hyper-V Nest role / hypervisor",
+        packages={"windows": "Hyper-V"},
+        check="hyperv_feature",
+    ),
+    NestToolSpec(
+        name="Hyper-V PowerShell",
+        required_for="Hyper-V management cmdlets (Get-VM, New-VM, and related)",
+        packages={"windows": "Hyper-V-PowerShell"},
+        check="hyperv_module",
+    ),
+    NestToolSpec(
         name="Get-VM",
-        required_for="Hyper-V VM lifecycle operations",
+        required_for="Hyper-V VM lifecycle smoke (cmdlet available)",
         packages={"windows": "Hyper-V"},
         check="hyperv_get_vm",
     ),

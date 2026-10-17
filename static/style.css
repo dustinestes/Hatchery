@@ -3078,6 +3078,27 @@ html.sidebar-collapsed-init .topbar-name {
 .nest-status-dot--green { background: #4CAF50; }
 .nest-status-dot--amber { background: #D97706; }
 .nest-status-dot--red   { background: #E53935; }
+
+/* Nest storage status pills (same chrome as .script-status; label is authoritative). */
+.script-status.nest-storage-status--ok {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+.script-status.nest-storage-status--warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #b45309;
+}
+.script-status.nest-storage-status--error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+.script-status.nest-storage-status--off {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+:root[data-theme="dark"] .script-status.nest-storage-status--ok { color: #4ade80; }
+:root[data-theme="dark"] .script-status.nest-storage-status--warn { color: #fbbf24; }
+:root[data-theme="dark"] .script-status.nest-storage-status--error { color: #f87171; }
 .nest-status-dot--muted {
   background: var(--color-text-muted);
   opacity: 0.4;
@@ -4032,7 +4053,61 @@ html.sidebar-collapsed-init .topbar-name {
 /* Nest detail: Clutch | Status | VMs | Hatched | Session */
 .nest-session-cols,
 .nest-session-row {
+  display: grid;
   grid-template-columns: minmax(140px, 2fr) 90px minmax(100px, 2fr) 110px 80px;
+  gap: 8px;
+  align-items: center;
+  min-width: 32rem;
+}
+
+.nest-session-cols > *,
+.nest-session-row > * {
+  min-width: 0;
+}
+
+/* Nest detail Storage: Path | Disk | Free | Status | Actions (scripts-tile shape) */
+.nest-storage-cols,
+.nest-storage-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 2fr) 70px minmax(90px, 1fr) 90px minmax(72px, auto);
+  gap: 8px;
+  align-items: center;
+  min-width: 36rem;
+}
+
+.nest-storage-cols > *,
+.nest-storage-row > * {
+  /* Override grid default min-width:auto so long cells ellipsis instead of overlap. */
+  min-width: 0;
+}
+
+.nest-storage-row .script-col-actions {
+  overflow: visible;
+}
+
+/* Nest detail Prerequisites: Tool | Status | Required for | Hint */
+.nest-prereq-cols,
+.nest-prereq-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 88px minmax(180px, 2.6fr) minmax(140px, 2fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 40rem;
+}
+
+.nest-prereq-cols > *,
+.nest-prereq-row > * {
+  min-width: 0;
+}
+
+.nest-prereq-row .script-col-required-for,
+.nest-prereq-row .script-col-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .script-cols-header {

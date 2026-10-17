@@ -237,7 +237,7 @@ class TestValidatorsSummary:
             finished_at="2026-09-20T16:00:00Z",
         )
         record_run(
-            validator_id="nest_reachability",
+            validator_id="nest_health",
             status="findings",
             message="down",
             findings_count=2,

@@ -23,15 +23,18 @@ def test_guest_health_reachable_via_ssh():
         patch("lib.guest_health.check_winrm", return_value=False),
     ):
         result = gh.guest_health(provider, "vm1")
-    assert result == {
-        "ip": "10.0.0.2",
-        "ssh": True,
-        "winrm": False,
-        "reachable": True,
-    }
+    assert result["ip"] == "10.0.0.2"
+    assert result["ssh"] is True
+    assert result["winrm"] is False
+    assert result["reachable"] is True
+    assert result["gate"]["ok"] is True
+    assert result["deeper_ran"] is True
 
 
 def test_guest_health_no_ip():
     provider = MagicMock()
     provider.get_vm_ip.return_value = None
-    assert gh.guest_health(provider, "vm1")["reachable"] is False
+    result = gh.guest_health(provider, "vm1")
+    assert result["reachable"] is False
+    assert result["gate"]["ok"] is False
+    assert result["deeper_ran"] is False

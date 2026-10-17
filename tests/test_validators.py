@@ -39,12 +39,20 @@ class TestRegistry:
         assert "nest_key_expiry" in ids
         assert "remoting_identities" in ids
         assert "nest_reachability" in ids
+        assert "nest_health" in ids
         assert "library_connections" in ids
 
-    def test_nest_reachability_active(self):
+    def test_nest_health_active(self):
+        v = get_validator("nest_health")
+        assert v is not None
+        assert getattr(v, "stub", False) is False
+        assert v.default_enabled is True
+
+    def test_nest_reachability_delegates_and_defaults_off(self):
         v = get_validator("nest_reachability")
         assert v is not None
         assert getattr(v, "stub", False) is False
+        assert v.default_enabled is False
 
     def test_library_connections_active(self):
         v = get_validator("library_connections")
@@ -332,7 +340,7 @@ class TestNestReachability:
             ),
         ):
             ctx = ValidatorContext(trigger="manual")
-            summary = get_validator("nest_reachability").run(ctx)
+            summary = get_validator("nest_health").run(ctx)
         from lib import alerts as alerts_lib
 
         assert "unreachable" in summary.lower()
@@ -363,6 +371,11 @@ class TestNestReachability:
                 "lib.nest_reachability.probe_nest",
                 return_value=NestHealthCheckResult(ok=True, detail="OK"),
             ),
+            patch(
+                "lib.nest_health._gather_resources",
+                return_value={"cpu": None, "memory": None, "disks": []},
+            ),
+            patch("lib.requirements.check_nest", return_value=[]),
         ):
             get_validator("nest_reachability").run(ValidatorContext(trigger="manual"))
         assert alerts_lib.count_active_alerts() == 0
