@@ -24,15 +24,63 @@ class MediaCleanupStep:
     error: str | None = None
 
 
-def answer_media_dir(nest_cache: Path) -> Path:
-    """Nest-cache directory for rendered answer media (not system temp)."""
-    return Path(nest_cache) / "nest-work" / "answer-media"
+def resolve_nest_storage_root(
+    *,
+    nest_storage: Path | str | None = None,
+    clutch_storage_path: Path | str | None = None,
+    provider_default: Path | str | None = None,
+) -> Path | None:
+    """Resolve Nest VM file root: nest_storage → Clutch storage_path → provider default.
+
+    Never falls back to Controller ``data_dir`` / ``nest_cache`` (#587).
+    """
+    for raw in (nest_storage, clutch_storage_path, provider_default):
+        if raw is None:
+            continue
+        text = str(raw).strip()
+        if text:
+            return Path(text)
+    return None
 
 
-def answer_media_path(nest_cache: Path, vm_name: str, suffix: str) -> Path:
-    """Path for ``{vm_name}-autounattend.{img|iso}`` under Nest cache."""
+def vm_nest_dir(storage_root: Path, vm_id: str) -> Path:
+    """Per-VM Nest directory ``{nest_storage}/{vm_id}/``."""
+    return Path(storage_root) / str(vm_id)
+
+
+def answer_media_path(vm_dir: Path, suffix: str) -> Path:
+    """Path for ``autounattend.{img|iso}`` under a VM Nest directory (#587)."""
     ext = suffix if suffix.startswith(".") else f".{suffix}"
-    return answer_media_dir(nest_cache) / f"{vm_name}-autounattend{ext}"
+    return Path(vm_dir) / f"autounattend{ext}"
+
+
+def vm_disk_path(vm_dir: Path, suffix: str) -> Path:
+    """Path for ``disk.{qcow2|vhdx}`` under a VM Nest directory."""
+    ext = suffix if suffix.startswith(".") else f".{suffix}"
+    return Path(vm_dir) / f"disk{ext}"
+
+
+def legacy_answer_media_path(nest_cache: Path, vm_name: str, suffix: str) -> Path:
+    """Pre-#587 path under ``nest_cache/nest-work/answer-media/`` (cleanup only)."""
+    ext = suffix if suffix.startswith(".") else f".{suffix}"
+    return Path(nest_cache) / "nest-work" / "answer-media" / f"{vm_name}-autounattend{ext}"
+
+
+def rmdir_if_empty(path: Path) -> bool:
+    """Remove ``path`` when it exists and is an empty directory. Return True if removed."""
+    try:
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+            return True
+    except OSError:
+        return False
+    return False
+
+
+def is_answer_media_basename(basename: str) -> bool:
+    """True when a disk basename looks like Hatchery answer media."""
+    lower = (basename or "").lower()
+    return lower in {"autounattend.img", "autounattend.iso"} or "autounattend" in lower
 
 
 class BaseProvider(ABC):
@@ -57,6 +105,8 @@ class BaseProvider(ABC):
         config: VMConfig,
         *,
         admin_password: str | None = None,
+        vm_id: str | None = None,
+        storage_path: str | None = None,
     ) -> Path | None:
         """Render and pack Answer File media for Nest attach, or None if not required.
 
@@ -89,8 +139,13 @@ class BaseProvider(ABC):
         config: VMConfig,
         admin_password: str | None = None,
         storage_path: str | None = None,
+        vm_id: str | None = None,
     ) -> None:
-        """Hatch a new VM from the given configuration."""
+        """Hatch a new VM from the given configuration.
+
+        ``vm_id`` is a pre-minted UUID used as Nest storage directory name and
+        hypervisor domain identity when the provider supports it (#587).
+        """
 
     @abstractmethod
     def list_vms(self) -> list[dict]:

@@ -64,6 +64,11 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     provider_type = nest["provider_type"]
     location = nest["location"]
 
+    # Optional Nest nest_storage until first-class registry field (#538).
+    extra = nest.get("extra") if isinstance(nest.get("extra"), dict) else {}
+    nest_storage_raw = (extra or {}).get("nest_storage")
+    nest_storage = Path(str(nest_storage_raw)) if nest_storage_raw else None
+
     if provider_type == "libvirt":
         if location == "remote":
             raise UnsupportedProviderError(
@@ -75,6 +80,7 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
             virtio_dir=data / "media" / "virtio",
             automation_dir=data / "automation" / "answerfiles",
             nest_cache=data,
+            nest_storage=nest_storage,
         )
 
     if provider_type == "hyperv":
@@ -94,6 +100,7 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
             virtio_dir=data / "media" / "virtio",
             automation_dir=data / "automation" / "answerfiles",
             nest_cache=data,
+            nest_storage=nest_storage,
         )
 
     raise UnsupportedProviderError(

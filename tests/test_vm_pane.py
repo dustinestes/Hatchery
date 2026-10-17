@@ -34,6 +34,8 @@ def test_list_enriched_vms_marks_hatchery_sourced(client):
         {"name": "foreign", "status": "shut off"},
     ]
     prov.get_vm_ip.return_value = None
+    prov.get_vm_uuid.return_value = None
+    prov.nest_storage = None
 
     def _tag(name):
         if name == "hatched":
@@ -48,6 +50,33 @@ def test_list_enriched_vms_marks_hatchery_sourced(client):
     assert by_name["hatched"]["hatchery_sourced"] is True
     assert by_name["foreign"]["hatchery_sourced"] is False
     assert "resources" not in by_name["hatched"]
+    assert "vm_id" in by_name["hatched"]
+    assert "nest_storage_path" in by_name["hatched"]
+
+
+def test_list_enriched_vms_includes_vm_id_and_nest_storage(client, tmp_path):
+    from lib import hatch as hatch_lib
+    from lib import vm_inventory as inv
+
+    storage = tmp_path / "nest_storage"
+    storage.mkdir()
+    sid = hatch_lib.create_session("lab.yaml", "Lab", nest="local")
+    hatch_lib.add_vm(sid, "dc01", guest_os="windows")
+    vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    hatch_lib.set_vm_uuid(sid, "dc01", vm_id)
+
+    prov = MagicMock()
+    prov.list_vms.return_value = [{"name": "dc01", "status": "running"}]
+    prov.get_vm_ip.return_value = None
+    prov.get_vm_session_tag.return_value = {"session_id": sid, "clutch_file": "lab.yaml"}
+    prov.get_vm_uuid.return_value = vm_id
+    prov.nest_storage = storage
+    prov._provider_default_storage_root = lambda: None
+
+    with patch("lib.vm_inventory.get_provider", return_value=prov):
+        rows = inv.list_enriched_vms("local")
+    assert rows[0]["vm_id"] == vm_id
+    assert rows[0]["nest_storage_path"] == str(storage / vm_id)
 
 
 def test_list_enriched_vms_prefers_clutch_snapshot(client, tmp_path, monkeypatch):
@@ -105,6 +134,8 @@ def test_list_enriched_vms_prefers_clutch_snapshot(client, tmp_path, monkeypatch
     prov = MagicMock()
     prov.list_vms.return_value = [{"name": "dc01", "status": "running"}]
     prov.get_vm_ip.return_value = None
+    prov.get_vm_uuid.return_value = None
+    prov.nest_storage = None
     prov.get_vm_session_tag.return_value = {"session_id": sid, "clutch_file": "lab.yaml"}
 
     with patch("lib.vm_inventory.get_provider", return_value=prov):
@@ -135,6 +166,8 @@ def test_api_vms_and_mutate(client):
         prov = MagicMock()
         prov.list_vms.return_value = [{"name": "dc01", "status": "running"}]
         prov.get_vm_ip.return_value = None
+        prov.get_vm_uuid.return_value = None
+        prov.nest_storage = None
         prov.get_vm_session_tag.return_value = None
         mock_get.return_value = prov
         resp = client.get("/api/vms")
@@ -143,6 +176,7 @@ def test_api_vms_and_mutate(client):
         assert "vms" in data
         assert data["vms"][0]["hatchery_sourced"] is False
         assert "resources" not in data["vms"][0]
+
 
     with patch("lib.vm_ops.get_provider") as mock_ops:
         mock_ops.return_value = MagicMock()
@@ -177,6 +211,8 @@ def test_list_enriched_vms_all_nests_skips_unreachable_transport(client):
     local_prov = MagicMock()
     local_prov.list_vms.return_value = [{"name": "ok-vm", "status": "running"}]
     local_prov.get_vm_ip.return_value = None
+    local_prov.get_vm_uuid.return_value = None
+    local_prov.nest_storage = None
     local_prov.get_vm_session_tag.return_value = None
 
     bad_prov = MagicMock()
@@ -351,6 +387,10 @@ def test_vms_detail_markers(client):
     assert 'id="vms-events-filter-limit"' in html
     assert 'id="vms-events-status"' in html
     assert ">Component</th>" in html
+    assert "field('UUID'" in html or "field(\"UUID\"" in html
+    assert "field('Nest storage'" in html or 'field("Nest storage"' in html
+    assert "vm.vm_id" in html
+    assert "vm.nest_storage_path" in html
     assert 'id="vms-events-filter-vm"' not in html
     assert "detail-section-header" in html
     assert "Notifications → Events" not in html

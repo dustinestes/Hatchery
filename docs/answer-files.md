@@ -258,7 +258,8 @@ Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific, g
 | Hyper-V | Works (local Nest) - second DVD/ISO with Autounattend + companions; remote Planned (#215) |
 | UTM | Planned / N/A depending on guest |
 
-Rendered answer media is stored under Nest cache `nest-work/answer-media/` (not system temp).
+Rendered answer media is stored under `{nest_storage}/{vm_id}/autounattend.{img|iso}`
+(not system temp, not `nest_cache`; see [ADR-0036](adr/0036-pre-mint-vm-uuid-nest-storage.md)).
 After first-boot (`hatchery-ready`), Nest-plane **install media cleanup** detaches install and
 answer media ([#144](https://github.com/dustinestes/Hatchery/issues/144) /
 [ADR-0035](adr/0035-nest-install-media-lifecycle.md)).

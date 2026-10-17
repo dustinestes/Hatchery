@@ -10,8 +10,10 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import shutil
 import subprocess
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
@@ -23,9 +25,19 @@ from lib.providers.base import (
     BaseProvider,
     MediaCleanupStep,
     answer_media_path,
+    is_answer_media_basename,
+    legacy_answer_media_path,
+    resolve_nest_storage_root,
+    rmdir_if_empty,
+    vm_disk_path,
+    vm_nest_dir,
 )
 from lib.requirements import NestToolSpec
 from lib.run_cmd import format_process_error, run_cmd
+
+_UUID_DIR_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 _JSON_MARKER = "HATCHERY_JSON:"
 
@@ -136,6 +148,7 @@ class HyperVProvider(BaseProvider):
         virtio_dir: Path | str | None = None,
         automation_dir: Path | str | None = None,
         nest_cache: Path | str | None = None,
+        nest_storage: Path | str | None = None,
     ) -> None:
         self.nest_id = nest_id
         self._transport = transport
@@ -149,10 +162,56 @@ class HyperVProvider(BaseProvider):
             self.nest_cache = self.iso_dir.parent.parent
         else:
             self.nest_cache = Path()
+        self.nest_storage = Path(nest_storage) if nest_storage is not None else None
 
     @classmethod
     def nest_tool_specs(cls) -> list[NestToolSpec]:
         return list(_HYPERV_NEST_TOOLS)
+
+    def _query_default_vhd_path(self) -> Path | None:
+        """Return Hyper-V host VirtualHardDiskPath when queryable."""
+        try:
+            data = self._run_json(
+                f"""
+$path = (Get-VMHost).VirtualHardDiskPath
+Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
+  Path = [string]$path
+}}) -Compress))
+"""
+            )
+        except RuntimeError:
+            return None
+        if not isinstance(data, dict):
+            return None
+        raw = str(data.get("Path") or "").strip()
+        return Path(raw) if raw else None
+
+    def resolve_storage_root(self, clutch_storage_path: str | None = None) -> Path:
+        root = resolve_nest_storage_root(
+            nest_storage=self.nest_storage,
+            clutch_storage_path=clutch_storage_path,
+            provider_default=None,
+        )
+        if root is None:
+            root = self._query_default_vhd_path()
+        if root is None:
+            raise ValueError(
+                "Nest storage root is required for VM disk and answer media (#587). "
+                "Set Clutch storage_path, or Nest nest_storage when available (#538)."
+            )
+        if not root.is_dir():
+            raise FileNotFoundError(
+                f"Storage path does not exist: {root}\n"
+                "Create the directory before hatching, or set Clutch storage_path / Nest "
+                "nest_storage to an existing Nest directory."
+            )
+        return root
+
+    def _vm_dir_for(self, vm_id: str, clutch_storage_path: str | None = None) -> Path:
+        root = self.resolve_storage_root(clutch_storage_path)
+        path = vm_nest_dir(root, vm_id)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     # ── PowerShell execution ──────────────────────────────────────────────────
 
@@ -234,21 +293,21 @@ class HyperVProvider(BaseProvider):
             )
         return resolved
 
-    def _answer_iso_path(self, vm_name: str) -> Path:
-        path = answer_media_path(self.nest_cache, vm_name, ".iso")
+    def _answer_iso_path(self, vm_dir: Path) -> Path:
+        path = answer_media_path(vm_dir, ".iso")
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
     def _create_answer_iso(
         self,
         xml_content: str,
-        vm_name: str,
+        vm_dir: Path,
         companions: list[tuple[str, str]] | None = None,
     ) -> Path:
         """Pack Autounattend.xml + companions into a Joliet ISO for Hyper-V DVD attach."""
         import pycdlib
 
-        iso_path = self._answer_iso_path(vm_name)
+        iso_path = self._answer_iso_path(vm_dir)
         iso = pycdlib.PyCdlib()
         iso.new(interchange_level=3, joliet=3)
         used: set[str] = set()
@@ -280,6 +339,8 @@ class HyperVProvider(BaseProvider):
         config: VMConfig,
         *,
         admin_password: str | None = None,
+        vm_id: str | None = None,
+        storage_path: str | None = None,
     ) -> Path | None:
         """Render the user Answer File and pack Autounattend + companions onto an ISO."""
         if not answerfile_lib.requires_answer_file(config.os):
@@ -290,6 +351,8 @@ class HyperVProvider(BaseProvider):
                 f"'{config.name}'. Select an Answer File on the Clutch "
                 "before hatching."
             )
+        resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
+        vm_dir = self._vm_dir_for(resolved_id, storage_path)
         answer_src = self._resolve_automation(config.answer_file)
         xml, companion_names = answerfile_lib.render_user_answer_file(
             answer_src,
@@ -302,30 +365,29 @@ class HyperVProvider(BaseProvider):
         for name in companion_names:
             companion_path = self._resolve_automation(name)
             companions.append((name, companion_path.read_text(encoding="utf-8")))
-        return self._create_answer_iso(xml, config.name, companions)
+        return self._create_answer_iso(xml, vm_dir, companions)
 
     def create_vm(
         self,
         config: VMConfig,
         admin_password: str | None = None,
         storage_path: str | None = None,
+        vm_id: str | None = None,
     ) -> None:
         if self._transport is not None:
             raise RuntimeError(
                 "Hyper-V hatch on a Remote Nest needs Nest-local media ensure/copy (#215); "
                 "lifecycle power/snapshot ops are available over Nest transport"
             )
-        if storage_path and not Path(storage_path).is_dir():
-            raise FileNotFoundError(
-                f"Storage path does not exist: {storage_path}\n"
-                "Create the directory before hatching, or leave storage_path unset to use the "
-                "hypervisor default."
-            )
         if config.virtio_drivers:
             raise ValueError(
                 "Hyper-V hatch does not attach VirtIO driver media yet; "
                 "omit virtio_drivers on the Clutch for this Nest"
             )
+
+        resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
+        vm_dir = self._vm_dir_for(resolved_id, storage_path)
+        disk = vm_disk_path(vm_dir, ".vhdx")
 
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         firmware = getattr(config, "firmware", None)
@@ -341,13 +403,18 @@ class HyperVProvider(BaseProvider):
 
         answer_iso: Path | None = None
         try:
-            answer_iso = self.prepare_answer_file_media(config, admin_password=admin_password)
+            answer_iso = self.prepare_answer_file_media(
+                config,
+                admin_password=admin_password,
+                vm_id=resolved_id,
+                storage_path=storage_path,
+            )
             self._ack(
                 self._build_create_script(
                     config,
                     os_media=os_media,
                     answer_iso=answer_iso,
-                    storage_path=storage_path,
+                    disk_path=disk,
                     generation=generation,
                     tpm=tpm,
                 ),
@@ -356,6 +423,7 @@ class HyperVProvider(BaseProvider):
         except Exception:
             if answer_iso and answer_iso.exists():
                 answer_iso.unlink()
+            rmdir_if_empty(vm_dir)
             raise
 
     def _build_create_script(
@@ -364,7 +432,7 @@ class HyperVProvider(BaseProvider):
         *,
         os_media: Path,
         answer_iso: Path | None,
-        storage_path: str | None,
+        disk_path: Path,
         generation: int,
         tpm: bool,
     ) -> str:
@@ -373,13 +441,7 @@ class HyperVProvider(BaseProvider):
         mem = int(config.ram_gb) * 1024 * 1024 * 1024
         disk_bytes = int(config.disk_gb) * 1024 * 1024 * 1024
         vcpus = int(config.vcpus)
-        if storage_path:
-            vhd_dir = _ps_quote(str(Path(storage_path)))
-            vhd_expr = f"(Join-Path {vhd_dir} '{config.name}.vhdx')"
-        else:
-            vhd_expr = (
-                f"(Join-Path (Get-VMHost).VirtualHardDiskPath {_ps_quote(config.name + '.vhdx')})"
-            )
+        vhd_expr = _ps_quote(str(disk_path))
         answer_line = ""
         if answer_iso is not None:
             answer_line = f"Add-VMDvdDrive -VMName {name_q} -Path {_ps_quote(str(answer_iso))}\n"
@@ -413,16 +475,22 @@ if ($dvd -and {generation} -eq 2) {{
 Start-VM -Name {name_q}
 """
 
-    def create_command_description(self, config: VMConfig, storage_path: str | None = None) -> str:
+    def create_command_description(
+        self,
+        config: VMConfig,
+        storage_path: str | None = None,
+        vm_id: str | None = None,
+    ) -> str:
         os_media = Path(config.os_media)
         if not os_media.is_absolute():
             os_media = self.iso_dir / config.os_media
         gen = "Gen2" if getattr(config, "firmware", None) != Firmware.BIOS else "Gen1"
-        where = storage_path or "Hyper-V default VHD path"
+        resolved_id = (vm_id or "").strip() or "<vm-uuid>"
+        where = storage_path or self.nest_storage or "Hyper-V default VHD path"
         return (
             f"Hyper-V New-VM '{config.name}' ({gen}, {config.vcpus} vCPU, "
             f"{config.ram_gb}GB RAM, {config.disk_gb}GB disk, ISO {os_media}, "
-            f"storage {where})"
+            f"storage {where}/{resolved_id})"
         )
 
     # ── Inventory ─────────────────────────────────────────────────────────────
@@ -483,17 +551,12 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
             return None
         path = Path(source)
         basename = path.name
+        if is_answer_media_basename(basename):
+            return ("answer", basename)
         try:
             resolved = path.resolve()
         except OSError:
             resolved = path
-        answer_dir = answer_media_path(self.nest_cache, "_", ".iso").parent
-        try:
-            answer_root = answer_dir.resolve()
-        except OSError:
-            answer_root = answer_dir
-        if resolved.parent == answer_root or "autounattend" in basename.lower():
-            return ("answer", basename)
         try:
             virtio_root = self.virtio_dir.resolve()
         except OSError:
@@ -594,10 +657,11 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject $drives -Compress 
                 )
 
         if not saw_answer:
-            candidate = answer_media_path(self.nest_cache, name, ".iso")
-            if candidate.exists():
-                answer_path = candidate
-                answer_detached_ok = True
+            for candidate in self._orphan_answer_candidates(name):
+                if candidate.exists():
+                    answer_path = candidate
+                    answer_detached_ok = True
+                    break
 
         if answer_path is not None and answer_detached_ok:
             try:
@@ -608,18 +672,19 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject $drives -Compress 
                         kind="answer",
                         action="delete",
                         basename=answer_path.name,
-                        target="nest-work",
+                        target="nest_storage",
                         path=str(answer_path),
                         ok=True,
                     )
                 )
+                rmdir_if_empty(answer_path.parent)
             except Exception as exc:
                 steps.append(
                     MediaCleanupStep(
                         kind="answer",
                         action="delete",
                         basename=answer_path.name,
-                        target="nest-work",
+                        target="nest_storage",
                         path=str(answer_path),
                         ok=False,
                         error=str(exc),
@@ -627,7 +692,32 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject $drives -Compress 
                 )
         return steps
 
+    def _storage_roots_to_scan(self) -> list[Path]:
+        roots: list[Path] = []
+        if self.nest_storage is not None:
+            roots.append(self.nest_storage)
+        default = self._query_default_vhd_path()
+        if default is not None and default not in roots:
+            roots.append(default)
+        return roots
+
+    def _orphan_answer_candidates(self, name: str) -> list[Path]:
+        out: list[Path] = []
+        try:
+            uid = self.get_vm_uuid(name)
+        except Exception:
+            uid = None
+        if uid:
+            for root in self._storage_roots_to_scan():
+                out.append(answer_media_path(vm_nest_dir(root, uid), ".iso"))
+        out.append(legacy_answer_media_path(self.nest_cache, name, ".iso"))
+        return out
+
     def destroy_vm(self, name: str) -> None:
+        try:
+            vm_id = self.get_vm_uuid(name)
+        except Exception:
+            vm_id = None
         q = _ps_quote(name)
         self._ack(
             f"""
@@ -643,9 +733,25 @@ foreach ($p in $paths) {{
 """,
             timeout=120,
         )
-        answer_iso = answer_media_path(self.nest_cache, name, ".iso")
-        if answer_iso.exists():
-            answer_iso.unlink()
+        if vm_id:
+            for root in self._storage_roots_to_scan():
+                vm_dir = vm_nest_dir(root, vm_id)
+                for path in (
+                    answer_media_path(vm_dir, ".iso"),
+                    vm_disk_path(vm_dir, ".vhdx"),
+                ):
+                    if path.exists():
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
+                rmdir_if_empty(vm_dir)
+        legacy = legacy_answer_media_path(self.nest_cache, name, ".iso")
+        if legacy.exists():
+            try:
+                legacy.unlink()
+            except OSError:
+                pass
 
     # ── Snapshots (checkpoints) ───────────────────────────────────────────────
 
@@ -699,13 +805,16 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{ Ip = $ip }}) 
         return str(ip) if ip else None
 
     def get_vm_uuid(self, name: str) -> str | None:
+        """Return Nest storage vm_id from disk path parent when present, else Hyper-V Id."""
         q = _ps_quote(name)
         try:
             data = self._run_json(
                 f"""
 $vm = Get-VM -Name {q} -ErrorAction Stop
+$disk = Get-VMHardDiskDrive -VMName {q} | Select-Object -First 1
 Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
   Id = $vm.Id.Guid
+  DiskPath = if ($disk) {{ [string]$disk.Path }} else {{ $null }}
 }}) -Compress))
 """
             )
@@ -713,6 +822,11 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
             return None
         if not isinstance(data, dict):
             return None
+        disk_path = str(data.get("DiskPath") or "").strip()
+        if disk_path:
+            parent = Path(disk_path).parent.name
+            if _UUID_DIR_RE.match(parent):
+                return parent
         uid = data.get("Id")
         return str(uid) if uid else None
 
@@ -721,7 +835,11 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
         try:
             data = self._run_json(
                 f"""
-$vm = Get-VM | Where-Object {{ $_.Id.Guid -eq {q} }} | Select-Object -First 1
+$vm = Get-VM | Where-Object {{
+  $_.Id.Guid -eq {q} -or
+  @(Get-VMHardDiskDrive -VMName $_.Name -ErrorAction SilentlyContinue |
+    Where-Object {{ $_.Path -and ($_.Path -like ('*' + {q} + '*')) }}).Count -gt 0
+}} | Select-Object -First 1
 $name = if ($vm) {{ $vm.Name }} else {{ $null }}
 Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
   Name = $name

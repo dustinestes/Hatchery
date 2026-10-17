@@ -615,6 +615,8 @@
     const user = vm.admin_username ? esc(vm.admin_username) : muted('—');
     detailFields.innerHTML = [
       field('Nest', esc(vm.nest || nest)),
+      field('UUID', vm.vm_id ? esc(vm.vm_id) : muted('—')),
+      field('Nest storage', vm.nest_storage_path ? esc(vm.nest_storage_path) : muted('—')),
       field('IP Address', ip),
       field('Guest OS', os),
       field('Firmware', firmware),

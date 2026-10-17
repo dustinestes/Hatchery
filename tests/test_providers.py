@@ -185,11 +185,18 @@ def provider(tmp_path):
     iso_dir = tmp_path / "media" / "iso"
     virtio_dir = tmp_path / "media" / "virtio"
     automation = tmp_path / "automation"
+    nest_storage = tmp_path / "nest_storage"
     iso_dir.mkdir(parents=True)
     virtio_dir.mkdir(parents=True)
     automation.mkdir()
+    nest_storage.mkdir()
     (automation / "default.xml.j2").write_text("<Autounattend/>\n", encoding="utf-8")
-    return LibvirtProvider(iso_dir=iso_dir, virtio_dir=virtio_dir, automation_dir=automation)
+    return LibvirtProvider(
+        iso_dir=iso_dir,
+        virtio_dir=virtio_dir,
+        automation_dir=automation,
+        nest_storage=nest_storage,
+    )
 
 
 def _vm(**kwargs) -> VMConfig:
@@ -210,13 +217,19 @@ class TestCreateVM:
         iso = provider.iso_dir / "win11.iso"
         iso.touch()
         vm = _vm(name="test-vm", os="windows", vcpus=2, ram_gb=4, disk_gb=40, os_media="win11.iso")
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm)
+            provider.create_vm(vm, vm_id=vm_id)
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "virt-install"
         assert "--name" in cmd
         assert "test-vm" in cmd
+        assert "--uuid" in cmd
+        assert cmd[cmd.index("--uuid") + 1] == vm_id
+        disk_arg = [a for a in cmd if a.startswith("path=") and "disk.qcow2" in a][0]
+        assert vm_id in disk_arg
+        assert "disk.qcow2" in disk_arg
 
     def test_sets_memory_from_ram_gb(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
@@ -439,11 +452,16 @@ class TestCreateVM:
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
                 provider.create_vm(vm, admin_password="secret")
-        xml_arg, _vm_name, companions = mock_img.call_args[0]
+        xml_arg, vm_dir, companions = mock_img.call_args[0]
         assert "alice" in xml_arg
         assert "secret" in xml_arg
         assert "en-GB" in xml_arg
         assert companions == [("hatchery-setup-windows.ps1", "Enable-PSRemoting -Force\n")]
+        assert (
+            vm_dir
+            == provider.nest_storage
+            / mock_run.call_args[0][0][mock_run.call_args[0][0].index("--uuid") + 1]
+        )
         cmd = mock_run.call_args[0][0]
         assert any("floppy" in arg for arg in cmd)
 
@@ -482,9 +500,10 @@ class TestCreateVM:
                 mock_run.return_value = MagicMock(returncode=0)
                 provider.create_vm(vm, admin_password=None)
         mock_img.assert_called_once()
-        xml_arg, _vm_name, companions = mock_img.call_args[0]
+        xml_arg, vm_dir, companions = mock_img.call_args[0]
         assert companions == []
         assert "<Autounattend/>" in xml_arg
+        assert vm_dir.parent == provider.nest_storage
 
 
 class TestAnswerFileAttachCapability:
@@ -585,7 +604,8 @@ class TestPowerState:
             cwd=None,
         )
 
-    def test_destroy_vm(self, provider):
+    def test_destroy_vm(self, provider, monkeypatch):
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
         with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.destroy_vm("myvm")
         mock_run.assert_called_once_with(
@@ -596,17 +616,24 @@ class TestPowerState:
             cwd=None,
         )
 
-    def test_destroy_vm_removes_floppy_if_present(self, tmp_path, provider, monkeypatch):
-        monkeypatch.setattr(provider, "_floppy_path", lambda name: tmp_path / f"{name}.img")
-        floppy = tmp_path / "myvm.img"
-        floppy.touch()
+    def test_destroy_vm_removes_answer_media_if_present(self, tmp_path, provider, monkeypatch):
+        from lib.providers.base import answer_media_path, vm_nest_dir
+
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        vm_dir = vm_nest_dir(provider.nest_storage, vm_id)
+        vm_dir.mkdir(parents=True)
+        answer = answer_media_path(vm_dir, ".img")
+        answer.write_bytes(b"x")
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: vm_id)
         with patch("subprocess.run", return_value=self._ok()):
             provider.destroy_vm("myvm")
-        assert not floppy.exists()
+        assert not answer.exists()
+        assert not vm_dir.exists()
 
-    def test_destroy_vm_noop_when_no_floppy(self, provider):
+    def test_destroy_vm_noop_when_no_answer_media(self, provider, monkeypatch):
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
         with patch("subprocess.run", return_value=self._ok()):
-            provider.destroy_vm("myvm")  # no floppy file — should not raise
+            provider.destroy_vm("myvm")  # no answer file - should not raise
 
 
 # ── Inventory ─────────────────────────────────────────────────────────────────
@@ -1032,71 +1059,87 @@ class TestStoragePath:
     def _skip_access_check(self, monkeypatch):
         monkeypatch.setattr("lib.providers.libvirt._check_media_accessible", lambda _: None)
 
-    def test_uses_pool_when_no_storage_path(self, provider):
+    def test_uses_nest_storage_vm_dir_by_default(self, provider):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm)
+            provider.create_vm(vm, vm_id=vm_id)
         cmd = " ".join(mock_run.call_args[0][0])
-        assert "pool=default" in cmd
-        assert "path=" not in cmd.split("--disk")[1].split("--disk")[0]
+        assert "pool=" not in cmd
+        assert str(provider.nest_storage) in cmd
+        assert vm_id in cmd
+        assert "disk.qcow2" in cmd
 
-    def test_uses_path_when_storage_path_set(self, provider, tmp_path):
+    def test_clutch_storage_path_used_when_no_nest_storage(self, provider, tmp_path, monkeypatch):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
         storage = tmp_path / "vms"
         storage.mkdir()
+        monkeypatch.setattr(provider, "nest_storage", None)
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm, storage_path=str(storage))
+            provider.create_vm(vm, storage_path=str(storage), vm_id=vm_id)
         cmd = " ".join(mock_run.call_args[0][0])
         assert "pool=" not in cmd
         assert str(storage) in cmd
-        assert "vm.qcow2" in cmd
+        assert vm_id in cmd
+        assert "disk.qcow2" in cmd
 
-    def test_disk_path_includes_vm_name(self, provider, tmp_path):
+    def test_disk_path_uses_vm_id_not_name(self, provider, tmp_path):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        storage = tmp_path / "vms"
-        storage.mkdir()
         vm = _vm(name="myvm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        vm_id = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm, storage_path=str(storage))
+            provider.create_vm(vm, vm_id=vm_id)
         cmd = " ".join(mock_run.call_args[0][0])
-        assert "myvm.qcow2" in cmd
+        assert "myvm.qcow2" not in cmd
+        assert f"{vm_id}/disk.qcow2" in cmd.replace("\\", "/")
 
     def test_disk_size_preserved_with_storage_path(self, provider, tmp_path):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        storage = tmp_path / "vms"
-        storage.mkdir()
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=80, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm, storage_path=str(storage))
+            provider.create_vm(vm)
         cmd = " ".join(mock_run.call_args[0][0])
         assert "size=80" in cmd
 
-    def test_missing_storage_path_raises_before_virt_install(self, provider, tmp_path):
+    def test_missing_storage_path_raises_before_virt_install(self, provider, tmp_path, monkeypatch):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        monkeypatch.setattr(provider, "nest_storage", None)
+        monkeypatch.setattr(provider, "_provider_default_storage_root", lambda: None)
+        vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
             with pytest.raises(FileNotFoundError, match="Storage path does not exist"):
                 provider.create_vm(vm, storage_path="/nonexistent/path")
         mock_run.assert_not_called()
 
-    def test_create_command_description_uses_storage_path(self, provider, tmp_path):
+    def test_create_command_description_uses_clutch_storage_path(
+        self, provider, tmp_path, monkeypatch
+    ):
+        storage = tmp_path / "mnt" / "nvme" / "vms"
+        storage.mkdir(parents=True)
+        monkeypatch.setattr(provider, "nest_storage", None)
         vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
-        desc = provider.create_command_description(vm, storage_path="/mnt/nvme/vms")
-        assert "/mnt/nvme/vms" in desc
+        desc = provider.create_command_description(
+            vm, storage_path=str(storage), vm_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        )
+        assert str(storage) in desc
+        assert "disk.qcow2" in desc
         assert "pool=" not in desc
 
-    def test_create_command_description_uses_pool_without_storage_path(self, provider):
+    def test_create_command_description_uses_nest_storage_without_clutch_path(self, provider):
         vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
-        desc = provider.create_command_description(vm)
-        assert "pool=default" in desc
+        desc = provider.create_command_description(vm, vm_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert str(provider.nest_storage) in desc
+        assert "disk.qcow2" in desc
+        assert "pool=" not in desc

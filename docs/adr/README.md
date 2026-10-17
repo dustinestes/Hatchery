@@ -79,7 +79,8 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0032](0032-guest-environment-ensure-job.md) | Guest environment ensure as one hatch job block | Accepted |
 | [0033](0033-software-online-command-only.md) | Online / command-only Software packages (guest HTTPS / winget) | Accepted |
 | [0034](0034-script-param-discover-dont-invent.md) | Script parameters - discover, don't invent (typed Clutch fields) | Accepted |
-| [0035](0035-nest-install-media-lifecycle.md) | Nest install media lifecycle (durable hatch-work + post-ready cleanup) | Accepted |
+| [0035](0035-nest-install-media-lifecycle.md) | Nest install media lifecycle (durable hatch-work + post-ready cleanup) | Accepted (path layout superseded by [0036](0036-pre-mint-vm-uuid-nest-storage.md)) |
+| [0036](0036-pre-mint-vm-uuid-nest-storage.md) | Pre-mint VM UUID and nest_storage/{vm_id} colocation | Accepted |
 
 <br>
 

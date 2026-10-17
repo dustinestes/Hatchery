@@ -126,10 +126,12 @@ class TestPower:
         assert "Suspend-VM -Name 'vm1'" in joined
         assert "Resume-VM -Name 'vm1'" in joined
 
-    def test_destroy_removes_disks(self, provider, scripts):
+    def test_destroy_removes_disks(self, provider, scripts, monkeypatch):
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
         provider.destroy_vm("old")
-        assert "Remove-VM -Name 'old' -Force" in scripts[0]
-        assert "Remove-Item" in scripts[0]
+        joined = "\n".join(scripts)
+        assert "Remove-VM -Name 'old' -Force" in joined
+        assert "Remove-Item" in joined
 
 
 class TestSnapshots:
@@ -239,13 +241,16 @@ class TestHatch:
     def test_create_vm_local_script(self, tmp_path, scripts):
         iso_dir = tmp_path / "media" / "iso"
         auto_dir = tmp_path / "automation" / "answerfiles"
+        storage = tmp_path / "nest_storage"
         iso_dir.mkdir(parents=True)
         auto_dir.mkdir(parents=True)
+        storage.mkdir(parents=True)
         (iso_dir / "win11.iso").write_bytes(b"iso")
         (auto_dir / "win11.xml").write_text(
             "<unattend>{{ vm_name }}{{ admin_username }}{{ admin_password }}</unattend>",
             encoding="utf-8",
         )
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
         def runner(script: str) -> str:
             scripts.append(script)
@@ -256,6 +261,7 @@ class TestHatch:
             runner=runner,
             iso_dir=iso_dir,
             automation_dir=auto_dir,
+            nest_storage=storage,
         )
         vm = VMConfig(
             name="labvm",
@@ -268,7 +274,7 @@ class TestHatch:
             firmware="uefi",
             tpm=True,
         )
-        p.create_vm(vm, admin_password="Secret1!")
+        p.create_vm(vm, admin_password="Secret1!", vm_id=vm_id)
         joined = "\n".join(scripts)
         assert "New-VM -Name 'labvm'" in joined
         assert "New-VHD" in joined
@@ -277,20 +283,26 @@ class TestHatch:
         assert "Add-VMDvdDrive" in joined
         assert "win11.iso" in joined
         assert "autounattend.iso" in joined
+        assert vm_id in joined
+        assert "disk.vhdx" in joined
         assert "Start-VM -Name 'labvm'" in joined
-        assert p._answer_iso_path("labvm").exists()
+        assert p._answer_iso_path(storage / vm_id).exists()
 
     def test_prepare_answer_iso(self, tmp_path):
         auto_dir = tmp_path / "automation"
+        storage = tmp_path / "nest_storage"
         auto_dir.mkdir()
+        storage.mkdir()
         (auto_dir / "win11.xml").write_text(
             "<unattend>{{ vm_name }}</unattend>",
             encoding="utf-8",
         )
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         p = HyperVProvider(
             "hv1",
             automation_dir=auto_dir,
             nest_cache=tmp_path,
+            nest_storage=storage,
             runner=lambda s: _json_line({"ok": True}),
         )
         vm = VMConfig(
@@ -302,11 +314,12 @@ class TestHatch:
             os_media="win11.iso",
             answer_file="win11.xml",
         )
-        path = p.prepare_answer_file_media(vm, admin_password="x")
+        path = p.prepare_answer_file_media(vm, admin_password="x", vm_id=vm_id)
         assert path is not None
         assert path.suffix == ".iso"
         assert path.exists()
-        assert path.parent == tmp_path / "nest-work" / "answer-media"
+        assert path.parent == storage / vm_id
+        assert path.name == "autounattend.iso"
         path.unlink()
 
     def test_virtio_rejected(self, tmp_path, scripts):
