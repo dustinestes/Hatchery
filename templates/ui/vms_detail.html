@@ -197,7 +197,17 @@
           <option value="all">All</option>
         </select>
       </div>
+      <div class="form-group notif-filter-field">
+        <label class="form-label" for="vms-events-filter-limit">Limit</label>
+        <select id="vms-events-filter-limit" class="form-select" aria-controls="vms-events-table"
+                aria-label="Rows to show">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
     </div>
+    <p class="events-pager-status" id="vms-events-status" aria-live="polite">Showing 0 of 0 (newest first)</p>
     <div class="list-shell-body events-console-body">
       <div id="vms-events-empty" class="detail-section-empty" role="status" hidden>No events for this VM yet.</div>
       <table class="notif-table" id="vms-events-table" hidden>
@@ -207,6 +217,7 @@
             <th scope="col">Level</th>
             <th scope="col">Context</th>
             <th scope="col">Script</th>
+            <th scope="col">Component</th>
             <th scope="col">Message</th>
           </tr>
         </thead>
@@ -259,9 +270,11 @@
   const eventsTable = document.getElementById('vms-events-table');
   const eventsTbody = document.getElementById('vms-events-tbody');
   const eventsRefresh = document.getElementById('vms-events-refresh');
+  const eventsStatus = document.getElementById('vms-events-status');
   const eventsFilterQ = document.getElementById('vms-events-filter-q');
   const eventsFilterLevel = document.getElementById('vms-events-filter-level');
   const eventsFilterScope = document.getElementById('vms-events-filter-scope');
+  const eventsFilterLimit = document.getElementById('vms-events-filter-limit');
   const modalBackdrop = document.getElementById('vms-modal-backdrop');
   const modalTitle = document.getElementById('vms-modal-title');
   const modalMessage = document.getElementById('vms-modal-message');
@@ -792,7 +805,7 @@
       levelTd.className = 'events-level events-level--' + level.toLowerCase();
       levelTd.textContent = level;
       tr.appendChild(levelTd);
-      ['context', 'script_name', 'message'].forEach(function (key) {
+      ['context', 'script_name', 'component', 'message'].forEach(function (key) {
         const td = document.createElement('td');
         if (key === 'message') td.className = 'notif-table-msg';
         td.textContent = ev[key] || '—';
@@ -805,7 +818,9 @@
   function fetchEvents() {
     const params = new URLSearchParams();
     params.set('vm', name);
-    params.set('limit', '100');
+    const limitRaw = eventsFilterLimit ? eventsFilterLimit.value : '100';
+    const limit = ['50', '100', '200'].includes(limitRaw) ? limitRaw : '100';
+    params.set('limit', limit);
     params.set('offset', '0');
     params.set('scope', eventsFilterScope.value || 'active');
     const q = (eventsFilterQ.value || '').trim();
@@ -822,10 +837,19 @@
         return r.json();
       })
       .then(function (data) {
-        renderEvents(data.events || []);
+        const events = data.events || [];
+        const total = typeof data.total === 'number' ? data.total : events.length;
+        renderEvents(events);
+        if (eventsStatus) {
+          eventsStatus.textContent =
+            'Showing ' + events.length + ' of ' + total + ' (newest first)';
+        }
         eventsRefresh.textContent = 'Updated ' + new Date().toLocaleTimeString();
       })
       .catch(function () {
+        if (eventsStatus) {
+          eventsStatus.textContent = 'Showing 0 of 0 (newest first)';
+        }
         eventsRefresh.textContent = 'Refresh failed';
       });
   }
@@ -838,6 +862,9 @@
   eventsFilterQ.addEventListener('input', debounceFetchEvents);
   eventsFilterLevel.addEventListener('change', fetchEvents);
   eventsFilterScope.addEventListener('change', fetchEvents);
+  if (eventsFilterLimit) {
+    eventsFilterLimit.addEventListener('change', fetchEvents);
+  }
 
   detailActions.addEventListener('click', function (ev) {
     const btn = ev.target.closest('[data-vm-action]');

@@ -276,6 +276,13 @@ Each row includes `session_id`, `vm_name`, and `clutch_name`. `scope=active`
 limits to non-archived sessions; `scope=all` includes archived session rows
 that still remain (archived sessions normally delete child events on archive).
 
+Sticky VM detail Events tile (#585) uses the global console API with `vm=`
+scoped to the open guest: Limit control (50 / 100 / 200), status line
+`Showing N of total (newest first)`, and columns Time / Level / Context /
+Script / Component / Message (console parity for VM-scoped columns; omits
+VM / Session). Spacing follows the detail tile stack gap (no extra top
+margin on the Events tile).
+
 Per-VM transcript (sticky VM detail / automation):
 
 ```
