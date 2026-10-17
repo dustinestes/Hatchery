@@ -65,7 +65,7 @@ From the manage page:
 
 From the manage page:
 1. Click **Destroy**
-2. Hatchery stops the VM, undefines it from libvirt, and removes the disk image
+2. Hatchery force-stops the VM if needed, undefines it (including UEFI NVRAM / TPM state on libvirt), and removes Nest storage leftovers
 
 This is irreversible - make a nest first if you want a recovery point.
 

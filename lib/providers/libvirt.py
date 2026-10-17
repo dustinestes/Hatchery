@@ -622,21 +622,89 @@ class LibvirtProvider(BaseProvider):
             roots.append(default)
         return roots
 
-    def _cleanup_nest_storage_after_destroy(self, name: str, vm_id: str | None) -> None:
-        """Delete answer/disk leftovers and empty VM dir after undefine."""
-        if vm_id:
+    def _domain_disk_source_paths(self, name: str) -> list[Path]:
+        """Return file-backed disk source paths from domain XML (before undefine)."""
+        result = run_cmd(
+            ["virsh", "dumpxml", name],
+            check=False,
+            echo_failure=False,
+        )
+        xml = (result.stdout or "").strip()
+        if not xml:
+            return []
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError:
+            return []
+        out: list[Path] = []
+        for disk in root.findall("./devices/disk"):
+            source = disk.find("source")
+            if source is None:
+                continue
+            file_attr = source.get("file")
+            if file_attr:
+                out.append(Path(file_attr))
+        return out
+
+    def _collect_destroy_vm_dirs(self, name: str, vm_id: str | None) -> list[Path]:
+        """Nest VM dirs to clean after Destroy.
+
+        Disks may live under Clutch ``storage_path`` rather than Nest
+        ``nest_storage`` / the libvirt default pool (#592). Prefer parents of
+        domain ``disk.qcow2`` / ``autounattend.img``, plus ``{root}/{vm_id}``
+        under known storage roots.
+        """
+        dirs: list[Path] = []
+        alias = (vm_id or "").strip() or None
+        for src in self._domain_disk_source_paths(name):
+            parent = src.parent
+            if src.name in {"disk.qcow2", "autounattend.img"} or (
+                alias is not None and parent.name == alias
+            ):
+                if parent not in dirs:
+                    dirs.append(parent)
+        if alias:
             for root in self._storage_roots_to_scan():
-                vm_dir = vm_nest_dir(root, vm_id)
-                for path in (
-                    answer_media_path(vm_dir, ".img"),
-                    vm_disk_path(vm_dir, ".qcow2"),
-                ):
-                    if path.exists():
-                        try:
-                            path.unlink()
-                        except OSError:
-                            pass
-                rmdir_if_empty(vm_dir)
+                candidate = vm_nest_dir(root, alias)
+                if candidate not in dirs:
+                    dirs.append(candidate)
+        return dirs
+
+    def _cleanup_vm_nest_dir(self, vm_dir: Path) -> None:
+        """Remove Nest VM dir leftovers (disk/answer) and the dir when empty."""
+        if not vm_dir.is_dir():
+            return
+        for path in (
+            answer_media_path(vm_dir, ".img"),
+            vm_disk_path(vm_dir, ".qcow2"),
+        ):
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+        # Virsh --remove-all-storage may already have deleted the disk, leaving
+        # an empty uuid dir (or only stray files). Clear remaining files then
+        # remove the directory.
+        try:
+            for child in list(vm_dir.iterdir()):
+                if child.is_file() or child.is_symlink():
+                    try:
+                        child.unlink()
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+        rmdir_if_empty(vm_dir)
+
+    def _cleanup_nest_storage_after_destroy(
+        self,
+        name: str,
+        vm_dirs: list[Path],
+    ) -> None:
+        """Delete Nest VM dir leftovers after undefine (#592 / ADR-0036)."""
+        for vm_dir in vm_dirs:
+            self._cleanup_vm_nest_dir(vm_dir)
         legacy = legacy_answer_media_path(self.nest_cache, name, ".img")
         if legacy.exists():
             try:
@@ -662,12 +730,32 @@ class LibvirtProvider(BaseProvider):
         run_cmd(["virsh", "resume", name])
 
     def destroy_vm(self, name: str) -> None:
+        """Undefine the domain and remove Nest storage leftovers (#592).
+
+        UEFI guests keep an NVRAM vars file (and often swtpm state). ``virsh
+        undefine`` without ``--nvram`` / ``--tpm`` fails with ``cannot undefine
+        domain with nvram`` even after Force Stop. Undefine also requires an
+        inactive domain, so best-effort ``virsh destroy`` runs first.
+        """
         try:
             vm_id = self.get_vm_uuid(name)
         except Exception:
             vm_id = None
-        run_cmd(["virsh", "undefine", name, "--remove-all-storage"])
-        self._cleanup_nest_storage_after_destroy(name, vm_id)
+        # Capture Nest VM dirs from domain XML before undefine drops the domain.
+        vm_dirs = self._collect_destroy_vm_dirs(name, vm_id)
+        # Inactive domain required for --remove-all-storage / undefine.
+        run_cmd(["virsh", "destroy", name], check=False, echo_failure=False)
+        run_cmd(
+            [
+                "virsh",
+                "undefine",
+                name,
+                "--remove-all-storage",
+                "--nvram",
+                "--tpm",
+            ]
+        )
+        self._cleanup_nest_storage_after_destroy(name, vm_dirs)
 
     # ── Inventory ─────────────────────────────────────────────────────────────
 

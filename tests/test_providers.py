@@ -608,13 +608,37 @@ class TestPowerState:
         monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
         with patch("subprocess.run", return_value=self._ok()) as mock_run:
             provider.destroy_vm("myvm")
-        mock_run.assert_called_once_with(
-            ["virsh", "undefine", "myvm", "--remove-all-storage"],
-            capture_output=True,
-            text=True,
-            env=None,
-            cwd=None,
+        calls = [c.args[0] for c in mock_run.call_args_list]
+        assert ["virsh", "destroy", "myvm"] in calls
+        assert [
+            "virsh",
+            "undefine",
+            "myvm",
+            "--remove-all-storage",
+            "--nvram",
+            "--tpm",
+        ] in calls
+
+    def test_destroy_vm_force_off_failure_still_undefines(self, provider, monkeypatch):
+        """Already shut-off domains fail ``virsh destroy``; undefine must continue (#592)."""
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
+        destroy_fail = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="error: domain is not running\n",
         )
+        undefine_ok = self._ok()
+
+        def side_effect(cmd, **kwargs):
+            if cmd[:2] == ["virsh", "destroy"]:
+                return destroy_fail
+            return undefine_ok
+
+        with patch("subprocess.run", side_effect=side_effect) as mock_run:
+            provider.destroy_vm("myvm")
+        calls = [c.args[0] for c in mock_run.call_args_list]
+        assert ["virsh", "destroy", "myvm"] in calls
+        assert any(c[:3] == ["virsh", "undefine", "myvm"] and "--nvram" in c for c in calls)
 
     def test_destroy_vm_removes_answer_media_if_present(self, tmp_path, provider, monkeypatch):
         from lib.providers.base import answer_media_path, vm_nest_dir
@@ -628,6 +652,35 @@ class TestPowerState:
         with patch("subprocess.run", return_value=self._ok()):
             provider.destroy_vm("myvm")
         assert not answer.exists()
+        assert not vm_dir.exists()
+
+    def test_destroy_vm_removes_clutch_storage_uuid_dir(self, tmp_path, provider, monkeypatch):
+        """Clutch storage_path VM dirs are not always Nest nest_storage (#592)."""
+        from lib.providers.base import vm_disk_path, vm_nest_dir
+
+        vm_id = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+        clutch_root = tmp_path / "clutch-vms"
+        vm_dir = vm_nest_dir(clutch_root, vm_id)
+        vm_dir.mkdir(parents=True)
+        disk = vm_disk_path(vm_dir, ".qcow2")
+        disk.write_bytes(b"disk")
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: vm_id)
+        # Nest registry storage unset - only domain XML reveals the clutch path.
+        monkeypatch.setattr(provider, "nest_storage", None)
+        xml = (
+            "<domain><devices>"
+            f"<disk type='file' device='disk'><source file='{disk}'/></disk>"
+            "</devices></domain>"
+        )
+
+        def side_effect(cmd, **kwargs):
+            if list(cmd)[:2] == ["virsh", "dumpxml"]:
+                return MagicMock(returncode=0, stdout=xml, stderr="")
+            return self._ok()
+
+        with patch("subprocess.run", side_effect=side_effect):
+            provider.destroy_vm("myvm")
+        assert not disk.exists()
         assert not vm_dir.exists()
 
     def test_destroy_vm_noop_when_no_answer_media(self, provider, monkeypatch):
