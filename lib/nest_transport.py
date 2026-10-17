@@ -13,8 +13,12 @@ session credentials in memory.
 
 from __future__ import annotations
 
+import logging
 import shlex
+import shutil
+import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Protocol
 
 from lib.openssh_client import (
@@ -24,11 +28,58 @@ from lib.openssh_client import (
     run_openssh,
 )
 
+log = logging.getLogger(__name__)
+
 NestTransportKind = Literal["ssh", "winrm"]
+
+# Relative to Controller data_dir (ADR-0038 / #594). Guest plane uses sibling ``guest``.
+_NEST_KNOWN_HOSTS_REL = Path("remoting") / "known_hosts" / "nest"
 
 
 class NestTransportError(RuntimeError):
     """Raised when a Nest host cannot be reached or a remote command fails."""
+
+
+def nest_known_hosts_path() -> Path:
+    """Return ``{data_dir}/remoting/known_hosts/nest``, creating parents/file."""
+    from lib import config as config_lib
+
+    path = config_lib.data_dir() / _NEST_KNOWN_HOSTS_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.touch()
+    return path
+
+
+def remove_nest_known_host(nest_id: str | None) -> None:
+    """Best-effort remove ``HostKeyAlias`` entry for Nest id from Nest trust (#594)."""
+    alias = (nest_id or "").strip()
+    if not alias:
+        return
+    path = nest_known_hosts_path()
+    if not path.is_file() or path.stat().st_size == 0:
+        return
+    ssh_keygen = shutil.which("ssh-keygen")
+    if ssh_keygen is None:
+        log.debug("ssh-keygen not on PATH; skip Nest known_hosts prune for %s", alias)
+        return
+    try:
+        subprocess.run(
+            [ssh_keygen, "-R", alias, "-f", str(path)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.debug("Nest known_hosts prune failed for %s: %s", alias, exc)
+        return
+    # ssh-keygen leaves a .old backup beside the file; drop it quietly.
+    old = path.with_name(path.name + ".old")
+    try:
+        old.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -43,6 +94,8 @@ class NestSshConfig:
     use_agent: bool = True
     known_hosts: KnownHostsPolicy = "default"
     connect_timeout_seconds: int = 10
+    # Nest registry id - HostKeyAlias so trust is keyed by Nest identity (#594).
+    host_key_alias: str | None = None
 
     def __post_init__(self) -> None:
         if not self.host or not str(self.host).strip():
@@ -140,6 +193,10 @@ class NestTransport(Protocol):
 def build_ssh_argv(config: NestSshConfig, remote_command: str) -> list[str]:
     """Build an ``ssh`` argv for a Nest host. Does not run the process."""
     try:
+        user_known_hosts_file = None
+        if config.known_hosts != "skip":
+            # Hatchery-owned Nest trust; honor Nest row known_hosts policy (#594).
+            user_known_hosts_file = str(nest_known_hosts_path())
         return _build_ssh_argv(
             host=config.host,
             user=config.user,
@@ -150,6 +207,8 @@ def build_ssh_argv(config: NestSshConfig, remote_command: str) -> list[str]:
             known_hosts=config.known_hosts,
             connect_timeout_seconds=config.connect_timeout_seconds,
             batch_mode=True,
+            user_known_hosts_file=user_known_hosts_file,
+            host_key_alias=config.host_key_alias,
         )
     except OpenSshClientError as exc:
         raise NestTransportError(str(exc)) from exc
