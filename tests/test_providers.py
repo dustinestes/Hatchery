@@ -655,7 +655,7 @@ class TestPowerState:
         assert not vm_dir.exists()
 
     def test_destroy_vm_removes_clutch_storage_uuid_dir(self, tmp_path, provider, monkeypatch):
-        """Clutch storage_path VM dirs are not always Nest nest_storage (#592)."""
+        """VM dirs outside Nest nest_storage are still cleaned from domain XML (#592)."""
         from lib.providers.base import vm_disk_path, vm_nest_dir
 
         vm_id = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
@@ -1221,10 +1221,10 @@ class TestPathResolution:
             provider._resolve_automation(str(tmp_path / "nope.xml"))
 
 
-# ── storage_path ──────────────────────────────────────────────────────────────
+# ── nest storage resolve (#600) ───────────────────────────────────────────────
 
 
-class TestStoragePath:
+class TestNestStorageResolve:
     @pytest.fixture(autouse=True)
     def _skip_access_check(self, monkeypatch):
         monkeypatch.setattr("lib.providers.libvirt._check_media_accessible", lambda _: None)
@@ -1243,20 +1243,21 @@ class TestStoragePath:
         assert vm_id in cmd
         assert "disk.qcow2" in cmd
 
-    def test_clutch_storage_path_used_when_no_nest_storage(self, provider, tmp_path, monkeypatch):
+    def test_provider_default_used_when_no_nest_storage(self, provider, tmp_path, monkeypatch):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
-        storage = tmp_path / "vms"
-        storage.mkdir()
+        default = tmp_path / "libvirt-images"
+        default.mkdir()
         monkeypatch.setattr(provider, "nest_storage", None)
+        monkeypatch.setattr(provider, "_provider_default_storage_root", lambda: default)
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            provider.create_vm(vm, storage_path=str(storage), vm_id=vm_id)
+            provider.create_vm(vm, vm_id=vm_id)
         cmd = " ".join(mock_run.call_args[0][0])
         assert "pool=" not in cmd
-        assert str(storage) in cmd
+        assert str(default) in cmd
         assert vm_id in cmd
         assert "disk.qcow2" in cmd
 
@@ -1272,7 +1273,7 @@ class TestStoragePath:
         assert "myvm.qcow2" not in cmd
         assert f"{vm_id}/disk.qcow2" in cmd.replace("\\", "/")
 
-    def test_disk_size_preserved_with_storage_path(self, provider, tmp_path):
+    def test_disk_size_preserved(self, provider, tmp_path):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=80, os_media="win10.iso")
@@ -1282,34 +1283,44 @@ class TestStoragePath:
         cmd = " ".join(mock_run.call_args[0][0])
         assert "size=80" in cmd
 
-    def test_missing_storage_path_raises_before_virt_install(self, provider, tmp_path, monkeypatch):
+    def test_missing_storage_root_raises_before_virt_install(self, provider, monkeypatch):
         iso = provider.iso_dir / "win10.iso"
         iso.touch()
         monkeypatch.setattr(provider, "nest_storage", None)
         monkeypatch.setattr(provider, "_provider_default_storage_root", lambda: None)
         vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         with patch("subprocess.run") as mock_run:
-            with pytest.raises(FileNotFoundError, match="Storage path does not exist"):
-                provider.create_vm(vm, storage_path="/nonexistent/path")
+            with pytest.raises(ValueError, match="Nest storage root is required"):
+                provider.create_vm(vm)
         mock_run.assert_not_called()
 
-    def test_create_command_description_uses_clutch_storage_path(
-        self, provider, tmp_path, monkeypatch
-    ):
-        storage = tmp_path / "mnt" / "nvme" / "vms"
-        storage.mkdir(parents=True)
-        monkeypatch.setattr(provider, "nest_storage", None)
-        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
-        desc = provider.create_command_description(
-            vm, storage_path=str(storage), vm_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        )
-        assert str(storage) in desc
-        assert "disk.qcow2" in desc
-        assert "pool=" not in desc
+    def test_nonexistent_nest_storage_raises_before_virt_install(self, provider, monkeypatch):
+        iso = provider.iso_dir / "win10.iso"
+        iso.touch()
+        monkeypatch.setattr(provider, "nest_storage", "/nonexistent/path")
+        monkeypatch.setattr(provider, "_provider_default_storage_root", lambda: None)
+        vm = _vm(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        with patch("subprocess.run") as mock_run:
+            with pytest.raises(FileNotFoundError, match="Storage path does not exist"):
+                provider.create_vm(vm)
+        mock_run.assert_not_called()
 
-    def test_create_command_description_uses_nest_storage_without_clutch_path(self, provider):
+    def test_create_command_description_uses_nest_storage(self, provider):
         vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
         desc = provider.create_command_description(vm, vm_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert str(provider.nest_storage) in desc
+        assert "disk.qcow2" in desc
+        assert "pool=" not in desc
+
+    def test_create_command_description_uses_provider_default(
+        self, provider, tmp_path, monkeypatch
+    ):
+        default = tmp_path / "mnt" / "nvme" / "vms"
+        default.mkdir(parents=True)
+        monkeypatch.setattr(provider, "nest_storage", None)
+        monkeypatch.setattr(provider, "_provider_default_storage_root", lambda: default)
+        vm = VMConfig(name="vm", os="win10", vcpus=2, ram_gb=4, disk_gb=40, os_media="win10.iso")
+        desc = provider.create_command_description(vm, vm_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert str(default) in desc
         assert "disk.qcow2" in desc
         assert "pool=" not in desc

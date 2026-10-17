@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+log = logging.getLogger(__name__)
 
 
 class GuestOS(str, Enum):
@@ -320,7 +323,6 @@ class VMConfig(BaseModel):
 class Clutch(BaseModel):
     name: str
     description: str | None = None
-    storage_path: str | None = None
     vms: list[VMConfig]
 
     @model_validator(mode="after")
@@ -411,7 +413,6 @@ def load_raw(path: str | Path) -> dict:
     return {
         "name": data.get("name", ""),
         "description": data.get("description"),
-        "storage_path": data.get("storage_path"),
         "vms": vms,
     }
 
@@ -435,6 +436,14 @@ def load(path: str | Path) -> Clutch:
 
     if not isinstance(data, dict):
         raise ValueError(f"'{path.name}' must be a YAML mapping, not {type(data).__name__}")
+
+    # Legacy Clutch storage_path ignored (#600): Nest nest_storage is SoR.
+    if data.pop("storage_path", None) is not None:
+        log.warning(
+            "Ignoring legacy Clutch storage_path in %s; set Nest nest_storage "
+            "on Nest detail instead (#600)",
+            path.name,
+        )
 
     try:
         return Clutch.model_validate(data)

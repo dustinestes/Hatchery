@@ -70,8 +70,6 @@ def _vm_from_clutch_source(
     vm_name: str,
 ):
     """Resolve VMConfig from hatch session snapshot (#514), else live Clutch file."""
-    from pathlib import Path
-
     from lib import clutch as clutch_lib
     from lib import hatch as hatch_lib
 
@@ -193,31 +191,6 @@ def _clutch_vm_create_policy(
     return out
 
 
-def _clutch_storage_path(
-    *,
-    clutch_file: str | None,
-    session_id: str | None = None,
-    vm_name: str,
-) -> str | None:
-    """Return Clutch ``storage_path`` when set (legacy hatch disk root)."""
-    from lib import clutch as clutch_lib
-
-    if session_id:
-        snap = hatch_lib.load_session_clutch(session_id)
-        if snap is not None:
-            path = getattr(snap, "storage_path", None)
-            if path:
-                return str(path)
-    if not clutch_file:
-        return None
-    path = config.data_dir() / "clutches" / Path(clutch_file).name
-    try:
-        clutch = clutch_lib.load(path)
-    except Exception:
-        return None
-    return str(clutch.storage_path) if clutch.storage_path else None
-
-
 def _as_vm_id(value: Any) -> str | None:
     """Return a string VM UUID, or None for missing/non-string values."""
     if value is None:
@@ -232,20 +205,14 @@ def _resolve_nest_storage_path(
     provider: Any,
     *,
     vm_id: str | None,
-    clutch_file: str | None,
-    session_id: str | None,
-    vm_name: str,
 ) -> str | None:
-    """Return ``{nest_storage}/{vm_id}`` when root and uuid are known (#587).
+    """Return ``{nest_storage}/{vm_id}`` when root and uuid are known (#587 / #600).
 
     Does not query Hyper-V host defaults during inventory (avoid Nest chatter).
     """
     if not vm_id:
         return None
     nest_storage = getattr(provider, "nest_storage", None)
-    clutch_storage = _clutch_storage_path(
-        clutch_file=clutch_file, session_id=session_id, vm_name=vm_name
-    )
     provider_default = None
     default_fn = getattr(provider, "_provider_default_storage_root", None)
     if callable(default_fn):
@@ -255,7 +222,6 @@ def _resolve_nest_storage_path(
             provider_default = None
     root = resolve_nest_storage_root(
         nest_storage=nest_storage,
-        clutch_storage_path=clutch_storage,
         provider_default=provider_default,
     )
     if root is None:
@@ -329,9 +295,6 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
             record["nest_storage_path"] = _resolve_nest_storage_path(
                 provider,
                 vm_id=record.get("vm_id"),
-                clutch_file=None,
-                session_id=None,
-                vm_name=name,
             )
             result.append(record)
             continue
@@ -385,9 +348,6 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
         record["nest_storage_path"] = _resolve_nest_storage_path(
             provider,
             vm_id=record.get("vm_id"),
-            clutch_file=record.get("clutch_file"),
-            session_id=record.get("session_id"),
-            vm_name=name,
         )
 
         result.append(record)

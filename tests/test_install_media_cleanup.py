@@ -88,35 +88,12 @@ def libvirt(nest_root):
 class TestNestStoragePaths:
     def test_resolve_priority(self, tmp_path):
         nest = tmp_path / "nest"
-        clutch = tmp_path / "clutch"
         default = tmp_path / "default"
         nest.mkdir()
-        clutch.mkdir()
         default.mkdir()
-        assert (
-            resolve_nest_storage_root(
-                nest_storage=nest, clutch_storage_path=clutch, provider_default=default
-            )
-            == nest
-        )
-        assert (
-            resolve_nest_storage_root(
-                nest_storage=None, clutch_storage_path=clutch, provider_default=default
-            )
-            == clutch
-        )
-        assert (
-            resolve_nest_storage_root(
-                nest_storage=None, clutch_storage_path=None, provider_default=default
-            )
-            == default
-        )
-        assert (
-            resolve_nest_storage_root(
-                nest_storage=None, clutch_storage_path=None, provider_default=None
-            )
-            is None
-        )
+        assert resolve_nest_storage_root(nest_storage=nest, provider_default=default) == nest
+        assert resolve_nest_storage_root(nest_storage=None, provider_default=default) == default
+        assert resolve_nest_storage_root(nest_storage=None, provider_default=None) is None
 
     def test_answer_under_vm_dir_not_nest_cache(self, nest_root, libvirt, monkeypatch):
         import tempfile

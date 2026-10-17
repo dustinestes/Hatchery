@@ -79,7 +79,6 @@ def run_hatch_session(
     vms: list,
     passwords: dict,
     clutch_file: str,
-    storage_path: str | None = None,
 ) -> None:
     """Create each VM sequentially and track state in DB (may run on a worker thread)."""
     session = hatch_lib.get_session(session_id)
@@ -113,9 +112,7 @@ def run_hatch_session(
             # Pre-mint VM identity for nest_storage/{vm_id}/ before create (#587).
             vm_id = str(uuid.uuid4())
             hatch_lib.set_vm_uuid(session_id, vm.name, vm_id)
-            cmd_desc = provider.create_command_description(
-                vm, storage_path=storage_path, vm_id=vm_id
-            )
+            cmd_desc = provider.create_command_description(vm, vm_id=vm_id)
             hatch_lib.add_event(session_id, vm.name, "hatchery", "INFO", f"Creating VM: {cmd_desc}")
             # Start boot key sender before create_vm so it can begin polling immediately.
             # virt-install takes a few seconds; starting concurrently maximises the chance
@@ -131,7 +128,6 @@ def run_hatch_session(
                 provider.create_vm(
                     vm,
                     admin_password=passwords[vm.name],
-                    storage_path=storage_path,
                     vm_id=vm_id,
                 )
             finally:
@@ -1026,7 +1022,7 @@ def create_and_start_hatch(
             f"Hatching clutch: {clutch_obj.name}",
         )
 
-    args = (session_id, clutch_obj.vms, passwords, clutch_file, clutch_obj.storage_path)
+    args = (session_id, clutch_obj.vms, passwords, clutch_file)
     if background:
         threading.Thread(target=run_hatch_session, args=args, daemon=True).start()
     else:

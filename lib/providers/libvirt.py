@@ -216,27 +216,26 @@ class LibvirtProvider(BaseProvider):
         candidate = Path("/var/lib/libvirt/images")
         return candidate if candidate.is_dir() else None
 
-    def resolve_storage_root(self, clutch_storage_path: str | None = None) -> Path:
+    def resolve_storage_root(self) -> Path:
         root = resolve_nest_storage_root(
             nest_storage=self.nest_storage,
-            clutch_storage_path=clutch_storage_path,
             provider_default=self._provider_default_storage_root(),
         )
         if root is None:
             raise ValueError(
                 "Nest storage root is required for VM disk and answer media (#587). "
-                "Set Clutch storage_path, or Nest nest_storage when available (#538)."
+                "Register Nest nest_storage on Nest detail (#538 / #600)."
             )
         if not root.is_dir():
             raise FileNotFoundError(
                 f"Storage path does not exist: {root}\n"
-                "Create the directory before hatching, or set Clutch storage_path / Nest "
-                "nest_storage to an existing Nest directory."
+                "Create the directory before hatching, or set Nest nest_storage "
+                "to an existing Nest directory (#600)."
             )
         return root
 
-    def _vm_dir_for(self, vm_id: str, clutch_storage_path: str | None = None) -> Path:
-        root = self.resolve_storage_root(clutch_storage_path)
+    def _vm_dir_for(self, vm_id: str) -> Path:
+        root = self.resolve_storage_root()
         path = vm_nest_dir(root, vm_id)
         path.mkdir(parents=True, exist_ok=True)
         return path
@@ -249,7 +248,6 @@ class LibvirtProvider(BaseProvider):
         *,
         admin_password: str | None = None,
         vm_id: str | None = None,
-        storage_path: str | None = None,
     ) -> Path | None:
         """Render the user Answer File and pack Autounattend + companions onto a floppy."""
         if not answerfile_lib.requires_answer_file(config.os):
@@ -261,7 +259,7 @@ class LibvirtProvider(BaseProvider):
                 "before hatching."
             )
         resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
-        vm_dir = self._vm_dir_for(resolved_id, storage_path)
+        vm_dir = self._vm_dir_for(resolved_id)
         answer_src = self._resolve_automation(config.answer_file)
         xml, companion_names = answerfile_lib.render_user_answer_file(
             answer_src,
@@ -280,11 +278,10 @@ class LibvirtProvider(BaseProvider):
         self,
         config: VMConfig,
         admin_password: str | None = None,
-        storage_path: str | None = None,
         vm_id: str | None = None,
     ) -> None:
         resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
-        vm_dir = self._vm_dir_for(resolved_id, storage_path)
+        vm_dir = self._vm_dir_for(resolved_id)
 
         os_media = self._resolve_media(config.os_media, self.iso_dir)
         virtio = (
@@ -305,7 +302,6 @@ class LibvirtProvider(BaseProvider):
                 config,
                 admin_password=admin_password,
                 vm_id=resolved_id,
-                storage_path=storage_path,
             )
             if answer_img:
                 cmd += ["--disk", f"path={answer_img},device=floppy,format=raw"]
@@ -371,7 +367,6 @@ class LibvirtProvider(BaseProvider):
     def create_command_description(
         self,
         config: VMConfig,
-        storage_path: str | None = None,
         vm_id: str | None = None,
     ) -> str:
         """Return the virt-install command that will be used to create this VM."""
@@ -384,7 +379,7 @@ class LibvirtProvider(BaseProvider):
             virtio = vp if vp.is_absolute() else self.virtio_dir / config.virtio_drivers
         resolved_id = (vm_id or "").strip() or "<vm-uuid>"
         try:
-            root = self.resolve_storage_root(storage_path)
+            root = self.resolve_storage_root()
             vm_dir = vm_nest_dir(root, resolved_id if vm_id else "_pending_")
         except (ValueError, FileNotFoundError):
             vm_dir = Path("<nest_storage>") / resolved_id
@@ -709,10 +704,10 @@ class LibvirtProvider(BaseProvider):
     def _collect_destroy_vm_dirs(self, name: str, vm_id: str | None) -> list[Path]:
         """Nest VM dirs to clean after Destroy.
 
-        Disks may live under Clutch ``storage_path`` rather than Nest
-        ``nest_storage`` / the libvirt default pool (#592). Prefer parents of
-        domain ``disk.qcow2`` / ``autounattend.img``, plus ``{root}/{vm_id}``
-        under known storage roots.
+        Disks may live under a former Clutch path or Nest ``nest_storage`` /
+        the libvirt default pool (#592 / #600). Prefer parents of domain
+        ``disk.qcow2`` / ``autounattend.img``, plus ``{root}/{vm_id}`` under
+        known storage roots.
         """
         dirs: list[Path] = []
         alias = (vm_id or "").strip() or None

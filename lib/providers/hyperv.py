@@ -198,10 +198,9 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
         raw = str(data.get("Path") or "").strip()
         return Path(raw) if raw else None
 
-    def resolve_storage_root(self, clutch_storage_path: str | None = None) -> Path:
+    def resolve_storage_root(self) -> Path:
         root = resolve_nest_storage_root(
             nest_storage=self.nest_storage,
-            clutch_storage_path=clutch_storage_path,
             provider_default=None,
         )
         if root is None:
@@ -209,18 +208,18 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
         if root is None:
             raise ValueError(
                 "Nest storage root is required for VM disk and answer media (#587). "
-                "Set Clutch storage_path, or Nest nest_storage when available (#538)."
+                "Register Nest nest_storage on Nest detail (#538 / #600)."
             )
         if not root.is_dir():
             raise FileNotFoundError(
                 f"Storage path does not exist: {root}\n"
-                "Create the directory before hatching, or set Clutch storage_path / Nest "
-                "nest_storage to an existing Nest directory."
+                "Create the directory before hatching, or set Nest nest_storage "
+                "to an existing Nest directory (#600)."
             )
         return root
 
-    def _vm_dir_for(self, vm_id: str, clutch_storage_path: str | None = None) -> Path:
-        root = self.resolve_storage_root(clutch_storage_path)
+    def _vm_dir_for(self, vm_id: str) -> Path:
+        root = self.resolve_storage_root()
         path = vm_nest_dir(root, vm_id)
         path.mkdir(parents=True, exist_ok=True)
         return path
@@ -352,7 +351,6 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
         *,
         admin_password: str | None = None,
         vm_id: str | None = None,
-        storage_path: str | None = None,
     ) -> Path | None:
         """Render the user Answer File and pack Autounattend + companions onto an ISO."""
         if not answerfile_lib.requires_answer_file(config.os):
@@ -364,7 +362,7 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
                 "before hatching."
             )
         resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
-        vm_dir = self._vm_dir_for(resolved_id, storage_path)
+        vm_dir = self._vm_dir_for(resolved_id)
         answer_src = self._resolve_automation(config.answer_file)
         xml, companion_names = answerfile_lib.render_user_answer_file(
             answer_src,
@@ -383,7 +381,6 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
         self,
         config: VMConfig,
         admin_password: str | None = None,
-        storage_path: str | None = None,
         vm_id: str | None = None,
     ) -> None:
         if self._transport is not None:
@@ -398,7 +395,7 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
             )
 
         resolved_id = (vm_id or "").strip() or str(uuid.uuid4())
-        vm_dir = self._vm_dir_for(resolved_id, storage_path)
+        vm_dir = self._vm_dir_for(resolved_id)
         disk = vm_disk_path(vm_dir, ".vhdx")
 
         os_media = self._resolve_media(config.os_media, self.iso_dir)
@@ -419,7 +416,6 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
                 config,
                 admin_password=admin_password,
                 vm_id=resolved_id,
-                storage_path=storage_path,
             )
             self._ack(
                 self._build_create_script(
@@ -490,7 +486,6 @@ Start-VM -Name {name_q}
     def create_command_description(
         self,
         config: VMConfig,
-        storage_path: str | None = None,
         vm_id: str | None = None,
     ) -> str:
         os_media = Path(config.os_media)
@@ -498,7 +493,7 @@ Start-VM -Name {name_q}
             os_media = self.iso_dir / config.os_media
         gen = "Gen2" if getattr(config, "firmware", None) != Firmware.BIOS else "Gen1"
         resolved_id = (vm_id or "").strip() or "<vm-uuid>"
-        where = storage_path or self.nest_storage or "Hyper-V default VHD path"
+        where = self.nest_storage or "Hyper-V default VHD path"
         return (
             f"Hyper-V New-VM '{config.name}' ({gen}, {config.vcpus} vCPU, "
             f"{config.ram_gb}GB RAM, {config.disk_gb}GB disk, ISO {os_media}, "

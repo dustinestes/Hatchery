@@ -2809,11 +2809,9 @@ def build_post():
     if not clutch_name:
         clutch_name = filename
 
-    storage_path = request.form.get("storage_path", "").strip() or None
-
     try:
         vms = _vm_list_from_form(request.form)
-        c = clutch_lib.Clutch(name=clutch_name, storage_path=storage_path, vms=vms)
+        c = clutch_lib.Clutch(name=clutch_name, vms=vms)
     except ValidationError as exc:
         msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
         return _rerender("; ".join(msgs))
@@ -2852,18 +2850,15 @@ def edit():
 
     form_error = None
     form_name = ""
-    form_storage_path = ""
     try:
         clutch_obj = _load_clutch(filename)
         form_name = clutch_obj.name
-        form_storage_path = clutch_obj.storage_path or ""
     except FileNotFoundError:
         return redirect(url_for("clutches"))
     except Exception as exc:
         try:
             raw = clutch_lib.load_raw(config.data_dir() / "clutches" / _Path(filename).name)
             form_name = raw["name"]
-            form_storage_path = raw.get("storage_path") or ""
             form_error = str(exc)
         except Exception:
             return redirect(url_for("clutches"))
@@ -2873,7 +2868,6 @@ def edit():
         "edit.html",
         form_error=form_error,
         form_name=form_name,
-        form_storage_path=form_storage_path,
         form_filename=current_stem,
         current_filename=filename,
         **_build_template_ctx(page_title="Edit Clutch"),
@@ -2899,7 +2893,6 @@ def edit_post():
             form_error=error,
             form_name=new_name,
             form_filename=new_filename_raw,
-            form_storage_path=request.form.get("storage_path", "").strip(),
             current_filename=old_filename,
             form_vms=_vm_dicts_from_form(request.form),
             **ctx,
@@ -2914,11 +2907,9 @@ def edit_post():
     if not new_name:
         new_name = _Path(new_filename).stem
 
-    storage_path = request.form.get("storage_path", "").strip() or None
-
     try:
         vms = _vm_list_from_form(request.form)
-        c = clutch_lib.Clutch(name=new_name, storage_path=storage_path, vms=vms)
+        c = clutch_lib.Clutch(name=new_name, vms=vms)
     except ValidationError as exc:
         msgs = [e["msg"].removeprefix("Value error, ") for e in exc.errors()]
         return _rerender("; ".join(msgs))
