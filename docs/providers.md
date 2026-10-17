@@ -64,6 +64,8 @@ Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.m
 
 Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local libvirt). Operator CLI: `hatchery vm pause|resume` ([#424](https://github.com/dustinestes/Hatchery/issues/424)). UI wiring: VMs pane (#418).
 
+Libvirt **Destroy** best-effort force-stops the domain, then `virsh undefine --remove-all-storage --nvram --tpm` so UEFI NVRAM and swtpm state do not block removal ([#592](https://github.com/dustinestes/Hatchery/issues/592)). Before undefine, Hatchery records Nest VM dirs from domain disk paths (including Clutch `storage_path`) and removes those `{…}/{vm_id}/` leftovers after undefine (ADR-0036).
+
 Resource metrics (configured vs actual; Nest push vs Controller pull) are deferred under [#420](https://github.com/dustinestes/Hatchery/issues/420) until Nest remoting / job transport shape lands under epic [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
 <br>
