@@ -177,7 +177,6 @@ def test_api_vms_and_mutate(client):
         assert data["vms"][0]["hatchery_sourced"] is False
         assert "resources" not in data["vms"][0]
 
-
     with patch("lib.vm_ops.get_provider") as mock_ops:
         mock_ops.return_value = MagicMock()
         resp = client.post("/api/nests/local/vms/dc01/start")
@@ -387,7 +386,7 @@ def test_vms_detail_markers(client):
     assert 'id="vms-events-filter-limit"' in html
     assert 'id="vms-events-status"' in html
     assert ">Component</th>" in html
-    assert "field('UUID'" in html or "field(\"UUID\"" in html
+    assert "field('UUID'" in html or 'field("UUID"' in html
     assert "field('Nest storage'" in html or 'field("Nest storage"' in html
     assert "vm.vm_id" in html
     assert "vm.nest_storage_path" in html

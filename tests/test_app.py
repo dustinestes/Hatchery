@@ -2980,7 +2980,9 @@ class TestRunHatchSession:
         )
         with patch("lib.hatch_lifecycle.get_provider") as mock_prov:
             mock_prov.return_value.create_vm = MagicMock()
-            mock_prov.return_value.create_command_description = MagicMock(return_value="virt-install")
+            mock_prov.return_value.create_command_description = MagicMock(
+                return_value="virt-install"
+            )
             app_module._run_hatch_session(sid, [vm], {"dc01": None}, "lab.yaml")
             _, kwargs = mock_prov.return_value.create_vm.call_args
             assert "vm_id" in kwargs

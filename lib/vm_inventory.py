@@ -218,6 +218,16 @@ def _clutch_storage_path(
     return str(clutch.storage_path) if clutch.storage_path else None
 
 
+def _as_vm_id(value: Any) -> str | None:
+    """Return a string VM UUID, or None for missing/non-string values."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
 def _resolve_nest_storage_path(
     provider: Any,
     *,
@@ -313,7 +323,7 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
 
         if not tag:
             try:
-                record["vm_id"] = provider.get_vm_uuid(name)
+                record["vm_id"] = _as_vm_id(provider.get_vm_uuid(name))
             except Exception:
                 pass
             record["nest_storage_path"] = _resolve_nest_storage_path(
@@ -343,7 +353,7 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
                 record["admin_username"] = db_row.get("admin_username")
                 if show_passwords:
                     record["admin_password"] = db_row.get("admin_password")
-                record["vm_id"] = db_row.get("libvirt_uuid")
+                record["vm_id"] = _as_vm_id(db_row.get("libvirt_uuid"))
                 guest_os = db_row.get("guest_os")
                 if guest_os:
                     record["os"] = guest_os
@@ -369,7 +379,7 @@ def list_enriched_vms(nest_id: str, *, show_passwords: bool | None = None) -> li
 
         if not record.get("vm_id"):
             try:
-                record["vm_id"] = provider.get_vm_uuid(name)
+                record["vm_id"] = _as_vm_id(provider.get_vm_uuid(name))
             except Exception:
                 pass
         record["nest_storage_path"] = _resolve_nest_storage_path(
