@@ -176,8 +176,20 @@ class BaseProvider(ABC):
         """Resume a paused VM."""
 
     @abstractmethod
-    def destroy_vm(self, name: str) -> None:
-        """Destroy a VM: undefine it and remove its allocated storage."""
+    def destroy_vm(
+        self,
+        name: str,
+        *,
+        protect_media_basenames: frozenset[str] | None = None,
+    ) -> None:
+        """Destroy a VM: undefine it and remove its allocated storage.
+
+        ``protect_media_basenames`` is clutch-snapshot OS/VirtIO basenames to
+        eject before libvirt ``--remove-all-storage`` (#601). ``None`` means
+        the caller had no snapshot: providers that need it should fall back to
+        catalog roots (``iso_dir`` / ``virtio_dir``). Hyper-V ignores this
+        (Destroy already removes hard disks only).
+        """
 
     @abstractmethod
     def create_snapshot(self, name: str, label: str) -> None:

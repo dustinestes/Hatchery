@@ -688,6 +688,123 @@ class TestPowerState:
         with patch("subprocess.run", return_value=self._ok()):
             provider.destroy_vm("myvm")  # no answer file - should not raise
 
+    def test_destroy_vm_ejects_clutch_media_before_undefine(self, provider, monkeypatch):
+        """Clutch OS/VirtIO/answer eject before --remove-all-storage (#601)."""
+        from lib.providers.base import answer_media_path, vm_disk_path, vm_nest_dir
+
+        iso = provider.iso_dir / "win11.iso"
+        virtio = provider.virtio_dir / "virtio-win.iso"
+        iso.write_bytes(b"os-iso")
+        virtio.write_bytes(b"virtio-iso")
+        vm_id = "cccccccc-dddd-eeee-ffff-000000000001"
+        vm_dir = vm_nest_dir(provider.nest_storage, vm_id)
+        vm_dir.mkdir(parents=True)
+        disk = vm_disk_path(vm_dir, ".qcow2")
+        disk.write_bytes(b"disk")
+        answer = answer_media_path(vm_dir, ".img")
+        answer.write_bytes(b"ans")
+        xml = (
+            "<domain><devices>"
+            f"<disk type='file' device='disk'><source file='{disk}'/>"
+            "<target dev='vda'/></disk>"
+            f"<disk type='file' device='cdrom'><source file='{iso}'/>"
+            "<target dev='sda'/></disk>"
+            f"<disk type='file' device='cdrom'><source file='{virtio}'/>"
+            "<target dev='sdb'/></disk>"
+            f"<disk type='file' device='floppy'><source file='{answer}'/>"
+            "<target dev='fda'/></disk>"
+            "</devices></domain>"
+        )
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: vm_id)
+        ejected: list[str] = []
+
+        def side_effect(cmd, **kwargs):
+            argv = list(cmd)
+            if argv[:2] == ["virsh", "dumpxml"]:
+                return MagicMock(returncode=0, stdout=xml, stderr="")
+            if argv[:2] == ["virsh", "change-media"] and "--eject" in argv:
+                ejected.append(argv[3])
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return self._ok()
+
+        with patch("subprocess.run", side_effect=side_effect) as mock_run:
+            provider.destroy_vm(
+                "myvm",
+                protect_media_basenames=frozenset({"win11.iso", "virtio-win.iso"}),
+            )
+
+        assert iso.read_bytes() == b"os-iso"
+        assert virtio.read_bytes() == b"virtio-iso"
+        assert not disk.exists()
+        assert set(ejected) == {"sda", "sdb", "fda"}
+        calls = [list(c.args[0]) for c in mock_run.call_args_list]
+        eject_idxs = [i for i, c in enumerate(calls) if c[:2] == ["virsh", "change-media"]]
+        undefine_idxs = [i for i, c in enumerate(calls) if c[:3] == ["virsh", "undefine", "myvm"]]
+        assert eject_idxs and undefine_idxs and max(eject_idxs) < min(undefine_idxs)
+        assert any("--remove-all-storage" in c for c in calls)
+
+    def test_destroy_vm_catalog_fallback_ejects_iso_dir(self, provider, monkeypatch):
+        """No clutch snapshot: eject sources under iso_dir / virtio_dir (#601)."""
+        iso = provider.iso_dir / "server2025.iso"
+        iso.write_bytes(b"catalog")
+        xml = (
+            "<domain><devices>"
+            f"<disk type='file' device='cdrom'><source file='{iso}'/>"
+            "<target dev='sda'/></disk>"
+            "</devices></domain>"
+        )
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
+        ejected: list[str] = []
+
+        def side_effect(cmd, **kwargs):
+            argv = list(cmd)
+            if argv[:2] == ["virsh", "dumpxml"]:
+                return MagicMock(returncode=0, stdout=xml, stderr="")
+            if argv[:2] == ["virsh", "change-media"] and "--eject" in argv:
+                ejected.append(argv[3])
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return self._ok()
+
+        with patch("subprocess.run", side_effect=side_effect):
+            provider.destroy_vm("myvm")  # protect_media_basenames=None → fallback
+
+        assert iso.exists()
+        assert ejected == ["sda"]
+
+    def test_destroy_vm_protect_set_skips_unlisted_catalog_iso(self, provider, monkeypatch):
+        """With a clutch protect set, only matching basenames are ejected (#601)."""
+        keep = provider.iso_dir / "win11.iso"
+        other = provider.iso_dir / "extra.iso"
+        keep.write_bytes(b"keep")
+        other.write_bytes(b"other")
+        xml = (
+            "<domain><devices>"
+            f"<disk type='file' device='cdrom'><source file='{keep}'/>"
+            "<target dev='sda'/></disk>"
+            f"<disk type='file' device='cdrom'><source file='{other}'/>"
+            "<target dev='sdb'/></disk>"
+            "</devices></domain>"
+        )
+        monkeypatch.setattr(provider, "get_vm_uuid", lambda name: None)
+        ejected: list[str] = []
+
+        def side_effect(cmd, **kwargs):
+            argv = list(cmd)
+            if argv[:2] == ["virsh", "dumpxml"]:
+                return MagicMock(returncode=0, stdout=xml, stderr="")
+            if argv[:2] == ["virsh", "change-media"] and "--eject" in argv:
+                ejected.append(argv[3])
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return self._ok()
+
+        with patch("subprocess.run", side_effect=side_effect):
+            provider.destroy_vm(
+                "myvm",
+                protect_media_basenames=frozenset({"win11.iso"}),
+            )
+
+        assert ejected == ["sda"]
+
 
 # ── Inventory ─────────────────────────────────────────────────────────────────
 

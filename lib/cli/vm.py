@@ -224,8 +224,10 @@ def _power_or_health(cmd: str, nest_arg: str | None, name: str, *, as_json: bool
             ok_msg=f"Resumed '{name}' on Nest '{nest_id}'.",
         )
     if cmd == "destroy":
+        from lib import vm_ops as ops
+
         return _run_provider(
-            lambda: provider.destroy_vm(name),
+            lambda: ops.destroy_vm(nest_id, name),
             ok_msg=f"Destroyed '{name}' on Nest '{nest_id}'.",
         )
     if cmd == "health":
