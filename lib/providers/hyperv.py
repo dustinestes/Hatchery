@@ -12,7 +12,6 @@ import io
 import json
 import shutil
 import subprocess
-import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
@@ -20,7 +19,11 @@ from typing import Any, ClassVar
 from lib import answerfile as answerfile_lib
 from lib.clutch import Firmware, VMConfig
 from lib.nest_transport import NestTransportError, WinrmNestTransport
-from lib.providers.base import BaseProvider
+from lib.providers.base import (
+    BaseProvider,
+    MediaCleanupStep,
+    answer_media_path,
+)
 from lib.requirements import NestToolSpec
 from lib.run_cmd import format_process_error, run_cmd
 
@@ -132,6 +135,7 @@ class HyperVProvider(BaseProvider):
         iso_dir: Path | str | None = None,
         virtio_dir: Path | str | None = None,
         automation_dir: Path | str | None = None,
+        nest_cache: Path | str | None = None,
     ) -> None:
         self.nest_id = nest_id
         self._transport = transport
@@ -139,6 +143,12 @@ class HyperVProvider(BaseProvider):
         self.iso_dir = Path(iso_dir) if iso_dir is not None else Path()
         self.virtio_dir = Path(virtio_dir) if virtio_dir is not None else Path()
         self.automation_dir = Path(automation_dir) if automation_dir is not None else Path()
+        if nest_cache is not None:
+            self.nest_cache = Path(nest_cache)
+        elif iso_dir is not None:
+            self.nest_cache = self.iso_dir.parent.parent
+        else:
+            self.nest_cache = Path()
 
     @classmethod
     def nest_tool_specs(cls) -> list[NestToolSpec]:
@@ -225,7 +235,9 @@ class HyperVProvider(BaseProvider):
         return resolved
 
     def _answer_iso_path(self, vm_name: str) -> Path:
-        return Path(tempfile.gettempdir()) / f"{vm_name}-autounattend.iso"
+        path = answer_media_path(self.nest_cache, vm_name, ".iso")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     def _create_answer_iso(
         self,
@@ -466,6 +478,155 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
     def resume_vm(self, name: str) -> None:
         self._ack(f"Resume-VM -Name {_ps_quote(name)}")
 
+    def _classify_dvd_path(self, source: str) -> tuple[str, str] | None:
+        if not source:
+            return None
+        path = Path(source)
+        basename = path.name
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        answer_dir = answer_media_path(self.nest_cache, "_", ".iso").parent
+        try:
+            answer_root = answer_dir.resolve()
+        except OSError:
+            answer_root = answer_dir
+        if resolved.parent == answer_root or "autounattend" in basename.lower():
+            return ("answer", basename)
+        try:
+            virtio_root = self.virtio_dir.resolve()
+        except OSError:
+            virtio_root = self.virtio_dir
+        if "virtio" in basename.lower() or (
+            virtio_root in resolved.parents or resolved.parent == virtio_root
+        ):
+            return ("drivers", basename)
+        return ("installation", basename)
+
+    def cleanup_install_media(self, name: str) -> list[MediaCleanupStep]:
+        """Eject hatch DVD media; delete Nest answer ISO when detached."""
+        steps: list[MediaCleanupStep] = []
+        q = _ps_quote(name)
+        try:
+            data = self._run_json(
+                f"""
+$drives = @(Get-VMDvdDrive -VMName {q} | ForEach-Object {{
+  [pscustomobject]@{{
+    Path = $_.Path
+    ControllerNumber = $_.ControllerNumber
+    ControllerLocation = $_.ControllerLocation
+  }}
+}})
+Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject $drives -Compress -Depth 4))
+"""
+            )
+        except Exception as exc:
+            return [
+                MediaCleanupStep(
+                    kind="installation",
+                    action="detach",
+                    basename=name,
+                    target="-",
+                    ok=False,
+                    error=str(exc),
+                )
+            ]
+
+        rows: list[tuple[str, str, str, int, int]] = []
+        for row in _normalize_list(data):
+            if not isinstance(row, dict):
+                continue
+            source = str(row.get("Path") or "").strip()
+            if not source:
+                continue
+            classified = self._classify_dvd_path(source)
+            if classified is None:
+                continue
+            kind, basename = classified
+            try:
+                ctrl = int(row.get("ControllerNumber"))
+                loc = int(row.get("ControllerLocation"))
+            except (TypeError, ValueError):
+                continue
+            target = f"IDE{ctrl}:{loc}"
+            rows.append((kind, basename, source, ctrl, loc))
+        order = {"installation": 0, "drivers": 1, "answer": 2}
+        rows.sort(key=lambda r: order.get(r[0], 9))
+
+        answer_path: Path | None = None
+        answer_detached_ok = False
+        saw_answer = False
+        for kind, basename, source, ctrl, loc in rows:
+            if kind == "answer":
+                saw_answer = True
+                answer_path = Path(source)
+            target = f"IDE{ctrl}:{loc}"
+            try:
+                self._ack(
+                    f"Set-VMDvdDrive -VMName {q} -ControllerNumber {ctrl} "
+                    f"-ControllerLocation {loc} -Path $null",
+                    timeout=60,
+                )
+                steps.append(
+                    MediaCleanupStep(
+                        kind=kind,  # type: ignore[arg-type]
+                        action="detach",
+                        basename=basename,
+                        target=target,
+                        path=source,
+                        ok=True,
+                    )
+                )
+                if kind == "answer":
+                    answer_detached_ok = True
+            except Exception as exc:
+                steps.append(
+                    MediaCleanupStep(
+                        kind=kind,  # type: ignore[arg-type]
+                        action="detach",
+                        basename=basename,
+                        target=target,
+                        path=source,
+                        ok=False,
+                        error=str(exc),
+                    )
+                )
+
+        if not saw_answer:
+            candidate = answer_media_path(self.nest_cache, name, ".iso")
+            if candidate.exists():
+                answer_path = candidate
+                answer_detached_ok = True
+
+        if answer_path is not None and answer_detached_ok:
+            try:
+                if answer_path.exists():
+                    answer_path.unlink()
+                steps.append(
+                    MediaCleanupStep(
+                        kind="answer",
+                        action="delete",
+                        basename=answer_path.name,
+                        target="nest-work",
+                        path=str(answer_path),
+                        ok=True,
+                    )
+                )
+            except Exception as exc:
+                steps.append(
+                    MediaCleanupStep(
+                        kind="answer",
+                        action="delete",
+                        basename=answer_path.name,
+                        target="nest-work",
+                        path=str(answer_path),
+                        ok=False,
+                        error=str(exc),
+                    )
+                )
+        return steps
+
     def destroy_vm(self, name: str) -> None:
         q = _ps_quote(name)
         self._ack(
@@ -482,7 +643,7 @@ foreach ($p in $paths) {{
 """,
             timeout=120,
         )
-        answer_iso = self._answer_iso_path(name)
+        answer_iso = answer_media_path(self.nest_cache, name, ".iso")
         if answer_iso.exists():
             answer_iso.unlink()
 

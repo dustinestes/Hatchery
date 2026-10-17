@@ -15,13 +15,19 @@ from lib import config
 from lib import hatch as hatch_lib
 from lib import nests as nests_lib
 from lib import provision as provision_lib
-from lib.providers.base import BaseProvider
+from lib.providers.base import BaseProvider, MediaCleanupStep
 from lib.providers.factory import (
     NoNestSelectedError,
     UnknownNestError,
     UnsupportedProviderError,
     get_provider,
 )
+
+_KIND_LABEL = {
+    "installation": "installation media",
+    "answer": "silent answer media",
+    "drivers": "drivers media",
+}
 
 # Tracks (session_id, vm_name) pairs currently being provisioned so the sync
 # loop does not spawn duplicate threads.
@@ -570,6 +576,76 @@ def _provision_vm_thread(
             _provisioning.discard((session_id, vm_name))
 
 
+def _media_cleanup_start_message(step: MediaCleanupStep) -> str:
+    label = _KIND_LABEL.get(step.kind, step.kind)
+    if step.action == "delete":
+        return f"Deleting {label}: {step.path or step.basename}"
+    return f"Detaching {label}: {step.basename} on {step.target}"
+
+
+def _media_cleanup_result_message(step: MediaCleanupStep) -> tuple[str, str]:
+    """Return ``(level, message)`` for a completed cleanup step."""
+    label = _KIND_LABEL.get(step.kind, step.kind)
+    if step.ok:
+        if step.action == "delete":
+            return "INFO", "Successfully deleted silent answer media"
+        return "INFO", f"Successfully detached {label}: {step.basename}"
+    reason = step.error or "unknown error"
+    if step.action == "delete":
+        return "WARN", f"Failed to delete silent answer media: {reason}"
+    return "WARN", f"Failed to detach {label}: {step.basename}: {reason}"
+
+
+def _run_install_media_cleanup(
+    session_id: str,
+    vm_name: str,
+    provider: BaseProvider,
+) -> None:
+    """Nest-plane install media cleanup after hatchery-ready (#144 / ADR-0035).
+
+    Emits section bookends and per-step events. WARN on failure; never marks the
+    VM failed or blocks guest environment / automations.
+    """
+    hatch_lib.add_event(
+        session_id,
+        vm_name,
+        "hatchery",
+        "INFO",
+        "Starting install media cleanup",
+    )
+    any_fail = False
+    try:
+        steps = provider.cleanup_install_media(vm_name)
+    except Exception as exc:
+        any_fail = True
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            "WARN",
+            f"Install media cleanup failed: {exc}",
+        )
+        steps = []
+    for step in steps:
+        hatch_lib.add_event(
+            session_id,
+            vm_name,
+            "hatchery",
+            "INFO",
+            _media_cleanup_start_message(step),
+        )
+        level, message = _media_cleanup_result_message(step)
+        if not step.ok:
+            any_fail = True
+        hatch_lib.add_event(session_id, vm_name, "hatchery", level, message)
+    end = (
+        "Ending install media cleanup (with warnings)"
+        if any_fail
+        else "Ending install media cleanup"
+    )
+    hatch_lib.add_event(session_id, vm_name, "hatchery", "INFO", end)
+
+
 def spawn_provision_thread(
     session_id: str,
     vm_name: str,
@@ -748,6 +824,10 @@ def sync_hatch_status(
             post_auth = hatch_lib.get_vm_record(session_id, vm_name) or {}
             if post_auth.get("status") == "failed":
                 continue
+
+            # Nest-plane install media cleanup (#144 / ADR-0035): after first-boot,
+            # before Ending Windows setup. Hygiene only - never abandons the hatch.
+            _run_install_media_cleanup(session_id, vm_name, provider)
 
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             if scripts:

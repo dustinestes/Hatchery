@@ -1,10 +1,38 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from lib.clutch import VMConfig
+
+MediaCleanupKind = Literal["installation", "answer", "drivers"]
+MediaCleanupAction = Literal["detach", "delete"]
+
+
+@dataclass(frozen=True)
+class MediaCleanupStep:
+    """One Nest install-media cleanup attempt for hatchery-context events (#144)."""
+
+    kind: MediaCleanupKind
+    action: MediaCleanupAction
+    basename: str
+    target: str
+    path: str | None = None
+    ok: bool = True
+    error: str | None = None
+
+
+def answer_media_dir(nest_cache: Path) -> Path:
+    """Nest-cache directory for rendered answer media (not system temp)."""
+    return Path(nest_cache) / "nest-work" / "answer-media"
+
+
+def answer_media_path(nest_cache: Path, vm_name: str, suffix: str) -> Path:
+    """Path for ``{vm_name}-autounattend.{img|iso}`` under Nest cache."""
+    ext = suffix if suffix.startswith(".") else f".{suffix}"
+    return answer_media_dir(nest_cache) / f"{vm_name}-autounattend{ext}"
 
 
 class BaseProvider(ABC):
@@ -45,6 +73,15 @@ class BaseProvider(ABC):
             "Windows Autounattend attach works on libvirt local today; "
             "Hyper-V and UTM are Planned (see docs/providers.md)."
         )
+
+    def cleanup_install_media(self, name: str) -> list[MediaCleanupStep]:
+        """Detach hatch install media and delete Nest answer-media when safe.
+
+        Default is a no-op (providers without attach/cleanup). Override on Nests that
+        attach OS ISO / answer media / VirtIO at hatch. Failures are returned as
+        ``ok=False`` steps; callers must not abandon the hatch for cleanup errors.
+        """
+        return []
 
     @abstractmethod
     def create_vm(

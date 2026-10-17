@@ -258,6 +258,11 @@ Answer File **bytes** are Nest-agnostic. **Attach** is Nest/provider-specific, g
 | Hyper-V | Works (local Nest) - second DVD/ISO with Autounattend + companions; remote Planned (#215) |
 | UTM | Planned / N/A depending on guest |
 
+Rendered answer media is stored under Nest cache `nest-work/answer-media/` (not system temp).
+After first-boot (`hatchery-ready`), Nest-plane **install media cleanup** detaches install and
+answer media ([#144](https://github.com/dustinestes/Hatchery/issues/144) /
+[ADR-0035](adr/0035-nest-install-media-lifecycle.md)).
+
 Hatch (UI and CLI) fails early when a Clutch needs Answer File attach and the selected Nest
 reports `supports_answer_file_attach=False`. See the [provider matrix](providers.md). Do not
 hard-wire libvirt floppy into operator surfaces.

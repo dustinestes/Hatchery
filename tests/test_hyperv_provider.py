@@ -288,7 +288,10 @@ class TestHatch:
             encoding="utf-8",
         )
         p = HyperVProvider(
-            "hv1", automation_dir=auto_dir, runner=lambda s: _json_line({"ok": True})
+            "hv1",
+            automation_dir=auto_dir,
+            nest_cache=tmp_path,
+            runner=lambda s: _json_line({"ok": True}),
         )
         vm = VMConfig(
             name="iso-vm",
@@ -303,6 +306,7 @@ class TestHatch:
         assert path is not None
         assert path.suffix == ".iso"
         assert path.exists()
+        assert path.parent == tmp_path / "nest-work" / "answer-media"
         path.unlink()
 
     def test_virtio_rejected(self, tmp_path, scripts):
