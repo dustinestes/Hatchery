@@ -1,4 +1,4 @@
-"""``hatchery nest`` - inspect Nest registry / Test Nest connection."""
+"""``hatchery nest`` - inspect Nest registry / Test Nest connection / Nest Health."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from lib.cli import output as cli_out
 def register(sub: argparse._SubParsersAction) -> None:
     nest = sub.add_parser(
         "nest",
-        help="Inspect registered Nests and Test Nest connection",
+        help="Inspect registered Nests, Nest Health, and Test Nest connection",
     )
     bootstrap.add_data_dir_argument(nest)
     nest_sub = nest.add_subparsers(dest="nest_command", required=True)
@@ -20,6 +20,12 @@ def register(sub: argparse._SubParsersAction) -> None:
 
     test = nest_sub.add_parser("test", help="Test Nest connection (reachability / capability)")
     test.add_argument("nest_id", metavar="ID", help="Nest id to test")
+
+    health = nest_sub.add_parser(
+        "health",
+        help="Run Nest Health (reachability gate + host resources / prerequisites)",
+    )
+    health.add_argument("nest_id", metavar="ID", help="Nest id to check")
 
 
 def run(args: argparse.Namespace) -> int:
@@ -35,6 +41,8 @@ def run(args: argparse.Namespace) -> int:
         return _list_nests(as_json=as_json)
     if cmd == "test":
         return _test_nest(args.nest_id, as_json=as_json)
+    if cmd == "health":
+        return _nest_health(args.nest_id, as_json=as_json)
     bootstrap.print_err(f"unknown nest command: {cmd}")
     return 2
 
@@ -82,4 +90,40 @@ def _test_nest(nest_id: str, *, as_json: bool) -> int:
         cli_out.emit_json({"ok": ok, "message": message, "nest_id": nid})
         return 0 if ok else 1
     print(message)
+    return 0 if ok else 1
+
+
+def _nest_health(nest_id: str, *, as_json: bool) -> int:
+    from lib import nest_health as nest_health_lib
+    from lib import nests as nests_lib
+
+    nid = (nest_id or "").strip()
+    nest = nests_lib.get_nest(nid)
+    if nest is None:
+        bootstrap.print_err(f"Unknown Nest id: {nid}")
+        return 1
+    result = nest_health_lib.run_health(nest, persist=True, sync_alerts=True)
+    ok = bool(result.get("ok"))
+    if as_json:
+        cli_out.emit_json(result)
+        return 0 if ok else 1
+    gate = result.get("gate") or {}
+    print(gate.get("detail") or ("Nest Health OK" if ok else "Nest Health failed"))
+    if result.get("deeper_ran"):
+        cpu = result.get("cpu") or {}
+        mem = result.get("memory") or {}
+        if cpu.get("count") is not None:
+            print(f"CPU: {cpu['count']} logical")
+        if mem.get("total_bytes") is not None:
+            print(
+                f"Memory: {mem.get('used_bytes')} used / {mem.get('total_bytes')} total "
+                f"(free {mem.get('free_bytes')})"
+            )
+        disks = result.get("disks") or []
+        print(f"Disks: {len(disks)} volume(s)")
+        missing = [p["name"] for p in (result.get("prerequisites") or []) if not p.get("present")]
+        if missing:
+            print("Missing prerequisites: " + ", ".join(missing))
+        else:
+            print("Prerequisites: OK")
     return 0 if ok else 1

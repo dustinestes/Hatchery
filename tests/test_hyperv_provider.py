@@ -346,9 +346,16 @@ class TestHatch:
 
     def test_nest_tool_specs(self):
         specs = HyperVProvider.nest_tool_specs()
-        assert len(specs) == 1
-        assert specs[0].name == "Get-VM"
-        assert specs[0].check == "hyperv_get_vm"
+        assert [s.name for s in specs] == [
+            "Hyper-V",
+            "Hyper-V PowerShell",
+            "Get-VM",
+        ]
+        assert [s.check for s in specs] == [
+            "hyperv_feature",
+            "hyperv_module",
+            "hyperv_get_vm",
+        ]
 
     def test_create_command_description(self, tmp_path):
         p = HyperVProvider("hv1", iso_dir=tmp_path)

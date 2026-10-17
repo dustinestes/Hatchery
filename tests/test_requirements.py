@@ -161,30 +161,60 @@ class TestNestToolsLocal:
 
         specs = nest_tool_specs_for_provider("hyperv")
         assert specs == HyperVProvider.nest_tool_specs()
-        assert specs[0].check == "hyperv_get_vm"
+        assert [s.check for s in specs] == [
+            "hyperv_feature",
+            "hyperv_module",
+            "hyperv_get_vm",
+        ]
 
-        with patch("lib.requirements._check_hyperv_get_vm_local", return_value=True):
+        with patch("lib.requirements._check_hyperv_local", return_value=True):
             results = check_nest_tools_local(specs)
-        assert len(results) == 1
-        assert results[0].present is True
-        assert results[0].name == "Get-VM"
+        assert len(results) == 3
+        assert all(r.present for r in results)
+        assert [r.name for r in results] == [
+            "Hyper-V",
+            "Hyper-V PowerShell",
+            "Get-VM",
+        ]
 
     def test_hyperv_remote_probe(self):
         from lib.requirements import check_nest_tools_remote
 
         specs = [
             NestToolSpec(
+                name="Hyper-V",
+                required_for="role",
+                packages={"windows": "Hyper-V"},
+                check="hyperv_feature",
+            ),
+            NestToolSpec(
                 name="Get-VM",
                 required_for="ops",
                 packages={"windows": "Hyper-V"},
                 check="hyperv_get_vm",
-            )
+            ),
         ]
         transport = MagicMock()
-        with patch("lib.requirements._remote_hyperv_get_vm", return_value=True) as probe:
+        with patch("lib.requirements._remote_hyperv_check", return_value=True) as probe:
             results = check_nest_tools_remote(transport, specs)
-        probe.assert_called_once_with(transport)
-        assert results[0].present is True
+        assert probe.call_count == 2
+        assert probe.call_args_list[0].args == (transport, "hyperv_feature")
+        assert probe.call_args_list[1].args == (transport, "hyperv_get_vm")
+        assert all(r.present for r in results)
+
+    def test_hyperv_install_hints_not_winget(self):
+        specs = [
+            NestToolSpec(
+                name="Hyper-V",
+                required_for="role",
+                packages={"windows": "Hyper-V"},
+                check="hyperv_feature",
+            )
+        ]
+        with patch("lib.requirements._check_hyperv_local", return_value=False):
+            results = check_nest_tools_local(specs)
+        assert "enable-hyperv-windows" in results[0].install_hint
+        assert "winget" not in results[0].install_hint
 
 
 class TestInstallHint:
@@ -258,3 +288,23 @@ class TestAptInstallCommand:
     def test_skips_optional(self):
         reqs = [Requirement("pwsh", "powershell", "scripts", False, optional=True)]
         assert apt_install_command(reqs) == ""
+
+
+class TestHyperVProbeScript:
+    def test_known_checks(self):
+        from lib.requirements import _hyperv_probe_script
+
+        for check in ("hyperv_feature", "hyperv_module", "hyperv_get_vm"):
+            probe = _hyperv_probe_script(check)
+            assert probe is not None
+            script, marker = probe
+            assert marker in script
+        assert _hyperv_probe_script("unknown") is None
+
+    def test_remote_which(self):
+        from lib.requirements import _remote_which
+
+        transport = MagicMock()
+        assert _remote_which(transport, "virsh") is True
+        transport.run.side_effect = RuntimeError("missing")
+        assert _remote_which(transport, "virsh") is False

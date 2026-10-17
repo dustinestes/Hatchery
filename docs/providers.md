@@ -66,6 +66,8 @@ Pause / Resume use hypervisor suspend (`virsh suspend` / `virsh resume` on local
 
 Libvirt **Destroy** best-effort force-stops the domain, then `virsh undefine --remove-all-storage --nvram --tpm` so UEFI NVRAM and swtpm state do not block removal ([#592](https://github.com/dustinestes/Hatchery/issues/592)). Before undefine, Hatchery records Nest VM dirs from domain disk paths (including Clutch `storage_path`) and removes those `{…}/{vm_id}/` leftovers after undefine (ADR-0036).
 
+Guest VM files resolve under `{nest_storage}/{vm_id}/` when Nest **nest_storage** volumes are registered (Nest detail / `extra.nest_storage`; [ADR-0039](adr/0039-nest-health-gate-and-nest-storage.md) / [#538](https://github.com/dustinestes/Hatchery/issues/538)). Clutch `storage_path` remains a legacy fallback. Nest **nest_cache** is the content root only ([#215](https://github.com/dustinestes/Hatchery/issues/215)). Nest Health host metrics (CPU/memory/disks) live in Nest Health, not this matrix ([nest-health.md](nest-health.md)).
+
 Resource metrics (configured vs actual; Nest push vs Controller pull) are deferred under [#420](https://github.com/dustinestes/Hatchery/issues/420) until Nest remoting / job transport shape lands under epic [#202](https://github.com/dustinestes/Hatchery/issues/202).
 
 <br>

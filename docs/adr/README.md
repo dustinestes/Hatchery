@@ -83,6 +83,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0036](0036-pre-mint-vm-uuid-nest-storage.md) | Pre-mint VM UUID and nest_storage/{vm_id} colocation | Accepted |
 | [0037](0037-guest-ssh-known-hosts-hostkeyalias.md) | Guest SSH known_hosts under data_dir keyed by VM UUID | Accepted |
 | [0038](0038-nest-ssh-known-hosts-hostkeyalias.md) | Nest SSH known_hosts under data_dir keyed by Nest id | Accepted |
+| [0039](0039-nest-health-gate-and-nest-storage.md) | Nest Health gate-then-deepen and nest_storage volumes SoR | Accepted |
 
 <br>
 

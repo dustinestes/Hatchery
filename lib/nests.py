@@ -124,6 +124,39 @@ def get_nest(nest_id: str) -> dict | None:
         conn.close()
 
 
+def update_nest_extra(nest_id: str, patch: dict) -> dict:
+    """Merge ``patch`` into Nest ``extra_json``; values of ``None`` delete keys.
+
+    Returns the updated Nest row.
+    """
+    nid = str(nest_id or "").strip()
+    nest = get_nest(nid)
+    if nest is None:
+        raise ValueError(f"Unknown Nest id: {nid}")
+    if not isinstance(patch, dict):
+        raise ValueError("extra patch must be a dict")
+    extra = dict(nest.get("extra") or {})
+    for key, value in patch.items():
+        if value is None:
+            extra.pop(key, None)
+        else:
+            extra[key] = value
+    now = _now()
+    payload = json.dumps(extra) if extra else None
+    conn = db_module.get_connection()
+    try:
+        conn.execute(
+            "UPDATE nests SET extra_json = ?, updated_at = ? WHERE id = ?",
+            (payload, now, nid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    updated = get_nest(nid)
+    assert updated is not None
+    return updated
+
+
 def ensure_local_nest() -> dict:
     """Insert the default local libvirt Nest if missing; return it.
 
@@ -428,6 +461,7 @@ def replace_nests(raw: list | None) -> list[dict]:
     finally:
         conn.close()
     if removed_ids:
+        from lib import nest_health as nest_health_lib
         from lib import nest_transport as nest_transport_lib
 
         for nest_id in removed_ids:
@@ -436,6 +470,7 @@ def replace_nests(raw: list | None) -> list[dict]:
         from lib import nest_reachability as nest_reachability_lib
 
         nest_reachability_lib.prune_removed_nests(kept_ids)
+        nest_health_lib.prune_removed_nests(kept_ids)
     return list_nests()
 
 
@@ -526,46 +561,57 @@ def test_connection(
 ) -> dict:
     """Run Test Nest connection; return ``{ok, message}`` for the UI.
 
-    Remote Nests: Nest transport reachability first, then Nest capability tools via
-    the ``nest_capability`` validator (#208). Local Nests: mark reachable, then
-    capability. Snapshot / Alert side effects apply only to Nests already in the
-    registry (#283); the inline message always reflects the probe.
+    Registered Nests use Nest Health gather (#538). Draft / unsaved rows keep a
+    reachability + capability probe without writing Nest Health history.
+    Snapshot / Alert side effects apply only to Nests already in the registry
+    (#283); the inline message always reflects the probe.
     """
+    from lib import nest_health as nest_health_lib
     from lib import nest_reachability as nr
     from lib import requirements as req_lib
-    from lib.validators.scheduler import run_validator
 
     nest = _normalize_one(nest)
     registered = get_nest(nest["id"]) is not None
-    reach_msg = "Local Nest - co-located with the Controller."
 
-    if nest["location"] == "local":
-        local_result = nr.probe_nest(nest)
-        _apply_manual_reachability(nest, local_result, registered=registered)
-        reach_msg = local_result.detail or reach_msg
-    else:
-        if nest["transport"] == "winrm" and not (winrm_password or "").strip():
+    if nest["location"] == "remote" and nest["transport"] == "winrm":
+        if not (winrm_password or "").strip():
             return {
                 "ok": False,
                 "message": "WinRM password is required for Test Nest connection (not stored - #110).",
             }
 
+    if registered:
+        health = nest_health_lib.run_health(
+            nest,
+            winrm_password=winrm_password,
+            persist=True,
+            sync_alerts=True,
+        )
+        gate = health.get("gate") or {}
+        reach_msg = gate.get("detail") or ("OK" if health.get("ok") else "Unreachable")
+        if not health.get("ok"):
+            return {"ok": False, "message": reach_msg}
+        missing_prereq = [
+            p["name"] for p in (health.get("prerequisites") or []) if not p.get("present")
+        ]
+        if missing_prereq:
+            names = ", ".join(missing_prereq)
+            return {
+                "ok": False,
+                "message": f"{reach_msg} Missing Nest tools: {names}.",
+            }
+        return {"ok": True, "message": f"{reach_msg} Nest Health OK."}
+
+    # Draft row: reachability + capability without Nest Health persistence.
+    reach_msg = "Local Nest - co-located with the Controller."
+    if nest["location"] == "local":
+        local_result = nr.probe_nest(nest)
+        reach_msg = local_result.detail or reach_msg
+    else:
         result = nr.probe_nest(nest, winrm_password=winrm_password)
-        _apply_manual_reachability(nest, result, registered=registered)
         if not result.ok:
             return {"ok": False, "message": result.detail}
         reach_msg = result.detail or "Nest transport OK."
-
-    if registered:
-        try:
-            run_validator(
-                "nest_capability",
-                nest_id=nest["id"],
-                trigger="connection",
-                winrm_password=winrm_password,
-            )
-        except Exception as exc:
-            return {"ok": False, "message": f"{reach_msg} Nest capability check failed: {exc}"}
 
     missing = req_lib.missing(req_lib.check_nest(nest, winrm_password=winrm_password))
     if missing:

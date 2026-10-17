@@ -17,6 +17,8 @@ from lib import nest_key_expiry as nest_key_expiry_lib
 from lib import library as library_lib
 from lib import library_registry as library_registry_lib
 from lib import nest_cache as nest_cache_lib
+from lib import nest_health as nest_health_lib
+from lib import nest_storage as nest_storage_lib
 from lib import nests as nests_lib
 from lib import remoting_identities as remoting_identities_lib
 from lib import settings_io as settings_io_lib
@@ -148,6 +150,7 @@ library_registry_lib.ensure_software_library_defaults()
 
 register_builtins()
 migrate_bg_interval()
+nest_health_lib.migrate_reachability_validator_settings()
 
 _runtime_services_started = False
 
@@ -599,8 +602,11 @@ def nests_detail(nest_id: str):
     nest = dict(nest)
     nest["reachability_label"] = nr.nest_reachability_label(nest["id"])
     nest["reachability_dot"] = nr.nest_dot_class(nest["id"])
-    snap_entry = (nr.get_snapshot().get("nests") or {}).get(nest["id"]) or {}
-    last_checked = snap_entry.get("checked_at") if isinstance(snap_entry, dict) else None
+    health_entry = nest_health_lib.get_health(nest["id"]) or {}
+    last_checked = health_entry.get("checked_at")
+    if not isinstance(last_checked, str):
+        snap_entry = (nr.get_snapshot().get("nests") or {}).get(nest["id"]) or {}
+        last_checked = snap_entry.get("checked_at") if isinstance(snap_entry, dict) else None
     return render_template(
         "nests_detail.html",
         active_pane="nests_detail",
@@ -2106,6 +2112,115 @@ def api_nests_test_connection():
         winrm_password=str(winrm_password) if winrm_password is not None else None,
     )
     return jsonify(result)
+
+
+@app.route("/api/nests/<nest_id>/health", methods=["GET"])
+def api_nest_health_get(nest_id: str):
+    """Return last persisted Nest Health snapshot for a Nest (#538)."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    entry = nest_health_lib.get_health(nest["id"])
+    if entry is None:
+        return jsonify(
+            {
+                "ok": None,
+                "checked_at": None,
+                "gate": None,
+                "deeper_ran": False,
+                "cpu": None,
+                "memory": None,
+                "disks": [],
+                "prerequisites": [],
+                "nest_id": nest["id"],
+            }
+        )
+    return jsonify(entry)
+
+
+@app.route("/api/nests/<nest_id>/health", methods=["POST"])
+def api_nest_health_run(nest_id: str):
+    """Run Nest Health (gate + deeper) and persist (#538)."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True) or {}
+    winrm_password = data.get("winrm_password")
+    result = nest_health_lib.run_health(
+        nest,
+        winrm_password=str(winrm_password) if winrm_password is not None else None,
+        persist=True,
+        sync_alerts=True,
+    )
+    return jsonify(result)
+
+
+@app.route("/api/nests/<nest_id>/storage-volumes", methods=["GET"])
+def api_nest_storage_volumes_list(nest_id: str):
+    """List nest_storage volumes with free-space status from last Nest Health."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    health = nest_health_lib.get_health(nest["id"]) or {}
+    disks = health.get("disks") if isinstance(health.get("disks"), list) else []
+    volumes = nest_storage_lib.list_storage_volumes(nest)
+    rows = []
+    for vol in volumes:
+        status = nest_health_lib.volume_storage_status(vol["path"], disks)
+        rows.append({**vol, **status})
+    return jsonify({"volumes": rows})
+
+
+@app.route("/api/nests/<nest_id>/storage-volumes", methods=["POST"])
+def api_nest_storage_volumes_add(nest_id: str):
+    """Register a nest_storage path on the Nest."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        volume = nest_storage_lib.add_storage_volume(
+            nest["id"],
+            str(data.get("path") or ""),
+            primary=bool(data.get("primary")),
+        )
+    except nest_storage_lib.NestStorageError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(volume), 201
+
+
+@app.route("/api/nests/<nest_id>/storage-volumes/<volume_id>", methods=["PATCH"])
+def api_nest_storage_volumes_update(nest_id: str, volume_id: str):
+    """Update path and/or primary on a nest_storage volume."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True) or {}
+    path = data.get("path")
+    primary = data.get("primary")
+    try:
+        volume = nest_storage_lib.update_storage_volume(
+            nest["id"],
+            volume_id,
+            path=None if path is None else str(path),
+            primary=None if primary is None else bool(primary),
+        )
+    except nest_storage_lib.NestStorageError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(volume)
+
+
+@app.route("/api/nests/<nest_id>/storage-volumes/<volume_id>", methods=["DELETE"])
+def api_nest_storage_volumes_delete(nest_id: str, volume_id: str):
+    """Remove a nest_storage volume."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    try:
+        nest_storage_lib.remove_storage_volume(nest["id"], volume_id)
+    except nest_storage_lib.NestStorageError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True})
 
 
 def _clutch_artifacts_from_request(data: dict):

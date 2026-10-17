@@ -284,31 +284,34 @@ class NestCapabilityValidator(BaseValidator):
         return "; ".join(parts)
 
 
-class NestReachabilityValidator(BaseValidator):
-    id = "nest_reachability"
-    title = "Nest reachability"
-    description = "Probe Nest transport connectivity (Local co-located; Remote via Nest transport)."
+class NestHealthValidator(BaseValidator):
+    id = "nest_health"
+    title = "Nest Health"
+    description = "Nest Health gather: reachability gate, then CPU/memory/disks and Nest prerequisites (#538)."
     scope = "nest"
     default_interval_seconds = 60
     default_enabled = True
 
     def run(self, ctx: ValidatorContext) -> str:
-        from lib import nest_reachability as nr
+        from lib import nest_health as nh
 
-        snap = nr.run_probes(
-            nest_id=ctx.nest_id,
-            winrm_password=ctx.winrm_password,
-            sync_alerts=True,
-        )
-        last = snap.get("last_run") or {}
-        checked = int(last.get("checked") or 0)
-        down = int(last.get("down") or 0)
-        if checked == 0:
-            return "No Nests probed"
-        if down:
-            ctx.note_findings(down, "alert")
-            return f"{down} of {checked} Nest(s) unreachable"
-        return f"All {checked} Nest(s) reachable"
+        return nh.run_as_validator(ctx, sync_alerts=True)
+
+
+class NestReachabilityValidator(BaseValidator):
+    id = "nest_reachability"
+    title = "Nest reachability"
+    description = (
+        "Superseded by Nest Health (#538): delegates to the same gather (reachability is the gate)."
+    )
+    scope = "nest"
+    default_interval_seconds = 60
+    default_enabled = False
+
+    def run(self, ctx: ValidatorContext) -> str:
+        from lib import nest_health as nh
+
+        return nh.run_as_validator(ctx, sync_alerts=True)
 
 
 class LibraryConnectionsValidator(BaseValidator):
@@ -425,6 +428,7 @@ def register_builtins() -> None:
         ClutchFilesValidator,
         NestKeyExpiryValidator,
         RemotingIdentitiesValidator,
+        NestHealthValidator,
         NestReachabilityValidator,
         NestCapabilityValidator,
         LibraryConnectionsValidator,

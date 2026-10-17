@@ -64,7 +64,7 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     provider_type = nest["provider_type"]
     location = nest["location"]
 
-    # Optional Nest nest_storage until first-class registry field (#538).
+    # Nest nest_storage SoR: Nest detail volumes / extra.nest_storage (#538 / ADR-0039).
     extra = nest.get("extra") if isinstance(nest.get("extra"), dict) else {}
     nest_storage_raw = (extra or {}).get("nest_storage")
     nest_storage = Path(str(nest_storage_raw)) if nest_storage_raw else None

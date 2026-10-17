@@ -33,7 +33,8 @@ class NestToolSpec:
     packages: dict[str, str] = field(default_factory=dict)
     """Install package names keyed by ``linux`` / ``macos`` / ``windows``."""
     check: str = "which"
-    """``which`` (PATH), ``python3_gi``, or ``hyperv_get_vm`` (Hyper-V cmdlet)."""
+    """``which`` (PATH), ``python3_gi``, or Hyper-V probes
+    (``hyperv_feature`` / ``hyperv_module`` / ``hyperv_get_vm``)."""
 
 
 CONTROLLER_ALERT_PREFIX = "Controller requirement:"
@@ -108,16 +109,40 @@ def _check_python3_gi() -> bool:
         return False
 
 
+_HYPERV_CHECKS = frozenset({"hyperv_feature", "hyperv_module", "hyperv_get_vm"})
+
+_HYPERV_INSTALL_HINTS = {
+    "hyperv_feature": (
+        "Enable Hyper-V role/feature on the Nest "
+        "(Server: Install-WindowsFeature Hyper-V; "
+        "Client: Enable-WindowsOptionalFeature Microsoft-Hyper-V-All). "
+        "Library script: enable-hyperv-windows.ps1"
+    ),
+    "hyperv_module": (
+        "Install Hyper-V PowerShell management tools "
+        "(Server: Hyper-V-PowerShell / IncludeManagementTools; "
+        "Client: Microsoft-Hyper-V-Management-PowerShell)"
+    ),
+    "hyperv_get_vm": (
+        "Hyper-V PowerShell module must expose Get-VM "
+        "(install Hyper-V-PowerShell / management tools)"
+    ),
+}
+
+
 def _tool_present(spec: NestToolSpec) -> bool:
     if spec.check == "python3_gi":
         return _check_python3_gi()
-    if spec.check == "hyperv_get_vm":
-        return _check_hyperv_get_vm_local()
+    if spec.check in _HYPERV_CHECKS:
+        return _check_hyperv_local(spec.check)
     return shutil.which(spec.name) is not None
 
 
 def _requirement_from_spec(spec: NestToolSpec, *, present: bool, role: str = "nest") -> Requirement:
     package = package_for_current_os(spec.packages)
+    hint = ""
+    if not present:
+        hint = _HYPERV_INSTALL_HINTS.get(spec.check) or (install_hint(package) if package else "")
     return Requirement(
         name=spec.name,
         package=package,
@@ -125,7 +150,7 @@ def _requirement_from_spec(spec: NestToolSpec, *, present: bool, role: str = "ne
         present=present,
         optional=False,
         role=role,
-        install_hint=install_hint(package) if not present and package else "",
+        install_hint=hint,
     )
 
 
@@ -213,14 +238,65 @@ def _remote_which(transport, name: str) -> bool:
         return False
 
 
-def _check_hyperv_get_vm_local() -> bool:
-    """True when local PowerShell can resolve the Hyper-V ``Get-VM`` cmdlet."""
+def _hyperv_probe_script(check: str) -> tuple[str, str] | None:
+    """Return ``(powershell_script, success_marker)`` for a Hyper-V Nest check."""
+    if check == "hyperv_feature":
+        marker = "hatchery-hyperv-feature-ok"
+        script = (
+            "$ok = $false\n"
+            "if (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue) {\n"
+            "  $f = Get-WindowsFeature -Name Hyper-V -ErrorAction SilentlyContinue\n"
+            "  if ($f -and $f.InstallState -eq 'Installed') { $ok = $true }\n"
+            "} elseif (Get-Command Get-WindowsOptionalFeature -ErrorAction SilentlyContinue) {\n"
+            "  foreach ($n in @('Microsoft-Hyper-V-All','Microsoft-Hyper-V',"
+            "'Microsoft-Hyper-V-Hypervisor')) {\n"
+            "    $f = Get-WindowsOptionalFeature -Online -FeatureName $n "
+            "-ErrorAction SilentlyContinue\n"
+            "    if ($f -and $f.State -eq 'Enabled') { $ok = $true; break }\n"
+            "  }\n"
+            "}\n"
+            f"if ($ok) {{ Write-Output '{marker}' }}\n"
+        )
+        return script, marker
+    if check == "hyperv_module":
+        marker = "hatchery-hyperv-module-ok"
+        script = (
+            "$ok = $false\n"
+            "if (Get-Module -ListAvailable -Name Hyper-V) { $ok = $true }\n"
+            "if (-not $ok -and (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue)) {\n"
+            "  foreach ($n in @('Hyper-V-PowerShell','RSAT-Hyper-V-Tools')) {\n"
+            "    $f = Get-WindowsFeature -Name $n -ErrorAction SilentlyContinue\n"
+            "    if ($f -and $f.InstallState -eq 'Installed') { $ok = $true; break }\n"
+            "  }\n"
+            "}\n"
+            "if (-not $ok -and (Get-Command Get-WindowsOptionalFeature "
+            "-ErrorAction SilentlyContinue)) {\n"
+            "  $f = Get-WindowsOptionalFeature -Online "
+            "-FeatureName Microsoft-Hyper-V-Management-PowerShell "
+            "-ErrorAction SilentlyContinue\n"
+            "  if ($f -and $f.State -eq 'Enabled') { $ok = $true }\n"
+            "}\n"
+            f"if ($ok) {{ Write-Output '{marker}' }}\n"
+        )
+        return script, marker
+    if check == "hyperv_get_vm":
+        marker = "hatchery-hyperv-ok"
+        script = f"Get-Command Get-VM -ErrorAction Stop | Out-Null; Write-Output '{marker}'"
+        return script, marker
+    return None
+
+
+def _check_hyperv_local(check: str) -> bool:
+    """True when local PowerShell passes a Hyper-V Nest prerequisite probe."""
     import base64
 
+    probe = _hyperv_probe_script(check)
+    if probe is None:
+        return False
+    script, marker = probe
     exe = shutil.which("pwsh") or shutil.which("powershell") or shutil.which("powershell.exe")
     if not exe:
         return False
-    script = "Get-Command Get-VM -ErrorAction Stop | Out-Null; Write-Output 'hatchery-hyperv-ok'"
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     try:
         result = subprocess.run(
@@ -236,33 +312,45 @@ def _check_hyperv_get_vm_local() -> bool:
             capture_output=True,
             text=True,
             check=False,
-            timeout=20,
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return result.returncode == 0 and "hatchery-hyperv-ok" in (result.stdout or "")
+    return marker in (result.stdout or "")
 
 
-def _remote_hyperv_get_vm(transport) -> bool:
-    """Probe a Windows Nest for Hyper-V ``Get-VM`` over Nest transport."""
+def _remote_hyperv_check(transport, check: str) -> bool:
+    """Probe a Windows Nest for a Hyper-V Nest prerequisite over Nest transport."""
     import base64
 
     from lib.nest_transport import WinrmNestTransport
 
-    script = "Get-Command Get-VM -ErrorAction Stop | Out-Null; Write-Output 'hatchery-hyperv-ok'"
+    probe = _hyperv_probe_script(check)
+    if probe is None:
+        return False
+    script, marker = probe
     try:
         if isinstance(transport, WinrmNestTransport):
-            out = transport.run(script, timeout=20)
+            out = transport.run(script, timeout=30)
         else:
             encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
             out = transport.run(
                 "powershell.exe -NoProfile -NonInteractive "
                 f"-ExecutionPolicy Bypass -EncodedCommand {encoded}",
-                timeout=20,
+                timeout=30,
             )
     except Exception:
         return False
-    return "hatchery-hyperv-ok" in (out or "")
+    return marker in (out or "")
+
+
+# Backward-compatible aliases used by older tests / call sites.
+def _check_hyperv_get_vm_local() -> bool:
+    return _check_hyperv_local("hyperv_get_vm")
+
+
+def _remote_hyperv_get_vm(transport) -> bool:
+    return _remote_hyperv_check(transport, "hyperv_get_vm")
 
 
 def check_nest_tools_remote(transport, specs: list[NestToolSpec]) -> list[Requirement]:
@@ -282,8 +370,8 @@ def check_nest_tools_remote(transport, specs: list[NestToolSpec]) -> list[Requir
                 present = True
             except Exception:
                 present = False
-        elif spec.check == "hyperv_get_vm":
-            present = _remote_hyperv_get_vm(transport)
+        elif spec.check in _HYPERV_CHECKS:
+            present = _remote_hyperv_check(transport, spec.check)
         else:
             present = _remote_which(transport, spec.name)
         out.append(_requirement_from_spec(spec, present=present))

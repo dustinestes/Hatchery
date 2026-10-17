@@ -41,6 +41,7 @@ _DB_SETTING_KEYS = frozenset(
         "validators",
         "validators_run_retention",
         "nest_reachability_status",
+        "nest_health_status",
         "show_passwords",
         "display_timezone",
         "vms_show_external",
@@ -70,6 +71,7 @@ _DEFAULTS: dict = {
     "validators": {},
     "validators_run_retention": 50,
     "nest_reachability_status": {},
+    "nest_health_status": {},
     "show_passwords": False,
     "display_timezone": "UTC",
     "vms_show_external": False,
@@ -384,10 +386,10 @@ def library_software_bindings() -> list:
 def exportable_setting_keys() -> frozenset[str]:
     """Keys included in Settings export/import (not bootstrap ``data_dir``).
 
-    Runtime caches such as ``nest_reachability_status`` stay in SQLite but are
-    not exported.
+    Runtime caches such as ``nest_reachability_status`` / ``nest_health_status``
+    stay in SQLite but are not exported.
     """
-    return _DB_SETTING_KEYS - {"nest_reachability_status"}
+    return _DB_SETTING_KEYS - {"nest_reachability_status", "nest_health_status"}
 
 
 def default_for(key: str):

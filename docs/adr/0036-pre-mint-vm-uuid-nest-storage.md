@@ -20,7 +20,7 @@ Answer media must exist before domain create completes attach, so identity canno
      disk.qcow2|vhdx
      autounattend.img|iso   # ephemeral; delete after install media cleanup
    ```
-3. **Path resolve (interim until Nest registry SoR in #538):** Nest `nest_storage` (optional `extra.nest_storage` today) → Clutch `storage_path` → provider default (libvirt pool path when present; Hyper-V VirtualHardDiskPath when queryable). Never write new answer media under Controller `data_dir` / `nest_cache`.
+3. **Path resolve:** Nest `nest_storage` (Nest detail volumes / `extra.nest_storage`; [ADR-0039](0039-nest-health-gate-and-nest-storage.md) / #538) → Clutch `storage_path` (legacy) → provider default (libvirt pool path when present; Hyper-V VirtualHardDiskPath when queryable). Never write new answer media under Controller `data_dir` / `nest_cache`.
 4. **Hypervisor identity:** Libvirt `virt-install --uuid`. Hyper-V has no create-time Id API; Nest storage `vm_id` is the directory name and is recovered from the disk path parent for `get_vm_uuid` / `get_vm_name_by_uuid`.
 5. **Cleanup:** After answer detach+delete, `rmdir` the VM dir if empty. Destroy removes leftovers and empty dirs. Legacy `nest-work` files may be deleted on destroy when found by name.
 

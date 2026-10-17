@@ -69,6 +69,7 @@ Table: `app_settings` (`key` TEXT PRIMARY KEY, `value` TEXT JSON).
 | `validators` | General | Per-validator `{enabled, interval_seconds}` map (JSON) |
 | `validators_run_retention` | General | Max run history rows per validator (10–500, default 50) |
 | `nest_reachability_status` | (runtime) | Last Nest reachability snapshot - not Settings-exportable |
+| `nest_health_status` | (runtime) | Last Nest Health snapshot - not Settings-exportable |
 | `show_passwords` | Security | VM inventory password visibility |
 | `vms_show_external` | Display | When true, show hypervisor VMs without Hatchery session tags (default false) |
 | `nest_key_alert_tiers` | Security | Nest SSH expiry alert windows |

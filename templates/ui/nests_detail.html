@@ -14,20 +14,15 @@
       <div class="detail-hero-title-wrap">
         <h2 class="detail-hero-title" id="nest-detail-name">{{ nest.name }}</h2>
         <span class="detail-hero-cues" id="nest-detail-cues">
-          <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
-          <span class="hatch-status-badge">{{ nest.reachability_label }}</span>
+          <span class="nest-status-dot {{ nest.reachability_dot }}" id="nest-reachability-dot"
+                aria-hidden="true"></span>
+          <span class="hatch-status-badge" id="nest-reachability-badge">{{ nest.reachability_label }}</span>
         </span>
       </div>
-      <p class="detail-hero-validated" id="nest-health-validated" aria-live="polite">
-        {% if last_checked_at %}
-        Last checked: <time datetime="{{ last_checked_at }}">{{ last_checked_at }}</time>
-        {% else %}
-        Last checked: not yet
-        {% endif %}
-      </p>
       <div class="detail-hero-actions" role="toolbar" aria-label="Nest actions">
-        <button type="button" class="detail-hero-action" id="nest-test-connection"
-                title="Test Nest connection" aria-label="Test Nest connection">
+        <button type="button" class="detail-hero-action" id="nest-health-btn"
+                data-label="Health"
+                title="Health" aria-label="Health">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
@@ -60,13 +55,6 @@
           <span class="vm-field-value">{% if nest.transport %}{{ nest.transport }}{% else %}<span class="vm-field-muted">—</span>{% endif %}</span>
         </div>
         <div class="vm-field">
-          <span class="vm-field-label">Reachability</span>
-          <span class="vm-field-value">
-            <span class="nest-status-dot {{ nest.reachability_dot }}" aria-hidden="true"></span>
-            {{ nest.reachability_label }}
-          </span>
-        </div>
-        <div class="vm-field">
           <span class="vm-field-label">VMs</span>
           <span class="vm-field-value" id="nest-vm-count">…</span>
         </div>
@@ -75,16 +63,109 @@
           <span class="vm-field-value" id="nest-session-count">…</span>
         </div>
       </div>
-      <div class="vm-detail-health" id="nest-test-status" role="status" aria-live="polite"></div>
+
+      <div class="detail-hero-subsection" aria-labelledby="nest-health-heading">
+        <div class="detail-hero-subhead">
+          <h3 class="detail-hero-subtitle" id="nest-health-heading">Nest Health</h3>
+          <p class="detail-hero-validated" id="nest-health-validated" aria-live="polite">
+            {% if last_checked_at %}
+            Last checked: <time datetime="{{ last_checked_at }}">{{ last_checked_at }}</time>
+            {% else %}
+            Last checked: not yet
+            {% endif %}
+          </p>
+        </div>
+        <div class="vm-row-fields" id="nest-health-fields" role="status" aria-live="polite"></div>
+      </div>
     </div>
+  </section>
+
+  <section class="detail-section-tile" aria-labelledby="nest-storage-heading">
+    <div class="detail-section-header">
+      <h2 class="scripts-section-title" id="nest-storage-heading">Storage</h2>
+      <div class="detail-hero-actions" role="toolbar" aria-label="Storage actions">
+        <button type="button" class="detail-hero-action" id="nest-storage-add-btn"
+                title="Add storage path" aria-label="Add storage path">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button type="button" class="detail-hero-action" id="nest-storage-refresh-btn"
+                title="Refresh storage" aria-label="Refresh storage">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="list-shell-body" id="nest-storage-body" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="detail-section-tile" aria-labelledby="nest-prereqs-heading">
+    <div class="detail-section-header">
+      <h2 class="scripts-section-title" id="nest-prereqs-heading">Prerequisites</h2>
+      <div class="detail-hero-actions" role="toolbar" aria-label="Prerequisites actions">
+        <button type="button" class="detail-hero-action" id="nest-prereqs-refresh-btn"
+                title="Refresh prerequisites" aria-label="Refresh prerequisites">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="list-shell-body" id="nest-prereqs-body" role="status" aria-live="polite"></div>
   </section>
 
   <section class="detail-section-tile" aria-labelledby="nest-sessions-heading">
     <div class="detail-section-header">
       <h2 class="scripts-section-title" id="nest-sessions-heading">Hatch Sessions</h2>
     </div>
-    <div id="nest-sessions-body"></div>
+    <div class="list-shell-body" id="nest-sessions-body"></div>
   </section>
+</div>
+
+<div id="nest-storage-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nest-storage-dialog-title">
+    <h2 class="modal-title" id="nest-storage-dialog-title">Add storage path</h2>
+    <form id="nest-storage-form">
+      <div class="modal-body">
+        <p class="form-help-text">
+          Directory on the Nest for guest VM disks (<code>nest_storage</code>).
+          Pick a discovered Nest disk (volume root), then an optional subdirectory -
+          or enter a full absolute path. Not Nest cache.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="nest-storage-disk">Disk</label>
+          <select class="form-select" id="nest-storage-disk" name="disk"
+                  aria-describedby="nest-storage-disk-help">
+            <option value="">Custom (full path)</option>
+          </select>
+          <p class="form-help-text" id="nest-storage-disk-help">
+            Populated from the latest Nest Health disk discovery. Run Health if empty.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="nest-storage-path" id="nest-storage-path-label">Path</label>
+          <input type="text" class="form-input" id="nest-storage-path" name="path"
+                 required autocomplete="off"
+                 placeholder="C:\Hatchery\VMs or /var/lib/libvirt/images">
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" id="nest-storage-primary" name="primary">
+            Primary volume (used for new hatches)
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="nest-storage-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="nest-storage-submit">Add</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
@@ -94,13 +175,29 @@
   const root = document.getElementById('nest-detail');
   const nestId = root.dataset.nestId;
   const nestName = root.dataset.nestName || nestId;
-  const testBtn = document.getElementById('nest-test-connection');
-  const testStatus = document.getElementById('nest-test-status');
+  const healthBtn = document.getElementById('nest-health-btn');
+  const healthFields = document.getElementById('nest-health-fields');
   const validated = document.getElementById('nest-health-validated');
+  const reachBadge = document.getElementById('nest-reachability-badge');
+  const reachDot = document.getElementById('nest-reachability-dot');
   const vmCount = document.getElementById('nest-vm-count');
   const sessionCount = document.getElementById('nest-session-count');
   const sessionsBody = document.getElementById('nest-sessions-body');
+  const storageBody = document.getElementById('nest-storage-body');
+  const prereqsBody = document.getElementById('nest-prereqs-body');
+  const storageBackdrop = document.getElementById('nest-storage-backdrop');
+  const storageForm = document.getElementById('nest-storage-form');
+  const storageDiskSelect = document.getElementById('nest-storage-disk');
+  const storagePathInput = document.getElementById('nest-storage-path');
+  const storagePathLabel = document.getElementById('nest-storage-path-label');
+  const storagePrimaryInput = document.getElementById('nest-storage-primary');
+  const storageCancel = document.getElementById('nest-storage-cancel');
+  const storageSubmit = document.getElementById('nest-storage-submit');
+  const storageDialogTitle = document.getElementById('nest-storage-dialog-title');
   let resolvedTimezone = 'UTC';
+  let lastHealth = null;
+  let storageFocusReturn = null;
+  let storageEditId = null;
 
   if (window.hatchery && hatchery.stickyNav) {
     hatchery.stickyNav.open({
@@ -117,6 +214,15 @@
     return String(str ?? '').replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
+  }
+
+  function field(label, valueHtml) {
+    return '<div class="vm-field"><span class="vm-field-label">' + esc(label) +
+      '</span><span class="vm-field-value">' + valueHtml + '</span></div>';
+  }
+
+  function muted(text) {
+    return '<span class="vm-field-muted">' + esc(text) + '</span>';
   }
 
   function fmtChecked(iso) {
@@ -151,6 +257,201 @@
     }
   }
 
+  function fmtBytes(n) {
+    if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+    const v = Number(n);
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+    let i = 0;
+    let x = v;
+    while (x >= 1024 && i < units.length - 1) { x /= 1024; i += 1; }
+    return (i === 0 ? String(Math.round(x)) : x.toFixed(1)) + ' ' + units[i];
+  }
+
+  function gateLabel(health) {
+    if (!health || health.ok === null || health.ok === undefined) return muted('not checked');
+    const gate = health.gate || {};
+    if (gate.ok) return 'Reachable';
+    return esc(gate.detail || 'Unreachable');
+  }
+
+  function cpuLabel(health) {
+    if (!health || !health.deeper_ran) return muted('unavailable');
+    const cpu = health.cpu;
+    if (!cpu || cpu.count === null || cpu.count === undefined) return muted('unavailable');
+    return esc(String(cpu.count)) + ' logical';
+  }
+
+  function memLabel(health) {
+    if (!health || !health.deeper_ran) return muted('unavailable');
+    const mem = health.memory;
+    if (!mem) return muted('unavailable');
+    return esc(fmtBytes(mem.used_bytes)) + ' / ' + esc(fmtBytes(mem.total_bytes)) +
+      ' (free ' + esc(fmtBytes(mem.free_bytes)) + ')';
+  }
+
+  function renderHealth(health) {
+    lastHealth = health;
+    if (!healthFields) return;
+    if (!health || health.ok === null || health.ok === undefined) {
+      healthFields.innerHTML = [
+        field('Reachability', muted('not checked')),
+        field('CPU', muted('not checked')),
+        field('Memory', muted('not checked')),
+      ].join('');
+      return;
+    }
+    healthFields.innerHTML = [
+      field('Reachability', gateLabel(health)),
+      field('CPU', cpuLabel(health)),
+      field('Memory', memLabel(health)),
+    ].join('');
+    if (validated) validated.textContent = fmtChecked(health.checked_at);
+    if (health.gate) {
+      applyReachabilityCue(health.gate);
+    }
+    renderPrereqs(health);
+  }
+
+  function applyReachabilityCue(gate) {
+    const ok = !!(gate && gate.ok);
+    if (reachDot) {
+      reachDot.className = 'nest-status-dot nest-status-dot--' + (ok ? 'green' : 'red');
+    }
+    if (reachBadge) {
+      reachBadge.textContent = ok
+        ? 'Reachable'
+        : (gate.failure_class === 'endpoint'
+          ? 'Endpoint not reachable'
+          : gate.failure_class === 'transport'
+            ? 'Transport not accessible'
+            : 'Unreachable');
+    }
+  }
+
+  function storageStatusClass(status) {
+    if (status === 'Error') {
+      return 'script-col-status script-status nest-storage-status nest-storage-status--error';
+    }
+    if (status === 'Warn') {
+      return 'script-col-status script-status nest-storage-status nest-storage-status--warn';
+    }
+    if (status === 'Connected') {
+      return 'script-col-status script-status nest-storage-status nest-storage-status--ok';
+    }
+    return 'script-col-status script-status nest-storage-status nest-storage-status--off';
+  }
+
+  function renderStorage(volumes) {
+    if (!storageBody) return;
+    if (!volumes.length) {
+      storageBody.innerHTML =
+        '<p class="detail-section-empty" role="status">No storage volumes registered. Add a path for guest VM disks.</p>';
+      return;
+    }
+    const trashSvg =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<polyline points="3 6 5 6 21 6"/>' +
+      '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+      '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    const editSvg =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>' +
+      '<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    const rows = volumes.map(function (v) {
+      const status = v.status || 'Disconnected';
+      const freeLabel = (v.free_bytes === null || v.free_bytes === undefined)
+        ? '—'
+        : (fmtBytes(v.free_bytes) + ' free');
+      const primary = v.primary ? ' <span class="vm-field-muted">(primary)</span>' : '';
+      return '<div class="script-row nest-storage-row">' +
+        '<span class="script-col-name" title="' + esc(v.path) + '">' +
+          esc(v.path) + primary + '</span>' +
+        '<span class="script-col-elapsed" title="' + esc(v.mount || '') + '">' +
+          esc(v.mount || '—') + '</span>' +
+        '<span class="script-col-last-output" title="' + esc(freeLabel) + '">' +
+          esc(freeLabel) + '</span>' +
+        '<span class="' + storageStatusClass(status) + '">' + esc(status) + '</span>' +
+        '<span class="script-col-actions">' +
+          '<button type="button" class="btn-icon nest-storage-edit" data-id="' +
+          esc(v.id) + '" data-path="' + esc(v.path) + '" data-primary="' +
+          (v.primary ? '1' : '0') + '" title="Edit storage path" aria-label="Edit storage path ' +
+          esc(v.path) + '">' + editSvg + '</button>' +
+          '<button type="button" class="btn-icon nest-storage-remove" data-id="' +
+          esc(v.id) + '" title="Remove storage path" aria-label="Remove storage path ' +
+          esc(v.path) + '">' + trashSvg + '</button>' +
+        '</span></div>';
+    }).join('');
+    storageBody.innerHTML =
+      '<div class="script-cols-header nest-storage-cols">' +
+      '<span>Path</span><span>Disk</span><span>Free</span>' +
+      '<span>Status</span><span>Actions</span>' +
+      '</div>' + rows;
+    storageBody.querySelectorAll('.nest-storage-edit').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openStorageModal({
+          id: btn.getAttribute('data-id'),
+          path: btn.getAttribute('data-path') || '',
+          primary: btn.getAttribute('data-primary') === '1',
+        });
+      });
+    });
+    storageBody.querySelectorAll('.nest-storage-remove').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        if (!window.confirm('Remove this storage path?')) return;
+        const resp = await fetch(
+          '/api/nests/' + encodeURIComponent(nestId) + '/storage-volumes/' + encodeURIComponent(id),
+          { method: 'DELETE' }
+        );
+        if (!resp.ok) {
+          const body = await resp.json().catch(function () { return {}; });
+          window.alert(body.error || 'Remove failed');
+          return;
+        }
+        await loadStorage();
+      });
+    });
+  }
+
+  function renderPrereqs(health) {
+    if (!prereqsBody) return;
+    if (!health || health.ok === null || health.ok === undefined) {
+      prereqsBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Run Health to check prerequisites.</p>';
+      return;
+    }
+    if (!health.deeper_ran) {
+      prereqsBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Prerequisites unavailable until Nest Health gate passes.</p>';
+      return;
+    }
+    const list = health.prerequisites || [];
+    if (!list.length) {
+      prereqsBody.innerHTML =
+        '<p class="detail-section-empty" role="status">No tool prerequisites for this provider.</p>';
+      return;
+    }
+    const rows = list.map(function (p) {
+      const present = !!p.present;
+      const status = present ? 'Present' : 'Missing';
+      const hint = p.install_hint ? esc(p.install_hint) : muted('—');
+      return '<div class="script-row nest-prereq-row">' +
+        '<span class="script-col-name">' + esc(p.name) + '</span>' +
+        '<span class="script-col-status">' + esc(status) + '</span>' +
+        '<span class="script-col-required-for" title="' + esc(p.required_for || '') + '">' +
+          esc(p.required_for || '—') + '</span>' +
+        '<span class="script-col-hint" title="' + esc(p.install_hint || '') + '">' + hint + '</span>' +
+        '</div>';
+    }).join('');
+    prereqsBody.innerHTML =
+      '<div class="script-cols-header nest-prereq-cols">' +
+      '<span>Tool</span><span>Status</span><span>Required for</span><span>Hint</span>' +
+      '</div>' + rows;
+  }
+
   function renderSessions(list) {
     if (!list.length) {
       sessionsBody.innerHTML =
@@ -175,10 +476,52 @@
       '</div>' + rows;
   }
 
-  if (validated) {
-    const existing = validated.querySelector('time');
-    if (existing && existing.getAttribute('datetime')) {
-      validated.textContent = fmtChecked(existing.getAttribute('datetime'));
+  async function loadHealthCached() {
+    try {
+      const resp = await fetch('/api/nests/' + encodeURIComponent(nestId) + '/health');
+      const body = await resp.json().catch(function () { return {}; });
+      if (resp.ok) renderHealth(body);
+    } catch (e) { /* ignore */ }
+  }
+
+  async function runHealth() {
+    healthBtn.disabled = true;
+    try {
+      const resp = await fetch('/api/nests/' + encodeURIComponent(nestId) + '/health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        healthFields.innerHTML = field('Reachability', esc(body.error || 'Health check failed'));
+        return;
+      }
+      renderHealth(body);
+      await loadStorage();
+      if (window.hatchery && typeof hatchery.refreshStatusSurfaces === 'function') {
+        hatchery.refreshStatusSurfaces();
+      }
+    } catch (e) {
+      healthFields.innerHTML = field('Reachability', esc('Health check failed'));
+    } finally {
+      healthBtn.disabled = false;
+    }
+  }
+
+  async function loadStorage() {
+    try {
+      const resp = await fetch('/api/nests/' + encodeURIComponent(nestId) + '/storage-volumes');
+      const body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        storageBody.innerHTML =
+          '<p class="detail-section-empty" role="status">' + esc(body.error || 'Unavailable') + '</p>';
+        return;
+      }
+      renderStorage(body.volumes || []);
+    } catch (e) {
+      storageBody.innerHTML =
+        '<p class="detail-section-empty" role="status">Unable to load storage.</p>';
     }
   }
 
@@ -188,7 +531,7 @@
         fetch('/api/nests/' + encodeURIComponent(nestId) + '/vms'),
         fetch('/api/sessions?nest=' + encodeURIComponent(nestId)),
       ]);
-      const vmsBody = await vmsResp.json().catch(() => ({}));
+      const vmsBody = await vmsResp.json().catch(function () { return {}; });
       if (vmsResp.ok) {
         const vms = Array.isArray(vmsBody) ? vmsBody : (vmsBody.vms || []);
         vmCount.textContent = String(vms.length);
@@ -207,26 +550,164 @@
     }
   }
 
-  testBtn.addEventListener('click', async function () {
-    testStatus.textContent = 'Testing…';
-    try {
-      const resp = await fetch('/api/nests/test-connection', {
-        method: 'POST',
+  healthBtn.addEventListener('click', function () { runHealth(); });
+  document.getElementById('nest-storage-refresh-btn').addEventListener('click', function () {
+    runHealth();
+  });
+  document.getElementById('nest-prereqs-refresh-btn').addEventListener('click', function () {
+    runHealth();
+  });
+  function diskRootFromHealth(disk) {
+    if (!disk) return '';
+    const raw = (disk.path || disk.mount || disk.filesystem || '').trim();
+    return raw;
+  }
+
+  function populateStorageDiskOptions() {
+    if (!storageDiskSelect) return;
+    const disks = (lastHealth && lastHealth.deeper_ran && Array.isArray(lastHealth.disks))
+      ? lastHealth.disks : [];
+    const keep = storageDiskSelect.querySelector('option[value=""]');
+    storageDiskSelect.innerHTML = '';
+    if (keep) {
+      storageDiskSelect.appendChild(keep);
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Custom (full path)';
+      storageDiskSelect.appendChild(opt);
+    }
+    disks.forEach(function (d) {
+      const root = diskRootFromHealth(d);
+      if (!root) return;
+      const opt = document.createElement('option');
+      opt.value = root;
+      const free = (d.free_bytes !== null && d.free_bytes !== undefined)
+        ? (' - ' + fmtBytes(d.free_bytes) + ' free') : '';
+      opt.textContent = root + free;
+      storageDiskSelect.appendChild(opt);
+    });
+  }
+
+  function joinNestStoragePath(diskRoot, subPath) {
+    const sub = (subPath || '').trim();
+    const root = (diskRoot || '').trim();
+    if (!root) return sub;
+    if (!sub) return root;
+    // Absolute Windows or POSIX path in the path field wins.
+    if (/^[A-Za-z]:[\\/]/.test(sub) || sub.startsWith('/')) return sub;
+    const win = /^[A-Za-z]:/.test(root) || root.indexOf('\\') !== -1;
+    if (win) {
+      const base = root.replace(/[\\/]+$/, '') + '\\';
+      return base + sub.replace(/^[\\/]+/, '').replace(/\//g, '\\');
+    }
+    const base = root.endsWith('/') ? root : (root + '/');
+    return base + sub.replace(/^\/+/, '');
+  }
+
+  function syncStoragePathLabel() {
+    const custom = !storageDiskSelect || !storageDiskSelect.value;
+    if (storagePathLabel) {
+      storagePathLabel.textContent = custom ? 'Full path' : 'Subdirectory (optional)';
+    }
+    if (storagePathInput) {
+      storagePathInput.placeholder = custom
+        ? 'C:\\Hatchery\\VMs or /var/lib/libvirt/images'
+        : 'Hatchery\\VMs or libvirt/images';
+      storagePathInput.required = custom;
+    }
+  }
+
+  function openStorageModal(edit) {
+    populateStorageDiskOptions();
+    storageEditId = edit && edit.id ? edit.id : null;
+    if (storageDiskSelect) storageDiskSelect.value = '';
+    if (storagePathInput) {
+      storagePathInput.value = edit && edit.path ? edit.path : '';
+    }
+    if (storagePrimaryInput) {
+      storagePrimaryInput.checked = !!(edit && edit.primary);
+    }
+    if (storageDialogTitle) {
+      storageDialogTitle.textContent = storageEditId ? 'Edit storage path' : 'Add storage path';
+    }
+    if (storageSubmit) {
+      storageSubmit.textContent = storageEditId ? 'Save' : 'Add';
+    }
+    syncStoragePathLabel();
+    storageFocusReturn = document.activeElement;
+    if (storageBackdrop) storageBackdrop.hidden = false;
+    if (storagePathInput) storagePathInput.focus();
+  }
+
+  function closeStorageModal() {
+    if (storageBackdrop) storageBackdrop.hidden = true;
+    storageEditId = null;
+    if (storageDialogTitle) storageDialogTitle.textContent = 'Add storage path';
+    if (storageSubmit) storageSubmit.textContent = 'Add';
+    const el = storageFocusReturn;
+    storageFocusReturn = null;
+    if (el && typeof el.focus === 'function') el.focus();
+  }
+
+  document.getElementById('nest-storage-add-btn').addEventListener('click', function () {
+    openStorageModal(null);
+  });
+
+  if (storageDiskSelect) {
+    storageDiskSelect.addEventListener('change', syncStoragePathLabel);
+  }
+  if (storageCancel) {
+    storageCancel.addEventListener('click', function () { closeStorageModal(); });
+  }
+  if (storageBackdrop) {
+    storageBackdrop.addEventListener('click', function (ev) {
+      if (ev.target === storageBackdrop) closeStorageModal();
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && storageBackdrop && !storageBackdrop.hidden) {
+        closeStorageModal();
+      }
+    });
+  }
+
+  if (storageForm) {
+    storageForm.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      const diskRoot = storageDiskSelect ? storageDiskSelect.value : '';
+      const typed = (storagePathInput && storagePathInput.value || '').trim();
+      const path = joinNestStoragePath(diskRoot, typed);
+      if (!path) return;
+      const primary = !!(storagePrimaryInput && storagePrimaryInput.checked);
+      const editing = !!storageEditId;
+      const url = editing
+        ? ('/api/nests/' + encodeURIComponent(nestId) + '/storage-volumes/' +
+           encodeURIComponent(storageEditId))
+        : ('/api/nests/' + encodeURIComponent(nestId) + '/storage-volumes');
+      const resp = await fetch(url, {
+        method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nest_id: nestId }),
+        body: JSON.stringify({ path: path, primary: primary }),
       });
-      const body = await resp.json().catch(() => ({}));
-      const checkedAt = new Date().toISOString();
-      if (validated) validated.textContent = fmtChecked(checkedAt);
+      const body = await resp.json().catch(function () { return {}; });
       if (!resp.ok) {
-        testStatus.textContent = body.message || body.error || 'Connection test failed';
+        window.alert(body.error || (editing ? 'Save failed' : 'Add failed'));
         return;
       }
-      testStatus.textContent = body.message || (body.ok ? 'Reachable' : 'Unreachable');
-    } catch (e) {
-      testStatus.textContent = 'Connection test failed';
+      closeStorageModal();
+      await loadStorage();
+    });
+  }
+
+  if (validated) {
+    const existing = validated.querySelector('time');
+    if (existing && existing.getAttribute('datetime')) {
+      validated.textContent = fmtChecked(existing.getAttribute('datetime'));
     }
-  });
+  }
+
+  renderHealth(null);
+  renderPrereqs(null);
 
   fetch('/api/config')
     .then(function (r) { return r.json(); })
@@ -236,11 +717,15 @@
         const existing = validated.querySelector('time');
         if (existing && existing.getAttribute('datetime')) {
           validated.textContent = fmtChecked(existing.getAttribute('datetime'));
+        } else if (validated.textContent.indexOf('Last checked:') === 0) {
+          /* already formatted or placeholder */
         }
       }
     })
     .catch(function () {})
     .finally(function () {
+      loadHealthCached();
+      loadStorage();
       loadRollups();
       setInterval(loadRollups, 10000);
     });

@@ -435,12 +435,67 @@ def test_nests_detail_markers(client):
     assert "vm-row-fields" in html
     assert "detail-section-header" in html
     assert "detail-section-tile" in html
-    assert 'aria-label="Test Nest connection"' in html
+    assert 'aria-label="Health"' in html
+    assert "Nest Health" in html
+    assert ">Storage</h2>" in html or 'id="nest-storage' in html
+    assert "Prerequisites" in html
+    assert 'id="nest-reachability-dot"' in html
+    assert 'id="nest-health-fields"' in html
     assert "Last checked:" in html
     assert "Hatch Sessions" in html
     assert 'id="nest-sessions-body"' in html
     assert 'id="nest-vm-count"' in html
     assert 'id="nest-session-count"' in html
+
+
+def test_nest_health_and_storage_api(client):
+    from lib.nest_transport import NestHealthCheckResult
+
+    with (
+        patch(
+            "lib.nest_reachability.probe_nest",
+            return_value=NestHealthCheckResult(ok=True, detail="Local OK"),
+        ),
+        patch(
+            "lib.nest_health._gather_resources_local",
+            return_value={
+                "cpu": {"count": 2, "utilization_percent": None},
+                "memory": None,
+                "disks": [
+                    {
+                        "mount": "/",
+                        "path": "/",
+                        "total_bytes": 100,
+                        "used_bytes": 40,
+                        "free_bytes": 60,
+                        "state": "ok",
+                    }
+                ],
+            },
+        ),
+        patch("lib.requirements.check_nest", return_value=[]),
+    ):
+        resp = client.post("/api/nests/local/health", json={})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ok"] is True
+    assert body["cpu"]["count"] == 2
+
+    get_resp = client.get("/api/nests/local/health")
+    assert get_resp.status_code == 200
+    assert get_resp.get_json()["cpu"]["count"] == 2
+
+    resp = client.post(
+        "/api/nests/local/storage-volumes",
+        json={"path": "/var/lib/libvirt/images", "primary": True},
+    )
+    assert resp.status_code == 201
+    vid = resp.get_json()["id"]
+    volumes = client.get("/api/nests/local/storage-volumes").get_json()["volumes"]
+    assert len(volumes) == 1
+    assert volumes[0]["status"] in {"Connected", "Warn", "Error", "Disconnected"}
+    assert client.delete(f"/api/nests/local/storage-volumes/{vid}").status_code == 200
+    assert client.get("/api/nests/local/storage-volumes").get_json()["volumes"] == []
 
 
 def test_settings_display_has_external_vms_toggle(client):

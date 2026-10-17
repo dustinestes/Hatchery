@@ -30,6 +30,7 @@ def isolated_config(monkeypatch, tmp_path):
             "validators": {},
             "validators_run_retention": 50,
             "nest_reachability_status": {},
+            "nest_health_status": {},
             "show_passwords": False,
             "display_timezone": "UTC",
             "vms_show_external": False,
@@ -226,6 +227,32 @@ class TestOperatorInspect:
             rc = nest_cmd.run(args)
         assert rc == 0
         assert "Local Nest OK" in capsys.readouterr().out
+
+    def test_nest_health_ok(self, isolated_config, tmp_path, capsys):
+        sandbox = tmp_path / "sandbox"
+        from lib.cli import bootstrap
+
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime()
+        nests_lib.ensure_local_nest()
+        args = cli.build_parser().parse_args(
+            ["nest", "--data-dir", str(sandbox), "health", "local"]
+        )
+        payload = {
+            "ok": True,
+            "gate": {"ok": True, "detail": "Local Nest OK"},
+            "deeper_ran": True,
+            "cpu": {"count": 2},
+            "memory": {"total_bytes": 8, "used_bytes": 4, "free_bytes": 4},
+            "disks": [],
+            "prerequisites": [],
+        }
+        with patch("lib.nest_health.run_health", return_value=payload):
+            rc = nest_cmd.run(args)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Local Nest OK" in out
+        assert "CPU:" in out
 
     def test_clutch_list_and_show(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"

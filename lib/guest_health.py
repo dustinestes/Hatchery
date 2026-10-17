@@ -30,17 +30,33 @@ def check_winrm(ip: str, port: int = 5985, timeout: float = 5.0) -> bool:
 def guest_health(provider, name: str) -> dict:
     """Return guest IP and remoting TCP reachability for a VM.
 
-    Keys: ``ip`` (str | None), ``ssh`` (bool), ``winrm`` (bool), ``reachable`` (bool).
+    Gate-then-deepen shape (#538): ``gate`` + ``deeper_ran``. Today the only
+    deeper signals are SSH/WinRM TCP (no guest host metrics yet; schedule #541).
+
+    Keys: ``ip``, ``ssh``, ``winrm``, ``reachable``, ``gate``, ``deeper_ran``.
     ``reachable`` is True when IP is set and SSH or WinRM TCP succeeds.
     """
     ip = provider.get_vm_ip(name)
     if not ip:
-        return {"ip": None, "ssh": False, "winrm": False, "reachable": False}
+        return {
+            "ip": None,
+            "ssh": False,
+            "winrm": False,
+            "reachable": False,
+            "gate": {"ok": False, "detail": "No guest IP"},
+            "deeper_ran": False,
+        }
     ssh_ok = check_ssh(ip)
     winrm_ok = check_winrm(ip)
+    reachable = ssh_ok or winrm_ok
     return {
         "ip": ip,
         "ssh": ssh_ok,
         "winrm": winrm_ok,
-        "reachable": ssh_ok or winrm_ok,
+        "reachable": reachable,
+        "gate": {
+            "ok": reachable,
+            "detail": "Guest remoting TCP OK" if reachable else "SSH and WinRM TCP failed",
+        },
+        "deeper_ran": reachable,
     }
