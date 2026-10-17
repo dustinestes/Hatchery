@@ -255,6 +255,8 @@ def test_vm_ops_lifecycle_and_snap():
     from lib import vm_ops as ops
 
     prov = MagicMock()
+    prov.get_vm_session_tag.return_value = None
+    prov.get_vm_uuid.return_value = None
     with patch("lib.vm_ops.get_provider", return_value=prov):
         ops.start_vm("local", "dc01")
         ops.stop_vm("local", "dc01")
@@ -273,8 +275,40 @@ def test_vm_ops_lifecycle_and_snap():
         ):
             assert ops.health_vm("local", "dc01")["reachable"] is True
     prov.start_vm.assert_called()
-    prov.destroy_vm.assert_called_with("dc01")
+    prov.destroy_vm.assert_called_with("dc01", protect_media_basenames=None)
     prov.create_snapshot.assert_called_with("dc01", "s1")
+
+
+def test_vm_ops_destroy_passes_clutch_protect_basenames():
+    from lib import vm_ops as ops
+    from lib.clutch import VMConfig
+
+    prov = MagicMock()
+    prov.get_vm_uuid.return_value = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    prov.get_vm_session_tag.return_value = {
+        "session_id": "sess-1",
+        "clutch_file": "lab.yaml",
+    }
+    snap_vm = VMConfig(
+        name="dc01",
+        os="win11",
+        vcpus=2,
+        ram_gb=4,
+        disk_gb=40,
+        os_media="media/iso/Win11.iso",
+        virtio_drivers="/nest/media/virtio/virtio-win.iso",
+    )
+    with (
+        patch("lib.vm_ops.get_provider", return_value=prov),
+        patch("lib.hatch.load_session_vm_config", return_value=snap_vm),
+        patch("lib.guest_transport.remove_guest_known_host") as prune,
+    ):
+        ops.destroy_vm("local", "dc01")
+    prov.destroy_vm.assert_called_with(
+        "dc01",
+        protect_media_basenames=frozenset({"Win11.iso", "virtio-win.iso"}),
+    )
+    prune.assert_called_once_with("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def test_vm_ops_errors():

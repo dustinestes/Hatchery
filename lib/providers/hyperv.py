@@ -725,7 +725,14 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject $drives -Compress 
         out.append(legacy_answer_media_path(self.nest_cache, name, ".iso"))
         return out
 
-    def destroy_vm(self, name: str) -> None:
+    def destroy_vm(
+        self,
+        name: str,
+        *,
+        protect_media_basenames: frozenset[str] | None = None,
+    ) -> None:
+        # protect_media_basenames unused: Hyper-V Destroy removes VHDX only (#601).
+        _ = protect_media_basenames
         try:
             vm_id = self.get_vm_uuid(name)
         except Exception:

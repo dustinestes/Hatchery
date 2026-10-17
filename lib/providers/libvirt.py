@@ -512,6 +512,66 @@ class LibvirtProvider(BaseProvider):
             ]
         )
 
+    def _eject_media_config(self, name: str, target: str) -> None:
+        """Eject from inactive domain config (Destroy path after force-off, #601)."""
+        run_cmd(
+            [
+                "virsh",
+                "change-media",
+                name,
+                target,
+                "--eject",
+                "--config",
+            ],
+            check=False,
+            echo_failure=False,
+        )
+
+    def _path_under_dir(self, path: Path, root: Path) -> bool:
+        try:
+            resolved = path.resolve()
+            root_r = root.resolve()
+        except OSError:
+            resolved = path
+            root_r = root
+        return root_r in resolved.parents or resolved.parent == root_r
+
+    def _should_eject_before_destroy(
+        self,
+        kind: str,
+        basename: str,
+        source: str,
+        protect_media_basenames: frozenset[str] | None,
+    ) -> bool:
+        """Whether this attach must leave the domain before ``--remove-all-storage``."""
+        if kind == "answer" or is_answer_media_basename(basename):
+            return True
+        if protect_media_basenames is not None:
+            protect = {b.casefold() for b in protect_media_basenames}
+            return basename.casefold() in protect
+        # No clutch snapshot: protect shared catalog roots only (#601).
+        path = Path(source)
+        return self._path_under_dir(path, self.iso_dir) or self._path_under_dir(
+            path, self.virtio_dir
+        )
+
+    def _eject_protected_media_before_destroy(
+        self,
+        name: str,
+        protect_media_basenames: frozenset[str] | None,
+    ) -> None:
+        """Detach clutch/catalog install media so undefine does not delete ISOs (#601)."""
+        try:
+            disks = self._list_cleanup_disks(name)
+        except Exception:
+            return
+        for kind, basename, target, source in disks:
+            if not self._should_eject_before_destroy(
+                kind, basename, source, protect_media_basenames
+            ):
+                continue
+            self._eject_media_config(name, target)
+
     def cleanup_install_media(self, name: str) -> list[MediaCleanupStep]:
         """Eject OS ISO / VirtIO / answer floppy; delete Nest answer media when detached."""
         steps: list[MediaCleanupStep] = []
@@ -729,13 +789,21 @@ class LibvirtProvider(BaseProvider):
     def resume_vm(self, name: str) -> None:
         run_cmd(["virsh", "resume", name])
 
-    def destroy_vm(self, name: str) -> None:
-        """Undefine the domain and remove Nest storage leftovers (#592).
+    def destroy_vm(
+        self,
+        name: str,
+        *,
+        protect_media_basenames: frozenset[str] | None = None,
+    ) -> None:
+        """Undefine the domain and remove Nest storage leftovers (#592 / #601).
 
         UEFI guests keep an NVRAM vars file (and often swtpm state). ``virsh
         undefine`` without ``--nvram`` / ``--tpm`` fails with ``cannot undefine
         domain with nvram`` even after Force Stop. Undefine also requires an
         inactive domain, so best-effort ``virsh destroy`` runs first.
+
+        Before ``--remove-all-storage``, eject clutch-snapshot (or catalog-root)
+        install media so shared OS/VirtIO ISOs are not deleted (#601).
         """
         try:
             vm_id = self.get_vm_uuid(name)
@@ -745,6 +813,8 @@ class LibvirtProvider(BaseProvider):
         vm_dirs = self._collect_destroy_vm_dirs(name, vm_id)
         # Inactive domain required for --remove-all-storage / undefine.
         run_cmd(["virsh", "destroy", name], check=False, echo_failure=False)
+        # Eject after force-off so --config applies on an inactive domain.
+        self._eject_protected_media_before_destroy(name, protect_media_basenames)
         run_cmd(
             [
                 "virsh",

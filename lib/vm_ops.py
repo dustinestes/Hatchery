@@ -83,16 +83,54 @@ def resume_vm(nest_id: str, name: str) -> None:
     _run(lambda: provider.resume_vm(name))
 
 
+def protect_media_basenames_for_destroy(provider, name: str) -> frozenset[str] | None:
+    """Clutch-snapshot OS/VirtIO basenames for Destroy media protect (#601).
+
+    Returns a frozenset (possibly empty) when a hatch session tag and clutch
+    snapshot VM row exist. Returns ``None`` when there is no snapshot so the
+    provider falls back to catalog-root eject (``iso_dir`` / ``virtio_dir``).
+    """
+    from pathlib import Path
+
+    try:
+        tag = provider.get_vm_session_tag(name)
+    except Exception:
+        return None
+    if not isinstance(tag, dict):
+        return None
+    session_id = tag.get("session_id")
+    if not isinstance(session_id, str) or not session_id.strip():
+        return None
+    try:
+        from lib import hatch as hatch_lib
+
+        vm = hatch_lib.load_session_vm_config(session_id.strip(), name)
+    except Exception:
+        return None
+    if vm is None:
+        return None
+    names: set[str] = set()
+    os_media = getattr(vm, "os_media", None) or ""
+    virtio = getattr(vm, "virtio_drivers", None) or ""
+    if os_media:
+        names.add(Path(str(os_media)).name)
+    if virtio:
+        names.add(Path(str(virtio)).name)
+    return frozenset(names)
+
+
 def destroy_vm(nest_id: str, name: str) -> None:
     from lib import guest_transport as gt
 
     provider = _resolve_provider(nest_id)
     vm_id: str | None = None
     try:
-        vm_id = provider.get_vm_uuid(name)
+        raw = provider.get_vm_uuid(name)
+        vm_id = raw if isinstance(raw, str) else None
     except Exception:
         vm_id = None
-    _run(lambda: provider.destroy_vm(name))
+    protect = protect_media_basenames_for_destroy(provider, name)
+    _run(lambda: provider.destroy_vm(name, protect_media_basenames=protect))
     # Best-effort prune HostKeyAlias after Nest destroy (#593).
     gt.remove_guest_known_host(vm_id)
 

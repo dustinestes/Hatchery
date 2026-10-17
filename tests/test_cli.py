@@ -364,6 +364,8 @@ class TestOperatorInspect:
         sandbox = tmp_path / "sandbox"
         self._seed_local_nest(sandbox)
         fake = MagicMock()
+        fake.get_vm_session_tag.return_value = None
+        fake.get_vm_uuid.return_value = None
         for cmd, method in (
             ("start", "start_vm"),
             ("stop", "stop_vm"),
@@ -375,9 +377,16 @@ class TestOperatorInspect:
             args = cli.build_parser().parse_args(
                 ["vm", "--data-dir", str(sandbox), cmd, "--nest", "local", "dc01"]
             )
-            with patch("lib.providers.factory.get_provider", return_value=fake):
+            # Destroy goes through vm_ops (clutch protect + known_hosts prune).
+            with (
+                patch("lib.providers.factory.get_provider", return_value=fake),
+                patch("lib.vm_ops.get_provider", return_value=fake),
+            ):
                 assert vm_cmd.run(args) == 0
-            getattr(fake, method).assert_called_with("dc01")
+            if method == "destroy_vm":
+                getattr(fake, method).assert_called_with("dc01", protect_media_basenames=None)
+            else:
+                getattr(fake, method).assert_called_with("dc01")
         out = capsys.readouterr().out
         assert "Started" in out
         assert "Paused" in out
