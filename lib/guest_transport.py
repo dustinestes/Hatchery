@@ -38,9 +38,18 @@ _WINRM_TRANSPORT = "ntlm"
 # EncodedCommand safety margin under Windows CreateProcess ~8191 limit.
 _ENCODED_COMMAND_MAX = 6000
 
+# Large ``run_ps`` bodies are staged here (not Hatchery temp - that dir is
+# created by ensure itself; #591).
+_REMOTE_RUN_PS1 = r"C:\Windows\Temp\hatchery-run.ps1"
+
 
 class GuestTransportError(RuntimeError):
     """Raised when guest remoting cannot connect or a remote command fails."""
+
+
+def _ps_single_quote(value: str) -> str:
+    """PowerShell single-quoted string literal."""
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 @dataclass(frozen=True)
@@ -123,19 +132,60 @@ class WinrmGuestTransport:
         )
 
     def run_ps(self, code: str, *, timeout: int = 300) -> tuple[int, str]:
-        session = self._session(timeout=timeout)
-        result = session.run_ps(code)
-        stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
-        stderr = _strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
-        body = "\n".join(filter(None, [stdout, stderr]))
-        return int(result.status_code), body
+        encoded = _ps_encoded_command(code)
+        if len(encoded) <= _ENCODED_COMMAND_MAX:
+            session = self._session(timeout=timeout)
+            result = session.run_ps(code)
+            stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
+            stderr = _strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
+            body = "\n".join(filter(None, [stdout, stderr]))
+            return int(result.status_code), body
+
+        # Large scripts: stage under Windows Temp, invoke as script (#591).
+        # pywinrm's session.run_ps always EncodedCommand-encodes the body.
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".ps1",
+            delete=False,
+        ) as tmp:
+            tmp.write(code)
+            local_ps1 = Path(tmp.name)
+        remote_ps1 = _REMOTE_RUN_PS1
+        try:
+            self.put_file(local_ps1, remote_ps1, timeout=min(timeout, 120))
+            session = self._session(timeout=timeout)
+            wrapper = (
+                f"$ErrorActionPreference = 'Stop'\n"
+                f"& {_ps_single_quote(remote_ps1)}\n"
+                f"exit $(if ($null -ne $LASTEXITCODE) {{ $LASTEXITCODE }} else {{ 0 }})\n"
+            )
+            result = session.run_ps(wrapper)
+            stdout = _strip_clixml(result.std_out.decode("utf-8", errors="replace").strip())
+            stderr = _strip_clixml(result.std_err.decode("utf-8", errors="replace").strip())
+            body = "\n".join(filter(None, [stdout, stderr]))
+            return int(result.status_code), body
+        finally:
+            local_ps1.unlink(missing_ok=True)
+            try:
+                session = self._session(timeout=30)
+                session.run_ps(
+                    "Remove-Item -LiteralPath "
+                    f"{_ps_single_quote(remote_ps1)} -Force -ErrorAction SilentlyContinue"
+                )
+            except Exception:
+                pass
 
     def put_file(self, local_path: Path, remote_path: str, *, timeout: int = 600) -> None:
-        # Chunked WinRM stdin upload stays in software_provision for now; this
-        # seam exists so callers can prefer SSH put when resolve selects SSH.
-        raise GuestTransportError(
-            "WinRM put_file is not implemented on GuestTransport; "
-            "use software_provision staging helpers for WinRM chunked upload"
+        """Chunked WinRM stdin upload (same path as Software staging; #591)."""
+        from lib import software_provision as soft_prov
+
+        soft_prov._upload_file(
+            self.endpoint.host,
+            self.endpoint.username,
+            self.endpoint.password,
+            Path(local_path),
+            remote_path,
         )
 
     def test_connection(self) -> bool:
@@ -188,7 +238,7 @@ class SshGuestTransport:
             )
             return self._run_remote(remote, timeout=timeout)
 
-        # Large scripts: stage a temp .ps1, invoke -File, then delete.
+        # Large scripts: stage under Windows Temp, invoke -File, then delete (#591).
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -197,12 +247,13 @@ class SshGuestTransport:
         ) as tmp:
             tmp.write(code)
             local_ps1 = Path(tmp.name)
-        remote_ps1 = r"C:\Program Files\Hatchery\temp\hatchery-run.ps1"
+        remote_ps1 = _REMOTE_RUN_PS1
         try:
             self.put_file(local_ps1, remote_ps1, timeout=min(timeout, 120))
+            # Path has no spaces; keep -File argv free of nested quotes for sshd/cmd.
             remote = (
                 "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass "
-                f'-File "{remote_ps1}"'
+                f"-File {remote_ps1}"
             )
             return self._run_remote(remote, timeout=timeout)
         finally:
@@ -210,8 +261,8 @@ class SshGuestTransport:
             try:
                 self._run_remote(
                     "powershell.exe -NoProfile -NonInteractive -Command "
-                    f"\"Remove-Item -LiteralPath '{remote_ps1}' -Force "
-                    '-ErrorAction SilentlyContinue"',
+                    f"Remove-Item -LiteralPath {_ps_single_quote(remote_ps1)} "
+                    "-Force -ErrorAction SilentlyContinue",
                     timeout=30,
                 )
             except Exception:

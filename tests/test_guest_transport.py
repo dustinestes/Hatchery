@@ -117,6 +117,31 @@ class TestWinrmGuestTransport:
         assert code == 0
         assert "hello" in out
 
+    def test_run_ps_stages_large_script(self):
+        endpoint = GuestEndpoint(host="10.0.0.1", username="admin", password="secret")
+        transport = WinrmGuestTransport(endpoint)
+        big = "Write-Output " + ("x" * 9000)
+        puts: list[str] = []
+        session = MagicMock()
+        session.run_ps.return_value = MagicMock(status_code=0, std_out=b"done\n", std_err=b"")
+
+        def fake_put(local_path, remote_path, *, timeout=600):
+            puts.append(remote_path)
+            assert Path(local_path).read_text(encoding="utf-8") == big
+
+        with (
+            patch.object(transport, "put_file", side_effect=fake_put),
+            patch.object(transport, "_session", return_value=session),
+        ):
+            code, out = transport.run_ps(big, timeout=60)
+        assert code == 0
+        assert "done" in out
+        assert puts == [gt._REMOTE_RUN_PS1]
+        # Wrapper passed to pywinrm must stay small (not the huge body).
+        wrapper = session.run_ps.call_args_list[0].args[0]
+        assert big not in wrapper
+        assert gt._REMOTE_RUN_PS1 in wrapper
+
 
 class TestGetGuestTransport:
     def test_explicit_kinds(self):
@@ -157,5 +182,6 @@ class TestSshLargeScript:
             code, out = transport.run_ps(big, timeout=60)
         assert code == 0
         assert out == "done"
-        assert any(c.startswith("put:") for c in calls)
-        assert any("-File" in c for c in calls)
+        assert any(c == f"put:{gt._REMOTE_RUN_PS1}" for c in calls)
+        assert any(f"-File {gt._REMOTE_RUN_PS1}" in c for c in calls)
+        assert not any(r"Program Files\Hatchery\temp" in c for c in calls)
