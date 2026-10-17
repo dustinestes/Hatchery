@@ -2155,6 +2155,37 @@ def api_nest_health_run(nest_id: str):
     return jsonify(result)
 
 
+@app.route("/api/nests/<nest_id>/cache", methods=["GET"])
+def api_nest_cache_get(nest_id: str):
+    """Return resolved nest_cache path and editable flag (#215 / #607)."""
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    return jsonify(nest_cache_lib.nest_cache_status(nest))
+
+
+@app.route("/api/nests/<nest_id>/cache", methods=["PUT"])
+def api_nest_cache_put(nest_id: str):
+    """Set or clear Remote Nest ``extra.nest_cache`` (#215 / #607).
+
+    Local Nest refuses a path (cache is always Controller ``data_dir``).
+    """
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True) or {}
+    if "path" not in data:
+        return jsonify({"error": "path is required (string or null to clear)"}), 400
+    raw = data.get("path")
+    if raw is not None and not isinstance(raw, str):
+        return jsonify({"error": "path must be a string or null"}), 400
+    try:
+        status = nest_cache_lib.set_nest_cache(nest["id"], raw)
+    except nest_cache_lib.NestCacheError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(status)
+
+
 @app.route("/api/nests/<nest_id>/storage-volumes", methods=["GET"])
 def api_nest_storage_volumes_list(nest_id: str):
     """List nest_storage volumes with free-space status from last Nest Health."""
@@ -2258,14 +2289,26 @@ def _clutch_artifacts_from_request(data: dict):
     return arts, None
 
 
+def _nest_root_from_request(data: dict):
+    """Resolve nest_cache root when nest_id is present (#607)."""
+    nest_id = str(data.get("nest_id") or data.get("nest") or "").strip()
+    if not nest_id:
+        return None
+    nest_row = nests_lib.get_nest(nest_id)
+    if nest_row is None:
+        raise ValueError(f"Unknown Nest id: {nest_id}")
+    return nest_cache_lib.resolve_nest_cache(nest_row)
+
+
 @app.route("/api/nest-cache/preflight", methods=["POST"])
 def api_nest_cache_preflight():
     """Verify Nest cache has required clutch/media artifacts before hatch."""
     data = request.get_json(silent=True) or {}
     try:
         nest = _nest_from_request(data)
+        nest_root = _nest_root_from_request(data)
         artifacts, _clutch = _clutch_artifacts_from_request(data)
-        result = nest_cache_lib.preflight(artifacts, nest=nest)
+        result = nest_cache_lib.preflight(artifacts, nest=nest, nest_root=nest_root)
     except FileNotFoundError as exc:
         return jsonify({"ok": False, "error": str(exc), "issues": []}), 404
     except nest_cache_lib.NestCacheError as exc:
@@ -2299,8 +2342,9 @@ def api_nest_cache_ensure():
     data = request.get_json(silent=True) or {}
     try:
         nest = _nest_from_request(data)
+        nest_root = _nest_root_from_request(data)
         artifacts, _clutch = _clutch_artifacts_from_request(data)
-        result = nest_cache_lib.ensure(artifacts, nest=nest)
+        result = nest_cache_lib.ensure(artifacts, nest=nest, nest_root=nest_root)
     except FileNotFoundError as exc:
         return jsonify({"ok": False, "error": str(exc), "issues": []}), 404
     except nest_cache_lib.NestCacheError as exc:
@@ -2526,9 +2570,9 @@ def hatch_clutch_post():
             selected_nest_id=nest_id,
         )
 
-    # Operator data_dir is Nest cache for local Nests. Fail before create_vm
-    # when required media/scripts are missing (#245). Optional ensure flag runs the
-    # ensure path (local = verify; remote copy lands with #215).
+    # Nest nest_cache is content root (#215 / #607). Fail before create_vm when
+    # required media/scripts are missing (#245). Optional ensure flag runs the
+    # ensure path (local = verify; remote Nest-owned pull lands with #609).
     run_ensure = request.form.get("ensure_cache", "").strip().lower() in (
         "1",
         "true",
@@ -2536,9 +2580,11 @@ def hatch_clutch_post():
         "on",
     )
     try:
+        nest_root = nest_cache_lib.resolve_nest_cache(nest_row)
         nest_result = nest_cache_lib.preflight_clutch(
             clutch_obj,
             nest=nests_lib.to_connection_config(nest_row),
+            nest_root=nest_root,
             run_ensure=run_ensure,
         )
     except nest_cache_lib.NestCacheError as exc:

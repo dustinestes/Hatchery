@@ -11,8 +11,13 @@ from lib.nest_cache import (
     NestCacheError,
     collect_clutch_artifacts,
     ensure,
+    get_nest_cache_override,
+    nest_cache_status,
     preflight,
     preflight_clutch,
+    resolve_nest_cache,
+    resolve_nest_cache_for_provider,
+    set_nest_cache,
     verify_local,
 )
 from lib.nest_transport import NestConnectionConfig, NestSshConfig
@@ -190,3 +195,87 @@ class TestPreflightClutch:
     def test_ensure_local_is_verify(self, tmp_path):
         result = preflight_clutch(_clutch_with_media(), nest_root=tmp_path, run_ensure=True)
         assert not result.ok
+
+
+class TestResolveNestCache:
+    def test_local_always_data_dir(self, tmp_path, monkeypatch):
+        from lib import config as config_lib
+
+        monkeypatch.setattr(config_lib, "data_dir", lambda: tmp_path)
+        nest = {"id": "local", "location": "local", "extra": {}}
+        assert resolve_nest_cache(nest) == tmp_path
+        assert get_nest_cache_override(nest) is None
+        status = nest_cache_status(nest)
+        assert status["is_default"] is True
+        assert status["editable"] is False
+        assert status["resolved"] == str(tmp_path)
+
+    def test_local_ignores_stale_override(self, tmp_path, monkeypatch):
+        from lib import config as config_lib
+
+        monkeypatch.setattr(config_lib, "data_dir", lambda: tmp_path)
+        override = tmp_path / "nest-cache"
+        nest = {
+            "id": "local",
+            "location": "local",
+            "extra": {"nest_cache": str(override)},
+        }
+        assert resolve_nest_cache(nest) == tmp_path
+        status = nest_cache_status(nest)
+        assert status["override"] is None
+        assert status["is_default"] is True
+        assert status["editable"] is False
+
+    def test_remote_requires_path(self):
+        nest = {"id": "remote1", "location": "remote", "extra": {}}
+        with pytest.raises(NestCacheError, match="no nest_cache path"):
+            resolve_nest_cache(nest)
+        fallback = resolve_nest_cache_for_provider(nest, data_dir="/tmp/controller")
+        assert str(fallback).replace("\\", "/") == "/tmp/controller"
+
+    def test_remote_set_and_clear(self, tmp_path, monkeypatch):
+        from lib import config as config_lib
+        from lib import db
+        from lib import nests as nests_lib
+
+        monkeypatch.setattr(config_lib, "data_dir", lambda: tmp_path)
+        db.init_db(tmp_path / "hatchery.db")
+        nests_lib.ensure_local_nest()
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "nest.example",
+                    "port": 22,
+                    "transport": "ssh",
+                    "extra": {},
+                },
+            ]
+        )
+        override = tmp_path / "remote-cache"
+        status = set_nest_cache("remote1", str(override))
+        assert status["override"] == str(override)
+        assert status["resolved"] == str(override)
+        assert status["editable"] is True
+        cleared = set_nest_cache("remote1", None)
+        assert cleared["override"] is None
+        assert cleared["resolved"] is None
+        assert cleared["error"]
+
+    def test_local_refuses_set_path(self, tmp_path, monkeypatch):
+        from lib import config as config_lib
+        from lib import db
+        from lib import nests as nests_lib
+
+        monkeypatch.setattr(config_lib, "data_dir", lambda: tmp_path)
+        db.init_db(tmp_path / "hatchery.db")
+        nests_lib.ensure_local_nest()
+        with pytest.raises(NestCacheError, match="cannot be overridden"):
+            set_nest_cache("local", str(tmp_path / "alt-cache"))
+        cleared = set_nest_cache("local", None)
+        assert cleared["resolved"] == str(tmp_path)
+        assert cleared["editable"] is False
