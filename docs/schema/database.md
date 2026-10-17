@@ -285,10 +285,11 @@ One row per VM per hatch session. Tracks the provisioning lifecycle of each VM a
 | `admin_password` | `TEXT` | | Admin account password in plaintext; required for WinRM/SSH authentication during post-install automation - see [Credential storage](#credential-storage) |
 | `error` | `TEXT` | | Error message if the VM failed to hatch; `NULL` on success |
 | `guest_os` | `TEXT` | | Clutch Guest OS family (`windows`, `linux`, `macos`) for Software guest path / platform resolution (#474 / #501) |
+| `nest_seen` | `INTEGER` | `NOT NULL DEFAULT 0` | `1` after create succeeds or sync first observes the UUID on the Nest (#602). Gone-detection must not treat a missing pre-minted UUID as Destroy while still `0` and status is `hatching` |
 
 #### Managed by
 
-`lib/hatch.py` - `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `update_vm_name()`, `get_vm_record()`
+`lib/hatch.py` - `add_vm()`, `set_vm_status()`, `set_vm_uuid()`, `mark_vm_nest_seen()`, `update_vm_name()`, `get_vm_record()`
 
 <br>
 
@@ -376,7 +377,9 @@ Hatchery does **not** auto-delete historical rows by age, count, or FIFO. Record
 
 ### Hatch session archive purge
 
-When a hatch session is archived (manual dismiss or `archive_if_terminal`), its environment is no longer tracked, so Hatchery deletes that session's child rows in the same transaction:
+When a hatch session is archived (manual **session dismiss** via `POST /api/sessions/<id>/dismiss`, or `archive_if_terminal`), its environment is no longer tracked, so Hatchery deletes that session's child rows in the same transaction.
+
+Sidebar sticky **Dismiss** (close the entity tab under Inventory / Connections) is UI-only (`sessionStorage`); it does **not** archive a hatch session or purge events (#602).
 
 | Table | Action |
 |---|---|

@@ -181,6 +181,7 @@ class TestInitDb:
                 "admin_password",
                 "error",
                 "guest_os",
+                "nest_seen",
             ]
         finally:
             conn.close()

@@ -383,6 +383,22 @@ class TestListSessions:
         assert sessions[0]["id"] == sid2
 
 
+# ── nest_seen (#602) ──────────────────────────────────────────────────────────
+
+
+class TestNestSeen:
+    def test_mark_vm_nest_seen(self):
+        sid = hatch_lib.create_session("lab.yaml", "Lab")
+        hatch_lib.add_vm(sid, "dc01")
+        hatch_lib.set_vm_status(sid, "dc01", "hatching")
+        row = hatch_lib.get_vm_record(sid, "dc01")
+        assert row is not None
+        assert row["nest_seen"] is False
+        hatch_lib.mark_vm_nest_seen(sid, "dc01")
+        row = hatch_lib.get_vm_record(sid, "dc01")
+        assert row["nest_seen"] is True
+
+
 # ── archive_session ───────────────────────────────────────────────────────────
 
 

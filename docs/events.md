@@ -342,7 +342,9 @@ a VM reaches `fledged` or `failed` for as long as the hatch session is active
 
 ## Retention
 
-Event rows are kept for the life of the **active** hatch session so the transcript stays complete while the environment is still tracked. When the session is archived (dismissed from Nests, or auto-archived after a terminal/degraded state), Hatchery deletes that session's `hatch_events` along with related `hatch_vm_scripts` and `hatch_vm_status` rows. The `hatch_sessions` row remains with `archived_at` set.
+Event rows are kept for the life of the **active** hatch session so the transcript stays complete while the environment is still tracked. When the session is archived (session dismiss API, or auto-archived after a terminal/degraded state), Hatchery deletes that session's `hatch_events` along with related `hatch_vm_scripts` and `hatch_vm_status` rows. The `hatch_sessions` row remains with `archived_at` set.
+
+Sticky-nav **Dismiss** only closes a sidebar tab; it does not archive the hatch session. Sync also must not auto-archive while a pre-minted VM UUID is still being created on the Nest (`nest_seen` / create-in-flight; [#602](https://github.com/dustinestes/Hatchery/issues/602)).
 
 Hatchery does not trim event rows by age or count while a session is active - a partial transcript is not useful. Space is reclaimed only when the session is archived (no longer applicable). Broader DB capacity is the operator's concern; a future file-size alert is tracked in [#169](https://github.com/dustinestes/Hatchery/issues/169).
 

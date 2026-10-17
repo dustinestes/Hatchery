@@ -12,7 +12,7 @@ VMs and Nests used flat sidebar items plus a left-rail inventory split. Nest reg
 
 ## Decision
 
-1. **Reusable sticky submenu** (vanilla JS): open / close / activate under a product nav leaf; label truncation with `title` / `aria-label`; scroll overflow; soft cap 12 (dismiss oldest); persist in `sessionStorage`.
+1. **Reusable sticky submenu** (vanilla JS): open / close / activate under a product nav leaf; label truncation with `title` / `aria-label`; scroll overflow; soft cap 12 (dismiss oldest); persist in `sessionStorage`. Sticky **Dismiss** closes the tab only; it does not call hatch session archive / purge (that is `POST /api/sessions/<id>/dismiss`).
 
 2. **Nav groups**
 

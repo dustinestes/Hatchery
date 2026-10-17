@@ -168,6 +168,25 @@ def set_vm_uuid(session_id: str, vm_name: str, libvirt_uuid: str) -> None:
         conn.close()
 
 
+def mark_vm_nest_seen(session_id: str, vm_name: str) -> None:
+    """Record that the pre-minted UUID has been observed on the Nest (#602).
+
+    Gone-detection must not archive a hatch until create has succeeded (or sync
+    has seen the domain). Without this bit, sync treats a missing UUID during
+    ``create_vm`` as Destroy and purges Scripts/Software/Events.
+    """
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            """UPDATE hatch_vm_status SET nest_seen=1
+               WHERE session_id=? AND vm_name=? AND nest_seen=0""",
+            (session_id, vm_name),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def update_vm_name(session_id: str, old_name: str, new_name: str) -> None:
     """Update a VM's stored name — called when a rename is detected via UUID lookup.
 
@@ -194,11 +213,15 @@ def get_vm_record(session_id: str, vm_name: str) -> dict | None:
     try:
         row = conn.execute(
             """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, admin_username,
-                      admin_password, guest_os
+                      admin_password, guest_os, nest_seen
                FROM hatch_vm_status WHERE session_id=? AND vm_name=?""",
             (session_id, vm_name),
         ).fetchone()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        out = dict(row)
+        out["nest_seen"] = bool(out.get("nest_seen"))
+        return out
     finally:
         conn.close()
 
@@ -414,11 +437,15 @@ def get_session_detail(session_id: str) -> dict | None:
     conn = db.get_connection()
     try:
         vms = conn.execute(
-            """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error
+            """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error, nest_seen
                FROM hatch_vm_status WHERE session_id=? ORDER BY id""",
             (session_id,),
         ).fetchall()
-        vm_dicts = [dict(v) for v in vms]
+        vm_dicts = []
+        for v in vms:
+            row = dict(v)
+            row["nest_seen"] = bool(row.get("nest_seen"))
+            vm_dicts.append(row)
         return {
             **session,
             "vms": vm_dicts,
@@ -441,11 +468,15 @@ def list_sessions(nest: str = "local") -> list[dict]:
         result = []
         for s in sessions:
             vms = conn.execute(
-                """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error
+                """SELECT vm_name, status, libvirt_uuid, started_at, fledged_at, error, nest_seen
                    FROM hatch_vm_status WHERE session_id=? ORDER BY id""",
                 (s["id"],),
             ).fetchall()
-            vm_dicts = [dict(v) for v in vms]
+            vm_dicts = []
+            for v in vms:
+                row = dict(v)
+                row["nest_seen"] = bool(row.get("nest_seen"))
+                vm_dicts.append(row)
             result.append(
                 {
                     **dict(s),
