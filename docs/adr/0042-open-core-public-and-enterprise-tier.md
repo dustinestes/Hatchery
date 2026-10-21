@@ -29,11 +29,13 @@ We want an Artifactory-OSS-shaped free edition: a real product that **works in a
 
 7. **Piracy:** Acceptable loss for determined self-host patching. Prefer private source for paid modules + signed license + support/updates. No kernel DRM; no mandatory always-online Nest→cloud license checks.
 
-8. **Production paid gate (before selling):** Stripe (or MoR) + license mint + delivery (e.g. hatchery.app). Offline license file remains first-class. Not required to land this ADR or the private repo scaffold.
+8. **Production paid gate (before selling):** Stripe (or MoR) + license mint + delivery. Offline license file remains first-class. Not required to land this ADR or the private repo scaffold.
 
-9. **GitHub ownership:** Bootstrap under personal `dustinestes` for portfolio attribution. Org transfer is optional later; not required for open-core.
+9. **Public web domain:** Dedicated product domain is **[hatcheryapp.com](https://hatcheryapp.com)** (not `hatchery.app`). Apex / `www` = product landing; **`license.hatcheryapp.com`** = purchase / account / license mint portal. Tracked in [Hatchery-Enterprise #3](https://github.com/dustinestes/Hatchery-Enterprise/issues/3) and [#2](https://github.com/dustinestes/Hatchery-Enterprise/issues/2).
 
-10. **Sequencing:** After this ADR: Nest Agent (#345) in private; then #609 as first Agent job type. No SSH one-shot #609.
+10. **GitHub ownership:** Bootstrap under personal `dustinestes` for portfolio attribution. Org transfer is optional later; not required for open-core.
+
+11. **Sequencing:** After this ADR: Nest Agent (#345) in private; then #609 as first Agent job type. No SSH one-shot #609.
 
 ## Consequences
 
@@ -48,7 +50,8 @@ We want an Artifactory-OSS-shaped free edition: a real product that **works in a
 
 - Public extension hooks so the enterprise package can register packs without forking the Controller
 - Audit public issues/code for surfaces that belong in enterprise ([Hatchery-Enterprise](https://github.com/dustinestes/Hatchery-Enterprise) tracking)
-- Entitlement stub and Stripe/mint before first paid customer
+- Entitlement stub and Stripe/mint on `license.hatcheryapp.com` before first paid customer
+- Product landing on `hatcheryapp.com` when ready to publish
 
 **Bad / accepted cost**
 
