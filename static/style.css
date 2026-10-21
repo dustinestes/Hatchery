@@ -655,10 +655,50 @@ html.sidebar-collapsed-init .topbar-name {
   padding: 0;
 }
 
-/* Nest Cache tile: two summary fields split evenly across the tile (#607). */
+/* Nest Cache tile: path/source/sync + status console (#607 / #608). */
 .detail-section-tile .nest-cache-fields {
   width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nest-cache-body {
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.detail-console {
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.detail-console-output {
+  margin: 0;
+  padding: 12px 14px;
+  max-height: 4.5rem;
+  overflow: auto;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+}
+
+.nest-scoped-content .events-console-body {
+  min-height: 0;
+  max-height: 20rem;
+  overflow: auto;
+  padding: 0;
+}
+
+.nest-scoped-content .list-shell-body .detail-section-empty {
+  margin: 0;
+  padding: 10px 12px;
+  min-height: 0;
+  height: auto;
 }
 
 .detail-hero-subsection {

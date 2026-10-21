@@ -2157,7 +2157,7 @@ def api_nest_health_run(nest_id: str):
 
 @app.route("/api/nests/<nest_id>/cache", methods=["GET"])
 def api_nest_cache_get(nest_id: str):
-    """Return resolved nest_cache path and editable flag (#215 / #607)."""
+    """Return resolved nest_cache path, editable flag, and sync status (#607 / #608)."""
     nest = nests_lib.get_nest(nest_id)
     if nest is None:
         return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
@@ -2184,6 +2184,41 @@ def api_nest_cache_put(nest_id: str):
     except nest_cache_lib.NestCacheError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(status)
+
+
+@app.route("/api/nests/<nest_id>/cache/sync/check", methods=["POST"])
+def api_nest_cache_sync_check(nest_id: str):
+    """Run Nest cache sync check (Local verify / Remote unavailable stub) (#608)."""
+    from lib import nest_cache_sync as nest_cache_sync_lib
+
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    try:
+        nest_cache_sync_lib.run_check(nest)
+    except nest_cache_sync_lib.NestCacheSyncError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(nest_cache_lib.nest_cache_status(nest))
+
+
+@app.route("/api/nests/<nest_id>/cache/sync", methods=["PUT"])
+def api_nest_cache_sync_put(nest_id: str):
+    """Ingest a Nest-reported nest_cache sync report (#608 / ADR-0040)."""
+    from lib import nest_cache_sync as nest_cache_sync_lib
+
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object body required"}), 400
+    if "source" not in data or not data.get("source"):
+        data = {**data, "source": "nest_report"}
+    try:
+        nest_cache_sync_lib.record_report(nest["id"], data)
+    except nest_cache_sync_lib.NestCacheSyncError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(nest_cache_lib.nest_cache_status(nest))
 
 
 @app.route("/api/nests/<nest_id>/storage-volumes", methods=["GET"])

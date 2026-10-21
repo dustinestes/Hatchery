@@ -93,7 +93,9 @@ def resolve_nest_cache_for_provider(
 
 
 def nest_cache_status(nest: dict[str, Any], *, data_dir: Path | None = None) -> dict[str, Any]:
-    """Payload for Nest detail / API: path, editable flag, default flag."""
+    """Payload for Nest detail / API: path, editable flag, sync block (#608)."""
+    from lib import nest_cache_sync as nest_cache_sync_lib
+
     location = str(nest.get("location") or "local").strip().lower()
     controller_root = Path(data_dir) if data_dir is not None else config_lib.data_dir()
     editable = location == "remote"
@@ -114,6 +116,7 @@ def nest_cache_status(nest: dict[str, Any], *, data_dir: Path | None = None) -> 
         "is_default": (not editable) and resolved is not None,
         "controller_data_dir": str(controller_root),
         "error": error,
+        "sync": nest_cache_sync_lib.sync_status_for_nest(nest),
     }
 
 

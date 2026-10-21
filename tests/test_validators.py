@@ -40,6 +40,7 @@ class TestRegistry:
         assert "remoting_identities" in ids
         assert "nest_reachability" in ids
         assert "nest_health" in ids
+        assert "nest_cache_sync" in ids
         assert "library_connections" in ids
 
     def test_nest_health_active(self):
@@ -53,6 +54,13 @@ class TestRegistry:
         assert v is not None
         assert getattr(v, "stub", False) is False
         assert v.default_enabled is False
+
+    def test_nest_cache_sync_defaults_off(self):
+        v = get_validator("nest_cache_sync")
+        assert v is not None
+        assert getattr(v, "stub", False) is False
+        assert v.default_enabled is False
+        assert v.scope == "nest"
 
     def test_library_connections_active(self):
         v = get_validator("library_connections")

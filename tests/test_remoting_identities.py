@@ -34,6 +34,7 @@ def isolated_config(monkeypatch, tmp_path):
             "validators_run_retention": 50,
             "nest_reachability_status": {},
             "nest_health_status": {},
+            "nest_cache_sync": {},
             "show_passwords": False,
             "display_timezone": "UTC",
             "vms_show_external": False,

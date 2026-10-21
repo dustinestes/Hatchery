@@ -40,6 +40,7 @@ API provider plug-ins for Library catalogs are a separate decision ([ADR-0001](0
 
 - Future **allow remote content** opt-in for high-bandwidth / all-local DC networks
 - Shared storage the Nest already mounts counts as Nest cache when paths resolve there
+- Nest-reported nest_cache sync status + Content list ([ADR-0040](0040-nest-reported-nest-cache-sync.md) / [#608](https://github.com/dustinestes/Hatchery/issues/608)); Nest pull ensure ([#609](https://github.com/dustinestes/Hatchery/issues/609))
 
 **Bad / accepted cost**
 
