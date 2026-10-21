@@ -58,7 +58,7 @@ On Nest sticky detail (top to bottom):
 4. **Content** tile - browse nest_cache files from the last sync report (Name / Kind / Size / State) with Events-style filters; no separate actions (use Cache Check sync / Refresh) ([#608](https://github.com/dustinestes/Hatchery/issues/608))
 5. **Hatch Sessions** tile - sessions for this Nest
 6. **Prerequisites** tile - present / missing Nest tools for the provider (Hyper-V: role/feature, Hyper-V PowerShell module/management tools, and `Get-VM` smoke)
-7. **Nest Events** tile (future) - Nest-plane event history ([#611](https://github.com/dustinestes/Hatchery/issues/611))
+7. **Events** tile - Nest-plane transcript (`nest_events`: Health, cache sync, later transport/jobs); Events-style filters; not Alerts and not `hatch_events` ([#611](https://github.com/dustinestes/Hatchery/issues/611) / [ADR-0041](adr/0041-nest-events-transcript.md))
 
 Connections still offers **Test Nest connection** for draft / unsaved Nest rows.
 

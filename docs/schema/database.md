@@ -22,6 +22,7 @@ Table definitions, column types, and maintenance details for `hatchery.db`.
   - [hatch\_vm\_status](#hatch_vm_status)
   - [hatch\_vm\_scripts](#hatch_vm_scripts)
   - [hatch\_events](#hatch_events)
+  - [nest\_events](#nest_events)
   - [clutch\_instances](#clutch_instances)
   - [validator\_runs](#validator_runs)
   - [library\_cache\_provenance](#library_cache_provenance)
@@ -356,6 +357,36 @@ One row per provisioning event emitted during a VM's hatch lifecycle. Events com
 
 <br>
 
+### nest_events
+
+One row per Nest-plane transcript line (Nest Health, transport, nest_cache sync, Nest jobs). Parallel to `hatch_events` but keyed by Nest id - not hatch session / VM ([#611](https://github.com/dustinestes/Hatchery/issues/611) / [ADR-0041](../adr/0041-nest-events-transcript.md)). Not Alerts.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Auto-assigned; defines insertion order |
+| `nest_id` | `TEXT` | `NOT NULL` | Nest registry id |
+| `source` | `TEXT` | `NOT NULL` | `'controller'` or `'nest'` |
+| `topic` | `TEXT` | `NOT NULL` | `'health'`, `'transport'`, `'cache_sync'`, `'job'`, or `'general'` |
+| `level` | `TEXT` | `NOT NULL` | `'INFO'`, `'WARN'`, or `'ERROR'` |
+| `component` | `TEXT` | | Optional sub-label |
+| `message` | `TEXT` | `NOT NULL` | Human-readable event text |
+| `ref` | `TEXT` | | Optional correlation (future Nest job id); unused by v1 Controller writers |
+| `received_at` | `TEXT` | `NOT NULL` | ISO 8601 UTC when the Controller stored the row |
+
+Index: `idx_nest_events_nest_id_id` on `(nest_id, id DESC)`.
+
+#### Managed by
+
+`lib/nest_events.py` - `add_event()`, `add_events()`, `query_events()`, `prune_removed_nests()`
+
+`GET /api/nests/<nest_id>/events` - Nest-scoped list (filters: `topic`, `level`, `q`, `limit`, `offset`).
+
+`POST /api/nests/<nest_id>/events` - ingest one event or `{ "events": [...] }` batch.
+
+Rows are deleted when the Nest is removed from the registry (same transaction path as other Nest prune helpers). No age/count FIFO.
+
+<br>
+
 ### clutch_instances
 
 Tracks observed runtime state of VMs hatched from Clutch definitions. Associates each running VM with the Clutch that defined it, enabling instance-aware reconciliation.
@@ -389,6 +420,10 @@ Sidebar sticky **Dismiss** (close the entity tab under Inventory / Connections) 
 | `hatch_sessions` | Kept; `archived_at` set |
 
 Active sessions keep a complete event transcript until archive. Alert rows are never auto-trimmed; resolved alerts remain as history.
+
+### Nest remove purge
+
+When a Nest is removed from the Controller registry (`replace_nests`), Nest-scoped child data is pruned for ids no longer present, including `nest_events` ([#611](https://github.com/dustinestes/Hatchery/issues/611)).
 
 Implemented in `lib/hatch.py` - `_purge_session_children()`, called from `archive_session()` and `archive_if_terminal()`.
 

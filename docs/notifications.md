@@ -37,7 +37,8 @@ Use **notifications** only where grouping the concerns makes sense (sidebar pare
 |---|---|---|
 | **Alerts** | Conditions that threaten Hatchery working: missing host tools, invalid Clutches, rare fundamental failures | Bell, tray, toasts (when new alerts arrive), Alerts pane, footer Hatchery chip |
 | **Toasts** | Ephemeral UI feedback (copy succeeded, import conflict, etc.) - **not** persisted | Bottom-right overlay via `hatchery.showToast` |
-| **Events** | Under-the-hood hatch/provision transcript (`hatch_events`, including `Write-HatchEvent` script lines) | Events pane ([#114](https://github.com/dustinestes/Hatchery/issues/114)) |
+| **Events (Hatch)** | Under-the-hood hatch/provision transcript (`hatch_events`, including `Write-HatchEvent` script lines) | Events pane ([#114](https://github.com/dustinestes/Hatchery/issues/114)); VM detail Events |
+| **Events (Nest)** | Nest-plane transcript (`nest_events`) | Nest detail Events tile ([#611](https://github.com/dustinestes/Hatchery/issues/611) / [ADR-0041](adr/0041-nest-events-transcript.md)) - not the global Events pane in v1 |
 | **Audit (v2)** | Who/what changed Clutches; VM removed/renamed; session archived | Not implemented yet - not toast spam |
 
 <br>

@@ -222,6 +222,7 @@ def run_health(
     if not gate_result.ok:
         if persist:
             record_health(nest, result)
+            _record_health_event(nest, result)
         return result
 
     result["deeper_ran"] = True
@@ -245,7 +246,38 @@ def run_health(
 
     if persist:
         record_health(nest, result)
+        _record_health_event(nest, result)
     return result
+
+
+def _record_health_event(nest: dict, result: dict[str, Any]) -> None:
+    """Append a Nest Events line for a persisted Nest Health run (#611)."""
+    from lib import nest_events as nest_events_lib
+
+    nid = str(nest.get("id") or "").strip()
+    if not nid:
+        return
+    gate = result.get("gate") or {}
+    detail = (gate.get("detail") or "").strip()
+    ok = bool(result.get("ok"))
+    if ok:
+        missing = [p["name"] for p in (result.get("prerequisites") or []) if not p.get("present")]
+        if missing:
+            level = "WARN"
+            msg = f"Nest Health OK; missing prerequisites: {', '.join(missing)}"
+        else:
+            level = "INFO"
+            msg = detail or "Nest Health OK"
+    else:
+        level = "ERROR"
+        msg = detail or "Nest Health gate failed"
+    nest_events_lib.record_controller(
+        nid,
+        topic="health",
+        level=level,
+        message=msg,
+        component="nest_health",
+    )
 
 
 def run_as_validator(ctx, *, sync_alerts: bool = True) -> str:

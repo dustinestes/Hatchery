@@ -40,6 +40,8 @@ Every VM in a hatch session has its own event log stored in the `hatch_events` t
 
 Events are ordered by insertion and scoped to `(session_id, vm_name)`. They are displayed in the **Events** pane under Notifications in the sidebar (`/notifications/events`).
 
+Nest-plane activity (Nest Health, nest_cache sync, Nest jobs) uses a separate table and Nest detail **Events** tile - see [ADR-0041](adr/0041-nest-events-transcript.md) / [#611](https://github.com/dustinestes/Hatchery/issues/611). Do not put Nest lines in `hatch_events`.
+
 <br>
 
 ---

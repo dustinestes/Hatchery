@@ -255,6 +255,30 @@ class TestOperatorInspect:
         assert "Local Nest OK" in out
         assert "CPU:" in out
 
+    def test_nest_events_list(self, isolated_config, tmp_path, capsys):
+        from lib import nest_events as nest_events_lib
+        from lib.cli import bootstrap
+
+        sandbox = tmp_path / "sandbox"
+        bootstrap.apply_data_dir(str(sandbox))
+        bootstrap.init_controller_runtime()
+        nests_lib.ensure_local_nest()
+        nest_events_lib.add_event(
+            "local",
+            source="controller",
+            topic="health",
+            level="INFO",
+            message="Nest Health OK",
+        )
+        args = cli.build_parser().parse_args(
+            ["nest", "--data-dir", str(sandbox), "events", "local"]
+        )
+        rc = nest_cmd.run(args)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Nest Health OK" in out
+        assert "Showing 1 of 1" in out
+
     def test_clutch_list_and_show(self, isolated_config, tmp_path, capsys):
         sandbox = tmp_path / "sandbox"
         from lib.cli import bootstrap

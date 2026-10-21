@@ -701,6 +701,19 @@ html.sidebar-collapsed-init .topbar-name {
   height: auto;
 }
 
+.nest-scoped-events .events-console-body {
+  min-height: 0;
+  max-height: 20rem;
+  overflow: auto;
+}
+
+.nest-scoped-events .list-shell-body .detail-section-empty {
+  margin: 0;
+  padding: 10px 12px;
+  min-height: 0;
+  height: auto;
+}
+
 .detail-hero-subsection {
   margin-top: 4px;
   padding-top: 12px;

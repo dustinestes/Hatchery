@@ -2221,6 +2221,69 @@ def api_nest_cache_sync_put(nest_id: str):
     return jsonify(nest_cache_lib.nest_cache_status(nest))
 
 
+@app.route("/api/nests/<nest_id>/events", methods=["GET"])
+def api_nest_events_list(nest_id: str):
+    """List Nest Events for one Nest (newest first) (#611)."""
+    from lib import nest_events as nest_events_lib
+
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    try:
+        limit = int(request.args.get("limit") or 100)
+    except (TypeError, ValueError):
+        limit = 100
+    try:
+        offset = int(request.args.get("offset") or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        page = nest_events_lib.query_events(
+            nest["id"],
+            topic=request.args.get("topic") or None,
+            level=request.args.get("level") or None,
+            q=request.args.get("q") or None,
+            limit=limit,
+            offset=offset,
+        )
+    except nest_events_lib.NestEventsError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(page)
+
+
+@app.route("/api/nests/<nest_id>/events", methods=["POST"])
+def api_nest_events_ingest(nest_id: str):
+    """Ingest Nest Event(s) from Controller or Nest agent (#611).
+
+    Body: one event object, or ``{\"events\": [...]}`` batch.
+    """
+    from lib import nest_events as nest_events_lib
+
+    nest = nests_lib.get_nest(nest_id)
+    if nest is None:
+        return jsonify({"error": f"Unknown Nest id: {nest_id}"}), 404
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON object body required"}), 400
+    try:
+        if isinstance(data.get("events"), list):
+            rows = nest_events_lib.add_events(nest["id"], data["events"])
+            return jsonify({"events": rows, "count": len(rows)}), 201
+        row = nest_events_lib.add_event(
+            nest["id"],
+            source=data.get("source") or "nest",
+            topic=data.get("topic") or "general",
+            level=data.get("level") or "INFO",
+            message=data.get("message") or "",
+            component=data.get("component"),
+            ref=data.get("ref"),
+            received_at=data.get("received_at"),
+        )
+        return jsonify(row), 201
+    except nest_events_lib.NestEventsError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @app.route("/api/nests/<nest_id>/storage-volumes", methods=["GET"])
 def api_nest_storage_volumes_list(nest_id: str):
     """List nest_storage volumes with free-space status from last Nest Health."""

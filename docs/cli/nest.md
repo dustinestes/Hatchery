@@ -12,7 +12,7 @@ Code: [`lib/cli/nest.py`](../../lib/cli/nest.py). Parent: [CLI index](README.md)
 
 ## Purpose
 
-Inspect registered Nests (Controller SQLite registry), run Nest Health / nest_cache sync, and Test Nest connection.
+Inspect registered Nests (Controller SQLite registry), run Nest Health / nest_cache sync, list Nest Events, and Test Nest connection.
 
 <br>
 
@@ -23,10 +23,12 @@ uv run hatchery nest [--data-dir PATH] list
 uv run hatchery nest [--data-dir PATH] test <id>
 uv run hatchery nest [--data-dir PATH] health <id>
 uv run hatchery nest [--data-dir PATH] cache-sync <id>
+uv run hatchery nest [--data-dir PATH] events <id> [--topic TOPIC] [--level LEVEL] [-q QUERY] [--limit N]
 uv run hatchery --json nest list
 uv run hatchery --json nest test <id>
 uv run hatchery --json nest health <id>
 uv run hatchery --json nest cache-sync <id>
+uv run hatchery --json nest events <id>
 ```
 
 With `--json`, stdout is machine-readable (field names in [CLI index](README.md#machine-readable-output---json)).
@@ -37,6 +39,7 @@ With `--json`, stdout is machine-readable (field names in [CLI index](README.md#
 | `test` | Live check: Nest Health for registered Nests; draft-style reachability + capability message |
 | `health` | Nest Health gather (gate + CPU/memory/disks/prerequisites); see [nest-health.md](../nest-health.md) |
 | `cache-sync` | Nest cache sync check (Local content scan / Remote unavailable stub); see [ADR-0040](../adr/0040-nest-reported-nest-cache-sync.md) |
+| `events` | Nest Events transcript (`nest_events`); see [ADR-0041](../adr/0041-nest-events-transcript.md) |
 
 `--data-dir` is session-only (same rule as `serve`). Inspect does not create a missing data directory or database.
 
