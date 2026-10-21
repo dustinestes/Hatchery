@@ -21,6 +21,7 @@ Human-oriented docs:
 - Setup and contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Product overview: [`README.md`](README.md)
 - Reference docs: [`docs/`](docs/)
+- Product north star: [`docs/north-star.md`](docs/north-star.md)
 - Project meta (branding, tooling, audits): [`.hatchery/`](.hatchery/)
 
 ## Quick start
