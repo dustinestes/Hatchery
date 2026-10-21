@@ -86,6 +86,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0039](0039-nest-health-gate-and-nest-storage.md) | Nest Health gate-then-deepen and nest_storage volumes SoR | Accepted |
 | [0040](0040-nest-reported-nest-cache-sync.md) | Nest-reported nest_cache sync (Controller aggregates) | Accepted |
 | [0041](0041-nest-events-transcript.md) | Nest Events transcript (Nest-scoped, parallel to hatch_events) | Accepted |
+| [0042](0042-open-core-public-and-enterprise-tier.md) | Open-core - public Hatchery and private Enterprise tier | Accepted |
 
 <br>
 
