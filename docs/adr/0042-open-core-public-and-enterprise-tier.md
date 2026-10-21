@@ -17,7 +17,7 @@ We want an Artifactory-OSS-shaped free edition: a real product that **works in a
 
 2. **Two git homes only:**
    - **Public** [`dustinestes/Hatchery`](https://github.com/dustinestes/Hatchery) - MIT; free / local edition; full history kept (no strip/rewrite).
-   - **Private** [`dustinestes/hatchery-enterprise`](https://github.com/dustinestes/hatchery-enterprise) - commercial license; Python package that **layers** on a pinned public Hatchery (not a full-app fork).
+   - **Private** [`dustinestes/Hatchery-Enterprise`](https://github.com/dustinestes/Hatchery-Enterprise) - commercial license; Python package `hatchery-enterprise` that **layers** on a pinned public Hatchery (not a full-app fork).
 
 3. **Free edition (north star):** Controller on Linux / macOS / Windows; **one Local Nest** when that provider works; portable Clutch/media/content share between independent Controllers. Explicitly **not** one Controller webbing many Remote Nests.
 
@@ -47,7 +47,7 @@ We want an Artifactory-OSS-shaped free edition: a real product that **works in a
 **Neutral / follow-on**
 
 - Public extension hooks so the enterprise package can register packs without forking the Controller
-- Audit public issues/code for surfaces that belong in enterprise ([hatchery-enterprise](https://github.com/dustinestes/hatchery-enterprise) tracking)
+- Audit public issues/code for surfaces that belong in enterprise ([Hatchery-Enterprise](https://github.com/dustinestes/Hatchery-Enterprise) tracking)
 - Entitlement stub and Stripe/mint before first paid customer
 
 **Bad / accepted cost**
