@@ -1852,6 +1852,7 @@ class TestLibraryContentPane:
         assert body["resolved"] == str(tmp_path)
         assert body["is_default"] is True
         assert body["editable"] is False
+        assert body["sync"]["sync_state"] == "unevaluated"
 
         refused = client.put(
             "/api/nests/local/cache",
@@ -1889,6 +1890,59 @@ class TestLibraryContentPane:
         assert cleared.status_code == 200
         assert cleared.get_json()["override"] is None
         assert cleared.get_json()["resolved"] is None
+
+    def test_nest_cache_sync_check_and_ingest(self, client, tmp_path, monkeypatch):
+        from lib import nests as nests_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        nests_lib.ensure_local_nest()
+        iso = tmp_path / "media" / "iso"
+        iso.mkdir(parents=True)
+        (iso / "win11.iso").write_bytes(b"x")
+
+        checked = client.post("/api/nests/local/cache/sync/check")
+        assert checked.status_code == 200
+        body = checked.get_json()
+        assert body["sync"]["sync_state"] == "in_sync"
+        assert body["sync"]["source"] == "local_verify"
+        assert any(i.get("basename") == "win11.iso" for i in body["sync"]["content"])
+
+        nests_lib.replace_nests(
+            [
+                nests_lib.get_nest("local"),
+                {
+                    "id": "remote1",
+                    "name": "Remote",
+                    "provider_type": "libvirt",
+                    "location": "remote",
+                    "host": "nest.example",
+                    "port": 22,
+                    "transport": "ssh",
+                    "extra": {"nest_cache": "/nest/cache"},
+                },
+            ]
+        )
+        ingest = client.put(
+            "/api/nests/remote1/cache/sync",
+            json={
+                "sync_state": "out_of_sync",
+                "content": [
+                    {
+                        "path": "media/iso/win11.iso",
+                        "state": "missing",
+                    }
+                ],
+            },
+        )
+        assert ingest.status_code == 200
+        assert ingest.get_json()["sync"]["sync_state"] == "out_of_sync"
+        assert ingest.get_json()["sync"]["source"] == "nest_report"
+
+        remote_check = client.post("/api/nests/remote1/cache/sync/check")
+        assert remote_check.status_code == 200
+        rbody = remote_check.get_json()
+        assert rbody["sync"]["sync_state"] == "unavailable"
+        assert rbody["sync"]["content"][0]["basename"] == "win11.iso"
 
     def test_library_clutch_catalog_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"

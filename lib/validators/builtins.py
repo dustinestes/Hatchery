@@ -367,6 +367,24 @@ class LibraryConnectionsValidator(BaseValidator):
         return "; ".join(parts) if parts else "Library connections OK"
 
 
+class NestCacheSyncValidator(BaseValidator):
+    id = "nest_cache_sync"
+    title = "Nest cache sync"
+    description = (
+        "Nest-reported nest_cache sync check: Local Nest inventories Controller "
+        "data_dir in-process; Remote Nest records unavailable until Nest pull "
+        "(#608 / #609). Controller does not SHA Remote Nest disks."
+    )
+    scope = "nest"
+    default_interval_seconds = 300
+    default_enabled = False
+
+    def run(self, ctx: ValidatorContext) -> str:
+        from lib import nest_cache_sync as nest_cache_sync_lib
+
+        return nest_cache_sync_lib.run_as_validator(ctx)
+
+
 class LibraryCacheDriftValidator(BaseValidator):
     id = "library_cache_drift"
     title = "Library cache drift"
@@ -431,6 +449,7 @@ def register_builtins() -> None:
         NestHealthValidator,
         NestReachabilityValidator,
         NestCapabilityValidator,
+        NestCacheSyncValidator,
         LibraryConnectionsValidator,
         LibraryCacheDriftValidator,
     ):

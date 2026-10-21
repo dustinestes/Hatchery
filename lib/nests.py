@@ -471,6 +471,9 @@ def replace_nests(raw: list | None) -> list[dict]:
 
         nest_reachability_lib.prune_removed_nests(kept_ids)
         nest_health_lib.prune_removed_nests(kept_ids)
+        from lib import nest_cache_sync as nest_cache_sync_lib
+
+        nest_cache_sync_lib.prune_removed_nests(kept_ids)
     return list_nests()
 
 

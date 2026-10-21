@@ -27,6 +27,12 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     health.add_argument("nest_id", metavar="ID", help="Nest id to check")
 
+    cache_sync = nest_sub.add_parser(
+        "cache-sync",
+        help="Run nest_cache sync check (Local content scan / Remote unavailable stub)",
+    )
+    cache_sync.add_argument("nest_id", metavar="ID", help="Nest id to check")
+
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``nest`` subcommands."""
@@ -43,6 +49,8 @@ def run(args: argparse.Namespace) -> int:
         return _test_nest(args.nest_id, as_json=as_json)
     if cmd == "health":
         return _nest_health(args.nest_id, as_json=as_json)
+    if cmd == "cache-sync":
+        return _nest_cache_sync(args.nest_id, as_json=as_json)
     bootstrap.print_err(f"unknown nest command: {cmd}")
     return 2
 
@@ -127,3 +135,40 @@ def _nest_health(nest_id: str, *, as_json: bool) -> int:
         else:
             print("Prerequisites: OK")
     return 0 if ok else 1
+
+
+def _nest_cache_sync(nest_id: str, *, as_json: bool) -> int:
+    from lib import nest_cache as nest_cache_lib
+    from lib import nest_cache_sync as nest_cache_sync_lib
+    from lib import nests as nests_lib
+
+    nid = (nest_id or "").strip()
+    nest = nests_lib.get_nest(nid)
+    if nest is None:
+        bootstrap.print_err(f"Unknown Nest id: {nid}")
+        return 1
+    try:
+        report = nest_cache_sync_lib.run_check(nest)
+    except nest_cache_sync_lib.NestCacheSyncError as exc:
+        bootstrap.print_err(str(exc))
+        return 1
+    status = nest_cache_lib.nest_cache_status(nest)
+    if as_json:
+        cli_out.emit_json(status)
+        return 0
+    state = report.get("sync_state") or "unevaluated"
+    checked = report.get("checked_at") or "-"
+    content = report.get("content") or []
+    print(f"Sync: {state}")
+    print(f"Checked: {checked}")
+    if report.get("message"):
+        print(report["message"])
+    print(f"Content: {len(content)} item(s)")
+    for item in content[:50]:
+        path = item.get("path") or item.get("basename") or "?"
+        size = item.get("size_bytes")
+        size_s = f" ({size} bytes)" if size is not None else ""
+        print(f"  {path}{size_s}")
+    if len(content) > 50:
+        print(f"  … and {len(content) - 50} more")
+    return 0

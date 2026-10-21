@@ -50,13 +50,15 @@ Free-space status on Nest storage rows: Connected / Disconnected / Warn / Error 
 
 ## UI
 
-On Nest sticky detail:
+On Nest sticky detail (top to bottom):
 
-1. Hero **Health** - ad-hoc Nest Health run; updates the hero reachability badge and status dot, then refreshes status surfaces (footer / bell) without a full page reload
-2. **Nest Health** subsection - reachability, CPU, memory, last checked
-3. **Cache** tile - resolved `nest_cache` path. Local Nest is always Controller `data_dir` (read-only). Remote Nest requires an absolute Nest path; Edit uses the same disk + path modal as Storage (Nest Health discovery) ([#607](https://github.com/dustinestes/Hatchery/issues/607)). Content sync inventory is a follow-on ([#608](https://github.com/dustinestes/Hatchery/issues/608)).
-4. **Storage** tile - register paths (+), Refresh (re-runs Health). Add path uses the shared modal backdrop; pick a Nest **disk** from the latest Health discovery (volume root: Windows drive letter, POSIX mount) plus an optional subdirectory, or enter a full absolute path. Drive letters are Windows-only; the UI uses the universal **disk** noun.
-5. **Prerequisites** tile - present / missing Nest tools for the provider (Hyper-V: role/feature, Hyper-V PowerShell module/management tools, and `Get-VM` smoke)
+1. Hero **Health** - ad-hoc Nest Health run; updates the hero reachability badge and status dot, then refreshes status surfaces (footer / bell) without a full page reload. **Nest Health** subsection: reachability, CPU, memory, last checked
+2. **Storage** tile - register paths (+), Refresh (re-runs Health). Add path uses the shared modal backdrop; pick a Nest **disk** from the latest Health discovery (volume root: Windows drive letter, POSIX mount) plus an optional subdirectory, or enter a full absolute path. Drive letters are Windows-only; the UI uses the universal **disk** noun.
+3. **Cache** tile - path, sync badge, latest-message console. Local Nest is always Controller `data_dir` (read-only). Remote Nest requires an absolute Nest path; Edit uses the same disk + path modal as Storage ([#607](https://github.com/dustinestes/Hatchery/issues/607)). Actions: **Check sync** (evaluate - Local scans `data_dir` in-process; Remote unavailable until Nest pull [#609](https://github.com/dustinestes/Hatchery/issues/609)) updates sync + Content; **Refresh** reloads the last stored report without re-checking ([#608](https://github.com/dustinestes/Hatchery/issues/608) / [ADR-0040](adr/0040-nest-reported-nest-cache-sync.md)). Full Nest-plane event history is [#611](https://github.com/dustinestes/Hatchery/issues/611).
+4. **Content** tile - browse nest_cache files from the last sync report (Name / Kind / Size / State) with Events-style filters; no separate actions (use Cache Check sync / Refresh) ([#608](https://github.com/dustinestes/Hatchery/issues/608))
+5. **Hatch Sessions** tile - sessions for this Nest
+6. **Prerequisites** tile - present / missing Nest tools for the provider (Hyper-V: role/feature, Hyper-V PowerShell module/management tools, and `Get-VM` smoke)
+7. **Nest Events** tile (future) - Nest-plane event history ([#611](https://github.com/dustinestes/Hatchery/issues/611))
 
 Connections still offers **Test Nest connection** for draft / unsaved Nest rows.
 
@@ -73,6 +75,8 @@ Connections still offers **Test Nest connection** for draft / unsaved Nest rows.
 ```bash
 uv run hatchery nest health <nest-id>
 uv run hatchery --json nest health <nest-id>
+uv run hatchery nest cache-sync <nest-id>
+uv run hatchery --json nest cache-sync <nest-id>
 ```
 
 Also: `hatchery nest test <nest-id>` (connection / capability message for operators and drafts).
