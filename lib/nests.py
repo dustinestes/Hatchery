@@ -472,8 +472,10 @@ def replace_nests(raw: list | None) -> list[dict]:
         nest_reachability_lib.prune_removed_nests(kept_ids)
         nest_health_lib.prune_removed_nests(kept_ids)
         from lib import nest_cache_sync as nest_cache_sync_lib
+        from lib import nest_events as nest_events_lib
 
         nest_cache_sync_lib.prune_removed_nests(kept_ids)
+        nest_events_lib.prune_removed_nests(kept_ids)
     return list_nests()
 
 
@@ -606,6 +608,8 @@ def test_connection(
         return {"ok": True, "message": f"{reach_msg} Nest Health OK."}
 
     # Draft row: reachability + capability without Nest Health persistence.
+    # Nest Events are Nest-registry keyed; drafts do not write transport lines (#611).
+    # Registered Test Nest connection writes via Nest Health (topic=health).
     reach_msg = "Local Nest - co-located with the Controller."
     if nest["location"] == "local":
         local_result = nr.probe_nest(nest)

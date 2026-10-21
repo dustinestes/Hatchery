@@ -250,7 +250,9 @@ def run_check(nest: dict[str, Any]) -> dict[str, Any]:
                 "source": "local_verify",
                 "content": [],
             }
-            return record_report(nid, report)
+            stored = record_report(nid, report)
+            _record_cache_sync_event(nid, stored)
+            return stored
         content = _scan_local_content(root)
         report = {
             "sync_state": "in_sync",
@@ -259,7 +261,9 @@ def run_check(nest: dict[str, Any]) -> dict[str, Any]:
             "source": "local_verify",
             "content": content,
         }
-        return record_report(nid, report)
+        stored = record_report(nid, report)
+        _record_cache_sync_event(nid, stored)
+        return stored
 
     prior = get_sync(nid)
     content: list[dict[str, Any]] = []
@@ -276,7 +280,30 @@ def run_check(nest: dict[str, Any]) -> dict[str, Any]:
         "source": "nest_report" if content else None,
         "content": content,
     }
-    return record_report(nid, report)
+    stored = record_report(nid, report)
+    _record_cache_sync_event(nid, stored)
+    return stored
+
+
+def _record_cache_sync_event(nest_id: str, report: dict[str, Any]) -> None:
+    """Append a Nest Events line for a cache sync check (#611)."""
+    from lib import nest_events as nest_events_lib
+
+    state = str(report.get("sync_state") or "unevaluated")
+    msg = (report.get("message") or "").strip() or f"Sync check: {state}"
+    if state == "in_sync":
+        level = "INFO"
+    elif state in ("out_of_sync", "unavailable"):
+        level = "WARN"
+    else:
+        level = "INFO"
+    nest_events_lib.record_controller(
+        nest_id,
+        topic="cache_sync",
+        level=level,
+        message=msg,
+        component="nest_cache_sync",
+    )
 
 
 def sync_status_for_nest(nest: dict[str, Any]) -> dict[str, Any]:

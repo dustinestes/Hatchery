@@ -20,8 +20,11 @@ We needed an explicit separation of concerns so:
 | Concern | What belongs | Primary surface |
 |---|---|---|
 | **Alerts** | Conditions that threaten working Hatchery (missing tools, invalid Clutches, Nest reachability, …) | Bell, tray, toasts, Alerts pane, footer chips |
-| **Events** | Hatch / provision transcript (`hatch_events`, script `Write-HatchEvent` lines) | Events pane |
+| **Events (Hatch)** | Hatch / provision transcript (`hatch_events`, script `Write-HatchEvent` lines) | Events pane; VM detail Events |
+| **Events (Nest)** | Nest-plane transcript (`nest_events`: Health, transport, nest_cache sync, Nest jobs) | Nest detail Events tile ([ADR-0041](0041-nest-events-transcript.md) / [#611](https://github.com/dustinestes/Hatchery/issues/611)) |
 | **Audit (v2)** | Who/what changed Clutches; Destroy / rename / session archive - not validation, not provision log | Deferred; not toast spam |
+
+Do **not** put Nest-plane lines in `hatch_events`, and do **not** back Nest Events from Alerts.
 
 **Naming:** use **Notifications** only for the **umbrella** sidebar group and group docs. Alert-specific modules/APIs use **alerts** (`lib/alerts.py`, `/api/alerts`, …). Do not keep alert-only artifacts named `notifications`.
 

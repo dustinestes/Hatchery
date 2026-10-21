@@ -74,6 +74,21 @@ CREATE TABLE IF NOT EXISTS hatch_events (
     received_at TEXT    NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS nest_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nest_id     TEXT    NOT NULL,
+    source      TEXT    NOT NULL,
+    topic       TEXT    NOT NULL,
+    level       TEXT    NOT NULL,
+    component   TEXT,
+    message     TEXT    NOT NULL,
+    ref         TEXT,
+    received_at TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_nest_events_nest_id_id
+    ON nest_events(nest_id, id DESC);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -243,6 +258,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_hatch_sessions_clutch_snapshot(conn)
     _migrate_remoting_identities(conn)
     _migrate_nest_remoting_identity_id(conn)
+    _migrate_nest_events(conn)
     # Local Nest is optional (#266 / ADR-0014). Do not seed id ``local`` on migrate.
     # Library connections/bindings: tables created via _SCHEMA; copy from app_settings once.
     from lib import library_registry as library_registry_lib
@@ -1071,6 +1087,31 @@ def _migrate_nest_remoting_identity_id(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(nests)").fetchall()}
     if "remoting_identity_id" not in cols:
         conn.execute("ALTER TABLE nests ADD COLUMN remoting_identity_id TEXT")
+
+
+def _migrate_nest_events(conn: sqlite3.Connection) -> None:
+    """Ensure nest_events table + index for existing local DBs (#611)."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS nest_events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nest_id     TEXT    NOT NULL,
+            source      TEXT    NOT NULL,
+            topic       TEXT    NOT NULL,
+            level       TEXT    NOT NULL,
+            component   TEXT,
+            message     TEXT    NOT NULL,
+            ref         TEXT,
+            received_at TEXT    NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_nest_events_nest_id_id
+            ON nest_events(nest_id, id DESC)
+        """
+    )
 
 
 def is_initialized() -> bool:

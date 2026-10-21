@@ -1944,6 +1944,52 @@ class TestLibraryContentPane:
         assert rbody["sync"]["sync_state"] == "unavailable"
         assert rbody["sync"]["content"][0]["basename"] == "win11.iso"
 
+    def test_nest_events_list_and_ingest(self, client, tmp_path, monkeypatch):
+        from lib import nests as nests_lib
+
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        nests_lib.ensure_local_nest()
+
+        listed0 = client.get("/api/nests/local/events")
+        assert listed0.status_code == 200
+
+        created = client.post(
+            "/api/nests/local/events",
+            json={
+                "source": "nest",
+                "topic": "job",
+                "level": "INFO",
+                "message": "pull started",
+                "ref": "job-9",
+            },
+        )
+        assert created.status_code == 201
+        assert created.get_json()["message"] == "pull started"
+
+        listed = client.get("/api/nests/local/events?topic=job&q=pull%20started")
+        assert listed.status_code == 200
+        body = listed.get_json()
+        assert body["total"] >= 1
+        assert any(e.get("ref") == "job-9" for e in body["events"])
+
+        batch = client.post(
+            "/api/nests/local/events",
+            json={
+                "events": [
+                    {"topic": "general", "level": "WARN", "message": "a"},
+                    {"topic": "general", "level": "ERROR", "message": "b"},
+                ]
+            },
+        )
+        assert batch.status_code == 201
+        assert batch.get_json()["count"] == 2
+
+        bad = client.post(
+            "/api/nests/local/events",
+            json={"source": "guest", "topic": "health", "level": "INFO", "message": "x"},
+        )
+        assert bad.status_code == 400
+
     def test_library_clutch_catalog_and_pull(self, client, tmp_path, monkeypatch):
         share = tmp_path / "share"
         share.mkdir()

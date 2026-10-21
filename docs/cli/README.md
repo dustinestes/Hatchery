@@ -108,6 +108,7 @@ Global flag on the root parser: `hatchery --json <command> …` ([#423](https://
 | `nest list` | Array of `{id, name, provider_type, location, host}` |
 | `nest test` | `{ok, message, nest_id}` |
 | `nest cache-sync` | Nest cache status object (path + `sync` report; [#608](https://github.com/dustinestes/Hatchery/issues/608)) |
+| `nest events` | `{events, total, limit, offset}` Nest Events page ([#611](https://github.com/dustinestes/Hatchery/issues/611)) |
 | `clutch list` | `{clutches: [filename, …]}` |
 | `clutch show` | `{name, description, file, vms: [{name, os, vcpus, ram_gb}, …]}` |
 | `vm list` | `{nest, vms: [{name, status}, …]}` |

@@ -33,6 +33,16 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     cache_sync.add_argument("nest_id", metavar="ID", help="Nest id to check")
 
+    events = nest_sub.add_parser(
+        "events",
+        help="List Nest Events transcript for one Nest (newest first)",
+    )
+    events.add_argument("nest_id", metavar="ID", help="Nest id")
+    events.add_argument("--topic", default="", help="Filter by topic (health, transport, …)")
+    events.add_argument("--level", default="", help="Filter by level (INFO, WARN, ERROR)")
+    events.add_argument("-q", "--query", default="", help="Search message / component / ref")
+    events.add_argument("--limit", type=int, default=100, help="Max rows (default 100)")
+
 
 def run(args: argparse.Namespace) -> int:
     """Dispatch ``nest`` subcommands."""
@@ -51,6 +61,15 @@ def run(args: argparse.Namespace) -> int:
         return _nest_health(args.nest_id, as_json=as_json)
     if cmd == "cache-sync":
         return _nest_cache_sync(args.nest_id, as_json=as_json)
+    if cmd == "events":
+        return _nest_events(
+            args.nest_id,
+            topic=getattr(args, "topic", "") or "",
+            level=getattr(args, "level", "") or "",
+            query=getattr(args, "query", "") or "",
+            limit=int(getattr(args, "limit", 100) or 100),
+            as_json=as_json,
+        )
     bootstrap.print_err(f"unknown nest command: {cmd}")
     return 2
 
@@ -171,4 +190,49 @@ def _nest_cache_sync(nest_id: str, *, as_json: bool) -> int:
         print(f"  {path}{size_s}")
     if len(content) > 50:
         print(f"  … and {len(content) - 50} more")
+    return 0
+
+
+def _nest_events(
+    nest_id: str,
+    *,
+    topic: str,
+    level: str,
+    query: str,
+    limit: int,
+    as_json: bool,
+) -> int:
+    from lib import nest_events as nest_events_lib
+    from lib import nests as nests_lib
+
+    nid = (nest_id or "").strip()
+    nest = nests_lib.get_nest(nid)
+    if nest is None:
+        bootstrap.print_err(f"Unknown Nest id: {nid}")
+        return 1
+    try:
+        page = nest_events_lib.query_events(
+            nest["id"],
+            topic=topic.strip() or None,
+            level=level.strip() or None,
+            q=query.strip() or None,
+            limit=limit,
+            offset=0,
+        )
+    except nest_events_lib.NestEventsError as exc:
+        bootstrap.print_err(str(exc))
+        return 1
+    if as_json:
+        cli_out.emit_json(page)
+        return 0
+    events = page.get("events") or []
+    total = page.get("total") or 0
+    print(f"Showing {len(events)} of {total} (newest first)")
+    for ev in events:
+        ts = ev.get("received_at") or "-"
+        lvl = ev.get("level") or "?"
+        top = ev.get("topic") or "?"
+        src = ev.get("source") or "?"
+        msg = ev.get("message") or ""
+        print(f"{ts}  {lvl:<5}  {top:<12}  {src:<10}  {msg}")
     return 0
