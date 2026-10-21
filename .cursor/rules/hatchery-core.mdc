@@ -7,6 +7,8 @@ alwaysApply: true
 
 Windows-first VM manager; **Hatchery Controller** (Controller plane) runs on Linux / macOS / Windows; **Nests** (Nest plane) are libvirt / UTM / Hyper-V (**Local Nest** or **Remote Nest**). See `docs/architecture-nests.md` and epic #202. v1 guests: Win10, Win11, Server 2022/2025.
 
+Product why (effortless + repeatable; workhorse; free vs Enterprise): [`docs/north-star.md`](../../docs/north-star.md).
+
 ## Naming (1:1:1 - UI, docs, code)
 
 Use Hatchery terms where they clarify product concepts. Prefer **clear, universal** lifecycle words in the UI. Never invent synonyms. Never use retired "Brood". Avoid “host” in product copy - say **Controller** or **Nest**.
