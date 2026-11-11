@@ -182,6 +182,7 @@ def _reboot_guest_after_automation(
     identity_file: str | None = None,
     ssh_port: int = 22,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> None:
     """Restart the guest and wait until LastBootUpTime changes (#499)."""
 
@@ -199,6 +200,7 @@ def _reboot_guest_after_automation(
         identity_file=identity_file,
         ssh_port=ssh_port,
         vm_id=vm_id,
+        nest_id=nest_id,
     ):
         provision_lib.reboot_guest_and_wait(ip, admin_username, admin_password, on_event=on_event)
 
@@ -258,6 +260,7 @@ def _apply_guest_ssh_authorize(
     *,
     password_transport,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> tuple[str | None, int]:
     """Inject authorize pubkeys, verify key SSH, disable password auth (#524).
 
@@ -290,6 +293,7 @@ def _apply_guest_ssh_authorize(
             authorize_ids=authorize_ids,
             ssh_port=ssh_port,
             vm_id=vm_id,
+            nest_id=nest_id,
             password_transport=password_transport,
         )
     except ga.GuestAuthorizeError as exc:
@@ -334,6 +338,7 @@ def _provision_vm_thread(
     identity_file: str | None = None,
     ssh_port: int = 22,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> None:
     """Run pending automations (script|software) sequentially, updating DB per step."""
     from lib import guest_env as guest_env_lib
@@ -343,10 +348,15 @@ def _provision_vm_thread(
     try:
         vm_record = hatch_lib.get_vm_record(session_id, vm_name) or {}
         resolved_vm_id = (vm_id or vm_record.get("libvirt_uuid") or "").strip() or None
+        session = hatch_lib.get_session(session_id) or {}
+        resolved_nest_id = (
+            nest_id or session.get("nest") or session.get("nest_id") or ""
+        ).strip() or None
         with provision_lib.guest_transport_defaults(
             identity_file=identity_file,
             ssh_port=ssh_port,
             vm_id=resolved_vm_id,
+            nest_id=resolved_nest_id,
         ):
             scripts = hatch_lib.get_vm_scripts(session_id, vm_name)
             data_dir = config.data_dir()
@@ -582,6 +592,7 @@ def _provision_vm_thread(
                         identity_file=identity_file,
                         ssh_port=ssh_port,
                         vm_id=resolved_vm_id,
+                        nest_id=resolved_nest_id,
                     )
 
             hatch_lib.add_event(
@@ -685,6 +696,7 @@ def spawn_provision_thread(
     identity_file: str | None = None,
     ssh_port: int = 22,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> None:
     with _provisioning_lock:
         if (session_id, vm_name) in _provisioning:
@@ -701,6 +713,7 @@ def spawn_provision_thread(
             "identity_file": identity_file,
             "ssh_port": ssh_port,
             "vm_id": vm_id,
+            "nest_id": nest_id,
         },
         daemon=True,
     )
@@ -812,8 +825,8 @@ def sync_hatch_status(
             admin_password = (db_record or {}).get("admin_password") or ""
             vm_id = (libvirt_uuid or "").strip() or None
 
-            # Guest SSH trust keyed by vm_id for the whole ready→authorize window (#593).
-            with provision_lib.guest_transport_defaults(vm_id=vm_id):
+            # Guest SSH trust + known-endpoint bind for ready→authorize (#593 / #621).
+            with provision_lib.guest_transport_defaults(vm_id=vm_id, nest_id=nest_id):
                 # Gate on the setup-complete flag so automation never starts while
                 # FirstLogonCommands (SSH install, WinRM config, etc.) are still running.
                 # Prefers SSH ready-probe; WinRM is Windows fallback (#497 / ADR-0029).
@@ -870,6 +883,7 @@ def sync_hatch_status(
                     admin_password,
                     password_transport=transport,
                     vm_id=vm_id,
+                    nest_id=nest_id,
                 )
                 # Authorize hard-failure marks the VM failed; do not start provisioning.
                 post_auth = hatch_lib.get_vm_record(session_id, vm_name) or {}
@@ -899,6 +913,7 @@ def sync_hatch_status(
                         identity_file=identity_file,
                         ssh_port=ssh_port,
                         vm_id=vm_id,
+                        nest_id=nest_id,
                     )
                 else:
                     hatch_lib.add_event(
@@ -931,6 +946,7 @@ def sync_hatch_status(
                         identity_file=identity_file,
                         ssh_port=ssh_port,
                         vm_id=(libvirt_uuid or "").strip() or None,
+                        nest_id=nest_id,
                     )
 
 

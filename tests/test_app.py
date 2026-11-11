@@ -3173,6 +3173,10 @@ class TestSyncHatchStatus:
             hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
         return sid
 
+    def _sync_with_bound_guest(self, mock_prov):
+        with patch("lib.providers.factory.get_provider", return_value=mock_prov.return_value):
+            app_module._sync_hatch_status()
+
     def test_marks_fledged_when_winrm_responds(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
@@ -3188,7 +3192,7 @@ class TestSyncHatchStatus:
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "fledged"
@@ -3241,7 +3245,7 @@ class TestSyncHatchStatus:
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         events = hatch_lib.get_events(sid, "dc01")
         assert any("no automations" in e["message"].lower() for e in events)
 
