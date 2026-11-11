@@ -165,6 +165,10 @@ def start_runtime_services() -> None:
     if _runtime_services_started:
         return
     _runtime_services_started = True
+    from lib.extensions import get_api, load_extensions
+
+    load_extensions()
+    get_api().apply_flask(app)
     for _vcfg in list_validator_configs():
         if _vcfg.get("enabled") and not _vcfg.get("stub"):
             try:

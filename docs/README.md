@@ -24,6 +24,8 @@ Reference documentation for Hatchery.
 | Document | Description |
 |---|---|
 | [`north-star.md`](north-star.md) | Product north star - why Hatchery exists; effortless + repeatable; free vs Enterprise |
+| [`extensions.md`](extensions.md) | How free Controller loads optional `hatchery-enterprise` (ADR-0043) |
+| [`enterprise/`](enterprise/) | Enterprise-tier operator docs (public edition section; nav bucket) |
 | [`project-structure.md`](project-structure.md) | Root directory layout - every file and folder explained |
 | [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane - cross-platform foundation (epic #202); Controller-only package-manager distribution north star (#273) |
 | [`validators.md`](validators.md) | Pluggable background validators - Settings, run history, Alerts vs runs |

@@ -19,6 +19,9 @@ from lib.cli import vm as vm_cmd
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from lib.extensions import get_api, load_extensions
+
+    load_extensions()
     parser = argparse.ArgumentParser(
         prog="hatchery",
         description="Hatchery Controller CLI - launch and Nest-scoped operator commands.",
@@ -42,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     settings_cmd.register(sub)
     library_cmd.register(sub)
     remoting_identity_cmd.register(sub)
+    get_api().apply_cli(sub)
     return parser
 
 
@@ -70,6 +74,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return library_cmd.run(args)
     if args.command == "remoting-identity":
         return remoting_identity_cmd.run(args)
+    run = getattr(args, "run", None)
+    if callable(run):
+        return int(run(args))
     parser.error(f"unknown command: {args.command}")
     return 2
 
