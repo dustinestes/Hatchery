@@ -1,8 +1,8 @@
 """Nest id → BaseProvider factory.
 
-Routes VM lifecycle through the Nest registry (#207). Local libvirt and
-Hyper-V (local or remote over Nest transport) are instantiable; UTM and
-remote libvirt raise UnsupportedProviderError until those adapters land.
+Routes VM lifecycle through the Nest registry (#207). Free HEAD is Local Nest
+only (#620). Remote Nest / Nest transport paths raise UnsupportedProviderError;
+Enterprise Remote Nest is Nest Agent (#345).
 """
 
 from __future__ import annotations
@@ -12,10 +12,14 @@ from pathlib import Path
 from lib import config
 from lib import nest_cache as nest_cache_lib
 from lib import nests as nests_lib
-from lib.nest_transport import get_nest_transport
 from lib.providers.base import BaseProvider
 from lib.providers.hyperv import HyperVProvider
 from lib.providers.libvirt import LibvirtProvider
+
+_REMOTE_UNAVAILABLE = (
+    "Remote Nests are not available in Hatchery free (#620). "
+    "Use a Local Nest on this Controller, or Hatchery Enterprise (Nest Agent)."
+)
 
 
 class UnknownNestError(KeyError):
@@ -65,20 +69,19 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
     provider_type = nest["provider_type"]
     location = nest["location"]
 
+    if location != "local":
+        raise UnsupportedProviderError(_REMOTE_UNAVAILABLE)
+
     # Nest nest_storage SoR: Nest detail volumes / extra.nest_storage (#538 / ADR-0039).
     extra = nest.get("extra") if isinstance(nest.get("extra"), dict) else {}
     nest_storage_raw = (extra or {}).get("nest_storage")
     nest_storage = Path(str(nest_storage_raw)) if nest_storage_raw else None
 
-    # Nest nest_cache SoR: Local = Controller data_dir; Remote = extra.nest_cache (#215 / #607).
+    # Nest nest_cache SoR: Local = Controller data_dir (#215 / #607).
     controller_root = data_dir or config.data_dir()
     data = nest_cache_lib.resolve_nest_cache_for_provider(nest, data_dir=controller_root)
 
     if provider_type == "libvirt":
-        if location == "remote":
-            raise UnsupportedProviderError(
-                f"Remote Nest '{nid}' (libvirt) is registered but VM ops are not available yet"
-            )
         return LibvirtProvider(
             iso_dir=data / "media" / "iso",
             virtio_dir=data / "media" / "virtio",
@@ -88,17 +91,9 @@ def get_provider(nest_id: str | None = None, *, data_dir: Path | None = None) ->
         )
 
     if provider_type == "hyperv":
-        transport = None
-        if location == "remote":
-            connection = nests_lib.to_connection_config(nest)
-            transport = get_nest_transport(connection)
-            if transport is None:
-                raise UnsupportedProviderError(
-                    f"Remote Nest '{nid}' (hyperv) has no Nest transport"
-                )
         return HyperVProvider(
             nid,
-            transport=transport,
+            transport=None,
             iso_dir=data / "media" / "iso",
             virtio_dir=data / "media" / "virtio",
             automation_dir=data / "automation" / "answerfiles",

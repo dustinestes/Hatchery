@@ -10,7 +10,7 @@ from lib import db
 from lib import library_registry as library_registry_lib
 from lib import nests as nests_lib
 from lib import plane_status as ps
-from lib.nest_transport import NestHealthCheckResult
+from lib.nest_types import NestHealthCheckResult
 
 
 @pytest.fixture(autouse=True)

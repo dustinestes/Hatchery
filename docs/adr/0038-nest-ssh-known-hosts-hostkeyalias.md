@@ -1,8 +1,8 @@
 # ADR-0038: Nest SSH known_hosts under data_dir keyed by Nest id
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0044](0044-free-head-local-nest-only.md) (free HEAD removed Nest SSH product; Nest Agent is Enterprise Remote Nest)
 - **Date:** 2026-10-17
-- **Issues:** [#594](https://github.com/dustinestes/Hatchery/issues/594)
+- **Issues:** [#594](https://github.com/dustinestes/Hatchery/issues/594), [#620](https://github.com/dustinestes/Hatchery/issues/620)
 - **Related:** [ADR-0029](0029-guest-ssh-bootstrap-and-guest-transport.md), [ADR-0030](0030-controller-remoting-identities.md), [ADR-0037](0037-guest-ssh-known-hosts-hostkeyalias.md) (guest plane sibling)
 - **How-to:** [nest-transport.md](../nest-transport.md), [nest-ssh.md](../nest-ssh.md)
 

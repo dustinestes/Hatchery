@@ -53,57 +53,26 @@ class TestGetProvider:
         assert provider.iso_dir == tmp_path / "media" / "iso"
         assert provider.virtio_dir == tmp_path / "media" / "virtio"
 
-    def test_remote_nest_cache_resolve_for_provider(self, tmp_path):
-        from lib.nest_cache import resolve_nest_cache_for_provider
-
-        nests_lib.ensure_local_nest()
-        override = tmp_path / "remote-nest-cache"
-        override.mkdir()
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "port": 22,
-                    "transport": "ssh",
-                    "extra": {"nest_cache": str(override)},
-                },
-            ]
-        )
-        nest = nests_lib.get_nest("remote1")
-        assert resolve_nest_cache_for_provider(nest) == override
-        # Remote libvirt VM ops still unsupported; resolve must still honor nest_cache.
-        with pytest.raises(UnsupportedProviderError, match="not available yet"):
-            get_provider("remote1")
-
     def test_unknown_nest_raises(self):
         with pytest.raises(UnknownNestError) as exc:
             get_provider("no-such-nest")
         assert "no-such-nest" in str(exc.value)
 
-    def test_many_nests_require_explicit_id(self):
+    def test_remote_nest_cannot_be_registered(self):
         nests_lib.ensure_local_nest()
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "r.example",
-                },
-            ]
-        )
-        with pytest.raises(NoNestSelectedError):
-            get_provider()
-        with pytest.raises(UnsupportedProviderError) as exc:
-            get_provider("remote1")
-        assert "remote1" in str(exc.value)
+        with pytest.raises(ValueError, match="#620"):
+            nests_lib.replace_nests(
+                [
+                    nests_lib.get_nest("local"),
+                    {
+                        "id": "remote1",
+                        "name": "Remote",
+                        "provider_type": "libvirt",
+                        "location": "remote",
+                        "host": "r.example",
+                    },
+                ]
+            )
 
     def test_utm_local_unsupported(self):
         nests_lib.ensure_local_nest()
@@ -128,37 +97,18 @@ class TestGetProvider:
         assert provider.iso_dir.name == "iso"
         assert provider.automation_dir.name == "answerfiles"
 
-    def test_hyperv_remote_ssh(self):
-        nests_lib.replace_nests(
-            [
-                {
-                    "id": "hv-remote",
-                    "name": "Remote Hyper-V",
-                    "provider_type": "hyperv",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "transport": "ssh",
-                    "ssh_user": "admin",
-                    "port": 22,
-                }
-            ]
+    @pytest.mark.parametrize("provider_type", ["libvirt", "hyperv"])
+    def test_remote_location_rejected(self, monkeypatch, provider_type):
+        monkeypatch.setattr(
+            nests_lib,
+            "get_nest",
+            lambda nid: {
+                "id": nid,
+                "name": "Remote",
+                "provider_type": provider_type,
+                "location": "remote",
+                "extra": {},
+            },
         )
-        provider = get_provider("hv-remote")
-        assert isinstance(provider, HyperVProvider)
-        assert provider._transport is not None
-
-    def test_remote_libvirt_still_unsupported(self):
-        nests_lib.replace_nests(
-            [
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "r.example",
-                }
-            ]
-        )
-        with pytest.raises(UnsupportedProviderError) as exc:
+        with pytest.raises(UnsupportedProviderError, match="#620"):
             get_provider("remote1")
-        assert "libvirt" in str(exc.value)

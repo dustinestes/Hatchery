@@ -1,14 +1,14 @@
 """Nest reachability probes, Alerts, and footer/Nests status snapshot (#263).
 
-Reachability is Nest transport (or Local co-location), not hypervisor capability
-(#208) and not guest health. Status is persisted in ``app_settings`` so the
-footer and Nests pane work across requests between validator ticks.
+Reachability is Local Nest co-location on free HEAD (#620), not hypervisor
+capability (#208) and not guest health. Status is persisted in ``app_settings``
+so the footer and Nests pane work across requests between validator ticks.
 
 One validator contract; dynamic reason lives on the result:
 
-- ``endpoint`` — host:port not reachable
-- ``transport`` — endpoint found, Nest transport session not accessible
-- ``config`` — cannot run a probe from this Nest row / session
+- ``endpoint`` - host:port not reachable (legacy; unused for Local-only free HEAD)
+- ``transport`` - Nest transport session not accessible (Enterprise / historical)
+- ``config`` - cannot run a probe from this Nest row / session
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any
 from lib import alerts as alerts_lib
 from lib import config
 from lib import nests as nests_lib
-from lib.nest_transport import NestHealthCheckResult, get_nest_transport
+from lib.nest_types import NestHealthCheckResult
 
 ALERT_PREFIX = "Nest reachability:"
 _SETTINGS_KEY = "nest_reachability_status"
@@ -102,75 +102,21 @@ def probe_tcp_endpoint(host: str, port: int, *, timeout: float = 5.0) -> NestHea
 
 
 def probe_nest(nest: dict, *, winrm_password: str | None = None) -> NestHealthCheckResult:
-    """Probe one Nest: Local co-located; Remote = endpoint TCP then Nest transport."""
+    """Probe one Nest. Free HEAD: Local co-located only (#620)."""
+    del winrm_password
     location = nest.get("location") or "local"
     if location == "local":
         return NestHealthCheckResult(
             ok=True,
             detail="Local Nest - co-located with the Controller (no Nest transport).",
         )
-
-    transport_name = nest.get("transport") or "ssh"
-    if transport_name == "winrm" and not (winrm_password or "").strip():
-        return NestHealthCheckResult(
-            ok=False,
-            detail=format_failure_detail(
-                "config",
-                "WinRM password required to probe reachability (not stored - #110).",
-            ),
-            failure_class="config",
-        )
-
-    try:
-        connection = nests_lib.to_connection_config(nest, winrm_password=winrm_password)
-        transport = get_nest_transport(connection)
-    except (ValueError, TypeError) as exc:
-        return NestHealthCheckResult(
-            ok=False,
-            detail=format_failure_detail("config", str(exc)),
-            failure_class="config",
-        )
-
-    if transport is None:
-        return NestHealthCheckResult(
-            ok=True,
-            detail="Local Nest - co-located with the Controller (no Nest transport).",
-        )
-
-    # Endpoint contract: can we open TCP to the Nest's transport port?
-    if transport_name == "winrm" and connection.winrm is not None:
-        host = connection.winrm.host
-        port = int(connection.winrm.port)
-        timeout = float(connection.winrm.operation_timeout_sec)
-    elif connection.ssh is not None:
-        host = connection.ssh.host
-        port = int(connection.ssh.port)
-        timeout = float(connection.ssh.connect_timeout_seconds)
-    else:
-        return NestHealthCheckResult(
-            ok=False,
-            detail=format_failure_detail("config", "Remote Nest missing transport config"),
-            failure_class="config",
-        )
-
-    endpoint = probe_tcp_endpoint(host, port, timeout=min(timeout, 10.0))
-    if not endpoint.ok:
-        return endpoint
-
-    # Transport contract: authenticated Nest session / trivial remote command.
-    session = transport.test_connection()
-    if session.ok:
-        return NestHealthCheckResult(
-            ok=True,
-            detail="endpoint reachable; Nest transport OK",
-        )
-    detail = session.detail or "Nest transport session failed"
-    if session.failure_class == "transport" or not detail.startswith("endpoint"):
-        detail = format_failure_detail("transport", detail)
     return NestHealthCheckResult(
         ok=False,
-        detail=detail,
-        failure_class="transport",
+        detail=format_failure_detail(
+            "config",
+            "Remote Nests are not available in Hatchery free (#620).",
+        ),
+        failure_class="config",
     )
 
 

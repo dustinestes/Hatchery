@@ -1,7 +1,7 @@
 """Guest transport - Controller remoting to a guest VM (not a Nest host).
 
 SSH is primary; WinRM is the Windows fallback (ADR-0029 / #497). Nest transport
-(`lib.nest_transport`) is a parallel plane - different target, credentials, and
+(historical Nest SSH / `lib.nest_transport`, removed from free HEAD #620) was a parallel plane - different target, credentials, and
 identity. Shared OpenSSH **client** helpers live in ``lib.openssh_client``.
 
 Guest SSH keys come from Clutch ``remoting.ssh.authorize`` (#524 / ADR-0030):

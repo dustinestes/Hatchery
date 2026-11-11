@@ -9,7 +9,7 @@ streams are echoed once to stderr (the way inherited fds used to appear before
 capture). Operator UI / CLI still receive the same text via
 ``format_process_error``.
 
-Not Nest-transport SSH — that lives in ``lib/nest_transport.py``.
+Not guest or Nest remoting SSH - those use ``lib/openssh_client.py`` / guest transport.
 """
 
 from __future__ import annotations

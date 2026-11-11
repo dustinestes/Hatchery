@@ -1,13 +1,11 @@
-"""Nest connection registry — persist Nest definitions and build transport configs.
+"""Nest connection registry - persist Nest definitions for Local Nest ops.
 
 Registry lives in SQLite (``nests`` table). Provider selection for inventory /
 lifecycle is #206; this module owns CRUD, validation, and Test Nest connection.
 
-Remote Nest SSH keys bind via ``remoting_identity_id`` into the Controller
-remoting identities catalog (ADR-0030 / #523). Legacy ``identity_file`` /
-``cert_path`` / ``identity_expires_at`` columns remain for migration fallback.
-Private key bytes are never stored (path refs only; WinRM passwords are
-session/test-only until #110).
+Free HEAD is Local Nest only (#620). Remote Nest product (Nest SSH / WinRM)
+was removed from free; Enterprise Remote Nest is Nest Agent (#345). Schema
+columns for remote fields may remain dormant for DB compatibility.
 """
 
 from __future__ import annotations
@@ -16,22 +14,19 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from lib import alerts as alerts_lib
 from lib import config
 from lib import db as db_module
 from lib import nest_key_expiry as nest_key_expiry_lib
-from lib.nest_transport import (
-    NestConnectionConfig,
-    NestSshConfig,
-    NestWinrmConfig,
-)
+from lib.nest_types import NestConnectionConfig
 
 PROVIDER_TYPES = frozenset({"libvirt", "utm", "hyperv"})
-LOCATIONS = frozenset({"local", "remote"})
-TRANSPORTS = frozenset({"ssh", "winrm"})
-KNOWN_HOSTS = frozenset({"default", "accept-new", "skip"})
+LOCATIONS = frozenset({"local"})
+_REMOTE_UNAVAILABLE = (
+    "Remote Nests are not available in Hatchery free (#620). "
+    "Use a Local Nest on this Controller, or Hatchery Enterprise (Nest Agent)."
+)
 
 LOCAL_NEST_ID = "local"
 _ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
@@ -220,7 +215,6 @@ def parse_nests(raw: list | None) -> list[dict]:
     out: list[dict] = []
     seen_ids: set[str] = set()
     seen_names: set[str] = set()
-    seen_endpoints: set[tuple[str, int, str]] = set()
 
     for item in raw:
         if not isinstance(item, dict):
@@ -235,23 +229,11 @@ def parse_nests(raw: list | None) -> list[dict]:
             raise ValueError(f"duplicate Nest name: {nest['name']!r} (names must be unique)")
         seen_names.add(name_key)
 
-        if nest["id"] != LOCAL_NEST_ID and nest["location"] == "local":
+        if nest["id"] != LOCAL_NEST_ID:
             raise ValueError(
-                "only the Nest id 'local' may use location 'local' - "
-                "other Nests must be remote (even for localhost / WSL)"
+                f"Nest id {nest['id']!r} is not allowed on free HEAD - "
+                f"only Nest id '{LOCAL_NEST_ID}' (Local) may be registered (#620)"
             )
-
-        if nest["location"] == "remote":
-            host_key = str(nest["host"] or "").strip().casefold()
-            port = int(nest["port"] or 0)
-            transport = str(nest["transport"] or "ssh")
-            endpoint = (host_key, port, transport)
-            if endpoint in seen_endpoints:
-                raise ValueError(
-                    f"duplicate remote Nest endpoint: {nest['host']}:{port} via {transport} "
-                    f"(same host/port/transport already registered)"
-                )
-            seen_endpoints.add(endpoint)
 
         out.append(nest)
 
@@ -279,94 +261,33 @@ def _normalize_one(item: dict) -> dict:
         raise ValueError(f"unsupported provider_type: {provider}")
 
     location = str(item.get("location") or "local").strip().lower()
-    if location not in LOCATIONS:
-        raise ValueError(f"location must be one of: {', '.join(sorted(LOCATIONS))}")
+    if location == "remote" or location not in LOCATIONS:
+        raise ValueError(_REMOTE_UNAVAILABLE)
 
-    # Non-builtin Nests are always remote (single local Nest = id "local").
     if nid != LOCAL_NEST_ID:
-        location = "remote"
+        raise ValueError(
+            f"Nest id {nid!r} is not allowed on free HEAD - "
+            f"only Nest id '{LOCAL_NEST_ID}' (Local) may be registered (#620)"
+        )
 
-    transport_raw = item.get("transport")
-    transport = str(transport_raw).strip().lower() if transport_raw else None
-    host = _optional_str(item.get("host"))
-    port = _optional_int(item.get("port"), label="port")
-    ssh_user = _optional_str(item.get("ssh_user"))
-    remoting_identity_id = _optional_str(item.get("remoting_identity_id"))
-    # identity_ref accepted as alias for older forms / drafts.
-    identity_file = _optional_str(item.get("identity_file") or item.get("identity_ref"))
-    cert_path = _optional_str(item.get("cert_path"))
-    identity_expires_at = _parse_expires_at(item.get("identity_expires_at"), label=name)
-    known_hosts = str(item.get("known_hosts") or "default").strip().lower()
-    if known_hosts not in KNOWN_HOSTS:
-        raise ValueError(f"known_hosts must be one of: {', '.join(sorted(KNOWN_HOSTS))}")
-    winrm_user = _optional_str(item.get("winrm_user"))
-    credential_ref = _optional_str(item.get("credential_ref"))
     extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
-
-    if location == "local":
-        transport = None
-        host = None
-        port = None
-        ssh_user = None
-        remoting_identity_id = None
-        identity_file = None
-        cert_path = None
-        identity_expires_at = None
-        known_hosts = "default"
-        winrm_user = None
-        credential_ref = None
-    else:
-        if not transport:
-            transport = "ssh"
-        if transport not in TRANSPORTS:
-            raise ValueError(f"transport must be one of: {', '.join(sorted(TRANSPORTS))}")
-        if not host:
-            raise ValueError(f"Nest '{name}' requires a host when remote")
-        if transport == "ssh":
-            if port is None:
-                port = 22
-            winrm_user = None
-            credential_ref = None
-            if remoting_identity_id:
-                from lib import remoting_identities as ri
-
-                if ri.get_identity(remoting_identity_id) is None:
-                    raise ValueError(
-                        f"Nest '{name}' remoting_identity_id "
-                        f"{remoting_identity_id!r} is not in the remoting identity catalog"
-                    )
-                # Catalog owns path/cert/expiry; do not duplicate on the Nest row.
-                identity_file = None
-                cert_path = None
-                identity_expires_at = None
-        else:
-            if port is None:
-                port = 5985
-            if not winrm_user:
-                raise ValueError(f"Nest '{name}' requires a WinRM username when transport is winrm")
-            # Password is never persisted here - credential_ref is a placeholder for #110.
-            ssh_user = None
-            remoting_identity_id = None
-            identity_file = None
-            cert_path = None
-            identity_expires_at = None
 
     return {
         "id": nid,
         "name": name,
         "provider_type": provider,
-        "location": location,
-        "transport": transport,
-        "host": host,
-        "port": port,
-        "ssh_user": ssh_user,
-        "identity_file": identity_file,
-        "cert_path": cert_path,
-        "identity_expires_at": identity_expires_at,
-        "remoting_identity_id": remoting_identity_id,
-        "known_hosts": known_hosts,
-        "winrm_user": winrm_user,
-        "credential_ref": credential_ref,
+        "location": "local",
+        "transport": None,
+        "host": None,
+        "port": None,
+        "ssh_user": None,
+        "identity_file": None,
+        "cert_path": None,
+        "identity_expires_at": None,
+        "remoting_identity_id": None,
+        "known_hosts": "default",
+        "winrm_user": None,
+        "credential_ref": None,
         "extra": extra,
         "created_at": _optional_str(item.get("created_at")),
         "updated_at": _optional_str(item.get("updated_at")),
@@ -449,7 +370,7 @@ def replace_nests(raw: list | None) -> list[dict]:
                     nest["cert_path"],
                     nest["identity_expires_at"],
                     nest.get("remoting_identity_id"),
-                    nest["known_hosts"] if nest["location"] == "remote" else None,
+                    None,
                     nest["winrm_user"],
                     nest["credential_ref"],
                     json.dumps(nest["extra"]) if nest["extra"] else None,
@@ -462,11 +383,9 @@ def replace_nests(raw: list | None) -> list[dict]:
         conn.close()
     if removed_ids:
         from lib import nest_health as nest_health_lib
-        from lib import nest_transport as nest_transport_lib
 
         for nest_id in removed_ids:
             alerts_lib.resolve_alerts_for_nest_id(nest_id)
-            nest_transport_lib.remove_nest_known_host(nest_id)
         from lib import nest_reachability as nest_reachability_lib
 
         nest_reachability_lib.prune_removed_nests(kept_ids)
@@ -479,68 +398,17 @@ def replace_nests(raw: list | None) -> list[dict]:
     return list_nests()
 
 
-def resolve_identity_file(nest: dict) -> str | None:
-    """Return the Nest's OpenSSH private key path for transport.
-
-    Prefers ``remoting_identity_id`` (catalog resolve). Falls back to legacy
-    Nest-row ``identity_file`` until migration clears those columns.
-    """
-    rid = (nest.get("remoting_identity_id") or "").strip()
-    if rid:
-        from lib import remoting_identities as ri
-
-        try:
-            return str(ri.identity_private_path(rid))
-        except ri.RemotingIdentityError:
-            return None
-    path = nest.get("identity_file")
-    if not path:
-        return None
-    text = str(path).strip()
-    return text or None
-
-
 def to_connection_config(
     nest: dict,
     *,
     winrm_password: str | None = None,
 ) -> NestConnectionConfig:
-    """Build a ``NestConnectionConfig`` for transport / cache helpers."""
+    """Build a Local Nest ``NestConnectionConfig`` for cache helpers (#620)."""
+    del winrm_password  # Remote WinRM session creds removed with Nest transport.
     location = nest.get("location") or "local"
-    if location == "local":
-        return NestConnectionConfig(location="local", extra=dict(nest.get("extra") or {}))
-
-    transport = nest.get("transport") or "ssh"
-    if transport == "ssh":
-        identity = resolve_identity_file(nest)
-        if identity and identity.startswith("~"):
-            identity = str(Path(identity).expanduser())
-        return NestConnectionConfig(
-            location="remote",
-            transport="ssh",
-            ssh=NestSshConfig(
-                host=str(nest["host"]),
-                user=nest.get("ssh_user"),
-                port=int(nest.get("port") or 22),
-                identity_file=identity,
-                known_hosts=nest.get("known_hosts") or "default",  # type: ignore[arg-type]
-                host_key_alias=str(nest["id"]),
-            ),
-            extra=dict(nest.get("extra") or {}),
-        )
-
-    password = winrm_password if winrm_password is not None else ""
-    return NestConnectionConfig(
-        location="remote",
-        transport="winrm",
-        winrm=NestWinrmConfig(
-            host=str(nest["host"]),
-            username=str(nest.get("winrm_user") or ""),
-            password=password,
-            port=int(nest.get("port") or 5985),
-        ),
-        extra=dict(nest.get("extra") or {}),
-    )
+    if location != "local":
+        raise ValueError(_REMOTE_UNAVAILABLE)
+    return NestConnectionConfig(location="local", extra=dict(nest.get("extra") or {}))
 
 
 def _apply_manual_reachability(nest: dict, result, *, registered: bool) -> None:
@@ -575,15 +443,11 @@ def test_connection(
     from lib import nest_reachability as nr
     from lib import requirements as req_lib
 
-    nest = _normalize_one(nest)
+    try:
+        nest = _normalize_one(nest)
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
     registered = get_nest(nest["id"]) is not None
-
-    if nest["location"] == "remote" and nest["transport"] == "winrm":
-        if not (winrm_password or "").strip():
-            return {
-                "ok": False,
-                "message": "WinRM password is required for Test Nest connection (not stored - #110).",
-            }
 
     if registered:
         health = nest_health_lib.run_health(
@@ -610,15 +474,8 @@ def test_connection(
     # Draft row: reachability + capability without Nest Health persistence.
     # Nest Events are Nest-registry keyed; drafts do not write transport lines (#611).
     # Registered Test Nest connection writes via Nest Health (topic=health).
-    reach_msg = "Local Nest - co-located with the Controller."
-    if nest["location"] == "local":
-        local_result = nr.probe_nest(nest)
-        reach_msg = local_result.detail or reach_msg
-    else:
-        result = nr.probe_nest(nest, winrm_password=winrm_password)
-        if not result.ok:
-            return {"ok": False, "message": result.detail}
-        reach_msg = result.detail or "Nest transport OK."
+    local_result = nr.probe_nest(nest)
+    reach_msg = local_result.detail or "Local Nest - co-located with the Controller."
 
     missing = req_lib.missing(req_lib.check_nest(nest, winrm_password=winrm_password))
     if missing:
@@ -631,115 +488,16 @@ def test_connection(
 
 
 def identities_for_expiry() -> list[nest_key_expiry_lib.NestSshIdentity]:
-    """Build expiry-check identities from Nest rows still on legacy path fields.
+    """Legacy Nest-row SSH identity feed - empty on free HEAD (#620).
 
-    Nests bound via ``remoting_identity_id`` are covered by the remoting catalog
-    expiry feed (``remoting_identities.identities_for_expiry``).
+    Remoting catalog expiry remains via ``remoting_identities.identities_for_expiry``.
     """
-    out: list[nest_key_expiry_lib.NestSshIdentity] = []
-    for nest in list_nests():
-        if nest.get("location") != "remote":
-            continue
-        if (nest.get("transport") or "ssh") != "ssh":
-            continue
-        if (nest.get("remoting_identity_id") or "").strip():
-            continue
-        path = nest.get("identity_file")
-        cert = nest.get("cert_path")
-        expires_raw = nest.get("identity_expires_at")
-        if not path and not cert and not expires_raw:
-            continue
-        expires_at = None
-        if expires_raw:
-            parsed = nest_key_expiry_lib.parse_identities(
-                [{"id": nest["id"], "expires_at": expires_raw}]
-            )
-            if parsed:
-                expires_at = parsed[0].expires_at
-        out.append(
-            nest_key_expiry_lib.NestSshIdentity(
-                id=str(nest["id"]),
-                label=str(nest.get("name") or nest["id"]),
-                identity_file=path,
-                cert_path=cert,
-                expires_at=expires_at,
-                expires_source="manual",
-            )
-        )
-    return out
+    return []
 
 
 def migrate_legacy_identity_bindings() -> int:
-    """Move Nest-row identity path/cert/expiry into remoting_identities (#523).
-
-    For each remote SSH Nest that still has ``identity_file`` and no
-    ``remoting_identity_id``, register (or reuse) a path catalog row and bind
-    ``remoting_identity_id``. Clears duplicated Nest identity columns after bind.
-    Returns the number of Nests updated.
-    """
-    if not db_module.is_initialized():
-        return 0
-    from lib import remoting_identities as ri
-
-    nests = list_nests()
-    updated = 0
-    out: list[dict] = []
-    for nest in nests:
-        row = dict(nest)
-        if (
-            row.get("location") == "remote"
-            and (row.get("transport") or "ssh") == "ssh"
-            and not (row.get("remoting_identity_id") or "").strip()
-            and (row.get("identity_file") or "").strip()
-        ):
-            path_raw = str(row["identity_file"]).strip()
-            try:
-                resolved = ri.resolve_identity_path(path_raw)
-            except ri.RemotingIdentityError:
-                out.append(row)
-                continue
-            if not resolved.is_file():
-                # Keep legacy columns; operator can fix path or bind later.
-                out.append(row)
-                continue
-            existing_id = None
-            for ident in ri.list_identities():
-                try:
-                    if ident.resolved_path() == resolved:
-                        existing_id = ident.id
-                        break
-                except ri.RemotingIdentityError:
-                    continue
-            if existing_id:
-                rid = existing_id
-            else:
-                candidate = f"nest-{row['id']}"
-                if not _ID_RE.match(candidate):
-                    candidate = f"nest-{new_id()}"
-                # Avoid colliding with hatchery or an unrelated id.
-                if ri.get_identity(candidate) is not None:
-                    candidate = f"nest-{new_id()}"
-                try:
-                    created = ri.add_path_identity(
-                        identity_id=candidate,
-                        identity_file=str(resolved),
-                        name=f"{row.get('name') or row['id']} Nest key",
-                        cert_path=row.get("cert_path"),
-                        identity_expires_at=row.get("identity_expires_at"),
-                    )
-                    rid = created.id
-                except ri.RemotingIdentityError:
-                    out.append(row)
-                    continue
-            row["remoting_identity_id"] = rid
-            row["identity_file"] = None
-            row["cert_path"] = None
-            row["identity_expires_at"] = None
-            updated += 1
-        out.append(row)
-    if updated:
-        replace_nests(out)
-    return updated
+    """No-op on free HEAD (#620). Remote Nest identity migration removed with Nest SSH."""
+    return 0
 
 
 def migrate_legacy_ssh_identities() -> bool:

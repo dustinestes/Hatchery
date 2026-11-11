@@ -320,17 +320,18 @@ def _check_hyperv_local(check: str) -> bool:
 
 
 def _remote_hyperv_check(transport, check: str) -> bool:
-    """Probe a Windows Nest for a Hyper-V Nest prerequisite over Nest transport."""
+    """Legacy remote Hyper-V probe helper (unused on free HEAD; Nest transport removed #620)."""
     import base64
-
-    from lib.nest_transport import WinrmNestTransport
 
     probe = _hyperv_probe_script(check)
     if probe is None:
         return False
     script, marker = probe
     try:
-        if isinstance(transport, WinrmNestTransport):
+        # Duck-typed transport.run; WinRM-style callers pass raw PowerShell.
+        if getattr(transport, "config", None) is not None and hasattr(
+            getattr(transport, "config", None), "endpoint_url"
+        ):
             out = transport.run(script, timeout=30)
         else:
             encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
@@ -379,10 +380,8 @@ def check_nest_tools_remote(transport, specs: list[NestToolSpec]) -> list[Requir
 
 
 def check_nest(nest: dict, *, winrm_password: str | None = None) -> list[Requirement]:
-    """Evaluate Nest capability tools for one Nest row."""
-    from lib import nests as nests_lib
-    from lib.nest_transport import get_nest_transport
-
+    """Evaluate Nest capability tools for one Nest row (Local Nest on free HEAD)."""
+    del winrm_password
     location = nest.get("location") or "local"
     provider = nest.get("provider_type") or nest.get("provider") or "libvirt"
     specs = nest_tool_specs_for_provider(provider)
@@ -392,21 +391,8 @@ def check_nest(nest: dict, *, winrm_password: str | None = None) -> list[Require
     if location == "local":
         return check_nest_tools_local(specs)
 
-    transport_name = nest.get("transport") or "ssh"
-    if transport_name == "winrm" and not (winrm_password or "").strip():
-        # WinRM password is not stored (#110) — skip probe unless caller supplies it.
-        return []
-
-    try:
-        connection = nests_lib.to_connection_config(nest, winrm_password=winrm_password)
-        transport = get_nest_transport(connection)
-    except (ValueError, TypeError):
-        return [_requirement_from_spec(spec, present=False) for spec in specs]
-
-    if transport is None:
-        return check_nest_tools_local(specs)
-
-    return check_nest_tools_remote(transport, specs)
+    # Remote Nest capability over Nest transport removed (#620).
+    return [_requirement_from_spec(spec, present=False) for spec in specs]
 
 
 def pwsh_available() -> bool:

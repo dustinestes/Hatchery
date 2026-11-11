@@ -44,55 +44,33 @@ class TestSeedAndList:
 
 
 class TestReplaceNests:
-    def test_add_remote_ssh_nest(self):
+    def test_remote_nest_rejected(self):
         nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab Hyper-V",
-                    "provider_type": "hyperv",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "nest.example",
-                    "port": 22,
-                    "ssh_user": "ops",
-                    "identity_file": "~/.ssh/nest",
-                    "identity_expires_at": "2026-12-01",
-                    "known_hosts": "accept-new",
-                },
-            ]
-        )
-        nests = nests_lib.list_nests()
-        assert [n["id"] for n in nests] == ["local", "lab1"]
-        remote = nests_lib.get_nest("lab1")
-        assert remote["host"] == "nest.example"
-        assert remote["transport"] == "ssh"
-        assert remote["identity_file"] == "~/.ssh/nest"
-        assert remote["identity_expires_at"].startswith("2026-12-01")
+        with pytest.raises(ValueError, match="#620"):
+            nests_lib.replace_nests(
+                [
+                    local,
+                    {
+                        "id": "lab1",
+                        "name": "Lab",
+                        "provider_type": "libvirt",
+                        "location": "remote",
+                        "transport": "ssh",
+                        "host": "nest.example",
+                    },
+                ]
+            )
+        assert [n["id"] for n in nests_lib.list_nests()] == ["local"]
 
     def test_can_remove_local_and_empty_registry(self):
         nests_lib.ensure_local_nest()
         nests_lib.replace_nests([])
         assert nests_lib.list_nests() == []
-        nests_lib.replace_nests(
-            [
-                {
-                    "id": "only-remote",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "x.example",
-                }
-            ]
-        )
-        assert [n["id"] for n in nests_lib.list_nests()] == ["only-remote"]
-        assert nests_lib.default_nest_id() == "only-remote"
+        assert nests_lib.default_nest_id() is None
 
     def test_local_must_stay_local(self):
-        with pytest.raises(ValueError, match="must have location 'local'"):
+        with pytest.raises(ValueError, match="#620"):
             nests_lib.replace_nests(
                 [
                     {
@@ -105,59 +83,35 @@ class TestReplaceNests:
                 ]
             )
 
+    def test_non_local_id_rejected(self):
+        with pytest.raises(ValueError, match="not allowed on free HEAD"):
+            nests_lib.replace_nests(
+                [
+                    {
+                        "id": "lab1",
+                        "name": "Lab",
+                        "provider_type": "libvirt",
+                        "location": "local",
+                    }
+                ]
+            )
+
     def test_removing_nest_resolves_scoped_alerts(self):
         import lib.alerts as alerts_lib
 
         nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "nest.example",
-                    "port": 22,
-                    "ssh_user": "ops",
-                    "identity_file": "~/.ssh/nest",
-                },
-            ]
-        )
-        alerts_lib.record_alert("Nest reachability: 'Lab' (lab1): endpoint not reachable")
-        alerts_lib.record_alert("Nest capability: 'Lab' (lab1): 'virsh' is not available - x")
+        alerts_lib.record_alert("Nest reachability: 'Local' (local): endpoint not reachable")
+        alerts_lib.record_alert("Nest capability: 'Local' (local): 'virsh' is not available - x")
         assert alerts_lib.count_active_alerts() == 2
-        nests_lib.replace_nests([local])
-        assert [n["id"] for n in nests_lib.list_nests()] == ["local"]
+        nests_lib.replace_nests([])
+        assert nests_lib.list_nests() == []
         assert alerts_lib.count_active_alerts() == 0
         history = alerts_lib.list_recent()
         assert len(history) == 2
         assert all(r["resolved"] == 1 for r in history)
+        assert local["id"] == "local"
 
-    def test_removing_nest_prunes_known_hosts_alias(self):
-        nests_lib.ensure_local_nest()
-        local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "nest.example",
-                },
-            ]
-        )
-        with patch("lib.nest_transport.remove_nest_known_host") as prune:
-            nests_lib.replace_nests([local])
-        prune.assert_called_once_with("lab1")
-
-
-class TestConnectionConfig:
     def test_local_has_no_transport(self):
         nests_lib.ensure_local_nest()
         cfg = nests_lib.to_connection_config(nests_lib.get_nest("local"))
@@ -174,10 +128,8 @@ class TestConnectionConfig:
         assert result["ok"] is True
         assert "nest health" in result["message"].lower()
 
-    def test_draft_failure_skips_snapshot_and_alerts(self):
-        """Unsaved Nest rows must not write reachability status or Alerts (#283)."""
-        from lib.nest_transport import NestHealthCheckResult
-
+    def test_draft_remote_rejected(self):
+        """Remote Nest drafts fail Test Nest connection on free HEAD (#620)."""
         draft = {
             "id": "draft-xyz",
             "name": "Draft",
@@ -186,91 +138,24 @@ class TestConnectionConfig:
             "transport": "ssh",
             "host": "nowhere.example",
             "port": 22,
-            "ssh_user": "ops",
-            "identity_file": "~/.ssh/nest",
         }
-        fail = NestHealthCheckResult(
-            ok=False,
-            detail="endpoint not reachable - down",
-            failure_class="endpoint",
-        )
         with (
-            patch("lib.nest_reachability.probe_nest", return_value=fail) as probe,
             patch("lib.nest_reachability.record_probe") as record,
             patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
-            patch("lib.requirements.check_nest", return_value=[]),
         ):
             result = nests_lib.test_connection(draft)
         assert result["ok"] is False
-        assert "endpoint not reachable" in result["message"]
-        probe.assert_called_once()
+        assert "#620" in result["message"]
         record.assert_not_called()
         sync_alert.assert_not_called()
 
-    def test_saved_failure_updates_snapshot_and_alerts(self):
-        """Saved Nest Health failure updates snapshot and syncs reachability Alerts (#538)."""
-        from lib.nest_transport import NestHealthCheckResult
+    def test_saved_local_updates_snapshot_and_alerts(self):
+        """Saved Local Nest Health updates snapshot and syncs reachability Alerts (#538)."""
+        from lib.nest_types import NestHealthCheckResult
 
         nests_lib.ensure_local_nest()
-        local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "nest.example",
-                    "port": 22,
-                    "ssh_user": "ops",
-                    "identity_file": "~/.ssh/nest",
-                },
-            ]
-        )
-        nest = nests_lib.get_nest("lab1")
-        fail = NestHealthCheckResult(
-            ok=False,
-            detail="endpoint not reachable - down",
-            failure_class="endpoint",
-        )
-        with (
-            patch("lib.nest_reachability.probe_nest", return_value=fail),
-            patch("lib.nest_reachability.record_probe") as record,
-            patch("lib.nest_reachability.sync_alert_for_probe") as sync_alert,
-            patch("lib.requirements.check_nest", return_value=[]),
-        ):
-            result = nests_lib.test_connection(nest)
-        assert result["ok"] is False
-        record.assert_called_once()
-        # Nest Health ad-hoc syncs reachability Alerts from the gate (#538).
-        sync_alert.assert_called_once()
-
-    def test_saved_success_resolves_reachability_alert(self):
-        """Saved Nest Test success updates snapshot and resolves Alerts (#283)."""
-        from lib.nest_transport import NestHealthCheckResult
-
-        nests_lib.ensure_local_nest()
-        local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "nest.example",
-                    "port": 22,
-                    "ssh_user": "ops",
-                    "identity_file": "~/.ssh/nest",
-                },
-            ]
-        )
-        nest = nests_lib.get_nest("lab1")
-        ok = NestHealthCheckResult(ok=True, detail="endpoint reachable; Nest transport OK")
+        nest = nests_lib.get_nest("local")
+        ok = NestHealthCheckResult(ok=True, detail="Local Nest - co-located")
         with (
             patch("lib.nest_reachability.probe_nest", return_value=ok),
             patch("lib.nest_reachability.record_probe") as record,
@@ -286,70 +171,14 @@ class TestConnectionConfig:
         record.assert_called_once()
         sync_alert.assert_called_once()
 
-    def test_resolve_identity_file(self):
-        nest = {
-            "id": "r1",
-            "name": "R",
-            "provider_type": "libvirt",
-            "location": "remote",
-            "transport": "ssh",
-            "host": "h",
-            "identity_file": "~/.ssh/id_ed25519",
-        }
-        assert nests_lib.resolve_identity_file(nest) == "~/.ssh/id_ed25519"
-
-    def test_winrm_test_requires_password(self):
-        nest = {
-            "id": "w1",
-            "name": "Win",
-            "provider_type": "hyperv",
-            "location": "remote",
-            "transport": "winrm",
-            "host": "win.example",
-            "winrm_user": "Administrator",
-        }
-        result = nests_lib.test_connection(nest)
-        assert result["ok"] is False
-        assert "password" in result["message"].lower()
-
-    def test_to_connection_config_ssh_and_winrm(self):
-        ssh = nests_lib.normalize_nest(
-            {
-                "id": "s1",
-                "name": "SSH",
-                "provider_type": "libvirt",
-                "location": "remote",
-                "transport": "ssh",
-                "host": "ssh.example",
-                "port": 2222,
-                "ssh_user": "nest",
-                "identity_file": "/tmp/key",
-            }
+    def test_to_connection_config_local_only(self):
+        local = nests_lib.normalize_nest(
+            {"id": "local", "name": "Local", "provider_type": "libvirt", "location": "local"}
         )
-        cfg = nests_lib.to_connection_config(ssh)
-        assert cfg.transport == "ssh"
-        assert cfg.ssh is not None
-        assert cfg.ssh.port == 2222
-        assert cfg.ssh.identity_file == "/tmp/key"
-        assert cfg.ssh.host_key_alias == "s1"
-
-        win = nests_lib.normalize_nest(
-            {
-                "id": "w1",
-                "name": "Win",
-                "provider_type": "hyperv",
-                "location": "remote",
-                "transport": "winrm",
-                "host": "win.example",
-                "winrm_user": "Administrator",
-                "port": 5986,
-            }
-        )
-        wcfg = nests_lib.to_connection_config(win, winrm_password="secret")
-        assert wcfg.transport == "winrm"
-        assert wcfg.winrm is not None
-        assert wcfg.winrm.password == "secret"
-        assert wcfg.winrm.port == 5986
+        cfg = nests_lib.to_connection_config(local)
+        assert cfg.location == "local"
+        with pytest.raises(ValueError, match="#620"):
+            nests_lib.to_connection_config({"id": "r1", "location": "remote"})
 
     def test_parse_rejects_bad_provider_and_duplicate(self):
         with pytest.raises(ValueError, match="unsupported provider_type"):
@@ -379,45 +208,26 @@ class TestConnectionConfig:
                 ]
             )
 
-    def test_remote_requires_host(self):
-        with pytest.raises(ValueError, match="requires a host"):
+    def test_remote_rejected(self):
+        with pytest.raises(ValueError, match="#620"):
             nests_lib.normalize_nest(
                 {
                     "id": "r",
                     "name": "R",
                     "provider_type": "libvirt",
                     "location": "remote",
+                    "host": "r.example",
                 }
             )
 
-    def test_identities_for_expiry_from_nest_rows(self):
+    def test_identities_for_expiry_empty(self):
         nests_lib.ensure_local_nest()
-        local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "lab1",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "n.example",
-                    "identity_file": "~/.ssh/nest",
-                    "identity_expires_at": "2026-09-20",
-                },
-            ]
-        )
-        ids = nests_lib.identities_for_expiry()
-        assert len(ids) == 1
-        assert ids[0].id == "lab1"
-        assert ids[0].identity_file == "~/.ssh/nest"
-        assert ids[0].expires_at is not None
+        assert nests_lib.identities_for_expiry() == []
 
-    def test_rejects_second_local_and_duplicate_name_or_endpoint(self):
+    def test_rejects_second_local(self):
         nests_lib.ensure_local_nest()
         local = nests_lib.get_nest("local")
-        # Non-builtin rows cannot stay local — coerced to remote, which needs a host.
-        with pytest.raises(ValueError, match="requires a host"):
+        with pytest.raises(ValueError, match="not allowed on free HEAD"):
             nests_lib.replace_nests(
                 [
                     local,
@@ -429,181 +239,44 @@ class TestConnectionConfig:
                     },
                 ]
             )
-        with pytest.raises(ValueError, match="duplicate Nest name"):
-            nests_lib.replace_nests(
-                [
-                    local,
-                    {
-                        "id": "a1",
-                        "name": "Lab",
-                        "provider_type": "libvirt",
-                        "location": "remote",
-                        "host": "a.example",
-                    },
-                    {
-                        "id": "a2",
-                        "name": "lab",
-                        "provider_type": "libvirt",
-                        "location": "remote",
-                        "host": "b.example",
-                    },
-                ]
-            )
-        with pytest.raises(ValueError, match="duplicate remote Nest endpoint"):
-            nests_lib.replace_nests(
-                [
-                    local,
-                    {
-                        "id": "a1",
-                        "name": "A",
-                        "provider_type": "libvirt",
-                        "location": "remote",
-                        "host": "same.example",
-                        "port": 22,
-                        "transport": "ssh",
-                    },
-                    {
-                        "id": "a2",
-                        "name": "B",
-                        "provider_type": "libvirt",
-                        "location": "remote",
-                        "host": "SAME.example",
-                        "port": 22,
-                        "transport": "ssh",
-                    },
-                ]
-            )
 
-    def test_allows_same_host_different_transport(self):
+    def test_migrate_legacy_identity_bindings_noop(self):
+        assert nests_lib.migrate_legacy_identity_bindings() == 0
+
+
+class TestNormalizeHelpers:
+    def test_parse_expires_at(self):
+        assert nests_lib._parse_expires_at("", label="x") is None
+        assert nests_lib._parse_expires_at("2026-12-01", label="x").startswith("2026-12-01")
+        assert nests_lib._parse_expires_at("2026-12-01T10:00:00Z", label="x").startswith(
+            "2026-12-01T10:00:00"
+        )
+        assert nests_lib._parse_expires_at("2026-12-01T10:00:00", label="x").endswith("+00:00")
+        with pytest.raises(ValueError, match="identity expiry"):
+            nests_lib._parse_expires_at("not-a-date", label="x")
+
+    def test_optional_int(self):
+        assert nests_lib._optional_int(None, label="port") is None
+        assert nests_lib._optional_int("", label="port") is None
+        assert nests_lib._optional_int("22", label="port") == 22
+        with pytest.raises(ValueError, match="integer"):
+            nests_lib._optional_int("x", label="port")
+        with pytest.raises(ValueError, match="between"):
+            nests_lib._optional_int("70000", label="port")
+
+
+class TestMigrateLegacySshIdentities:
+    def test_noop_when_empty(self):
+        assert nests_lib.migrate_legacy_ssh_identities() is False
+
+    def test_clears_settings_list(self, monkeypatch):
+        cleared: list[dict] = []
+        raw = [{"id": "k1", "identity_file": "~/.ssh/k1"}]
+        monkeypatch.setattr(config, "nest_ssh_identities", lambda: raw)
+        monkeypatch.setattr(
+            config, "get", lambda: {"nest_ssh_identities": raw, "data_dir": "unused"}
+        )
+        monkeypatch.setattr(config, "update_settings", lambda patch: cleared.append(patch))
         nests_lib.ensure_local_nest()
-        local = nests_lib.get_nest("local")
-        nests_lib.replace_nests(
-            [
-                local,
-                {
-                    "id": "ssh1",
-                    "name": "Via SSH",
-                    "provider_type": "hyperv",
-                    "location": "remote",
-                    "host": "win.example",
-                    "transport": "ssh",
-                    "port": 22,
-                },
-                {
-                    "id": "wr1",
-                    "name": "Via WinRM",
-                    "provider_type": "hyperv",
-                    "location": "remote",
-                    "host": "win.example",
-                    "transport": "winrm",
-                    "port": 5985,
-                    "winrm_user": "Administrator",
-                },
-            ]
-        )
-        assert len(nests_lib.list_nests()) == 3
-
-    def test_non_local_id_forced_remote(self):
-        nest = nests_lib.normalize_nest(
-            {
-                "id": "forced",
-                "name": "Forced",
-                "provider_type": "libvirt",
-                "location": "local",
-                "host": "ignored.example",
-            }
-        )
-        assert nest["location"] == "remote"
-        assert nest["host"] == "ignored.example"
-
-
-class TestRemotingIdentityBinding:
-    def test_resolve_prefers_catalog(self, tmp_path):
-        import os
-        import shutil
-        import stat
-        import subprocess
-
-        import lib.remoting_identities as ri
-
-        if shutil.which("ssh-keygen") is None:
-            pytest.skip("ssh-keygen required")
-        key = tmp_path / "bound_key"
-        subprocess.run(
-            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
-        ri.add_path_identity(identity_id="bound", identity_file=str(key))
-        nest = nests_lib.normalize_nest(
-            {
-                "id": "r1",
-                "name": "Remote",
-                "provider_type": "libvirt",
-                "location": "remote",
-                "transport": "ssh",
-                "host": "h.example",
-                "remoting_identity_id": "bound",
-                "identity_file": "/ignored/legacy",
-            }
-        )
-        assert nest["remoting_identity_id"] == "bound"
-        assert nest["identity_file"] is None
-        assert nests_lib.resolve_identity_file(nest) == str(key.resolve())
-
-    def test_unknown_remoting_identity_rejected(self):
-        with pytest.raises(ValueError, match="remoting_identity_id"):
-            nests_lib.normalize_nest(
-                {
-                    "id": "r1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "h.example",
-                    "remoting_identity_id": "missing",
-                }
-            )
-
-    def test_migrate_legacy_identity_bindings(self, tmp_path):
-        import os
-        import shutil
-        import stat
-        import subprocess
-
-        import lib.remoting_identities as ri
-
-        if shutil.which("ssh-keygen") is None:
-            pytest.skip("ssh-keygen required")
-        key = tmp_path / "legacy_nest"
-        subprocess.run(
-            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
-        nests_lib.replace_nests(
-            [
-                {
-                    "id": "lab",
-                    "name": "Lab",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "transport": "ssh",
-                    "host": "lab.example",
-                    "identity_file": str(key),
-                }
-            ]
-        )
-        # Force legacy shape (replace_nests with only identity_file).
-        assert nests_lib.get_nest("lab")["identity_file"] == str(key)
-        n = nests_lib.migrate_legacy_identity_bindings()
-        assert n == 1
-        nest = nests_lib.get_nest("lab")
-        assert nest["remoting_identity_id"]
-        assert nest["identity_file"] is None
-        assert ri.get_identity(nest["remoting_identity_id"]) is not None
-        assert nests_lib.resolve_identity_file(nest) == str(key.resolve())
+        assert nests_lib.migrate_legacy_ssh_identities() is True
+        assert cleared == [{"nest_ssh_identities": []}]

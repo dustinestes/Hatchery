@@ -10,17 +10,15 @@ from lib.nest_cache import (
     CacheArtifact,
     NestCacheError,
     collect_clutch_artifacts,
-    ensure,
     get_nest_cache_override,
     nest_cache_status,
-    preflight,
     preflight_clutch,
     resolve_nest_cache,
     resolve_nest_cache_for_provider,
     set_nest_cache,
     verify_local,
 )
-from lib.nest_transport import NestConnectionConfig, NestSshConfig
+from lib.nest_types import NestConnectionConfig
 
 
 def _clutch_with_media(**kwargs) -> Clutch:
@@ -147,41 +145,10 @@ class TestVerifyLocal:
         assert verify_local([art], nest_root=tmp_path / "data").ok
 
 
-class TestRemoteStub:
-    def test_preflight_remote_raises(self):
-        nest = NestConnectionConfig(
-            location="remote",
-            transport="ssh",
-            ssh=NestSshConfig(host="nest.example"),
-        )
-        art = CacheArtifact(kind="media/iso", basename="win11.iso")
-        with pytest.raises(NestCacheError, match="Remote Nest cache ensure"):
-            preflight([art], nest=nest)
-
-    def test_ensure_remote_raises(self):
-        nest = NestConnectionConfig(
-            location="remote",
-            transport="ssh",
-            ssh=NestSshConfig(host="nest.example"),
-        )
-        art = CacheArtifact(kind="media/iso", basename="win11.iso")
-        with pytest.raises(NestCacheError, match="not available yet"):
-            ensure([art], nest=nest)
-
-    def test_remote_refuses_absolute_operator_paths(self):
-        nest = NestConnectionConfig(
-            location="remote",
-            transport="ssh",
-            ssh=NestSshConfig(host="nest.example"),
-        )
-        art = CacheArtifact(
-            kind="media/iso",
-            basename="win11.iso",
-            absolute_path="/home/op/data/media/iso/win11.iso",
-        )
-        result = preflight([art], nest=nest)
-        assert not result.ok
-        assert result.issues[0].reason == "absolute_path_remote"
+class TestRemoteRejected:
+    def test_remote_connection_config_rejected(self):
+        with pytest.raises(ValueError, match="#620"):
+            NestConnectionConfig(location="remote")  # type: ignore[arg-type]
 
 
 class TestPreflightClutch:
@@ -233,7 +200,7 @@ class TestResolveNestCache:
         fallback = resolve_nest_cache_for_provider(nest, data_dir="/tmp/controller")
         assert str(fallback).replace("\\", "/") == "/tmp/controller"
 
-    def test_remote_set_and_clear(self, tmp_path, monkeypatch):
+    def test_remote_nest_cannot_be_registered(self, tmp_path, monkeypatch):
         from lib import config as config_lib
         from lib import db
         from lib import nests as nests_lib
@@ -241,30 +208,20 @@ class TestResolveNestCache:
         monkeypatch.setattr(config_lib, "data_dir", lambda: tmp_path)
         db.init_db(tmp_path / "hatchery.db")
         nests_lib.ensure_local_nest()
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "port": 22,
-                    "transport": "ssh",
-                    "extra": {},
-                },
-            ]
-        )
-        override = tmp_path / "remote-cache"
-        status = set_nest_cache("remote1", str(override))
-        assert status["override"] == str(override)
-        assert status["resolved"] == str(override)
-        assert status["editable"] is True
-        cleared = set_nest_cache("remote1", None)
-        assert cleared["override"] is None
-        assert cleared["resolved"] is None
-        assert cleared["error"]
+        with pytest.raises(ValueError, match="#620"):
+            nests_lib.replace_nests(
+                [
+                    nests_lib.get_nest("local"),
+                    {
+                        "id": "remote1",
+                        "name": "Remote",
+                        "provider_type": "libvirt",
+                        "location": "remote",
+                        "host": "nest.example",
+                        "extra": {},
+                    },
+                ]
+            )
 
     def test_local_refuses_set_path(self, tmp_path, monkeypatch):
         from lib import config as config_lib

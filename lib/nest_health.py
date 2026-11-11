@@ -22,7 +22,6 @@ from lib import config
 from lib import nests as nests_lib
 from lib import nest_reachability as nr
 from lib import requirements as req_lib
-from lib.nest_transport import get_nest_transport
 
 log = logging.getLogger(__name__)
 
@@ -323,29 +322,12 @@ def _gather_resources(
     *,
     winrm_password: str | None = None,
 ) -> dict[str, Any]:
+    del winrm_password
     location = nest.get("location") or "local"
     if location == "local":
         return _gather_resources_local()
-
-    transport_name = nest.get("transport") or "ssh"
-    if transport_name == "winrm" and not (winrm_password or "").strip():
-        return {"cpu": None, "memory": None, "disks": []}
-
-    try:
-        connection = nests_lib.to_connection_config(nest, winrm_password=winrm_password)
-        transport = get_nest_transport(connection)
-    except (ValueError, TypeError) as exc:
-        log.debug("Nest Health resource gather config error: %s", exc)
-        return {"cpu": None, "memory": None, "disks": []}
-
-    if transport is None:
-        return _gather_resources_local()
-
-    provider = nest.get("provider_type") or nest.get("provider") or "libvirt"
-    # Hyper-V Nests are Windows hosts; SSH still needs PowerShell probes (not POSIX df).
-    if transport_name == "winrm" or provider == "hyperv":
-        return _gather_resources_windows(transport)
-    return _gather_resources_ssh(transport)
+    # Remote Nest resource gather removed with Nest transport (#620).
+    return {"cpu": None, "memory": None, "disks": []}
 
 
 def _gather_resources_local() -> dict[str, Any]:
@@ -603,104 +585,6 @@ def _disks_from_win_json(stdout: str) -> list[dict[str, Any]]:
             }
         )
     return disks
-
-
-def _gather_resources_ssh(transport) -> dict[str, Any]:
-    cpu = None
-    memory = None
-    disks: list[dict[str, Any]] = []
-    try:
-        nproc_out = transport.run(
-            "nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo"
-        )
-        count = _parse_int_line(nproc_out)
-        if count is not None and count > 0:
-            cpu = {"count": count, "utilization_percent": None}
-    except Exception as exc:
-        log.debug("Nest Health remote nproc failed: %s", exc)
-
-    try:
-        mem_out = transport.run("cat /proc/meminfo 2>/dev/null || true")
-        memory = _parse_meminfo_text(mem_out)
-    except Exception as exc:
-        log.debug("Nest Health remote meminfo failed: %s", exc)
-
-    try:
-        df_out = transport.run("df -B1 -P 2>/dev/null || true")
-        disks = _disks_from_df(df_out)
-    except Exception as exc:
-        log.debug("Nest Health remote df failed: %s", exc)
-
-    return {"cpu": cpu, "memory": memory, "disks": disks}
-
-
-def _run_windows_ps(transport, script: str, *, timeout: float = 30) -> str:
-    """Run PowerShell on a Windows Nest over WinRM or SSH (EncodedCommand)."""
-    import base64
-
-    from lib.nest_transport import WinrmNestTransport
-
-    if isinstance(transport, WinrmNestTransport):
-        return transport.run(script, timeout=timeout)
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-    return transport.run(
-        "powershell.exe -NoProfile -NonInteractive "
-        f"-ExecutionPolicy Bypass -EncodedCommand {encoded}",
-        timeout=timeout,
-    )
-
-
-def _gather_resources_windows(transport) -> dict[str, Any]:
-    """CPU / memory / disks on a Windows Nest (Hyper-V via SSH or WinRM)."""
-    cpu = None
-    memory = None
-    disks: list[dict[str, Any]] = []
-    try:
-        cpu_out = _run_windows_ps(
-            transport,
-            "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors",
-        )
-        count = _parse_int_line(cpu_out)
-        if count is not None and count > 0:
-            cpu = {"count": count, "utilization_percent": None}
-    except Exception as exc:
-        log.debug("Nest Health Windows CPU failed: %s", exc)
-
-    try:
-        mem_out = _run_windows_ps(
-            transport,
-            "$o = Get-CimInstance Win32_OperatingSystem; "
-            "@{total=[int64]$o.TotalVisibleMemorySize*1024; "
-            "free=[int64]$o.FreePhysicalMemory*1024} | ConvertTo-Json -Compress",
-        )
-        parsed = _parse_json_object(mem_out)
-        if parsed and isinstance(parsed.get("total"), int) and isinstance(parsed.get("free"), int):
-            total = parsed["total"]
-            free = parsed["free"]
-            memory = {
-                "total_bytes": total,
-                "free_bytes": free,
-                "used_bytes": max(0, total - free),
-            }
-    except Exception as exc:
-        log.debug("Nest Health Windows memory failed: %s", exc)
-
-    try:
-        disk_out = _run_windows_ps(
-            transport,
-            'Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | '
-            "Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress",
-        )
-        disks = _disks_from_win_json(disk_out)
-    except Exception as exc:
-        log.debug("Nest Health Windows disks failed: %s", exc)
-
-    return {"cpu": cpu, "memory": memory, "disks": disks}
-
-
-def _gather_resources_winrm(transport) -> dict[str, Any]:
-    """Alias for tests / callers that still name the WinRM gather path."""
-    return _gather_resources_windows(transport)
 
 
 def _parse_int_line(text: str) -> int | None:

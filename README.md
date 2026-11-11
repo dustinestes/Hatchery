@@ -120,7 +120,7 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 | Windows Server 2022 | KVM/QEMU | v1 |
 | Windows Server 2025 | KVM/QEMU | v1 - requires UEFI + TPM |
 | Linux guests | KVM/QEMU | Planned |
-| Windows (Hyper-V) | Remote Nest via SSH (WinRM Nest fallback planned) | Planned |
+| Windows (Hyper-V) | Local Nest; Remote Nest via Enterprise Nest Agent | Local planned; Remote = Enterprise |
 
 <br>
 
@@ -130,15 +130,11 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 <br/>
 
-## Remote Nest SSH (quick start)
+## Remote Nest
 
-Hatchery talks to remote Nests as an **SSH client**. Private keys stay on the Controller (remoting identities catalog); Nests trust the matching **public** key.
+Free Hatchery is **Local Nest** only on this Controller. Remote Nest hierarchy is Hatchery Enterprise (Nest Agent) - see [Enterprise docs](docs/enterprise/README.md) and [ADR-0044](docs/adr/0044-free-head-local-nest-only.md).
 
-1. Settings → **Security** → Hatchery remoting identity → **Copy** → **Public key** (or `hatchery remoting-identity show hatchery`)
-2. On the Nest: authorize that pubkey and enable the Nest hypervisor (Windows Hyper-V Library scripts: [`authorize-hatchery-nest-ssh-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/authorize-hatchery-nest-ssh-windows.ps1) + [`enable-hyperv-windows.ps1`](https://github.com/dustinestes/Hatchery-Library/blob/main/scripts/windows/enable-hyperv-windows.ps1))
-3. **Nests → Connections** → add a remote Nest → bind the same remoting identity → **Test Nest connection**
-
-Full steps and paste-ready snippets → [Getting Started - Add a Remote Nest](docs/getting-started.md#add-a-remote-nest). Trust model and troubleshooting → [Nest SSH](docs/nest-ssh.md).
+Guest remoting (SSH/WinRM to known guest VMs) remains free - [guest transport](docs/guest-transport.md).
 
 ---
 

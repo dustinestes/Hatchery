@@ -100,21 +100,6 @@ class TestNestEventsStore:
 
     def test_prune_on_nest_remove(self):
         nests_lib.ensure_local_nest()
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "port": 22,
-                    "transport": "ssh",
-                    "extra": {"nest_cache": "/var/lib/hatchery"},
-                },
-            ]
-        )
         nest_events_lib.add_event(
             "remote1",
             source="controller",
@@ -129,7 +114,7 @@ class TestNestEventsStore:
             level="INFO",
             message="local line",
         )
-        nests_lib.replace_nests([nests_lib.get_nest("local")])
+        nest_events_lib.prune_removed_nests({"local"})
         assert nest_events_lib.query_events("remote1")["total"] == 0
         assert nest_events_lib.query_events("local")["total"] == 1
 
