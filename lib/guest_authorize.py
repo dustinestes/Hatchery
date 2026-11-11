@@ -172,6 +172,7 @@ def verify_key_ssh(
     *,
     ssh_port: int = 22,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> None:
     """Probe guest SSH with BatchMode + identity path (no password)."""
     try:
@@ -183,6 +184,7 @@ def verify_key_ssh(
             identity_file=identity_file,
             ssh_port=ssh_port,
             vm_id=vm_id,
+            nest_id=nest_id,
         )
     except GuestTransportError as exc:
         raise GuestAuthorizeError(f"key SSH transport failed: {exc}") from exc
@@ -219,6 +221,7 @@ def apply_guest_ssh_authorize(
     authorize_ids: list[str],
     ssh_port: int = 22,
     vm_id: str | None = None,
+    nest_id: str | None = None,
     password_transport: GuestTransport | None = None,
 ) -> GuestAuthorizeResult:
     """Inject → verify key SSH → disable password auth (ADR-0030 order).
@@ -226,15 +229,26 @@ def apply_guest_ssh_authorize(
     Uses ``password_transport`` (password SSH or WinRM) for inject/disable guest
     mutations. Controller client identity is the **first** authorize id (no
     round-robin). Skips when guest SSH TCP is not reachable.
+
+    Requires ``vm_id`` bound to this Controller's Nest inventory before any
+    remoting or skip (#621).
     """
+    from lib.guest_endpoint import GuestUnknownEndpointError, assert_guest_host_bound
+
+    try:
+        known = assert_guest_host_bound(host=host, vm_id=vm_id or "", nest_id=nest_id)
+    except GuestUnknownEndpointError as exc:
+        raise GuestAuthorizeError(str(exc)) from exc
+    guest_host = known.host
+
     resolved = resolve_authorize_pubkeys(authorize_ids)
     ids = [tid for tid, _ in resolved]
     pubkeys = [pub for _, pub in resolved]
     client_id = ids[0]
     identity_path = str(ri.identity_private_path(client_id))
 
-    if not check_ssh(host, port=ssh_port):
-        reason = f"Guest SSH not reachable on {host}:{ssh_port}; skipping authorize"
+    if not check_ssh(guest_host, port=ssh_port):
+        reason = f"Guest SSH not reachable on {guest_host}:{ssh_port}; skipping authorize"
         log.info("%s", reason)
         return GuestAuthorizeResult(
             authorize_ids=ids,
@@ -248,28 +262,37 @@ def apply_guest_ssh_authorize(
     transport = password_transport
     if transport is None:
         transport = get_guest_transport(
-            host,
+            guest_host,
             username,
             password,
             ssh_port=ssh_port,
-            vm_id=vm_id,
+            vm_id=known.vm_id,
+            nest_id=known.nest_id,
         )
 
     inject_authorized_keys(transport, pubkeys)
-    verify_key_ssh(host, username, identity_path, ssh_port=ssh_port, vm_id=vm_id)
+    verify_key_ssh(
+        guest_host,
+        username,
+        identity_path,
+        ssh_port=ssh_port,
+        vm_id=known.vm_id,
+        nest_id=known.nest_id,
+    )
 
     # Prefer key SSH for the disable step when possible; fall back to the
     # password/WinRM transport that performed inject.
     disable_transport: GuestTransport
     try:
         disable_transport = get_guest_transport(
-            host,
+            guest_host,
             username,
             "",
             kind="ssh",
             identity_file=identity_path,
             ssh_port=ssh_port,
-            vm_id=vm_id,
+            vm_id=known.vm_id,
+            nest_id=known.nest_id,
         )
     except GuestTransportError:
         disable_transport = transport

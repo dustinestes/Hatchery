@@ -396,44 +396,56 @@ def resolve_guest_transport(
     ssh_port: int = 22,
     winrm_port: int = 5985,
     vm_id: str | None = None,
+    nest_id: str | None = None,
     on_fallback: Callable[[str], None] | None = None,
 ) -> WinrmGuestTransport | SshGuestTransport:
     """Return SSH guest transport when usable; otherwise WinRM Windows fallback.
 
     Emits ``on_fallback(reason)`` when falling back from SSH to WinRM so hatch
     events can surface the preference clearly.
+
+    Requires ``vm_id`` bound to this Controller's Nest inventory (#621).
     """
+    from lib.guest_endpoint import GuestUnknownEndpointError, assert_guest_host_bound
+
+    try:
+        known = assert_guest_host_bound(host=host, vm_id=vm_id or "", nest_id=nest_id)
+    except GuestUnknownEndpointError as exc:
+        raise GuestTransportError(str(exc)) from exc
+    guest_host = known.host
     endpoint = GuestEndpoint(
-        host=host,
+        host=guest_host,
         username=username,
         password=password,
         ssh_port=ssh_port,
         winrm_port=winrm_port,
         identity_file=identity_file,
-        vm_id=vm_id,
+        vm_id=known.vm_id,
     )
 
-    if prefer_ssh and check_ssh(host, port=ssh_port):
+    if prefer_ssh and check_ssh(guest_host, port=ssh_port):
         ssh = SshGuestTransport(endpoint)
         if ssh.test_connection():
-            log.debug("guest transport: SSH to %s:%s", host, ssh_port)
+            log.debug("guest transport: SSH to %s:%s", guest_host, ssh_port)
             return ssh
-        reason = f"SSH open on {host}:{ssh_port} but guest auth/probe failed; using WinRM"
+        reason = f"SSH open on {guest_host}:{ssh_port} but guest auth/probe failed; using WinRM"
         log.info("%s", reason)
         if on_fallback:
             on_fallback(reason)
 
-    if check_winrm(host, port=winrm_port):
+    if check_winrm(guest_host, port=winrm_port):
         winrm_t = WinrmGuestTransport(endpoint)
         if winrm_t.test_connection():
-            if prefer_ssh and not check_ssh(host, port=ssh_port) and on_fallback:
-                on_fallback(f"Guest SSH not reachable on {host}:{ssh_port}; using WinRM")
-            log.debug("guest transport: WinRM to %s:%s", host, winrm_port)
+            if prefer_ssh and not check_ssh(guest_host, port=ssh_port) and on_fallback:
+                on_fallback(f"Guest SSH not reachable on {guest_host}:{ssh_port}; using WinRM")
+            log.debug("guest transport: WinRM to %s:%s", guest_host, winrm_port)
             return winrm_t
-        raise GuestTransportError(f"WinRM open on {host}:{winrm_port} but guest auth/probe failed")
+        raise GuestTransportError(
+            f"WinRM open on {guest_host}:{winrm_port} but guest auth/probe failed"
+        )
 
     raise GuestTransportError(
-        f"No guest remoting available on {host} (SSH :{ssh_port} / WinRM :{winrm_port})"
+        f"No guest remoting available on {guest_host} (SSH :{ssh_port} / WinRM :{winrm_port})"
     )
 
 
@@ -447,8 +459,12 @@ def get_guest_transport(
     ssh_port: int = 22,
     winrm_port: int = 5985,
     vm_id: str | None = None,
+    nest_id: str | None = None,
 ) -> WinrmGuestTransport | SshGuestTransport:
-    """Return a transport of the requested kind, or resolve preference when None."""
+    """Return a transport of the requested kind, or resolve preference when None.
+
+    Requires ``vm_id`` bound to this Controller's Nest inventory (#621).
+    """
     if kind is None:
         return resolve_guest_transport(
             host,
@@ -458,15 +474,22 @@ def get_guest_transport(
             ssh_port=ssh_port,
             winrm_port=winrm_port,
             vm_id=vm_id,
+            nest_id=nest_id,
         )
+    from lib.guest_endpoint import GuestUnknownEndpointError, assert_guest_host_bound
+
+    try:
+        known = assert_guest_host_bound(host=host, vm_id=vm_id or "", nest_id=nest_id)
+    except GuestUnknownEndpointError as exc:
+        raise GuestTransportError(str(exc)) from exc
     endpoint = GuestEndpoint(
-        host=host,
+        host=known.host,
         username=username,
         password=password,
         ssh_port=ssh_port,
         winrm_port=winrm_port,
         identity_file=identity_file,
-        vm_id=vm_id,
+        vm_id=known.vm_id,
     )
     if kind == "ssh":
         return SshGuestTransport(endpoint)

@@ -13,6 +13,17 @@ This is **not** Nest transport. Nest SSH/WinRM talks to the Nest hypervisor host
 
 Resolve path: [`lib/guest_transport.py`](../lib/guest_transport.py) (`resolve_guest_transport`). Callers in [`lib/provision.py`](../lib/provision.py) and [`lib/software_provision.py`](../lib/software_provision.py) go through that seam - do not open a second WinRM/SSH path for Scripts vs Software.
 
+## Known-endpoint bind (#621 / ADR-0045)
+
+Authenticated guest remoting requires a Nest-proven **VM UUID** (`vm_id`):
+
+1. `vm_id` must be present
+2. UUID must resolve on a Nest in **this** Controller's registry (`get_vm_name_by_uuid`)
+3. Live Nest guest IP must match the remoting address
+4. Hatch status `destroyed` (when a hatch row exists) refuses remoting
+
+Helper: [`lib/guest_endpoint.py`](../lib/guest_endpoint.py) (`assert_guest_host_bound`). TCP-only health checks may still use Nest name / IP without opening a remoting session.
+
 ## Auth
 
 Controller remoting identities ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#524](https://github.com/dustinestes/Hatchery/issues/524)): Clutch `remoting.ssh.authorize` lists identity ids (default `hatchery`). After first-boot ready:
@@ -46,22 +57,16 @@ Private keys stay on the Controller disk (path references only). Matching **publ
 flowchart LR
   subgraph controller [Hatchery_Controller]
     Priv[Private_key_paths]
-    NestT[nest_transport]
     GuestT[guest_transport]
-    Priv --> NestT
     Priv --> GuestT
-  end
-  subgraph nestHost [Remote_Nest]
-    NestAK[authorized_keys]
   end
   subgraph guestVM [Guest_VM]
     GuestAK[authorized_keys]
   end
-  NestT -->|SSH| NestAK
   GuestT -->|SSH| GuestAK
 ```
 
-The Controller need not sit on a Nest: Remote Nest SSH is the control plane to the hypervisor host ([architecture-nests.md](architecture-nests.md)).
+Free Controllers remoting to Local Nest guests only after Nest UUID ↔ IP bind ([ADR-0045](adr/0045-guest-remoting-known-endpoint-bind.md)). Remote Nest hierarchy is Enterprise (Nest Agent).
 
 ## Ready-gate
 

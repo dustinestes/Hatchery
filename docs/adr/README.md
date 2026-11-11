@@ -89,6 +89,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0042](0042-open-core-public-and-enterprise-tier.md) | Open-core - public Hatchery and private Enterprise tier | Accepted |
 | [0043](0043-controller-extension-load.md) | Controller extension load for Enterprise tier | Accepted |
 | [0044](0044-free-head-local-nest-only.md) | Free HEAD is Local Nest only (no Nest SSH product) | Accepted |
+| [0045](0045-guest-remoting-known-endpoint-bind.md) | Guest remoting known-endpoint bind (UUID ↔ Nest IP) | Accepted |
 
 <br>
 

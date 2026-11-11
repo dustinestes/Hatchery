@@ -13,8 +13,15 @@ from lib import db as db_module
 from lib import guest_authorize as ga
 from lib import remoting_identities as ri
 from lib.clutch import RemotingSshConfig, VMConfig
+from lib.guest_endpoint import KnownGuest
 
 pytestmark = pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="ssh-keygen required")
+
+_VM = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+
+def _bound(host="10.0.0.1"):
+    return KnownGuest(vm_id=_VM, nest_id="local", name="win11", host=host)
 
 
 @pytest.fixture
@@ -185,12 +192,16 @@ class TestVerifyKeySsh:
 class TestApplyGuestSshAuthorize:
     def test_skips_when_ssh_closed(self, isolated_config):
         ri.ensure_hatchery_identity()
-        with patch("lib.guest_authorize.check_ssh", return_value=False):
+        with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
+            patch("lib.guest_authorize.check_ssh", return_value=False),
+        ):
             result = ga.apply_guest_ssh_authorize(
                 "10.0.0.1",
                 "admin",
                 "pw",
                 authorize_ids=["hatchery"],
+                vm_id=_VM,
             )
         assert result.skipped
         assert result.identity_file
@@ -220,6 +231,7 @@ class TestApplyGuestSshAuthorize:
         key_transport.run_ps.side_effect = run_ps
 
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_authorize.check_ssh", return_value=True),
             patch(
                 "lib.guest_authorize.verify_key_ssh",
@@ -236,6 +248,7 @@ class TestApplyGuestSshAuthorize:
                 "pw",
                 authorize_ids=["hatchery"],
                 password_transport=transport,
+                vm_id=_VM,
             )
         assert calls == ["inject", "verify", "disable"]
         assert result.password_auth_disabled
@@ -249,6 +262,7 @@ class TestApplyGuestSshAuthorize:
         key_t.run_ps.return_value = (0, "hatchery-password-auth-disabled")
 
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_authorize.check_ssh", return_value=True),
             patch("lib.guest_authorize.verify_key_ssh"),
             patch(
@@ -261,6 +275,7 @@ class TestApplyGuestSshAuthorize:
                 "admin",
                 "pw",
                 authorize_ids=["hatchery"],
+                vm_id=_VM,
             )
         assert result.password_auth_disabled
 
@@ -272,6 +287,7 @@ class TestApplyGuestSshAuthorize:
             (0, "hatchery-password-auth-disabled"),
         ]
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_authorize.check_ssh", return_value=True),
             patch("lib.guest_authorize.verify_key_ssh"),
             patch(
@@ -285,6 +301,7 @@ class TestApplyGuestSshAuthorize:
                 "pw",
                 authorize_ids=["hatchery"],
                 password_transport=password_t,
+                vm_id=_VM,
             )
         assert result.password_auth_disabled
         assert password_t.run_ps.call_count == 2

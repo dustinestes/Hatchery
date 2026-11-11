@@ -8,7 +8,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lib import guest_transport as gt
+from lib.guest_endpoint import KnownGuest
 from lib.guest_transport import GuestEndpoint, SshGuestTransport, WinrmGuestTransport
+
+_VM = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+
+def _bound(host="10.0.0.1"):
+    return KnownGuest(vm_id=_VM, nest_id="local", name="win11", host=host)
 
 
 class TestGuestKnownHosts:
@@ -61,10 +68,11 @@ class TestResolveGuestTransport:
         ssh.kind = "ssh"
         ssh.test_connection.return_value = True
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_transport.check_ssh", return_value=True),
             patch("lib.guest_transport.SshGuestTransport", return_value=ssh),
         ):
-            t = gt.resolve_guest_transport("10.0.0.1", "admin", "pw")
+            t = gt.resolve_guest_transport("10.0.0.1", "admin", "pw", vm_id=_VM)
         assert t is ssh
 
     def test_falls_back_to_winrm_with_callback(self):
@@ -76,6 +84,7 @@ class TestResolveGuestTransport:
         winrm.test_connection.return_value = True
         reasons: list[str] = []
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_transport.check_ssh", return_value=True),
             patch("lib.guest_transport.check_winrm", return_value=True),
             patch("lib.guest_transport.SshGuestTransport", return_value=ssh),
@@ -85,6 +94,7 @@ class TestResolveGuestTransport:
                 "10.0.0.1",
                 "admin",
                 "pw",
+                vm_id=_VM,
                 on_fallback=reasons.append,
             )
         assert t is winrm
@@ -93,11 +103,12 @@ class TestResolveGuestTransport:
 
     def test_raises_when_neither_available(self):
         with (
+            patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()),
             patch("lib.guest_transport.check_ssh", return_value=False),
             patch("lib.guest_transport.check_winrm", return_value=False),
         ):
             with pytest.raises(gt.GuestTransportError, match="No guest remoting"):
-                gt.resolve_guest_transport("10.0.0.1", "admin", "pw")
+                gt.resolve_guest_transport("10.0.0.1", "admin", "pw", vm_id=_VM)
 
 
 class TestSshGuestTransport:
@@ -213,8 +224,9 @@ class TestWinrmGuestTransport:
 
 class TestGetGuestTransport:
     def test_explicit_kinds(self):
-        ssh = gt.get_guest_transport("10.0.0.1", "a", "p", kind="ssh")
-        winrm = gt.get_guest_transport("10.0.0.1", "a", "p", kind="winrm")
+        with patch("lib.guest_endpoint.assert_guest_host_bound", return_value=_bound()):
+            ssh = gt.get_guest_transport("10.0.0.1", "a", "p", kind="ssh", vm_id=_VM)
+            winrm = gt.get_guest_transport("10.0.0.1", "a", "p", kind="winrm", vm_id=_VM)
         assert isinstance(ssh, SshGuestTransport)
         assert isinstance(winrm, WinrmGuestTransport)
 
@@ -222,9 +234,13 @@ class TestGetGuestTransport:
         winrm = MagicMock(spec=WinrmGuestTransport)
         winrm.kind = "winrm"
         with patch("lib.guest_transport.resolve_guest_transport", return_value=winrm) as resolve:
-            t = gt.get_guest_transport("10.0.0.1", "a", "p", kind=None)
+            t = gt.get_guest_transport("10.0.0.1", "a", "p", kind=None, vm_id=_VM)
         assert t is winrm
         resolve.assert_called_once()
+
+    def test_requires_bound_vm(self):
+        with pytest.raises(gt.GuestTransportError, match="VM UUID"):
+            gt.get_guest_transport("10.0.0.1", "a", "p", kind="ssh", vm_id="")
 
 
 class TestSshLargeScript:

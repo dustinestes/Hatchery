@@ -3173,6 +3173,10 @@ class TestSyncHatchStatus:
             hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
         return sid
 
+    def _sync_with_bound_guest(self, mock_prov):
+        with patch("lib.providers.factory.get_provider", return_value=mock_prov.return_value):
+            app_module._sync_hatch_status()
+
     def test_marks_fledged_when_winrm_responds(self, tmp_path, monkeypatch):
         import lib.hatch as hatch_lib
 
@@ -3188,7 +3192,7 @@ class TestSyncHatchStatus:
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "fledged"
@@ -3216,7 +3220,7 @@ class TestSyncHatchStatus:
                             "lib.hatch_lifecycle.provision_lib.delete_setup_log"
                         ) as mock_del_log:
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         mock_read.assert_called_once_with("192.168.122.40", "", "")
         mock_del_log.assert_called_once_with("192.168.122.40", "", "")
         events = hatch_lib.get_events(sid, "dc01")
@@ -3241,7 +3245,7 @@ class TestSyncHatchStatus:
                     with patch("lib.hatch_lifecycle.provision_lib.read_setup_log", return_value=""):
                         with patch("lib.hatch_lifecycle.provision_lib.delete_setup_log"):
                             with patch("lib.hatch_lifecycle.provision_lib.delete_setup_flag"):
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         events = hatch_lib.get_events(sid, "dc01")
         assert any("no automations" in e["message"].lower() for e in events)
 
@@ -3257,7 +3261,7 @@ class TestSyncHatchStatus:
                 with patch(
                     "lib.hatch_lifecycle.provision_lib.check_setup_complete", return_value=False
                 ):
-                    app_module._sync_hatch_status()
+                    self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
@@ -3277,7 +3281,7 @@ class TestSyncHatchStatus:
                             with patch(
                                 "lib.hatch_lifecycle.provision_lib.delete_setup_flag"
                             ) as mock_del:
-                                app_module._sync_hatch_status()
+                                self._sync_with_bound_guest(mock_prov)
         mock_del.assert_called_once_with("192.168.122.40", "", "")
 
     def test_starts_vm_when_shut_off_during_hatching(self, tmp_path, monkeypatch):
@@ -3286,7 +3290,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_prov.return_value.start_vm.assert_called_once_with("dc01")
 
     def test_does_not_check_winrm_when_shut_off(self, tmp_path, monkeypatch):
@@ -3298,7 +3302,7 @@ class TestSyncHatchStatus:
         ):
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_winrm.assert_not_called()
 
     def test_start_failure_does_not_mark_failed(self, tmp_path, monkeypatch):
@@ -3310,7 +3314,7 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
             mock_prov.return_value.start_vm.side_effect = RuntimeError("virsh failed")
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
@@ -3326,7 +3330,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_status.return_value = "shut off"
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_prov.return_value.start_vm.assert_not_called()
 
     def test_no_change_when_no_ip_yet(self, tmp_path, monkeypatch):
@@ -3337,7 +3341,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
@@ -3351,7 +3355,7 @@ class TestSyncHatchStatus:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = "192.168.122.40"
             with patch("lib.provision.guest_remoting_ready", return_value=False):
-                app_module._sync_hatch_status()
+                self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
@@ -3364,7 +3368,7 @@ class TestSyncHatchStatus:
         sid = self._setup_hatching(tmp_path)
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "hatching"
@@ -3382,7 +3386,7 @@ class TestSyncHatchStatus:
         try:
             with patch("hatchery._provider") as mock_prov:
                 mock_prov.return_value.get_vm_name_by_uuid.return_value = None
-                app_module._sync_hatch_status()
+                self._sync_with_bound_guest(mock_prov)
             sessions = hatch_lib.list_sessions()
             assert len(sessions) == 1
             assert next(v["status"] for v in sessions[0]["vms"]) == "hatching"
@@ -3399,7 +3403,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         assert hatch_lib.get_vm_record(sid, "dc01")["nest_seen"] is True
 
     def test_marks_destroyed_when_uuid_not_found_after_nest_seen(self, tmp_path, monkeypatch):
@@ -3423,7 +3427,7 @@ class TestSyncHatchStatus:
             )
             mock_prov.return_value.get_status.return_value = "running"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "destroyed"
@@ -3434,7 +3438,7 @@ class TestSyncHatchStatus:
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         sid = self._setup_hatching(tmp_path, with_uuid=False)
         with patch("hatchery._provider") as mock_prov:
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_prov.return_value.get_vm_name_by_uuid.assert_not_called()
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
@@ -3443,7 +3447,7 @@ class TestSyncHatchStatus:
     def test_skips_when_no_monitored_vms(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         with patch("hatchery._provider") as mock_prov:
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_prov.assert_not_called()
 
     def test_marks_destroyed_when_fledged_vm_gone(self, tmp_path, monkeypatch):
@@ -3466,7 +3470,7 @@ class TestSyncHatchStatus:
             )
             mock_prov.return_value.get_status.return_value = "running"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         assert next(v["status"] for v in s["vms"] if v["vm_name"] == "dc01") == "destroyed"
@@ -3481,7 +3485,7 @@ class TestSyncHatchStatus:
         hatch_lib.set_vm_uuid(sid, "dc01", self._UUID)
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01"
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         mock_prov.return_value.get_vm_ip.assert_not_called()
 
     def test_updates_name_when_vm_renamed(self, tmp_path, monkeypatch):
@@ -3492,7 +3496,7 @@ class TestSyncHatchStatus:
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = "dc01-renamed"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         sessions = hatch_lib.list_sessions()
         s = next(s for s in sessions if s["id"] == sid)
         names = [v["vm_name"] for v in s["vms"]]
@@ -3507,7 +3511,7 @@ class TestSyncHatchStatus:
         hatch_lib.mark_vm_nest_seen(sid, "dc01")
         with patch("hatchery._provider") as mock_prov:
             mock_prov.return_value.get_vm_name_by_uuid.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         assert hatch_lib.list_sessions() == []
 
     def test_does_not_archive_when_other_vms_still_hatching(self, tmp_path, monkeypatch):
@@ -3529,7 +3533,7 @@ class TestSyncHatchStatus:
             )
             mock_prov.return_value.get_status.return_value = "running"
             mock_prov.return_value.get_vm_ip.return_value = None
-            app_module._sync_hatch_status()
+            self._sync_with_bound_guest(mock_prov)
         assert len(hatch_lib.list_sessions()) == 1
 
 
