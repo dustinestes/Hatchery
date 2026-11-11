@@ -17,7 +17,7 @@ from lib import config as config_lib
 from lib import nests as nests_lib
 from lib.clutch import Clutch, VMConfig
 from lib.library import sha256_file
-from lib.nest_transport import NestConnectionConfig
+from lib.nest_types import NestConnectionConfig
 
 ArtifactKind = Literal[
     "media/iso",

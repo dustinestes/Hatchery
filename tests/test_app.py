@@ -887,26 +887,8 @@ class TestNestSettings:
         assert "Test Nest connection" in html
         assert "sticky_nav.js" in client.get("/nests").data.decode()
 
-    def test_nests_post_adds_remote(self, client, tmp_path):
-        import os
-        import shutil
-        import stat
-        import subprocess
-
+    def test_nests_post_rejects_remote(self, client):
         import lib.nests as nests_lib
-        import lib.remoting_identities as ri
-
-        if shutil.which("ssh-keygen") is None:
-            pytest.skip("ssh-keygen required")
-        key = tmp_path / "nest_key"
-        subprocess.run(
-            ["ssh-keygen", "-t", "ed25519", "-f", str(key), "-N", "", "-C", "t"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        os.chmod(key, stat.S_IRUSR | stat.S_IWUSR)
-        ri.add_path_identity(identity_id="lab-key", identity_file=str(key), name="Lab")
 
         resp = client.post(
             "/nests/connections",
@@ -919,19 +901,15 @@ class TestNestSettings:
                 "nest_host": ["", "nest.example"],
                 "nest_port": ["", "22"],
                 "nest_ssh_user": ["", "ops"],
-                "nest_remoting_identity_id": ["", "lab-key"],
+                "nest_remoting_identity_id": ["", ""],
                 "nest_known_hosts": ["default", "default"],
                 "nest_winrm_user": ["", ""],
                 "nest_credential_ref": ["", ""],
             },
         )
-        assert resp.status_code == 302
-        assert "/nests/connections" in resp.headers["Location"]
-        nest = nests_lib.get_nest("lab1")
-        assert nest["host"] == "nest.example"
-        assert nest["remoting_identity_id"] == "lab-key"
-        assert nest["identity_file"] is None
-        assert "nest_remoting_identity_id" in client.get("/nests/connections").data.decode()
+        assert resp.status_code == 200
+        assert "#620" in resp.data.decode()
+        assert nests_lib.get_nest("lab1") is None
 
     def test_api_test_local_nest(self, client):
         with patch("lib.requirements.check_nest", return_value=[]):
@@ -948,24 +926,10 @@ class TestNestSettings:
         assert resp.status_code == 404
         assert "Unknown Nest" in resp.get_json()["error"]
 
-    def test_api_nest_vms_remote_501(self, client):
-        import lib.nests as nests_lib
-
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "r.example",
-                },
-            ]
-        )
+    def test_api_nest_vms_remote_id_unknown(self, client):
+        """Remote Nests cannot be registered on free HEAD (#620)."""
         resp = client.get("/api/nests/remote1/vms")
-        assert resp.status_code == 501
-        assert "remote1" in resp.get_json()["error"]
+        assert resp.status_code == 404
 
 
 class TestLibraryConnectionsPane:
@@ -1830,17 +1794,17 @@ class TestLibraryContentPane:
         assert body["ok"] is False
         assert "Nest cache missing" in body["error"]
 
-    def test_nest_cache_ensure_remote_returns_501(self, client, tmp_path, monkeypatch):
+    def test_nest_cache_ensure_remote_rejected(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         _make_clutch(tmp_path, name="lab")
         resp = client.post(
             "/api/nest-cache/ensure",
             json={"clutch_file": "lab.yaml", "location": "remote", "host": "nest.example"},
         )
-        assert resp.status_code == 501
-        assert "not available yet" in resp.get_json()["error"]
+        assert resp.status_code == 400
+        assert "#620" in resp.get_json()["error"]
 
-    def test_nest_cache_path_api_local_readonly_remote_set(self, client, tmp_path, monkeypatch):
+    def test_nest_cache_path_api_local_readonly(self, client, tmp_path, monkeypatch):
         from lib import nests as nests_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1861,37 +1825,10 @@ class TestLibraryContentPane:
         assert refused.status_code == 400
         assert "cannot be overridden" in refused.get_json()["error"]
 
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "port": 22,
-                    "transport": "ssh",
-                    "extra": {},
-                },
-            ]
-        )
-        override = tmp_path / "remote-cache"
-        put = client.put(
-            "/api/nests/remote1/cache",
-            json={"path": str(override)},
-        )
-        assert put.status_code == 200
-        assert put.get_json()["override"] == str(override)
-        assert put.get_json()["resolved"] == str(override)
-        assert put.get_json()["editable"] is True
+        missing = client.put("/api/nests/remote1/cache", json={"path": str(tmp_path / "rc")})
+        assert missing.status_code == 404
 
-        cleared = client.put("/api/nests/remote1/cache", json={"path": None})
-        assert cleared.status_code == 200
-        assert cleared.get_json()["override"] is None
-        assert cleared.get_json()["resolved"] is None
-
-    def test_nest_cache_sync_check_and_ingest(self, client, tmp_path, monkeypatch):
+    def test_nest_cache_sync_check(self, client, tmp_path, monkeypatch):
         from lib import nests as nests_lib
 
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -1907,42 +1844,11 @@ class TestLibraryContentPane:
         assert body["sync"]["source"] == "local_verify"
         assert any(i.get("basename") == "win11.iso" for i in body["sync"]["content"])
 
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "nest.example",
-                    "port": 22,
-                    "transport": "ssh",
-                    "extra": {"nest_cache": "/nest/cache"},
-                },
-            ]
-        )
         ingest = client.put(
             "/api/nests/remote1/cache/sync",
-            json={
-                "sync_state": "out_of_sync",
-                "content": [
-                    {
-                        "path": "media/iso/win11.iso",
-                        "state": "missing",
-                    }
-                ],
-            },
+            json={"sync_state": "out_of_sync", "content": []},
         )
-        assert ingest.status_code == 200
-        assert ingest.get_json()["sync"]["sync_state"] == "out_of_sync"
-        assert ingest.get_json()["sync"]["source"] == "nest_report"
-
-        remote_check = client.post("/api/nests/remote1/cache/sync/check")
-        assert remote_check.status_code == 200
-        rbody = remote_check.get_json()
-        assert rbody["sync"]["sync_state"] == "unavailable"
-        assert rbody["sync"]["content"][0]["basename"] == "win11.iso"
+        assert ingest.status_code == 404
 
     def test_nest_events_list_and_ingest(self, client, tmp_path, monkeypatch):
         from lib import nests as nests_lib
@@ -3876,27 +3782,13 @@ class TestProvider:
 
     def test_hatch_rejects_remote_nest(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
-        import lib.nests as nests_lib
-
         _make_clutch(tmp_path)
-        nests_lib.replace_nests(
-            [
-                nests_lib.get_nest("local"),
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "r.example",
-                },
-            ]
-        )
         resp = client.post(
             "/hatch-clutch",
             data={"clutch_file": "my-lab.yaml", "nest": "remote1"},
         )
         assert resp.status_code == 200
-        assert "not available" in resp.data.decode()
+        assert "Unknown Nest" in resp.data.decode()
 
 
 class TestScanDir:

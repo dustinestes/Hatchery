@@ -23,7 +23,7 @@ from lib import nests as nests_lib
 from lib import remoting_identities as remoting_identities_lib
 from lib import settings_io as settings_io_lib
 from lib.clutch import VMConfig, GuestOS
-from lib.nest_transport import NestConnectionConfig
+from lib.nest_types import NestConnectionConfig
 from pydantic import ValidationError
 from lib.providers.base import BaseProvider
 from lib.providers.factory import (
@@ -530,15 +530,11 @@ def nests():
 
 @app.route("/nests/connections")
 def nests_connections():
-    """Nests → Connections: Nest registry (moved from Settings; ADR-0031 / #525)."""
-    remoting_identity_options = [
-        remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
-    ]
+    """Nests → Connections: Local Nest registry (ADR-0031 / #525; Local-only #620)."""
     return render_template(
         "nests_connections.html",
         active_pane="nests_connections",
         nests=nests_lib.list_nests(),
-        remoting_identity_options=remoting_identity_options,
         form_saved=request.args.get("saved") == "1",
         form_error=None,
     )
@@ -546,19 +542,10 @@ def nests_connections():
 
 @app.route("/nests/connections", methods=["POST"])
 def nests_connections_post():
-    """Save Nest registry rows from Nests → Connections."""
+    """Save Local Nest registry rows from Nests → Connections (#620)."""
     nest_ids = request.form.getlist("nest_id")
     nest_names = request.form.getlist("nest_name")
     nest_providers = request.form.getlist("nest_provider_type")
-    nest_locations = request.form.getlist("nest_location")
-    nest_transports = request.form.getlist("nest_transport")
-    nest_hosts = request.form.getlist("nest_host")
-    nest_ports = request.form.getlist("nest_port")
-    nest_ssh_users = request.form.getlist("nest_ssh_user")
-    nest_remoting_ids = request.form.getlist("nest_remoting_identity_id")
-    nest_known_hosts = request.form.getlist("nest_known_hosts")
-    nest_winrm_users = request.form.getlist("nest_winrm_user")
-    nest_credential_refs = request.form.getlist("nest_credential_ref")
     raw_nests: list[dict] = []
     for i, nid in enumerate(nest_ids):
         raw_nests.append(
@@ -566,20 +553,9 @@ def nests_connections_post():
                 "id": nid,
                 "name": nest_names[i] if i < len(nest_names) else "",
                 "provider_type": nest_providers[i] if i < len(nest_providers) else "libvirt",
-                "location": nest_locations[i] if i < len(nest_locations) else "local",
-                "transport": nest_transports[i] if i < len(nest_transports) else "",
-                "host": nest_hosts[i] if i < len(nest_hosts) else "",
-                "port": nest_ports[i] if i < len(nest_ports) else "",
-                "ssh_user": nest_ssh_users[i] if i < len(nest_ssh_users) else "",
-                "remoting_identity_id": nest_remoting_ids[i] if i < len(nest_remoting_ids) else "",
-                "known_hosts": nest_known_hosts[i] if i < len(nest_known_hosts) else "default",
-                "winrm_user": nest_winrm_users[i] if i < len(nest_winrm_users) else "",
-                "credential_ref": nest_credential_refs[i] if i < len(nest_credential_refs) else "",
+                "location": "local",
             }
         )
-    remoting_identity_options = [
-        remoting_identities_lib.to_dict(i) for i in remoting_identities_lib.list_identities()
-    ]
     try:
         nests_lib.replace_nests(raw_nests)
     except ValueError as exc:
@@ -587,7 +563,6 @@ def nests_connections_post():
             "nests_connections.html",
             active_pane="nests_connections",
             nests=raw_nests,
-            remoting_identity_options=remoting_identity_options,
             form_saved=False,
             form_error=str(exc),
         )
@@ -2056,30 +2031,19 @@ def api_library_content_remove():
 
 
 def _nest_from_request(data: dict) -> NestConnectionConfig:
-    """Build NestConnectionConfig from JSON — prefer nest_id from the registry."""
+    """Build Local NestConnectionConfig from JSON - prefer nest_id from the registry."""
     nest_id = str(data.get("nest_id") or data.get("nest") or "").strip()
     if nest_id:
         nest = nests_lib.get_nest(nest_id)
         if nest is None:
             raise ValueError(f"Unknown Nest id: {nest_id}")
-        winrm_password = data.get("winrm_password")
-        return nests_lib.to_connection_config(
-            nest,
-            winrm_password=str(winrm_password) if winrm_password is not None else None,
-        )
+        return nests_lib.to_connection_config(nest)
 
     location = str(data.get("location") or "local").strip().lower()
-    if location not in ("local", "remote"):
-        raise ValueError("location must be 'local' or 'remote'")
-    if location == "remote":
-        # Ad-hoc remote (no nest_id) — construct config so ensure/preflight can fail closed.
-        from lib.nest_transport import NestSshConfig
-
-        host = str(data.get("host") or "remote-nest").strip() or "remote-nest"
-        return NestConnectionConfig(
-            location="remote",
-            transport="ssh",
-            ssh=NestSshConfig(host=host),
+    if location != "local":
+        raise ValueError(
+            "Remote Nests are not available in Hatchery free (#620). "
+            "Use a Local Nest, or Hatchery Enterprise (Nest Agent)."
         )
     return NestConnectionConfig(location="local")
 

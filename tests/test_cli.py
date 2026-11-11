@@ -356,17 +356,18 @@ class TestOperatorInspect:
 
         bootstrap.apply_data_dir(str(sandbox))
         bootstrap.init_controller_runtime()
-        nests_lib.replace_nests(
-            [
-                {
-                    "id": "remote1",
-                    "name": "Remote",
-                    "provider_type": "libvirt",
-                    "location": "remote",
-                    "host": "r.example",
-                }
-            ]
-        )
+        with pytest.raises(ValueError, match="#620"):
+            nests_lib.replace_nests(
+                [
+                    {
+                        "id": "remote1",
+                        "name": "Remote",
+                        "provider_type": "libvirt",
+                        "location": "remote",
+                        "host": "r.example",
+                    }
+                ]
+            )
         args = cli.build_parser().parse_args(
             ["vm", "--data-dir", str(sandbox), "list", "--nest", "remote1"]
         )

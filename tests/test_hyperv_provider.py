@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from lib.clutch import VMConfig
-from lib.nest_transport import NestTransportError
 from lib.providers.hyperv import (
     HyperVProvider,
     _JSON_MARKER,
@@ -219,11 +218,8 @@ class TestHatch:
     def test_supports_answer_file_attach(self):
         assert HyperVProvider.supports_answer_file_attach is True
 
-    def test_remote_create_vm_blocked(self):
-        from lib.nest_transport import NestSshConfig, SshNestTransport
-
-        ssh = SshNestTransport(NestSshConfig(host="n.example", user="u"))
-        p = HyperVProvider("hv1", transport=ssh)
+    def test_transport_create_vm_blocked(self):
+        p = HyperVProvider("hv1", transport=MagicMock())
         vm = VMConfig(
             name="new",
             os="windows",
@@ -235,7 +231,7 @@ class TestHatch:
             firmware="uefi",
             tpm=True,
         )
-        with pytest.raises(RuntimeError, match="#215"):
+        with pytest.raises(RuntimeError, match="#620"):
             p.create_vm(vm)
 
     def test_create_vm_local_script(self, tmp_path, scripts):
@@ -374,35 +370,9 @@ class TestHatch:
 
 
 class TestTransportPaths:
-    def test_winrm_runs_script_directly(self):
-        from lib.nest_transport import NestWinrmConfig, WinrmNestTransport
-
-        winrm = WinrmNestTransport(NestWinrmConfig(host="n.example", username="u", password="p"))
-        winrm.run = MagicMock(return_value=_json_line([]))
-        p = HyperVProvider("hv1", transport=winrm)
-        assert p.list_vms() == []
-        cmd = winrm.run.call_args.args[0]
-        assert "Get-VM" in cmd
-        assert "-EncodedCommand" not in cmd
-
-    def test_ssh_uses_encoded_command(self):
-        from lib.nest_transport import NestSshConfig, SshNestTransport
-
-        ssh = SshNestTransport(NestSshConfig(host="n.example", user="u"))
-        ssh.run = MagicMock(return_value=_json_line([]))
-        p = HyperVProvider("hv1", transport=ssh)
-        assert p.list_vms() == []
-        cmd = ssh.run.call_args.args[0]
-        assert "powershell.exe" in cmd
-        assert "-EncodedCommand" in cmd
-
-    def test_transport_error_wrapped(self):
-        from lib.nest_transport import NestSshConfig, SshNestTransport
-
-        ssh = SshNestTransport(NestSshConfig(host="n.example", user="u"))
-        ssh.run = MagicMock(side_effect=NestTransportError("boom"))
-        p = HyperVProvider("hv1", transport=ssh)
-        with pytest.raises(RuntimeError, match="boom"):
+    def test_nest_transport_rejected(self):
+        p = HyperVProvider("hv1", transport=MagicMock())
+        with pytest.raises(RuntimeError, match="#620"):
             p.list_vms()
 
     def test_local_run_cmd_success(self, monkeypatch):

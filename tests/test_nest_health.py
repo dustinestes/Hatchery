@@ -9,7 +9,7 @@ import pytest
 import lib.config as config
 import lib.db as db_module
 from lib import nest_health as nh
-from lib.nest_transport import NestHealthCheckResult
+from lib.nest_types import NestHealthCheckResult
 
 
 @pytest.fixture(autouse=True)
@@ -206,7 +206,7 @@ class TestRunHealth:
         assert result["prerequisites"][0]["name"] == "virsh"
         assert result["prerequisites"][0]["present"] is True
 
-    def test_remote_ssh_resources_mocked(self, tmp_path, monkeypatch):
+    def test_remote_rejected_gate_fails(self, tmp_path, monkeypatch):
         monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
         nest = {
             "id": "lab",
@@ -216,85 +216,11 @@ class TestRunHealth:
             "host": "10.0.0.2",
             "provider_type": "libvirt",
         }
-        ok = NestHealthCheckResult(ok=True, detail="transport OK")
-        transport = MagicMock()
-
-        def fake_run(cmd):
-            if "nproc" in cmd:
-                return "8\n"
-            if "meminfo" in cmd:
-                return "MemTotal: 4096000 kB\nMemAvailable: 2048000 kB\n"
-            if "df " in cmd:
-                return (
-                    "Filesystem 1B-blocks Used Available Use% Mounted on\n"
-                    "/dev/vda1 200000000000 50000000000 150000000000 25% /\n"
-                )
-            return ""
-
-        transport.run.side_effect = fake_run
-        with (
-            patch("lib.nest_reachability.probe_nest", return_value=ok),
-            patch("lib.nest_reachability.record_probe"),
-            patch("lib.nest_reachability.sync_alert_for_probe"),
-            patch("lib.nests.to_connection_config", return_value=MagicMock()),
-            patch("lib.nest_health.get_nest_transport", return_value=transport),
-            patch("lib.requirements.check_nest", return_value=[]),
-        ):
-            result = nh.run_health(nest, persist=False, sync_alerts=False)
-        assert result["deeper_ran"] is True
-        assert result["cpu"]["count"] == 8
-        assert result["memory"]["total_bytes"] == 4096000 * 1024
-        assert result["disks"][0]["mount"] == "/"
-
-    def test_remote_hyperv_ssh_uses_windows_resources(self, tmp_path, monkeypatch):
-        """Hyper-V over SSH must not use POSIX df (empty disks on Windows Nests)."""
-        monkeypatch.setattr("lib.config.data_dir", lambda: tmp_path)
-        nest = {
-            "id": "hv",
-            "name": "HV",
-            "location": "remote",
-            "transport": "ssh",
-            "host": "10.0.0.3",
-            "provider_type": "hyperv",
-            "ssh_user": "Developer",
-        }
-        ok = NestHealthCheckResult(ok=True, detail="transport OK")
-        with (
-            patch("lib.nest_reachability.probe_nest", return_value=ok),
-            patch("lib.nest_reachability.record_probe"),
-            patch("lib.nest_reachability.sync_alert_for_probe"),
-            patch("lib.nests.to_connection_config", return_value=MagicMock()),
-            patch("lib.nest_health.get_nest_transport", return_value=MagicMock()),
-            patch(
-                "lib.nest_health._gather_resources_windows",
-                return_value={
-                    "cpu": {"count": 4, "utilization_percent": None},
-                    "memory": {
-                        "total_bytes": 8 * 1024**3,
-                        "free_bytes": 3 * 1024**3,
-                        "used_bytes": 5 * 1024**3,
-                    },
-                    "disks": [
-                        {
-                            "filesystem": "C:",
-                            "mount": "C:",
-                            "path": "C:\\",
-                            "total_bytes": 1000,
-                            "used_bytes": 600,
-                            "free_bytes": 400,
-                            "state": "ok",
-                        }
-                    ],
-                },
-            ) as win_gather,
-            patch("lib.nest_health._gather_resources_ssh") as posix_gather,
-            patch("lib.requirements.check_nest", return_value=[]),
-        ):
-            result = nh.run_health(nest, persist=False, sync_alerts=False)
-        win_gather.assert_called_once()
-        posix_gather.assert_not_called()
-        assert result["disks"][0]["mount"] == "C:"
-        assert result["cpu"]["count"] == 4
+        result = nh.run_health(nest, persist=False, sync_alerts=False)
+        assert result["ok"] is False
+        assert result["deeper_ran"] is False
+        assert result["gate"]["failure_class"] == "config"
+        assert "#620" in result["gate"]["detail"]
 
 
 class TestMigrateValidatorSettings:
@@ -356,22 +282,6 @@ class TestResourceParsers:
         assert len(disks) == 1
         assert disks[0]["mount"] == "C:"
         assert disks[0]["free_bytes"] == 400
-
-    def test_gather_winrm_mocked(self):
-        def fake_ps(_transport, script, timeout=30):
-            if "NumberOfLogicalProcessors" in script:
-                return "16\n"
-            if "TotalVisibleMemorySize" in script:
-                return '{"total":8589934592,"free":2147483648}'
-            if "Win32_LogicalDisk" in script:
-                return '[{"DeviceID":"C:","Size":2000,"FreeSpace":500}]'
-            return ""
-
-        with patch("lib.nest_health._run_windows_ps", side_effect=fake_ps):
-            out = nh._gather_resources_winrm(MagicMock())
-        assert out["cpu"]["count"] == 16
-        assert out["memory"]["total_bytes"] == 8589934592
-        assert out["disks"][0]["mount"] == "C:"
 
     def test_prune_removed(self):
         nest = {"id": "gone", "name": "G"}
@@ -492,21 +402,3 @@ class TestResourceParsers:
             patch("lib.nest_health._local_disks", return_value=[]),
         ):
             assert nh._gather_resources_local()["cpu"]["count"] == 1
-
-    def test_gather_resources_config_error(self):
-        nest = {
-            "id": "r",
-            "location": "remote",
-            "transport": "ssh",
-            "host": "h",
-            "provider_type": "libvirt",
-        }
-        with patch("lib.nests.to_connection_config", side_effect=ValueError("bad")):
-            out = nh._gather_resources(nest)
-        assert out["disks"] == []
-
-    def test_ssh_gather_handles_transport_errors(self):
-        transport = MagicMock()
-        transport.run.side_effect = RuntimeError("boom")
-        out = nh._gather_resources_ssh(transport)
-        assert out == {"cpu": None, "memory": None, "disks": []}

@@ -105,18 +105,16 @@ Media for local libvirt uses the Hatchery data directory on the Nest (operator c
 
 ## Nest Control Plane
 
-How Hatchery reaches the Nest host (not the guest). Module: [`lib/nest_transport.py`](../../lib/nest_transport.py). Detail: [Nest transport](nest-transport.md).
+Free HEAD reaches the Nest host only when it is **Local** (co-located with the Controller). Nest SSH / WinRM product transport was removed ([#620](https://github.com/dustinestes/Hatchery/issues/620), [ADR-0044](adr/0044-free-head-local-nest-only.md)). Remote Nest hierarchy is Hatchery Enterprise (Nest Agent). Historical note: [Nest transport](nest-transport.md).
 
 | Capability | Status |
 |---|---|
-| SSH Nest transport (key **reference**) | Works (wired via Nest registry [#207](https://github.com/dustinestes/Hatchery/issues/207)) |
-| WinRM Nest transport fallback | Works (same registry; passwords session-only until [#110](https://github.com/dustinestes/Hatchery/issues/110)) |
-| Nest connectivity check | Works (Nests → Connections → Test Nest connection) |
-| Nest SSH identity expiry alerts | Works ([Nest SSH identity expiry](nest-key-expiry.md)) |
-| Nest connection registry | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Nests → Connections / [ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)) |
-| Provider factory by Nest id | Works ([#206](https://github.com/dustinestes/Hatchery/issues/206); `lib/providers/factory.py`) |
+| Local Nest connectivity check | Works (Nests → Connections → Test Nest connection) |
+| Nest connection registry (Local) | Works ([#207](https://github.com/dustinestes/Hatchery/issues/207); Nests → Connections / [ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md); Local-only [#620](https://github.com/dustinestes/Hatchery/issues/620)) |
+| Provider factory by Nest id | Works ([#206](https://github.com/dustinestes/Hatchery/issues/206); `lib/providers/factory.py`; refuses remote on free) |
+| Remote Nest / Nest Agent | Enterprise ([#345](https://github.com/dustinestes/Hatchery/issues/345)) |
 
-`get_provider(nest_id)` returns `LibvirtProvider` for a local libvirt Nest, or `HyperVProvider` for Hyper-V (local PowerShell or remote Nest transport SSH/WinRM). Local Hyper-V hatch and Answer File DVD/ISO attach work; Remote Hyper-V hatch waits on Nest-cache ensure/copy (#215). Remote libvirt and UTM still raise `UnsupportedProviderError` until those adapters land.
+`get_provider(nest_id)` returns `LibvirtProvider` or `HyperVProvider` for a **Local** Nest. Remote Nest ids raise `UnsupportedProviderError` on free HEAD.
 
 <br>
 

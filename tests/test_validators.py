@@ -248,7 +248,7 @@ class TestNestCapability:
         from unittest.mock import patch
 
         from lib import alerts as alerts_lib
-        from lib.nest_transport import NestHealthCheckResult
+        from lib.nest_types import NestHealthCheckResult
         from lib import nest_reachability as nr
 
         nest = {
@@ -289,7 +289,7 @@ class TestNestCapability:
         from unittest.mock import patch
 
         from lib import nest_reachability as nr
-        from lib.nest_transport import NestHealthCheckResult
+        from lib.nest_types import NestHealthCheckResult
         from lib.requirements import Requirement
 
         nest = {
@@ -326,7 +326,7 @@ class TestNestReachability:
     def test_run_alerts_unreachable_remote(self):
         from unittest.mock import patch
 
-        from lib.nest_transport import NestHealthCheckResult
+        from lib.nest_types import NestHealthCheckResult
 
         nest = {
             "id": "r1",
@@ -362,7 +362,7 @@ class TestNestReachability:
         from unittest.mock import patch
 
         from lib import alerts as alerts_lib
-        from lib.nest_transport import NestHealthCheckResult
+        from lib.nest_types import NestHealthCheckResult
 
         nest = {
             "id": "r1",

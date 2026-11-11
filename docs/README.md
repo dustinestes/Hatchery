@@ -34,8 +34,9 @@ Reference documentation for Hatchery.
 | [`library.md`](library.md) | Library connections, bindings, operator/Nest caches, hatch preflight |
 | [`cli/`](cli/) | Controller CLI (`hatchery serve` and planned operator commands) - [index](cli/README.md) |
 | [`adr/`](adr/) | Architecture Decision Records - why we chose lasting shapes ([index](adr/README.md)) |
-| [`getting-started.md`](getting-started.md) | Host setup, installation, first VM, Remote Nest onboarding |
-| [`nest-ssh.md`](nest-ssh.md) | Nest SSH trust model, remoting identities, authorize, troubleshooting |
+| [`getting-started.md`](getting-started.md) | Host setup, installation, first Local Nest VM |
+| [`nest-ssh.md`](nest-ssh.md) | Historical Nest SSH note; Remote Nest → [Enterprise](enterprise/README.md) (#620) |
+| [`nest-transport.md`](nest-transport.md) | Historical Nest transport note (#620) |
 | [`tests.md`](tests.md) | Test suite structure, running tests locally, and adding new tests |
 | [`errors.md`](errors.md) | Error handling model - HTTP codes, VM operation errors, UI surfacing |
 | [`examples.md`](examples.md) | Real-world scenarios - hatching VMs, managing snapshots, teardown |

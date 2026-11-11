@@ -20,23 +20,14 @@ def _data_dir(tmp_path, monkeypatch):
 
 
 def _add_remote(extra=None):
-    nests_lib.ensure_local_nest()
-    nests_lib.replace_nests(
-        [
-            nests_lib.get_nest("local"),
-            {
-                "id": "remote1",
-                "name": "Remote",
-                "provider_type": "libvirt",
-                "location": "remote",
-                "host": "nest.example",
-                "port": 22,
-                "transport": "ssh",
-                "extra": extra or {"nest_cache": "/var/lib/hatchery"},
-            },
-        ]
-    )
-    return nests_lib.get_nest("remote1")
+    """Remote Nest row dict (not registered; Remote Nests are rejected on free HEAD, #620)."""
+    return {
+        "id": "remote1",
+        "name": "Remote",
+        "provider_type": "libvirt",
+        "location": "remote",
+        "extra": extra or {"nest_cache": "/var/lib/hatchery"},
+    }
 
 
 class TestLocalCheck:
@@ -135,7 +126,7 @@ class TestPrune:
             {"sync_state": "in_sync", "source": "nest_report", "content": []},
         )
         assert sync_lib.get_sync("remote1") is not None
-        nests_lib.replace_nests([nests_lib.get_nest("local")])
+        sync_lib.prune_removed_nests({"local"})
         assert sync_lib.get_sync("remote1") is None
 
 

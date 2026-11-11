@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
 
 import pytest
 
 from lib import config as cfg
 from lib import db
 from lib import nest_reachability as nr
-from lib.nest_transport import NestConnectionConfig, NestHealthCheckResult, NestSshConfig
+from lib.nest_types import NestHealthCheckResult
 
 
 @pytest.fixture(autouse=True)
@@ -27,30 +26,7 @@ class TestProbeNest:
         result = nr.probe_nest({"id": "local", "location": "local", "name": "Local"})
         assert result.ok is True
 
-    def test_endpoint_failure_before_transport(self):
-        nest = {
-            "id": "r1",
-            "name": "R",
-            "location": "remote",
-            "transport": "ssh",
-            "provider_type": "libvirt",
-            "host": "127.0.0.1",
-            "port": 1,
-        }
-        with patch(
-            "lib.nest_reachability.probe_tcp_endpoint",
-            return_value=NestHealthCheckResult(
-                ok=False,
-                detail="endpoint not reachable - timed out",
-                failure_class="endpoint",
-            ),
-        ):
-            result = nr.probe_nest(nest)
-        assert result.ok is False
-        assert result.failure_class == "endpoint"
-        assert "endpoint not reachable" in result.detail
-
-    def test_transport_failure_after_endpoint_ok(self):
+    def test_remote_rejected(self):
         nest = {
             "id": "r1",
             "name": "R",
@@ -60,32 +36,10 @@ class TestProbeNest:
             "host": "h",
             "port": 22,
         }
-
-        class _T:
-            def test_connection(self):
-                return NestHealthCheckResult(
-                    ok=False, detail="Permission denied", failure_class="transport"
-                )
-
-        with (
-            patch(
-                "lib.nest_reachability.probe_tcp_endpoint",
-                return_value=NestHealthCheckResult(ok=True, detail="TCP open"),
-            ),
-            patch("lib.nest_reachability.get_nest_transport", return_value=_T()),
-            patch(
-                "lib.nests.to_connection_config",
-                return_value=NestConnectionConfig(
-                    location="remote",
-                    transport="ssh",
-                    ssh=NestSshConfig(host="h", port=22),
-                ),
-            ),
-        ):
-            result = nr.probe_nest(nest)
+        result = nr.probe_nest(nest)
         assert result.ok is False
-        assert result.failure_class == "transport"
-        assert "Nest transport not accessible" in result.detail
+        assert result.failure_class == "config"
+        assert "#620" in result.detail
 
 
 class TestSnapshotAndAlerts:
@@ -196,3 +150,38 @@ class TestCapabilityGate:
         assert nr.is_reachable_for_capability(nest) is False
         nr.record_probe(nest, NestHealthCheckResult(ok=True, detail="OK"))
         assert nr.is_reachable_for_capability(nest) is True
+
+
+class TestProbeTcpEndpoint:
+    def test_empty_host_and_bad_port(self):
+        assert nr.probe_tcp_endpoint("", 22).failure_class == "config"
+        assert nr.probe_tcp_endpoint("h", "x").failure_class == "config"
+
+    def test_open_timeout_and_oserror(self):
+        from unittest.mock import MagicMock, patch
+
+        with patch("lib.nest_reachability.socket.create_connection", return_value=MagicMock()):
+            assert nr.probe_tcp_endpoint("h", 22).ok is True
+        with patch("lib.nest_reachability.socket.create_connection", side_effect=TimeoutError):
+            res = nr.probe_tcp_endpoint("h", 22)
+        assert res.failure_class == "endpoint"
+        assert "timed out" in res.detail
+        with patch("lib.nest_reachability.socket.create_connection", side_effect=OSError("nope")):
+            res = nr.probe_tcp_endpoint("h", 22)
+        assert res.failure_class == "endpoint"
+        assert "nope" in res.detail
+
+
+class TestReachabilityLabels:
+    def test_labels_by_failure_class(self):
+        nest = {"id": "r1", "name": "Lab", "location": "remote"}
+        assert nr.nest_reachability_label("r1") == "Reachability not checked yet"
+        for fc, label in (
+            ("transport", "Transport not accessible"),
+            ("config", "Cannot probe"),
+            (None, "Unreachable"),
+        ):
+            nr.record_probe(nest, NestHealthCheckResult(ok=False, detail="x", failure_class=fc))
+            assert nr.nest_reachability_label("r1") == label
+        nr.record_probe(nest, NestHealthCheckResult(ok=True, detail="ok"))
+        assert nr.nest_reachability_label("r1") == "Reachable"

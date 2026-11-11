@@ -1,8 +1,8 @@
-"""Hyper-V Nest provider (local PowerShell or remote Nest transport).
+"""Hyper-V Nest provider (Local Nest PowerShell).
 
-Lifecycle power/inventory/snapshots work locally or over Nest transport.
-Hatch (``create_vm``) + Answer File DVD/ISO attach are Local Nest only until
-Nest-cache ensure/copy lands (#215).
+Free HEAD is Local Nest only (#620). Remote Nest transport was removed; Enterprise
+Remote Nest is Nest Agent (#345). Hatch (``create_vm``) + Answer File DVD/ISO
+attach remain Local Nest.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from typing import Any, ClassVar
 
 from lib import answerfile as answerfile_lib
 from lib.clutch import Firmware, VMConfig
-from lib.nest_transport import NestTransportError, WinrmNestTransport
 from lib.providers.base import (
     BaseProvider,
     MediaCleanupStep,
@@ -227,27 +226,19 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
     # ── PowerShell execution ──────────────────────────────────────────────────
 
     def _run_ps(self, script: str, *, timeout: float | None = 60) -> str:
-        """Run PowerShell on the Nest; return stdout.
+        """Run PowerShell on the Local Nest; return stdout.
 
-        ``runner`` (tests) wins. WinRM Nest transport runs script text as PowerShell.
-        SSH Nest transport and Local Nest wrap ``-EncodedCommand``.
+        ``runner`` (tests) wins. Free HEAD does not run Hyper-V over Nest transport (#620).
         """
         body = f"$ErrorActionPreference = 'Stop'\n{script}"
         if self._runner is not None:
             return self._runner(body)
 
         if self._transport is not None:
-            try:
-                if isinstance(self._transport, WinrmNestTransport):
-                    return self._transport.run(body, timeout=timeout)
-                encoded = _ps_encoded_command(body)
-                remote = (
-                    "powershell.exe -NoProfile -NonInteractive "
-                    f"-ExecutionPolicy Bypass -EncodedCommand {encoded}"
-                )
-                return self._transport.run(remote, timeout=timeout)
-            except NestTransportError as exc:
-                raise RuntimeError(str(exc)) from exc
+            raise RuntimeError(
+                "Remote Hyper-V Nest transport is not available in Hatchery free (#620). "
+                "Use a Local Hyper-V Nest, or Hatchery Enterprise (Nest Agent)."
+            )
 
         exe = _local_powershell_exe()
         encoded = _ps_encoded_command(body)
@@ -385,8 +376,8 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
     ) -> None:
         if self._transport is not None:
             raise RuntimeError(
-                "Hyper-V hatch on a Remote Nest needs Nest-local media ensure/copy (#215); "
-                "lifecycle power/snapshot ops are available over Nest transport"
+                "Remote Hyper-V Nest hatch is not available in Hatchery free (#620). "
+                "Use a Local Hyper-V Nest, or Hatchery Enterprise (Nest Agent)."
             )
         if config.virtio_drivers:
             raise ValueError(
