@@ -75,5 +75,7 @@ If an idea only counts when it is a one-in-a-million venture bet, most good tool
 |---|---|
 | This doc | Brand and product north star |
 | [ADR-0042](adr/0042-open-core-public-and-enterprise-tier.md) | Locked free vs Enterprise boundary |
+| [ADR-0043](adr/0043-controller-extension-load.md) / [`extensions.md`](extensions.md) | How the commercial package attaches |
+| [`docs/enterprise/`](enterprise/) | Public Enterprise edition how-to (discoverability) |
 | [`architecture-nests.md`](architecture-nests.md) | Controller vs Nest planes |
 | Hatchery-Enterprise | Commercial package, entitlements, license portal (points here for the why) |

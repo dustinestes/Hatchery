@@ -87,6 +87,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0040](0040-nest-reported-nest-cache-sync.md) | Nest-reported nest_cache sync (Controller aggregates) | Accepted |
 | [0041](0041-nest-events-transcript.md) | Nest Events transcript (Nest-scoped, parallel to hatch_events) | Accepted |
 | [0042](0042-open-core-public-and-enterprise-tier.md) | Open-core - public Hatchery and private Enterprise tier | Accepted |
+| [0043](0043-controller-extension-load.md) | Controller extension load for Enterprise tier | Accepted |
 
 <br>
 
