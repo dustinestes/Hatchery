@@ -10,7 +10,7 @@ Libvirt Nest provider notes and Clutch YAML inventory under `providers.libvirt` 
 
 **Rules (locked in #504):** portable guest intent stays top-level (`os`, `firmware`, `tpm`, resources, Answer File, env). Libvirt-native knobs live only under `providers.libvirt`. Unknown keys under that bag fail validate. Hatch on a libvirt Nest applies portable intent + this overlay only.
 
-Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtProviderSettings` in [`lib/clutch.py`](../../lib/clutch.py) (`os_variant` only). Create wiring: [`lib/providers/libvirt.py`](../../lib/providers/libvirt.py).
+Matrix hub: [Provider support matrix](README.md). Schema: `LibvirtProviderSettings` in [`lib/clutch.py`](../../lib/clutch.py). Create wiring: [`lib/providers/libvirt.py`](../../lib/providers/libvirt.py) ([#635](https://github.com/dustinestes/Hatchery/issues/635)).
 
 <br>
 
@@ -20,7 +20,7 @@ Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtPro
 - [Legend](#legend)
 - [Portable intent → libvirt](#portable-intent--libvirt)
 - [Inventory](#inventory)
-- [Hard-coded today (not overlay keys)](#hard-coded-today-not-overlay-keys)
+- [Create defaults (when overlay keys omitted)](#create-defaults-when-overlay-keys-omitted)
 - [Draft YAML](#draft-yaml)
 - [Non-goals (v1 overlay)](#non-goals-v1-overlay)
 - [UI surface note](#ui-surface-note)
@@ -68,14 +68,14 @@ Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtPro
 | `os_variant` | string | Windows → `win11`; else `generic` | overlay | create | Local Works; Remote Planned | clutch-advanced | shipped | virt-install `--os-variant`; must match Nest `osinfo` database |
 | *(portable)* `firmware` | `bios` \| `uefi` | unset → BIOS-ish | portable | create | Local Works; Remote Planned | clutch form | shipped | maps to `--boot uefi` only |
 | *(portable)* `tpm` | bool | false / unset | portable | create | needs `swtpm` on Nest | clutch form | shipped | fixed emulator model today |
-| `network` | string | `default` | overlay | create | Local libvirt network name; Remote same on Nest | clutch-advanced | planned | today hardcoded `network=default` |
-| `network_model` | string | virt-install default | overlay | create | e.g. `virtio` | clutch-advanced | planned | `--network …,model=` |
-| `disk_bus` | string | virt-install default | overlay | create | e.g. `virtio` | clutch-advanced | planned | guest disk bus only; not catalog CDROM |
-| `graphics` | string | `spice` | overlay | create | Local SPICE; Remote display TBD | clutch-advanced | planned | today hardcoded `--graphics spice` |
+| `network` | string | `default` | overlay | create | Local libvirt network name; Remote same on Nest | clutch-advanced | shipped | `#635`; omit → `network=default` |
+| `network_model` | string | virt-install default | overlay | create | e.g. `virtio` | clutch-advanced | shipped | `#635`; `--network …,model=` when set |
+| `disk_bus` | string | virt-install default | overlay | create | e.g. `virtio` | clutch-advanced | shipped | `#635`; guest disk bus only; not catalog CDROM |
+| `graphics` | string | `spice` | overlay | create | Local SPICE; Remote display TBD | clutch-advanced | shipped | `#635`; omit → `--graphics spice` |
 | `video` | string | virt-install default | overlay | create | e.g. `qxl` / `virtio` | clutch-advanced | planned | often paired with graphics |
 | `cpu_model` | string | host default | overlay | create | host-passthrough caution | clutch-advanced | planned | `--cpu` / model |
 | `cpu_topology` | object | unset | overlay | create | sockets/cores/threads | clutch-advanced | planned | only if needed beyond `vcpus` |
-| `machine` | string | Nest qemu default | overlay | create | e.g. `q35` | clutch-advanced | planned | `--machine` |
+| `machine` | string | Nest qemu default | overlay | create | e.g. `q35` | clutch-advanced | shipped | `#635`; `--machine` when set |
 | `chipset` | string | implied by machine | overlay | create | prefer `machine` alone | never | wont | use `machine`; avoid duplicate knobs |
 | `boot_order` | list/string | virt-install default | overlay | create | cdrom-first install | clutch-advanced | planned | careful with post-install |
 | `uefi_loader` / `nvram_template` | path | Nest defaults | overlay | create | Nest absolute paths | nest-default | planned | Remote: Nest-local paths only |
@@ -86,15 +86,13 @@ Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtPro
 
 <br>
 
-## Hard-coded today (not overlay keys)
+## Create defaults (when overlay keys omitted)
 
-These are intentional create defaults in `LibvirtProvider._build_create_cmd` until the planned overlay rows land:
-
-| Behavior | Current value |
+| Behavior | Value |
 |---|---|
-| Network | `network=default` |
-| Graphics | `spice` |
-| Disk format | `qcow2` under `{nest_storage}/{vm_id}/disk.qcow2` |
+| Network | `network=default` (override via `network` / `network_model`) |
+| Graphics | `spice` (override via `graphics`) |
+| Disk format | `qcow2` under `{nest_storage}/{vm_id}/disk.qcow2` (`disk_bus` optional) |
 | Install CDROM | `--cdrom` from portable `os_media` |
 | UUID | pre-minted `vm_id` (`--uuid`) |
 | Console | `--noautoconsole` |
@@ -120,12 +118,11 @@ vms:
     providers:
       libvirt:
         os_variant: win11
-        # planned:
-        # network: default
-        # network_model: virtio
-        # disk_bus: virtio
-        # graphics: spice
-        # machine: q35
+        network: default
+        network_model: virtio
+        disk_bus: virtio
+        graphics: spice
+        machine: q35
 ```
 
 Minimal (overlay optional):
@@ -168,11 +165,11 @@ Drivers / VirtIO field visibility by Nest × guest OS: [drivers.md](../drivers.m
 
 ## Implementation follow-ons
 
-Wave 1 impl child:
+- [#635](https://github.com/dustinestes/Hatchery/issues/635) - first-cut overlay keys (`network`, `network_model`, `disk_bus`, `graphics`, `machine`) - **this doc / schema**
+- Later inventory rows still planned: `video`, `cpu_model`, `boot_order`, UEFI Nest paths, …
+- Drivers portable key: [drivers.md](../drivers.md) / [#637](https://github.com/dustinestes/Hatchery/issues/637)
 
-- [#635](https://github.com/dustinestes/Hatchery/issues/635) - expand `LibvirtProviderSettings` + create wiring for first-cut planned keys (`network`, `network_model`, `disk_bus`, `graphics`, `machine`; unknown-key forbid stays)
-
-Also: docs/schema examples in `docs/schema/clutch.yaml` + matrix cross-links as part of that work. Do **not** block on Nest-default UI or Settings panes. Drivers portable key: [drivers.md](../drivers.md) / [#508](https://github.com/dustinestes/Hatchery/issues/508).
+Do **not** block on Nest-default UI or Settings panes.
 
 <br>
 

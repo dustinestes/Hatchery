@@ -172,17 +172,48 @@ def _check_media_accessible(path: Path) -> None:
         )
 
 
+def _libvirt_overlay(config: VMConfig):
+    """Return ``providers.libvirt`` bag when present (#635)."""
+    overlays = getattr(config, "providers", None)
+    return getattr(overlays, "libvirt", None) if overlays else None
+
+
+def _overlay_str(overlay, key: str) -> str | None:
+    """Return stripped non-empty overlay string, or None."""
+    if overlay is None:
+        return None
+    raw = getattr(overlay, key, None)
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
 def _os_variant_for(config: VMConfig) -> str:
     """Resolve virt-install --os-variant from providers.libvirt or Windows default."""
-    overlays = getattr(config, "providers", None)
-    libvirt = getattr(overlays, "libvirt", None) if overlays else None
-    pin = getattr(libvirt, "os_variant", None) if libvirt else None
-    if pin and str(pin).strip():
-        return str(pin).strip()
+    pin = _overlay_str(_libvirt_overlay(config), "os_variant")
+    if pin:
+        return pin
     if config.os == GuestOS.WINDOWS:
         return "win11"
     # linux/macos: generic until provider inventories land (#504 / #505).
     return "generic"
+
+
+def _network_arg(config: VMConfig) -> str:
+    """Build virt-install ``--network`` value from overlay (default ``network=default``)."""
+    overlay = _libvirt_overlay(config)
+    name = _overlay_str(overlay, "network") or "default"
+    model = _overlay_str(overlay, "network_model")
+    arg = f"network={name}"
+    if model:
+        arg = f"{arg},model={model}"
+    return arg
+
+
+def _graphics_arg(config: VMConfig) -> str:
+    """Build virt-install ``--graphics`` value (default ``spice``)."""
+    return _overlay_str(_libvirt_overlay(config), "graphics") or "spice"
 
 
 class LibvirtProvider(BaseProvider):
@@ -326,6 +357,9 @@ class LibvirtProvider(BaseProvider):
     ) -> list[str]:
         disk = vm_disk_path(vm_dir, ".qcow2")
         disk_arg = f"path={disk},size={config.disk_gb},format=qcow2"
+        disk_bus = _overlay_str(_libvirt_overlay(config), "disk_bus")
+        if disk_bus:
+            disk_arg = f"{disk_arg},bus={disk_bus}"
 
         cmd = [
             "virt-install",
@@ -344,11 +378,15 @@ class LibvirtProvider(BaseProvider):
             "--os-variant",
             _os_variant_for(config),
             "--network",
-            "network=default",
+            _network_arg(config),
             "--graphics",
-            "spice",
+            _graphics_arg(config),
             "--noautoconsole",
         ]
+
+        machine = _overlay_str(_libvirt_overlay(config), "machine")
+        if machine:
+            cmd += ["--machine", machine]
 
         from lib.clutch import Firmware
 

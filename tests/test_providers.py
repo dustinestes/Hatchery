@@ -305,6 +305,60 @@ class TestCreateVM:
         cmd = mock_run.call_args[0][0]
         assert cmd[cmd.index("--os-variant") + 1] == "win10"
 
+    def test_libvirt_overlay_network_disk_graphics_machine(self, tmp_path, provider):
+        iso = provider.iso_dir / "win11.iso"
+        iso.touch()
+        vm = _vm(
+            name="overlay-vm",
+            os="windows",
+            firmware="uefi",
+            tpm=True,
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+            providers={
+                "libvirt": {
+                    "network": "br0",
+                    "network_model": "virtio",
+                    "disk_bus": "virtio",
+                    "graphics": "vnc",
+                    "machine": "q35",
+                }
+            },
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("--network") + 1] == "network=br0,model=virtio"
+        assert cmd[cmd.index("--graphics") + 1] == "vnc"
+        assert cmd[cmd.index("--machine") + 1] == "q35"
+        disk_arg = cmd[cmd.index("--disk") + 1]
+        assert "bus=virtio" in disk_arg
+        assert "format=qcow2" in disk_arg
+
+    def test_libvirt_overlay_defaults_when_omit(self, tmp_path, provider):
+        iso = provider.iso_dir / "win11.iso"
+        iso.touch()
+        vm = _vm(
+            name="defaults-vm",
+            os="windows",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="win11.iso",
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            provider.create_vm(vm)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("--network") + 1] == "network=default"
+        assert cmd[cmd.index("--graphics") + 1] == "spice"
+        assert "--machine" not in cmd
+        disk_arg = cmd[cmd.index("--disk") + 1]
+        assert "bus=" not in disk_arg
+
     def test_virtio_adds_cdrom(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         virtio = provider.virtio_dir / "virtio-win.iso"

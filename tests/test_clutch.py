@@ -961,3 +961,53 @@ class TestStoragePathRemoved:
         )
         raw = clutch.load_raw(path)
         assert "storage_path" not in raw
+
+
+# ── providers.libvirt (#635) ──────────────────────────────────────────────────
+
+
+class TestLibvirtProviderOverlay:
+    def test_accepts_first_cut_keys(self, tmp_path):
+        content = """\
+            name: lab
+            vms:
+              - name: vm1
+                os: windows
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                providers:
+                  libvirt:
+                    os_variant: win11
+                    network: default
+                    network_model: virtio
+                    disk_bus: virtio
+                    graphics: spice
+                    machine: q35
+        """
+        result = clutch.load(write_clutch(tmp_path, content))
+        bag = result.vms[0].providers.libvirt
+        assert bag is not None
+        assert bag.network == "default"
+        assert bag.network_model == "virtio"
+        assert bag.disk_bus == "virtio"
+        assert bag.graphics == "spice"
+        assert bag.machine == "q35"
+
+    def test_rejects_unknown_libvirt_key(self, tmp_path):
+        content = """\
+            name: lab
+            vms:
+              - name: vm1
+                os: windows
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                providers:
+                  libvirt:
+                    chipset: q35
+        """
+        with pytest.raises(Exception, match="chipset|extra"):
+            clutch.load(write_clutch(tmp_path, content))

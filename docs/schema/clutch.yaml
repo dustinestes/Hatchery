@@ -88,10 +88,15 @@ vms:
         mode: append
 
     # providers (optional): Nest-native overlays (#504). Only the active Nest bag is applied.
-    # Unknown keys in a bag fail validate. Stub fields until inventories land (#505–#507).
+    # Unknown keys in a bag fail validate. libvirt first-cut: #635; hyperv/utm: #506/#507.
     providers:
       libvirt:
-        os_variant: win11   # optional virt-install pin; default win11 for os: windows
+        os_variant: win11       # optional virt-install pin; default win11 for os: windows
+        network: default        # libvirt network name (default: default)
+        network_model: virtio   # optional NIC model
+        disk_bus: virtio        # optional guest disk bus (not catalog CDROM)
+        graphics: spice         # default spice when omitted
+        machine: q35            # optional --machine
 
     # automations (optional): ordered typed post-boot steps (#473 / ADR-0025).
     # Every entry requires type: script|software and name. Bare strings rejected.
