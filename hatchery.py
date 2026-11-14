@@ -760,7 +760,7 @@ def media_virtio():
         import_url=url_for("api_import_media_virtio"),
         import_accept=".iso",
         items=_scan_media_inventory("virtio"),
-        used_by=media_inspect_lib.media_used_by("virtio_drivers"),
+        used_by=media_inspect_lib.media_used_by("drivers"),
         empty_subdir="media/virtio/",
         item_kind="VirtIO file",
         library_media_target="virtio",
@@ -2764,7 +2764,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
     ram_list = form.getlist("vm_ram_gb[]")
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
-    virtio_list = form.getlist("vm_virtio_drivers[]")
+    drivers_list = form.getlist("vm_drivers[]")
     firmware_list = form.getlist("vm_firmware[]")
     tpm_list = form.getlist("vm_tpm[]")
     answer_file_list = form.getlist("vm_answer_file[]")
@@ -2788,7 +2788,7 @@ def _vm_dicts_from_form(form) -> list[dict]:
                 "ram_gb": ram_list[i] if i < len(ram_list) else "4",
                 "disk_gb": disk_list[i] if i < len(disk_list) else "60",
                 "os_media": os_medias[i] if i < len(os_medias) else "",
-                "virtio_drivers": virtio_list[i] if i < len(virtio_list) else "",
+                "drivers": drivers_list[i] if i < len(drivers_list) else "",
                 "firmware": firmware_list[i] if i < len(firmware_list) else "",
                 "tpm": tpm_raw in ("1", "true", "on", "yes"),
                 "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
@@ -2812,7 +2812,7 @@ def _vm_list_from_form(form):
     ram_list = form.getlist("vm_ram_gb[]")
     disk_list = form.getlist("vm_disk_gb[]")
     os_medias = form.getlist("vm_os_media[]")
-    virtio_list = form.getlist("vm_virtio_drivers[]")
+    drivers_list = form.getlist("vm_drivers[]")
     firmware_list = form.getlist("vm_firmware[]")
     tpm_list = form.getlist("vm_tpm[]")
     answer_file_list = form.getlist("vm_answer_file[]")
@@ -2843,11 +2843,15 @@ def _vm_list_from_form(form):
             firmware = firmware.strip() or None
         tpm_raw = tpm_list[i] if i < len(tpm_list) else ""
         tpm = tpm_raw in ("1", "true", "on", "yes") if tpm_raw != "" else None
+        drivers = (drivers_list[i] or None) if i < len(drivers_list) else None
+        if drivers is not None:
+            drivers = str(drivers).strip() or None
         # Non-Windows guests: strip Windows hatch fields even if the form posted them.
         if not answerfile_lib.needs_windows_hatch_fields(os_val):
             answer_file = None
             admin_username = None
             answer_file_parameters = {}
+            drivers = None
         elif not (admin_username or "").strip():
             label = name.strip() or f"VM {i + 1}"
             raise ValueError(
@@ -2864,7 +2868,7 @@ def _vm_list_from_form(form):
                 ram_gb=int(ram_list[i] or 1) if i < len(ram_list) else 1,
                 disk_gb=int(disk_list[i] or 20) if i < len(disk_list) else 20,
                 os_media=(os_medias[i] or "").strip() if i < len(os_medias) else "",
-                virtio_drivers=(virtio_list[i] or None) if i < len(virtio_list) else None,
+                drivers=drivers,
                 firmware=firmware,
                 tpm=tpm,
                 answer_file=answer_file,
@@ -3435,7 +3439,7 @@ def api_clutch_detail(filename):
                     "ram_gb": v.ram_gb,
                     "disk_gb": v.disk_gb,
                     "os_media": v.os_media,
-                    "virtio_drivers": v.virtio_drivers or "",
+                    "drivers": v.drivers or "",
                     "firmware": (
                         v.firmware.value
                         if v.firmware and hasattr(v.firmware, "value")

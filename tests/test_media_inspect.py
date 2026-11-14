@@ -50,7 +50,7 @@ class TestMediaUsedBy:
                         ram_gb=4,
                         disk_gb=40,
                         os_media="win11.iso",
-                        virtio_drivers="virtio-win.iso",
+                        drivers="virtio-win.iso",
                     )
                 ],
             ),
@@ -58,7 +58,7 @@ class TestMediaUsedBy:
         )
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
         assert media_inspect.media_used_by("os_media")["win11.iso"][0]["vm"] == "dc01"
-        assert media_inspect.media_used_by("virtio_drivers")["virtio-win.iso"][0]["vm"] == "dc01"
+        assert media_inspect.media_used_by("drivers")["virtio-win.iso"][0]["vm"] == "dc01"
 
 
 class TestProbeIso:

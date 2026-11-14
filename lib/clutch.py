@@ -222,7 +222,7 @@ class VMConfig(BaseModel):
     ram_gb: int
     disk_gb: int
     os_media: str
-    virtio_drivers: str | None = None
+    drivers: str | None = None
     firmware: Firmware | None = None
     tpm: bool | None = None
     answer_file: str | None = Field(
@@ -244,6 +244,11 @@ class VMConfig(BaseModel):
         if not isinstance(data, dict):
             return data
         out = dict(data)
+        if "virtio_drivers" in out:
+            raise ValueError(
+                "Clutch field virtio_drivers was renamed to drivers (#637); "
+                "update the YAML (no automatic migration)"
+            )
         os_raw = out.get("os")
         os_key = os_raw.value if isinstance(os_raw, Enum) else str(os_raw or "").strip()
         migrated = _LEGACY_OS_MIGRATE.get(os_key.lower() if os_key else "")

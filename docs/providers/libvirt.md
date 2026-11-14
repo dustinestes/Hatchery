@@ -82,7 +82,7 @@ Matrix hub: [Provider support matrix](README.md). Schema: `LibvirtProviderSettin
 | `tpm_model` | string | `tpm-crb` + 2.0 | overlay | create | — | never | wont | portable `tpm` is enough for v1 |
 | `rng` | bool/object | off | overlay | create | `/dev/urandom` backend | clutch-advanced | planned | optional entropy |
 | `watchdog` | bool/object | off | overlay | create | — | clutch-advanced | planned | low priority |
-| *(portable)* `drivers` | path/basename | unset | portable | create | Windows + libvirt | clutch form | planned | See [drivers.md](../drivers.md); not a `providers.libvirt` key |
+| *(portable)* `drivers` | path/basename | unset | portable | create | Windows + libvirt | clutch form | shipped | See [drivers.md](../drivers.md); [#637](https://github.com/dustinestes/Hatchery/issues/637); not a `providers.libvirt` key |
 
 <br>
 

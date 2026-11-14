@@ -196,6 +196,9 @@ hatchery.vmRows = (function () {
       if (!section || !osSelect) return;
       var show = osNeedsWindowsHatchFields(osSelect.value);
       section.hidden = !show;
+      var driversField = row.querySelector('.vm-drivers-field');
+      var driversSelect = row.querySelector('[name="vm_drivers[]"]');
+      if (driversField) driversField.hidden = !show;
       var answerSelect = row.querySelector('[name="vm_answer_file[]"]');
       var adminInput = row.querySelector('[name="vm_admin_username[]"]');
       var answerReqMark = row.querySelector('.vm-answer-file-required');
@@ -212,6 +215,7 @@ hatchery.vmRows = (function () {
         syncEnvAdvancedControls(row, true);
         return;
       }
+      if (driversSelect) driversSelect.value = '';
       if (answerSelect) {
         answerSelect.required = false;
         answerSelect.value = '';
@@ -1200,7 +1204,7 @@ hatchery.vmRows = (function () {
         set(row, '[name="vm_ram_gb[]"]', vmData.ram_gb);
         set(row, '[name="vm_disk_gb[]"]', vmData.disk_gb);
         set(row, '[name="vm_os_media[]"]', vmData.os_media);
-        set(row, '[name="vm_virtio_drivers[]"]', vmData.virtio_drivers || '');
+        set(row, '[name="vm_drivers[]"]', vmData.drivers || '');
         set(row, '[name="vm_firmware[]"]', vmData.firmware || 'uefi');
         set(
           row,

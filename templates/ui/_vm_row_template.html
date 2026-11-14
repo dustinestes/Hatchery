@@ -60,19 +60,20 @@
             {% endfor %}
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group vm-drivers-field">
           <div class="form-label-row">
-            <label class="form-label">VirtIO Drivers</label>
-            <button type="button" class="btn-refresh-label" data-refresh="virtio" title="Refresh media files">
+            <label class="form-label">Drivers</label>
+            <button type="button" class="btn-refresh-label" data-refresh="virtio" title="Refresh drivers media files">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           </div>
-          <select name="vm_virtio_drivers[]" class="form-select">
+          <select name="vm_drivers[]" class="form-select" aria-label="Drivers">
             <option value="">- none -</option>
             {% for f in virtio_files %}
               <option value="{{ f }}">{{ f }}</option>
             {% endfor %}
           </select>
+          <p class="form-hint">Optional install-time drivers / guest tools ISO (e.g. VirtIO on libvirt). Hidden for non-Windows guests.</p>
         </div>
       </div>
       {# Create policy + Admin/Answer File: Windows hatch guests (#453 / #501) #}

@@ -234,8 +234,8 @@ def collect_vm_artifacts(vm: VMConfig) -> list[CacheArtifact]:
     arts: list[CacheArtifact] = [
         _artifact_from_name("media/iso", vm.os_media, vm_name=vm.name),
     ]
-    if vm.virtio_drivers:
-        arts.append(_artifact_from_name("media/virtio", vm.virtio_drivers, vm_name=vm.name))
+    if vm.drivers:
+        arts.append(_artifact_from_name("media/virtio", vm.drivers, vm_name=vm.name))
     if vm.answer_file:
         arts.append(_artifact_from_name("automation/answerfiles", vm.answer_file, vm_name=vm.name))
     for entry in vm.automations:

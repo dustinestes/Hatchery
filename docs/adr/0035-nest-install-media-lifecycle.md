@@ -39,7 +39,7 @@ Hatch attaches OS install ISO, optional VirtIO CD, and silent answer media (libv
 7. **Destroy vs catalog ISOs ([#601](https://github.com/dustinestes/Hatchery/issues/601)):** Libvirt
    `undefine --remove-all-storage` deletes still-attached file-backed CDROM sources.
    Before undefine, eject media whose basenames match the hatch clutch snapshot
-   (`os_media` / `virtio_drivers`) plus Nest answer media. With no snapshot, eject
+   (`os_media` / `drivers`) plus Nest answer media. With no snapshot, eject
    sources under catalog `iso_dir` / `virtio_dir`. Keep `--remove-all-storage` for
    Nest disks and any other attached volumes. Hyper-V Destroy remains VHDX-only.
 

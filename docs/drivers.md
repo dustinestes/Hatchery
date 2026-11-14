@@ -130,7 +130,8 @@ Future optional rename to `media/drivers/` is a Media pane follow-on, not requir
 
 ## Implementation follow-ons
 
-- [#637](https://github.com/dustinestes/Hatchery/issues/637) - replace Clutch field with portable `drivers`; UI label/visibility; provider attach + fail-closed
+- [#637](https://github.com/dustinestes/Hatchery/issues/637) - replace Clutch field with portable `drivers`; UI label/visibility; provider attach + fail-closed (**impl**)
+- [#645](https://github.com/dustinestes/Hatchery/issues/645) - Windows Setup load VirtIO from attached drivers media (viostor)
 
 Also refresh [libvirt](providers/libvirt.md) examples as that lands (already aligned in planning).
 

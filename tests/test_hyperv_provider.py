@@ -365,10 +365,10 @@ class TestHatch:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            virtio_drivers="virtio.iso",
+            drivers="virtio.iso",
             answer_file="a.xml",
         )
-        with pytest.raises(ValueError, match="VirtIO"):
+        with pytest.raises(ValueError, match="omit drivers"):
             p.create_vm(vm)
 
     def test_send_key_raises(self, provider):

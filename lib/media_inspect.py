@@ -65,8 +65,8 @@ def scan_media_dir(subdir: str) -> list[dict]:
 
 
 def media_used_by(field: str) -> dict[str, list[dict]]:
-    """Map media basename → [{clutch, clutch_name, vm}, ...] for os_media or virtio_drivers."""
-    if field not in ("os_media", "virtio_drivers"):
+    """Map media basename → [{clutch, clutch_name, vm}, ...] for os_media or drivers."""
+    if field not in ("os_media", "drivers"):
         raise ValueError(f"unsupported media field: {field}")
     usage: dict[str, list[dict]] = {}
     clutches_dir = config.data_dir() / "clutches"

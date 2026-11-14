@@ -359,7 +359,7 @@ class TestCreateVM:
         disk_arg = cmd[cmd.index("--disk") + 1]
         assert "bus=" not in disk_arg
 
-    def test_virtio_adds_cdrom(self, tmp_path, provider):
+    def test_drivers_adds_cdrom(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
         virtio = provider.virtio_dir / "virtio-win.iso"
         iso.touch()
@@ -371,13 +371,31 @@ class TestCreateVM:
             ram_gb=4,
             disk_gb=40,
             os_media="win11.iso",
-            virtio_drivers="virtio-win.iso",
+            drivers="virtio-win.iso",
         )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             provider.create_vm(vm)
         cmd = mock_run.call_args[0][0]
         assert any("virtio-win.iso" in arg and "cdrom" in arg for arg in cmd)
+
+    def test_drivers_rejected_for_linux_on_libvirt(self, tmp_path, provider):
+        iso = provider.iso_dir / "ubuntu.iso"
+        virtio = provider.virtio_dir / "virtio-win.iso"
+        iso.touch()
+        virtio.touch()
+        vm = _vm(
+            name="linux-vm",
+            os="linux",
+            vcpus=2,
+            ram_gb=4,
+            disk_gb=40,
+            os_media="ubuntu.iso",
+            drivers="virtio-win.iso",
+            answer_file=None,
+        )
+        with pytest.raises(ValueError, match="drivers media is not supported"):
+            provider.create_vm(vm)
 
     def test_answer_file_creates_floppy(self, tmp_path, provider):
         iso = provider.iso_dir / "win11.iso"
@@ -1212,7 +1230,7 @@ class TestCreateCommandDescription:
             ram_gb=4,
             disk_gb=40,
             os_media="win10.iso",
-            virtio_drivers="virtio.iso",
+            drivers="virtio.iso",
         )
         desc = provider.create_command_description(vm)
         assert "virtio.iso" in desc

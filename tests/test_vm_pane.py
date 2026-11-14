@@ -264,7 +264,7 @@ def test_vm_ops_destroy_passes_clutch_protect_basenames():
         ram_gb=4,
         disk_gb=40,
         os_media="media/iso/Win11.iso",
-        virtio_drivers="/nest/media/virtio/virtio-win.iso",
+        drivers="/nest/media/virtio/virtio-win.iso",
     )
     with (
         patch("lib.vm_ops.get_provider", return_value=prov),
