@@ -99,7 +99,7 @@ Existing installs keep their Settings without manual edits.
 
 ## Settings UI
 
-- **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
+- **General** - edits `data_dir` (bootstrap), Hatch status poll (`bg_interval`), Validators (enable/interval/retention), and Library enable (DB). Under **Controller requirements**, a read-only **check inventory** lists each Controller-plane check with Active / Skipped / Optional status and a short reason (SSH follows Remote Nest registration; optional `pwsh` never alerts when missing) ([#271](https://github.com/dustinestes/Hatchery/issues/271)). Nest tool inventory stays on Nest capability. Changing the data directory re-opens `hatchery.db` under the new path. Header **Export** / **Import** back up and restore operational Settings as YAML (full replace; manual escape hatch - property-level / fleet tooling should use CLI/API later). Never changes `data_dir` on import.
 - **Security** / **Display** - write only to SQLite; bootstrap is unchanged. Security holds password visibility, remoting identity catalog management, and Nest SSH **alert tiers**. Nest rows bind catalog ids under **Nests → Connections** ([ADR-0031](adr/0031-sticky-submenu-and-nests-connections.md)).
 - **Nests** - Nest connection registry (`nests` table): add/edit/remove; SSH identity file + optional expiry; Test Nest connection. Export/import YAML does **not** include Nest rows.
 

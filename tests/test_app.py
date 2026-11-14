@@ -811,6 +811,17 @@ class TestSettingsRoute:
         assert "Controller requirements" in html
         assert "validators_run_retention" in html
 
+    def test_get_shows_controller_requirements_inventory(self, client):
+        html = client.get("/settings/general").data.decode()
+        assert "controller-req-inventory" in html
+        assert "Check inventory" in html
+        assert "<code>ssh</code>" in html
+        assert "<code>pwsh</code>" in html
+        # Free / Local-only registry: SSH check is skipped, not omitted.
+        assert "Skipped" in html
+        assert "No Remote Nests registered" in html
+        assert "Optional" in html
+
     def test_post_saves_validator_interval(self, client, tmp_path, monkeypatch):
         saved = {}
         monkeypatch.setattr(

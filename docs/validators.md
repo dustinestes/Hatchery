@@ -69,6 +69,8 @@ The **Dashboard Validators** tile rolls up enabled/off counts and latest-run sta
 
 **Settings → General → Validators**: enable, interval (min 10s), run-history retention (10–500 per validator, default 50). Legacy `bg_interval` still controls the Hatch status poller and seeds validator intervals once via `migrate_bg_interval()`.
 
+**Controller requirements inventory** ([#271](https://github.com/dustinestes/Hatchery/issues/271)): under that validator’s Settings block, Hatchery lists every Controller check (`ssh`, `pwsh`, …) with status and why. Skipped checks (for example `ssh` with no Remote Nests) stay visible so operators can see intent without per-tool toggles. Implementation: `lib.requirements.inventory_controller()`.
+
 <br>
 
 ## Notifications
@@ -81,7 +83,7 @@ The **Dashboard Validators** tile rolls up enabled/off counts and latest-run sta
 
 | Id | Status |
 |---|---|
-| `controller_requirements` | Active - Controller-plane tools (SSH client when Remotes exist; optional pwsh) |
+| `controller_requirements` | Active - Controller-plane tools (SSH client when Remotes exist; optional pwsh). Settings → General shows a **check inventory** (Active / Skipped / Optional + why) that reflects the live Nest registry ([#271](https://github.com/dustinestes/Hatchery/issues/271)); no per-tool toggles |
 | `clutch_files` | Active |
 | `nest_key_expiry` | Active - Nest-row and remoting-catalog SSH identity expiry tiers ([#522](https://github.com/dustinestes/Hatchery/issues/522)) |
 | `remoting_identities` | Active - catalog key file exists, permissions (`0600`), pubkey matches private key on disk, Nest/Clutch authorize bindings resolve ([ADR-0030](adr/0030-controller-remoting-identities.md) / [#522](https://github.com/dustinestes/Hatchery/issues/522) / [#537](https://github.com/dustinestes/Hatchery/issues/537)) |

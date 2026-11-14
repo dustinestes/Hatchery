@@ -154,18 +154,106 @@ def _requirement_from_spec(spec: NestToolSpec, *, present: bool, role: str = "ne
     )
 
 
-def has_remote_nests(nests: list[dict] | None = None) -> bool:
-    """True when at least one Remote Nest is registered."""
-    if nests is not None:
-        return any((n.get("location") or "local") == "remote" for n in nests)
+def _list_nests_or_empty() -> list[dict]:
     try:
         from lib import nests as nests_lib
 
-        rows = nests_lib.list_nests()
+        return list(nests_lib.list_nests())
     except RuntimeError:
         # DB not initialized (early import / isolated unit tests)
-        return False
-    return any((n.get("location") or "local") == "remote" for n in rows)
+        return []
+
+
+def remote_nest_count(nests: list[dict] | None = None) -> int:
+    """Count registered Remote Nest rows."""
+    rows = nests if nests is not None else _list_nests_or_empty()
+    return sum(1 for n in rows if (n.get("location") or "local") == "remote")
+
+
+def has_remote_nests(nests: list[dict] | None = None) -> bool:
+    """True when at least one Remote Nest is registered."""
+    return remote_nest_count(nests) > 0
+
+
+@dataclass(frozen=True)
+class ControllerInventoryRow:
+    """Observable Controller-plane check for Settings inventory (#271)."""
+
+    name: str
+    status: str
+    reason: str
+    present: bool
+    required_for: str
+    package: str = ""
+    install_hint: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "status": self.status,
+            "reason": self.reason,
+            "present": self.present,
+            "required_for": self.required_for,
+            "package": self.package,
+            "install_hint": self.install_hint,
+        }
+
+
+def inventory_controller(*, nests: list[dict] | None = None) -> list[ControllerInventoryRow]:
+    """What/if/why for every Controller check (always includes skipped SSH).
+
+    Unlike :func:`check_controller`, this does not omit inactive checks - Settings
+    shows the full inventory even when SSH is skipped (no Remote Nests / free HEAD).
+    """
+    rows: list[ControllerInventoryRow] = []
+    remote_count = remote_nest_count(nests)
+    ssh_pkg = package_for_current_os(
+        {"linux": "openssh-client", "macos": "openssh", "windows": "OpenSSH.Client"}
+    )
+    ssh_present = shutil.which("ssh") is not None
+    ssh_required_for = "Nest transport client for Remote Nests"
+    if remote_count:
+        noun = "Remote Nest" if remote_count == 1 else "Remote Nests"
+        presence = "present" if ssh_present else "missing"
+        rows.append(
+            ControllerInventoryRow(
+                name="ssh",
+                status=f"Active - {presence}",
+                reason=f"Required because {remote_count} {noun} registered",
+                present=ssh_present,
+                required_for=ssh_required_for,
+                package=ssh_pkg,
+                install_hint=install_hint(ssh_pkg) if not ssh_present else "",
+            )
+        )
+    else:
+        rows.append(
+            ControllerInventoryRow(
+                name="ssh",
+                status="Skipped",
+                reason="No Remote Nests registered",
+                present=ssh_present,
+                required_for=ssh_required_for,
+                package=ssh_pkg,
+                install_hint="",
+            )
+        )
+    for name, packages, required_for in _OPTIONAL_CONTROLLER_TOOLS:
+        pkg = package_for_current_os(packages)
+        present = shutil.which(name) is not None
+        presence = "present" if present else "missing"
+        rows.append(
+            ControllerInventoryRow(
+                name=name,
+                status=f"Optional - {presence}",
+                reason=required_for,
+                present=present,
+                required_for=required_for,
+                package=pkg,
+                install_hint=install_hint(pkg) if not present else "",
+            )
+        )
+    return rows
 
 
 def check_controller(*, nests: list[dict] | None = None) -> list[Requirement]:
