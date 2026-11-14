@@ -29,7 +29,7 @@ Reference documentation for Hatchery.
 | [`project-structure.md`](project-structure.md) | Root directory layout - every file and folder explained |
 | [`architecture-nests.md`](architecture-nests.md) | Controller plane vs Nest plane - cross-platform foundation (epic #202); Controller-only package-manager distribution north star (#273) |
 | [`validators.md`](validators.md) | Pluggable background validators - Settings, run history, Alerts vs runs |
-| [`providers/`](providers/) | Provider matrix + Nest overlay inventories (libvirt, UTM, Hyper-V; local/remote) |
+| [`providers/`](providers/) | Provider matrix + per-provider docs (libvirt, UTM, Hyper-V; local/remote) |
 | [`settings.md`](settings.md) | Bootstrap file vs SQLite Settings storage |
 | [`library.md`](library.md) | Library connections, bindings, operator/Nest caches, hatch preflight |
 | [`cli/`](cli/) | Controller CLI (`hatchery serve` and planned operator commands) - [index](cli/README.md) |
@@ -44,6 +44,7 @@ Reference documentation for Hatchery.
 | [`script-parameters.md`](script-parameters.md) | Typed Clutch script parameters - kinds, constraints, gates, invoke encoding |
 | [`software.md`](software.md) | Software - post-boot guest packages (Automations sibling of Scripts / Answer Files) |
 | [`answer-files.md`](answer-files.md) | Answer Files - install-time templates, tokens, per-OS usage (distinct from Scripts) |
+| [`drivers.md`](drivers.md) | Drivers - portable install-time drivers/guest-tools media field (Nest × OS; not a provider) |
 | [`orchestration.md`](orchestration.md) | Hatching lifecycle - VM creation, OS install, setup-complete handoff, automation, and retry |
 | [`customization.md`](customization.md) | Provisioning scripts, clutch profiles, and configuration options |
 | [`database.md`](database.md) | Database design - what lives in SQLite, what doesn't, and why |

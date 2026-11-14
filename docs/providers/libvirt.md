@@ -3,10 +3,10 @@
   <source media="(prefers-color-scheme: dark)" srcset="../../.hatchery/branding/icons/hatchery-icon-dark.svg">
   <img align="right" src="../../.hatchery/branding/icons/hatchery-icon-light.svg" height="30" alt="Hatchery">
 </picture>
-<h1>providers.libvirt settings inventory</h1>
+<h1>libvirt</h1>
 <br clear="both">
 
-Planning inventory for Clutch YAML under `providers.libvirt` ([#505](https://github.com/dustinestes/Hatchery/issues/505); epic [#504](https://github.com/dustinestes/Hatchery/issues/504)).
+Libvirt Nest provider notes and Clutch YAML inventory under `providers.libvirt` ([#505](https://github.com/dustinestes/Hatchery/issues/505); epic [#504](https://github.com/dustinestes/Hatchery/issues/504)).
 
 **Rules (locked in #504):** portable guest intent stays top-level (`os`, `firmware`, `tpm`, resources, Answer File, env). Libvirt-native knobs live only under `providers.libvirt`. Unknown keys under that bag fail validate. Hatch on a libvirt Nest applies portable intent + this overlay only.
 
@@ -56,7 +56,7 @@ Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtPro
 | `firmware: bios` / omit | no `--boot uefi` | portable only |
 | `tpm: true` | `--tpm emulator,model=tpm-crb,version=2.0` | TPM model/version overlay is **wont** for v1 (portable on/off only) |
 | `vcpus` / `ram_gb` / `disk_gb` | `--vcpus` / `--memory` MiB / disk `size=` | no libvirt overlay aliases |
-| `virtio_drivers` | extra `--disk …,device=cdrom` when set | top-level today; reshape under [#508](https://github.com/dustinestes/Hatchery/issues/508) |
+| `drivers` (portable) | extra `--disk …,device=cdrom` when set | reshape locked in [drivers.md](../drivers.md) ([#508](https://github.com/dustinestes/Hatchery/issues/508)) |
 | `answer_file` | floppy attach when Windows | Nest attach capability, not overlay |
 
 <br>
@@ -82,7 +82,7 @@ Matrix hub: [Provider support matrix](README.md). Schema stub today: `LibvirtPro
 | `tpm_model` | string | `tpm-crb` + 2.0 | overlay | create | — | never | wont | portable `tpm` is enough for v1 |
 | `rng` | bool/object | off | overlay | create | `/dev/urandom` backend | clutch-advanced | planned | optional entropy |
 | `watchdog` | bool/object | off | overlay | create | — | clutch-advanced | planned | low priority |
-| `virtio_iso` | path/basename | unset | overlay | create | — | clutch-advanced | deferred | wait for Drivers reshape [#508](https://github.com/dustinestes/Hatchery/issues/508); today use top-level `virtio_drivers` |
+| *(portable)* `drivers` | path/basename | unset | portable | create | Windows + libvirt | clutch form | planned | See [drivers.md](../drivers.md); not a `providers.libvirt` key |
 
 <br>
 
@@ -115,7 +115,7 @@ vms:
     ram_gb: 8
     disk_gb: 80
     os_media: Win11_English_x64.iso
-    virtio_drivers: virtio-win.iso   # pending #508 reshape
+    drivers: virtio-win.iso          # portable; see docs/drivers.md
     answer_file: windows/autounattend.xml
     providers:
       libvirt:
@@ -148,7 +148,7 @@ vms:
 - Silent ignore of unknown `providers.libvirt` keys (must fail validate)
 - Applying `providers.hyperv` / `providers.utm` when hatching on libvirt
 - Exposing every virt-install flag (channel, smartcard, redirection, balloon tuning, hugepages, NUMA, …)
-- Duplicate portable fields under the overlay (`firmware` / `tpm` / `vcpus` aliases)
+- Duplicate portable fields under the overlay (`firmware` / `tpm` / `vcpus` / `drivers` aliases)
 - Post-create live domain XML edit as the primary settings path (v1 is create-time)
 - Storing Nest absolute UEFI paths in Clutches meant to be Nest-portable without Nest defaults
 
@@ -162,7 +162,7 @@ vms:
 | `nest-default` | Future Nest-plane default (Nest detail / provider defaults) - **not designed yet** |
 | `never` | Hard-coded, docs-only, or wont-support |
 
-Drivers / VirtIO field visibility by Nest × guest OS is [#508](https://github.com/dustinestes/Hatchery/issues/508) → `docs/providers/drivers.md` when that planning lands.
+Drivers / VirtIO field visibility by Nest × guest OS: [drivers.md](../drivers.md) ([#508](https://github.com/dustinestes/Hatchery/issues/508)).
 
 <br>
 
@@ -172,7 +172,7 @@ Wave 1 impl child:
 
 - [#635](https://github.com/dustinestes/Hatchery/issues/635) - expand `LibvirtProviderSettings` + create wiring for first-cut planned keys (`network`, `network_model`, `disk_bus`, `graphics`, `machine`; unknown-key forbid stays)
 
-Also: docs/schema examples in `docs/schema/clutch.yaml` + matrix cross-links as part of that work. Do **not** block on Nest-default UI or Settings panes. Drivers reshape stays [#508](https://github.com/dustinestes/Hatchery/issues/508).
+Also: docs/schema examples in `docs/schema/clutch.yaml` + matrix cross-links as part of that work. Do **not** block on Nest-default UI or Settings panes. Drivers portable key: [drivers.md](../drivers.md) / [#508](https://github.com/dustinestes/Hatchery/issues/508).
 
 <br>
 
