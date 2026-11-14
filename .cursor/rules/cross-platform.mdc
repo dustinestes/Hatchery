@@ -59,7 +59,7 @@ PR **ship gates** are lint + portable pytest on **ubuntu-latest** and **macos-la
 ✅ Does this work on Linux, macOS, and Windows Controllers?
 ✅ Does this assume a Local Nest only, or also Remote Nest / Controller-only?
 ✅ Are OS-specific paths (apt, xdg-open, systemd, .desktop) behind a portable helper?
-✅ Did you update `docs/providers.md` if Nest/provider capability changed?
+✅ Did you update `docs/providers/` if Nest/provider capability changed?
 ✅ Does this go through Nest id → factory (#206/#207), not hard-wired libvirt?
 ✅ Would this still work if Hatchery were installed via package manager (no git checkout)? (#273)
 ✅ Does the Controller still start with zero Nests registered?

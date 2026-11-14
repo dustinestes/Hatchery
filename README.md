@@ -142,7 +142,7 @@ One Local Nest machine may expose every Local provider that works there (not “
 
 <br>
 
-> Living Nest × feature matrix (lifecycle, install, control plane) → [Provider support matrix](docs/providers.md)
+> Living Nest × feature matrix (lifecycle, install, control plane) → [Provider support matrix](docs/providers/)
 
 ---
 

@@ -83,7 +83,7 @@ Missing Answer File, missing companions, missing mandatory parameters, or a Nest
 does not support Answer File attach (`supports_answer_file_attach`) fail before
 `virt-install`, with a clear UI/CLI error. See [Answer Files](answer-files.md) and
 [ADR-0024](adr/0024-answer-files-product-model.md). Libvirt local floppy is the working
-backend today; Hyper-V / UTM attach remain Planned ([providers.md](providers.md)).
+backend today; Hyper-V / UTM attach remain Planned ([providers/](providers/)).
 
 Guest disk and answer media live under `{nest_storage}/{vm_id}/` (pre-minted UUID; not system temp and not `nest_cache`) so they survive the Windows install window ([ADR-0036](adr/0036-pre-mint-vm-uuid-nest-storage.md), [ADR-0035](adr/0035-nest-install-media-lifecycle.md)). After `hatchery-ready`, Nest-plane **install media cleanup** detaches the OS ISO, VirtIO CD (when attached), and answer media, then deletes the answer file and removes the VM dir if empty. **Destroy** (`destroy_vm`) always removes guest disks and Nest VM dir leftovers (including legacy `nest-work` answer paths when found) - shared catalog ISOs stay ([ADR-0047](adr/0047-destroy-removes-nest-vm-storage.md) / [#120](https://github.com/dustinestes/Hatchery/issues/120)).
 

@@ -4,7 +4,7 @@
 - **Date:** 2026-11-14
 - **Issues:** [#629](https://github.com/dustinestes/Hatchery/issues/629), [#628](https://github.com/dustinestes/Hatchery/issues/628), epic [#202](https://github.com/dustinestes/Hatchery/issues/202)
 - **Related:** [ADR-0003](0003-nest-registry-provider-factory.md), [ADR-0042](0042-open-core-public-and-enterprise-tier.md), [ADR-0044](0044-free-head-local-nest-only.md)
-- **How-to:** [architecture-nests.md](../architecture-nests.md), [providers.md](../providers.md), [north-star.md](../north-star.md)
+- **How-to:** [architecture-nests.md](../architecture-nests.md), [providers/](../providers/), [north-star.md](../north-star.md)
 
 ## Context
 

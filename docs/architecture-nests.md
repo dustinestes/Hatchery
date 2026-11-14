@@ -88,7 +88,7 @@ The Nest registry may be empty (Controller-only). Local Nest id `local` is optio
 | Shared Flask/UI/DB/Library/orchestration | Three independent products that diverge forever |
 | Each Nest type implements `BaseProvider` | Scatter `sys.platform` checks as the compatibility story |
 | Select Nest via **registry** + **provider factory** | Hard-wire `LibvirtProvider` in app routes |
-| Declare capabilities in the [provider matrix](providers.md) | Assume every Nest supports every action |
+| Declare capabilities in the [provider matrix](providers/) | Assume every Nest supports every action |
 
 Libvirt-specific rules (e.g. world-readable media for `libvirt-qemu`) belong **in the libvirt Nest adapter**, not in Controller-plane code paths used for every Nest.
 
@@ -181,7 +181,7 @@ Before building more Nest-specific tooling on top of hard-wired libvirt:
 
 | Doc / issue | Role |
 |---|---|
-| [Provider matrix](providers.md) | Feature × Nest capability contract |
+| [Provider matrix](providers/) | Feature × Nest capability contract |
 | [Nest transport](nest-transport.md) | Control plane to Nest host |
 | [Guest transport](guest-transport.md) | Controller remoting to guest VM (SSH / WinRM) |
 | [Library / Nest cache](library.md) | Content planes; local vs remote ensure |

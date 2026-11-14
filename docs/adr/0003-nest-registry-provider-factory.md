@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Issues:** [#206](https://github.com/dustinestes/Hatchery/issues/206), [#207](https://github.com/dustinestes/Hatchery/issues/207) (epic [#202](https://github.com/dustinestes/Hatchery/issues/202))
-- **How-to:** [architecture-nests.md](../architecture-nests.md), [providers.md](../providers.md)
+- **How-to:** [architecture-nests.md](../architecture-nests.md), [providers/](../providers/)
 
 ## Context
 
@@ -29,7 +29,7 @@ Local Nest optional / empty registry on fresh install is complementary ([#266](h
 **Good**
 
 - One product shell; Nest providers are first-class optional modules
-- Capability gaps live in the [provider matrix](../providers.md), not silent assumptions
+- Capability gaps live in the [provider matrix](../providers/), not silent assumptions
 - Remote Nest work can share transport helpers without rewriting Controller UI
 
 **Neutral / follow-on**

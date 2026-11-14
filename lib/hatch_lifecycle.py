@@ -1087,7 +1087,7 @@ def answer_file_attach_errors(provider: BaseProvider, vms) -> list[str]:
     return [
         "This Nest does not support Answer File attach. "
         "Windows Autounattend attach works on libvirt local today; "
-        "Hyper-V and UTM are Planned (see docs/providers.md)."
+        "Hyper-V and UTM are Planned (see docs/providers/)."
     ]
 
 

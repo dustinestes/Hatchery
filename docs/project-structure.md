@@ -107,7 +107,7 @@ Hypervisor abstraction layer. All VM operations go through the interface defined
 | `libvirt.py` | KVM/QEMU via `virt-install` and `virsh` subprocess calls |
 | `hyperv.py` | Hyper-V via Nest transport + PowerShell (SSH default #218; WinRM Nest #220) |
 
-Feature support vs Nest type (local/remote): [Provider and feature support matrix](providers.md).
+Feature support vs Nest type (local/remote): [Provider and feature support matrix](providers/).
 
 ### `lib/nest_transport.py`
 

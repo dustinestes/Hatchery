@@ -78,5 +78,5 @@ Exact frontmatter keys are finalized in the declared-params implementation issue
 
 - Operator how-to: [`docs/answer-files.md`](../answer-files.md)
 - Scripts (post-boot): [`docs/automations.md`](../automations.md)
-- Provider matrix: [`docs/providers.md`](../providers.md)
+- Provider matrix: [`docs/providers/`](../providers/)
 - Orchestration: [`docs/orchestration.md`](../orchestration.md)
