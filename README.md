@@ -113,18 +113,36 @@ One Hatchery instance on your workstation drives a local Nest and any number of 
 
 ## What It Supports
 
-| Guest OS | Provider | Status |
+**Controller** runs on Linux, macOS, and Windows. A **Nest** is the hardware that holds guests; **providers** (libvirt, Hyper-V, Tart, UTM) are adapters on that Nest ([ADR-0046](docs/adr/0046-nest-is-hardware-multi-provider.md)). Free edition is **Local Nest** only; Remote Nest is Enterprise.
+
+### Controller × Local Nest provider
+
+| Controller OS | Local Nest providers | Free status |
 |---|---|---|
-| Windows 10 | KVM/QEMU | v1 |
-| Windows 11 | KVM/QEMU | v1 - requires UEFI + TPM |
-| Windows Server 2022 | KVM/QEMU | v1 |
-| Windows Server 2025 | KVM/QEMU | v1 - requires UEFI + TPM |
-| Linux guests | KVM/QEMU | Planned |
-| Windows (Hyper-V) | Local Nest; Remote Nest via Enterprise Nest Agent | Local planned; Remote = Enterprise |
+| Linux | libvirt (KVM/QEMU) | **Works** (reference path) |
+| Windows | Hyper-V | **Works** for hatch / lifecycle; guest WinRM provision still filling in |
+| macOS | Tart, UTM | **Planned** ([#627](https://github.com/dustinestes/Hatchery/issues/627), [#210](https://github.com/dustinestes/Hatchery/issues/210)) |
+
+One Local Nest machine may expose every Local provider that works there (not “one hypervisor seat”).
+
+### Guest family × Local provider
+
+| Guest family | libvirt local | Hyper-V local | Tart local | UTM local |
+|---|---|---|---|---|
+| Windows 10 / 11 / Server 2022 / 2025 | **Works** (UEFI + TPM where required) | **Works** hatch; provision **Planned** | **Planned** | **Planned** |
+| Linux | **Planned** | **Planned** | N/A | **Planned** |
+| macOS | N/A | N/A | **Planned** | **Planned** |
+
+### Known quirk cells (document as they land)
+
+| Quirk | Provider | Tracking |
+|---|---|---|
+| Win11 black-screen hang after install reboot | libvirt local | [#141](https://github.com/dustinestes/Hatchery/issues/141) |
+| Boot-from-CD key timing after Nest package upgrades | libvirt local | [#171](https://github.com/dustinestes/Hatchery/issues/171) |
 
 <br>
 
-> Full Nest × feature matrix (libvirt / UTM / Hyper-V, local and remote) → [Provider support matrix](docs/providers.md)
+> Living Nest × feature matrix (lifecycle, install, control plane) → [Provider support matrix](docs/providers.md)
 
 ---
 
@@ -142,19 +160,19 @@ Guest remoting (SSH/WinRM to known guest VMs) remains free - [guest transport](d
 
 ## What It Requires
 
-| Requirement | Notes |
-|---|---|
-| Ubuntu host | KVM-capable hardware |
-| `qemu-kvm`, `libvirt`, `virtinst` | VM control stack |
-| `swtpm`, `swtpm-tools` | TPM emulation (Win11 / Server 2025) |
-| Python ≥3.11 | Runtime |
-| Windows ISO(s) | Your own eval or licensed copies |
-| VirtIO driver ISO | Optional - higher performance disk/network |
+| Layer | Requirement | Notes |
+|---|---|---|
+| **Controller** | Python ≥3.11 on Linux, macOS, or Windows | UI / CLI; no Nest hypervisor packages required to start empty |
+| **Local Nest** | Provider tools on this machine | Only when this Controller also hatches guests; see matrix above |
+| **Media** | Guest ISO(s); optional VirtIO ISO | Your own eval or licensed copies |
+
+Linux Local Nest (libvirt) example:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
     libguestfs-tools swtpm swtpm-tools python3
 ```
+`swtpm` / `swtpm-tools` are needed on the Nest for Win11 / Server 2025 UEFI + TPM. Full Controller vs Nest inventory: [#271](https://github.com/dustinestes/Hatchery/issues/271) and [Contributing](CONTRIBUTING.md).
 
 ---
 
