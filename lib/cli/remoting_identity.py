@@ -163,10 +163,16 @@ def _rotate(*, as_json: bool) -> int:
         bootstrap.print_err(str(exc))
         return 1
     payload = ri.to_dict(ident)
+    backup = ri.hatchery_rotate_backup_path()
+    if backup is not None:
+        payload["backup_path"] = str(backup)
     if as_json:
         cli_out.emit_json(payload)
         return 0
     print(f"Rotated Hatchery-managed identity: {payload['resolved_path']}")
+    if backup is not None:
+        print(f"Previous keypair backed up at: {backup}")
+        print("Re-authorize guests (and Nest Agents when used) that still trust the old pubkey.")
     return 0
 
 

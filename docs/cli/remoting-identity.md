@@ -34,8 +34,8 @@ uv run hatchery --json remoting-identity list
 | Command | Mutates | Notes |
 |---|---|---|
 | `list` / `show` / `check` | No | Inspect requires an existing data dir |
-| `generate` | Yes | Creates Hatchery-managed ed25519 under `data_dir/remoting/` if missing |
-| `rotate` | Yes | Replaces Hatchery-managed keypair |
+| `generate` | Yes | Creates Hatchery-managed ed25519 under `data_dir/remoting/` if missing; **never** replaces an existing private key (#599) |
+| `rotate` | Yes | Explicitly replaces Hatchery-managed keypair; previous pair copied under `data_dir/remoting/archive/` |
 | `add-path` | Yes | Registers an existing Controller private key path |
 | `remove` | Yes | Path ids remove freely; Hatchery-managed requires `--delete-files` |
 

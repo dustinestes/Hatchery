@@ -106,6 +106,35 @@ class TestHatcheryManaged:
         assert second.pubkey
         assert second.pubkey != first.pubkey
 
+    def test_ensure_preserves_key_when_catalog_missing(self, isolated_config):
+        """Existing private key must not be unlinked if catalog row is gone (#599)."""
+        first = ri.ensure_hatchery_identity()
+        priv = isolated_config / "remoting" / "hatchery_ed25519"
+        pub_before = (isolated_config / "remoting" / "hatchery_ed25519.pub").read_text()
+        conn = db_module.get_connection()
+        try:
+            conn.execute("DELETE FROM remoting_identities WHERE id = ?", ("hatchery",))
+            conn.commit()
+        finally:
+            conn.close()
+        assert ri.get_identity("hatchery") is None
+        again = ri.ensure_hatchery_identity()
+        assert again.pubkey == first.pubkey
+        assert (isolated_config / "remoting" / "hatchery_ed25519.pub").read_text() == pub_before
+        assert priv.read_bytes()  # still present
+
+    def test_rotate_backs_up_previous_keypair(self, isolated_config):
+        first = ri.ensure_hatchery_identity()
+        old_pub = first.pubkey
+        second = ri.rotate_hatchery_identity()
+        assert second.pubkey != old_pub
+        backup = ri.hatchery_rotate_backup_path()
+        assert backup is not None
+        assert backup.is_file()
+        backup_pub = Path(str(backup) + ".pub")
+        assert backup_pub.is_file()
+        assert old_pub and old_pub.split()[1] in backup_pub.read_text()
+
     def test_resolve_and_private_path(self, isolated_config):
         ri.ensure_hatchery_identity()
         path = ri.identity_private_path("hatchery")

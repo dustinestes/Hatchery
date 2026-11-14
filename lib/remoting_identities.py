@@ -257,6 +257,28 @@ def _upsert(
     return ident
 
 
+_last_hatchery_rotate_backup: Path | None = None
+
+
+def hatchery_rotate_backup_path() -> Path | None:
+    """Private-key path archived by the most recent successful ``rotate`` (this process)."""
+    return _last_hatchery_rotate_backup
+
+
+def _backup_hatchery_keypair(priv: Path) -> Path:
+    """Copy existing Hatchery keypair under ``remoting/archive/`` before rotate."""
+    archive = remoting_dir() / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    backup_priv = archive / f"hatchery_ed25519.{stamp}"
+    shutil.copy2(priv, backup_priv)
+    os.chmod(backup_priv, stat.S_IRUSR | stat.S_IWUSR)
+    pub = Path(str(priv) + ".pub")
+    if pub.is_file():
+        shutil.copy2(pub, Path(str(backup_priv) + ".pub"))
+    return backup_priv
+
+
 def _run_ssh_keygen(priv: Path, *, comment: str) -> None:
     ssh_keygen = shutil.which("ssh-keygen")
     if ssh_keygen is None:
@@ -290,20 +312,46 @@ def _run_ssh_keygen(priv: Path, *, comment: str) -> None:
     os.chmod(priv, stat.S_IRUSR | stat.S_IWUSR)
 
 
-def ensure_hatchery_identity(*, rotate: bool = False) -> RemotingIdentity:
-    """Create or refresh the Hatchery-managed remoting key under ``data_dir/remoting``."""
+def _upsert_hatchery_from_private(priv: Path) -> RemotingIdentity:
+    """Sync catalog to on-disk Hatchery key material (never mint)."""
     rel = "remoting/hatchery_ed25519"
-    priv = remoting_dir() / "hatchery_ed25519"
-    existing = get_identity(HATCHERY_IDENTITY_ID)
-    if existing and priv.is_file() and not rotate:
-        derived = _derive_pubkey_from_private(priv)
-        if derived:
-            return _sync_catalog_pubkey(existing, derived)
-        if existing.pubkey:
-            return existing
+    derived = _derive_pubkey_from_private(priv)
+    if not derived:
         raise RemotingIdentityError(
             f"Hatchery remoting private key exists but pubkey cannot be derived: {priv}"
         )
+    existing = get_identity(HATCHERY_IDENTITY_ID)
+    if existing:
+        return _sync_catalog_pubkey(existing, derived)
+    return _upsert(
+        identity_id=HATCHERY_IDENTITY_ID,
+        name="Hatchery",
+        kind="hatchery",
+        identity_file=rel,
+        pubkey=derived.strip(),
+        cert_path=None,
+        identity_expires_at=None,
+    )
+
+
+def ensure_hatchery_identity(*, rotate: bool = False) -> RemotingIdentity:
+    """Create or explicitly rotate the Hatchery-managed remoting key under ``data_dir/remoting``.
+
+    If the private key file already exists and ``rotate`` is false, never unlink or
+    re-mint - only repair/sync the catalog (#599). Minting requires missing files
+    (first generate) or ``rotate=True``.
+    """
+    global _last_hatchery_rotate_backup
+    rel = "remoting/hatchery_ed25519"
+    priv = remoting_dir() / "hatchery_ed25519"
+
+    if priv.is_file() and not rotate:
+        return _upsert_hatchery_from_private(priv)
+
+    if rotate and priv.is_file():
+        _last_hatchery_rotate_backup = _backup_hatchery_keypair(priv)
+    else:
+        _last_hatchery_rotate_backup = None
 
     _run_ssh_keygen(priv, comment="hatchery-remoting")
     pubkey = _read_pubkey_file(priv)
