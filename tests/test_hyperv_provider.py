@@ -132,6 +132,41 @@ class TestPower:
         assert "Remove-VM -Name 'old' -Force" in joined
         assert "Remove-Item" in joined
 
+    def test_destroy_removes_nest_storage_uuid_dir(self, tmp_path, scripts, monkeypatch):
+        """Destroy clears nest_storage/{vm_id}/ leftovers (ADR-0047 / #120)."""
+        from lib.providers.base import answer_media_path, vm_disk_path, vm_nest_dir
+
+        nest_storage = tmp_path / "nest-storage"
+        nest_cache = tmp_path / "cache"
+        nest_cache.mkdir()
+        vm_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        vm_dir = vm_nest_dir(nest_storage, vm_id)
+        vm_dir.mkdir(parents=True)
+        disk = vm_disk_path(vm_dir, ".vhdx")
+        answer = answer_media_path(vm_dir, ".iso")
+        disk.write_bytes(b"disk")
+        answer.write_bytes(b"af")
+
+        def runner(script: str) -> str:
+            scripts.append(script)
+            return _json_line({"ok": True})
+
+        p = HyperVProvider(
+            "hv1",
+            runner=runner,
+            nest_storage=nest_storage,
+            nest_cache=nest_cache,
+        )
+        monkeypatch.setattr(p, "get_vm_uuid", lambda name: vm_id)
+        monkeypatch.setattr(p, "_query_default_vhd_path", lambda: None)
+        p.destroy_vm("old")
+        assert not disk.exists()
+        assert not answer.exists()
+        assert not vm_dir.exists()
+        joined = "\n".join(scripts)
+        assert "Remove-VM -Name 'old' -Force" in joined
+        assert "Remove-Item" in joined
+
 
 class TestSnapshots:
     def test_create_list_revert_delete(self, scripts):

@@ -91,6 +91,7 @@ Number files: `NNNN-short-slug.md` (zero-padded). Do not renumber after merge.
 | [0044](0044-free-head-local-nest-only.md) | Free HEAD is Local Nest only (no Nest SSH product) | Accepted |
 | [0045](0045-guest-remoting-known-endpoint-bind.md) | Guest remoting known-endpoint bind (UUID ↔ Nest IP) | Accepted |
 | [0046](0046-nest-is-hardware-multi-provider.md) | Nest is hardware; many Local providers on one Nest | Accepted |
+| [0047](0047-destroy-removes-nest-vm-storage.md) | Destroy removes Nest VM storage | Accepted |
 
 <br>
 

@@ -181,7 +181,11 @@ class BaseProvider(ABC):
         *,
         protect_media_basenames: frozenset[str] | None = None,
     ) -> None:
-        """Destroy a VM: undefine it and remove its allocated storage.
+        """Destroy a VM and remove Nest VM storage (ADR-0047 / #120).
+
+        Must remove guest-allocated disks and best-effort clear
+        ``{nest_storage}/{vm_id}/`` leftovers (answer media, empty dir). Must
+        not delete shared Nest catalog media (OS/VirtIO ISOs).
 
         ``protect_media_basenames`` is clutch-snapshot OS/VirtIO basenames to
         eject before libvirt ``--remove-all-storage`` (#601). ``None`` means
