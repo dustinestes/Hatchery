@@ -137,11 +137,16 @@ class EnvironmentEntry(BaseModel):
 
 
 class LibvirtProviderSettings(BaseModel):
-    """Stub for ``providers.libvirt`` (#504 / #505). Unknown keys rejected."""
+    """``providers.libvirt`` overlay (#504 / #505 / #635). Unknown keys rejected."""
 
     model_config = ConfigDict(extra="forbid")
 
     os_variant: str | None = None
+    network: str | None = None
+    network_model: str | None = None
+    disk_bus: str | None = None
+    graphics: str | None = None
+    machine: str | None = None
 
 
 class HyperVProviderSettings(BaseModel):
