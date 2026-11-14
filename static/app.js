@@ -1233,6 +1233,7 @@ hatchery.vmRows = (function () {
         syncWindowsHatchFields(row);
         initAnswerFileParams(row, vmData.answer_file_parameters || null);
         initEnvironment(row, vmData.environment || null);
+        initLibvirtOverlay(row, vmData.providers && vmData.providers.libvirt);
         if (opts.expanded) expandVmRow(row);
       } else {
         body.hidden = false;
@@ -1240,6 +1241,7 @@ hatchery.vmRows = (function () {
         syncWindowsHatchFields(row);
         initAnswerFileParams(row, null);
         initEnvironment(row, null);
+        initLibvirtOverlay(row, null);
       }
 
       container.appendChild(clone);
@@ -1248,6 +1250,39 @@ hatchery.vmRows = (function () {
     function set(row, selector, value) {
       var el = row.querySelector(selector);
       if (el && value !== undefined && value !== null) el.value = value;
+    }
+
+    var LIBVIRT_OVERLAY_KEYS = [
+      'os_variant',
+      'network',
+      'network_model',
+      'disk_bus',
+      'graphics',
+      'machine',
+    ];
+
+    function initLibvirtOverlay(row, libvirtBag) {
+      var toggle = row.querySelector('.vm-libvirt-overlay-toggle');
+      var body = row.querySelector('.vm-libvirt-overlay-body');
+      if (!toggle || !body) return;
+      var bag = libvirtBag && typeof libvirtBag === 'object' ? libvirtBag : {};
+      var hasValues = false;
+      LIBVIRT_OVERLAY_KEYS.forEach(function (key) {
+        var val = bag[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          set(row, '[name="vm_libvirt_' + key + '[]"]', String(val));
+          hasValues = true;
+        }
+      });
+      if (hasValues) {
+        toggle.setAttribute('aria-expanded', 'true');
+        body.hidden = false;
+      }
+      toggle.addEventListener('click', function () {
+        var open = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+        body.hidden = open;
+      });
     }
 
     function clearRows() {

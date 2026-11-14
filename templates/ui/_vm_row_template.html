@@ -120,6 +120,44 @@
           </div>
         </div>
       </div>
+      <div class="form-group vm-libvirt-overlay-section">
+        <button type="button" class="vm-libvirt-overlay-toggle" aria-expanded="false">
+          <svg class="vm-libvirt-overlay-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="vm-libvirt-overlay-title">libvirt Nest settings</span>
+        </button>
+        <div class="vm-libvirt-overlay-body" role="group" aria-label="libvirt Nest provider settings" hidden>
+          <p class="form-hint">Optional <code>providers.libvirt</code> overlay for libvirt Nests. Leave blank for Nest/virt-install defaults.</p>
+          <div class="form-grid form-grid-3">
+            <div class="form-group">
+              <label class="form-label">os_variant</label>
+              <input type="text" name="vm_libvirt_os_variant[]" class="form-input" placeholder="e.g. win11" autocomplete="off" aria-label="libvirt os_variant">
+              <p class="form-hint">virt-install --os-variant; Windows default win11 when omitted.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">network</label>
+              <input type="text" name="vm_libvirt_network[]" class="form-input" placeholder="default" autocomplete="off" aria-label="libvirt network">
+              <p class="form-hint">Libvirt network name (default: default).</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">network_model</label>
+              <input type="text" name="vm_libvirt_network_model[]" class="form-input" placeholder="e.g. virtio or e1000e" autocomplete="off" aria-label="libvirt network_model">
+            </div>
+            <div class="form-group">
+              <label class="form-label">disk_bus</label>
+              <input type="text" name="vm_libvirt_disk_bus[]" class="form-input" placeholder="e.g. virtio or sata" autocomplete="off" aria-label="libvirt disk_bus">
+            </div>
+            <div class="form-group">
+              <label class="form-label">graphics</label>
+              <input type="text" name="vm_libvirt_graphics[]" class="form-input" placeholder="spice" autocomplete="off" aria-label="libvirt graphics">
+              <p class="form-hint">Default spice when omitted.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">machine</label>
+              <input type="text" name="vm_libvirt_machine[]" class="form-input" placeholder="e.g. q35" autocomplete="off" aria-label="libvirt machine">
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="form-group vm-environment-section">
         <div class="form-label-row">
           <label class="form-label">Guest Environment Variables</label>

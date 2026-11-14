@@ -2756,6 +2756,28 @@ def _parse_environment(raw: str) -> list[dict]:
     return out
 
 
+_LIBVIRT_OVERLAY_FORM_KEYS = (
+    "os_variant",
+    "network",
+    "network_model",
+    "disk_bus",
+    "graphics",
+    "machine",
+)
+
+
+def _libvirt_overlay_from_form(form, index: int) -> dict | None:
+    """Build ``providers.libvirt`` bag from parallel form arrays (#644). Empty → None."""
+    bag: dict[str, str] = {}
+    for key in _LIBVIRT_OVERLAY_FORM_KEYS:
+        values = form.getlist(f"vm_libvirt_{key}[]")
+        raw = values[index] if index < len(values) else ""
+        text = str(raw or "").strip()
+        if text:
+            bag[key] = text
+    return bag or None
+
+
 def _vm_dicts_from_form(form) -> list[dict]:
     """Extract raw VM dicts from form fields without validation, used for error re-renders."""
     names = form.getlist("vm_name[]")
@@ -2780,25 +2802,27 @@ def _vm_dicts_from_form(form) -> list[dict]:
         afp_raw = answer_file_params_list[i] if i < len(answer_file_params_list) else ""
         env_raw = environment_list[i] if i < len(environment_list) else ""
         tpm_raw = tpm_list[i] if i < len(tpm_list) else ""
-        result.append(
-            {
-                "name": name,
-                "os": oses[i] if i < len(oses) else "",
-                "vcpus": vcpus_list[i] if i < len(vcpus_list) else "2",
-                "ram_gb": ram_list[i] if i < len(ram_list) else "4",
-                "disk_gb": disk_list[i] if i < len(disk_list) else "60",
-                "os_media": os_medias[i] if i < len(os_medias) else "",
-                "drivers": drivers_list[i] if i < len(drivers_list) else "",
-                "firmware": firmware_list[i] if i < len(firmware_list) else "",
-                "tpm": tpm_raw in ("1", "true", "on", "yes"),
-                "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
-                "answer_file_parameters": _parse_answer_file_parameters(afp_raw),
-                "environment": _parse_environment(env_raw),
-                "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
-                "automations": _parse_automations(auto_raw),
-                "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
-            }
-        )
+        libvirt_bag = _libvirt_overlay_from_form(form, i)
+        entry = {
+            "name": name,
+            "os": oses[i] if i < len(oses) else "",
+            "vcpus": vcpus_list[i] if i < len(vcpus_list) else "2",
+            "ram_gb": ram_list[i] if i < len(ram_list) else "4",
+            "disk_gb": disk_list[i] if i < len(disk_list) else "60",
+            "os_media": os_medias[i] if i < len(os_medias) else "",
+            "drivers": drivers_list[i] if i < len(drivers_list) else "",
+            "firmware": firmware_list[i] if i < len(firmware_list) else "",
+            "tpm": tpm_raw in ("1", "true", "on", "yes"),
+            "answer_file": answer_file_list[i] if i < len(answer_file_list) else "",
+            "answer_file_parameters": _parse_answer_file_parameters(afp_raw),
+            "environment": _parse_environment(env_raw),
+            "admin_username": admin_username_list[i] if i < len(admin_username_list) else "",
+            "automations": _parse_automations(auto_raw),
+            "depends_on": [d.strip() for d in dep_raw.split(",") if d.strip()],
+        }
+        if libvirt_bag:
+            entry["providers"] = {"libvirt": libvirt_bag}
+        result.append(entry)
     return result
 
 
@@ -2860,6 +2884,8 @@ def _vm_list_from_form(form):
             )
         else:
             admin_username = admin_username.strip()
+        libvirt_bag = _libvirt_overlay_from_form(form, i)
+        providers = {"libvirt": libvirt_bag} if libvirt_bag else None
         vms.append(
             VMConfig(
                 name=name.strip(),
@@ -2874,6 +2900,7 @@ def _vm_list_from_form(form):
                 answer_file=answer_file,
                 answer_file_parameters=answer_file_parameters,
                 environment=environment,
+                providers=providers or {},
                 admin_username=admin_username,
                 automations=automations,
                 depends_on=depends_on,

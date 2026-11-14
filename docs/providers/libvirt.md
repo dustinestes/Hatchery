@@ -155,17 +155,20 @@ vms:
 
 | UI value | Meaning |
 |---|---|
-| `clutch-advanced` | Clutch Build/Edit (or YAML-only) on the VM row when Nest is libvirt-capable |
+| `clutch-advanced` | Clutch Build/Edit **libvirt Nest settings** section on each VM row ([#644](https://github.com/dustinestes/Hatchery/issues/644)); YAML remains dual-surface |
 | `nest-default` | Future Nest-plane default (Nest detail / provider defaults) - **not designed yet** |
 | `never` | Hard-coded, docs-only, or wont-support |
 
-Drivers / VirtIO field visibility by Nest × guest OS: [drivers.md](../drivers.md) ([#508](https://github.com/dustinestes/Hatchery/issues/508)).
+First-cut overlay keys (`os_variant`, `network`, `network_model`, `disk_bus`, `graphics`, `machine`) are editable under **libvirt Nest settings** (collapsed by default; expands when values are present). Empty fields are omitted from saved YAML. Hyper-V / UTM overlays are not in this section.
+
+Drivers / VirtIO field visibility by Nest × guest OS: [drivers.md](../drivers.md) ([#508](https://github.com/dustinestes/Hatchery/issues/508) / [#637](https://github.com/dustinestes/Hatchery/issues/637)).
 
 <br>
 
 ## Implementation follow-ons
 
-- [#635](https://github.com/dustinestes/Hatchery/issues/635) - first-cut overlay keys (`network`, `network_model`, `disk_bus`, `graphics`, `machine`) - **this doc / schema**
+- [#635](https://github.com/dustinestes/Hatchery/issues/635) - first-cut overlay keys + create wiring - shipped
+- [#644](https://github.com/dustinestes/Hatchery/issues/644) - Clutch Build/Edit UI for those keys - shipped with this doc note
 - Later inventory rows still planned: `video`, `cpu_model`, `boot_order`, UEFI Nest paths, …
 - Drivers portable key: [drivers.md](../drivers.md) / [#637](https://github.com/dustinestes/Hatchery/issues/637)
 

@@ -2090,6 +2090,10 @@ class TestBuildRoute:
         assert 'name="vm_answer_file[]"' in html
         assert 'name="vm_firmware[]"' in html
         assert 'name="vm_tpm[]"' in html
+        assert "vm-libvirt-overlay-section" in html
+        assert 'name="vm_libvirt_os_variant[]"' in html
+        assert 'name="vm_libvirt_network[]"' in html
+        assert 'name="vm_libvirt_disk_bus[]"' in html
         assert "vm-env-user-header" in html
         assert ">Scope<" in html
         assert ">Persist<" in html
@@ -2129,6 +2133,72 @@ class TestBuildRoute:
         resp = client.post("/build", data=form, follow_redirects=False)
         assert resp.status_code == 302
         assert (tmp_path / "clutches" / "test-lab.yaml").exists()
+
+    def test_build_post_saves_libvirt_overlay(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_name": "Overlay Lab",
+            "clutch_filename": "overlay-lab",
+            "vm_name[]": "dc01",
+            "vm_os[]": "windows",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
+            "vm_depends_on[]": "",
+            "vm_libvirt_os_variant[]": "win11",
+            "vm_libvirt_network[]": "default",
+            "vm_libvirt_network_model[]": "e1000e",
+            "vm_libvirt_disk_bus[]": "sata",
+            "vm_libvirt_graphics[]": "spice",
+            "vm_libvirt_machine[]": "q35",
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        path = tmp_path / "clutches" / "overlay-lab.yaml"
+        loaded = clutch_lib.load(path)
+        bag = loaded.vms[0].providers.libvirt
+        assert bag is not None
+        assert bag.os_variant == "win11"
+        assert bag.network == "default"
+        assert bag.network_model == "e1000e"
+        assert bag.disk_bus == "sata"
+        assert bag.graphics == "spice"
+        assert bag.machine == "q35"
+        raw = path.read_text(encoding="utf-8")
+        assert "providers:" in raw
+        assert "libvirt:" in raw
+        assert "disk_bus: sata" in raw
+
+    def test_build_post_omits_blank_libvirt_overlay(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
+        (tmp_path / "clutches").mkdir()
+        form = {
+            "clutch_name": "Blank Overlay",
+            "clutch_filename": "blank-overlay",
+            "vm_name[]": "dc01",
+            "vm_os[]": "windows",
+            "vm_vcpus[]": "2",
+            "vm_ram_gb[]": "4",
+            "vm_disk_gb[]": "60",
+            "vm_os_media[]": "win11.iso",
+            "vm_admin_username[]": "admin",
+            "vm_depends_on[]": "",
+            "vm_libvirt_os_variant[]": "",
+            "vm_libvirt_network[]": "  ",
+            "vm_libvirt_network_model[]": "",
+            "vm_libvirt_disk_bus[]": "",
+            "vm_libvirt_graphics[]": "",
+            "vm_libvirt_machine[]": "",
+        }
+        resp = client.post("/build", data=form, follow_redirects=False)
+        assert resp.status_code == 302
+        path = tmp_path / "clutches" / "blank-overlay.yaml"
+        raw = path.read_text(encoding="utf-8")
+        assert "providers:" not in raw
+        assert "libvirt:" not in raw
 
     def test_build_post_duplicate_filename_rerenders_form(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(cfg, "data_dir", lambda: tmp_path)
@@ -3630,6 +3700,7 @@ class TestAPIClutchDetail:
         assert "ram_gb" in vm
         assert "disk_gb" in vm
         assert "drivers" in vm
+        assert "providers" in vm
         assert "answer_file" in vm
         assert "answer_file_parameters" in vm
         assert "admin_username" in vm

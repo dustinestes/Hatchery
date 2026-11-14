@@ -2333,6 +2333,47 @@ html.sidebar-collapsed-init .topbar-name {
   border-radius: 4px;
 }
 
+.vm-libvirt-overlay-section {
+  margin: 8px 0 12px;
+}
+
+.vm-libvirt-overlay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  text-align: left;
+  font-size: 11px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-radius: 4px;
+}
+
+.vm-libvirt-overlay-toggle:hover {
+  color: var(--color-text);
+}
+
+.vm-libvirt-overlay-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.vm-libvirt-overlay-chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+
+.vm-libvirt-overlay-toggle[aria-expanded="true"] .vm-libvirt-overlay-chevron {
+  transform: rotate(180deg);
+}
+
+.vm-libvirt-overlay-body {
+  margin-top: 8px;
+}
+
 .vm-env-reserved-block {
   margin: 4px 0 8px;
 }
