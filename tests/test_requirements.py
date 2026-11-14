@@ -9,6 +9,7 @@ from lib.requirements import (
     check_controller,
     check_nest_tools_local,
     install_hint,
+    inventory_controller,
     missing,
     package_for_current_os,
 )
@@ -117,6 +118,47 @@ class TestCheckController:
             results = check_controller(nests=[])
         pwsh = next(r for r in results if r.name == "pwsh")
         assert pwsh.optional is True
+
+
+class TestInventoryController:
+    def test_ssh_skipped_when_no_remotes(self):
+        with patch("shutil.which", return_value=None):
+            rows = inventory_controller(nests=[{"id": "local", "location": "local"}])
+        by_name = {r.name: r for r in rows}
+        assert by_name["ssh"].status == "Skipped"
+        assert "No Remote" in by_name["ssh"].reason
+        assert by_name["pwsh"].status.startswith("Optional")
+        assert "missing" in by_name["pwsh"].status
+
+    def test_ssh_active_when_remotes_present(self):
+        nests = [
+            {"id": "local", "location": "local"},
+            {"id": "r1", "location": "remote"},
+        ]
+        with patch("shutil.which", return_value="/usr/bin/ssh"):
+            rows = inventory_controller(nests=nests)
+        ssh = next(r for r in rows if r.name == "ssh")
+        assert ssh.status == "Active - present"
+        assert "1 Remote Nest" in ssh.reason
+        assert ssh.present is True
+
+    def test_ssh_active_missing_plural_remotes(self):
+        nests = [
+            {"id": "r1", "location": "remote"},
+            {"id": "r2", "location": "remote"},
+        ]
+        with patch("shutil.which", return_value=None):
+            rows = inventory_controller(nests=nests)
+        ssh = next(r for r in rows if r.name == "ssh")
+        assert ssh.status == "Active - missing"
+        assert "2 Remote Nests" in ssh.reason
+        assert ssh.install_hint
+
+    def test_to_dict_shape(self):
+        with patch("shutil.which", return_value="/usr/bin/pwsh"):
+            rows = inventory_controller(nests=[])
+        d = rows[0].to_dict()
+        assert set(d) >= {"name", "status", "reason", "present", "required_for"}
 
 
 class TestNestToolsLocal:

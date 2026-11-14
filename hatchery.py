@@ -828,6 +828,11 @@ def _settings_template(
     validator_configs = list_validator_configs() if section == "general" else []
     validator_latest = latest_by_validator() if section == "general" else {}
     validators_run_retention = get_run_retention() if section == "general" else 50
+    controller_req_inventory: list = []
+    if section == "general":
+        from lib import requirements as req_lib
+
+        controller_req_inventory = req_lib.inventory_controller()
 
     remoting_hatchery = None
     remoting_path_identities: list = []
@@ -860,6 +865,7 @@ def _settings_template(
         validator_configs=validator_configs,
         validator_latest=validator_latest,
         validators_run_retention=validators_run_retention,
+        controller_req_inventory=controller_req_inventory,
         remoting_hatchery=remoting_hatchery,
         remoting_path_identities=remoting_path_identities,
         remoting_identity_options=remoting_identity_options,
