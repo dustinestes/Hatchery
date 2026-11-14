@@ -19,13 +19,13 @@ We want an Artifactory-OSS-shaped free edition: a real product that **works in a
    - **Public** [`dustinestes/Hatchery`](https://github.com/dustinestes/Hatchery) - MIT; free / local edition; full history kept (no strip/rewrite).
    - **Private** [`dustinestes/Hatchery-Enterprise`](https://github.com/dustinestes/Hatchery-Enterprise) - commercial license; Python package `hatchery-enterprise` that **layers** on a pinned public Hatchery (not a full-app fork).
 
-3. **Free edition (north star):** Controller on Linux / macOS / Windows; **one Local Nest** when that provider works; portable Clutch/media/content share between independent Controllers. Explicitly **not** one Controller webbing many Remote Nests.
+3. **Free edition (north star):** Controller on Linux / macOS / Windows; **one Local Nest machine** (the Controller host when used as Nest) with every Local provider that works there ([ADR-0046](0046-nest-is-hardware-multi-provider.md)); portable Clutch/media/content share between independent Controllers. Explicitly **not** one Controller webbing many Remote Nests.
 
 4. **Paid edition (hierarchy):** Nest Agent, Remote Nest enroll/capacity, remote nest_cache ensure/pull, content origin, fleet Library depth, later SSO/RBAC/audit as packs. Implement new hierarchy value in the private package.
 
-5. **Entitlements (commercial package):** signed license file (JWT/JSON) on Controller `data_dir`; modular `features` packs + numeric `max_nests` (never unlimited). Controller seat is the majority fee; nest capacity is an add-on with bulk step-down pricing. Layered trust: license → Controller-issued Nest credentials → optional soft Controller→portal renewal report. Nest Agents phone the Controller only. Authorize / Pending / Enrolled / Unenroll; external Agent imaging is first-class. Free tier `max_nests = 1` Local-only.
+5. **Entitlements (commercial package):** signed license file (JWT/JSON) on Controller `data_dir`; modular `features` packs + numeric `max_nests` (never unlimited). Controller seat is the majority fee; nest capacity is an add-on with bulk step-down pricing. Layered trust: license → Controller-issued Nest credentials → optional soft Controller→portal renewal report. Nest Agents phone the Controller only. Authorize / Pending / Enrolled / Unenroll; external Agent imaging is first-class. Free tier `max_nests = 1` means **one Nest machine** (Local only), not one hypervisor ([ADR-0046](0046-nest-is-hardware-multi-provider.md)).
 
-6. **Honesty:** Mid-flight Remote/UTM/Tart/fleet code in history does not make free “taking away” a finished enterprise suite. Document free vs paid clearly so docs do not promise unfinished hierarchy as free.
+6. **Honesty:** Mid-flight Remote/UTM/Tart/fleet code in history does not make free “taking away” a finished enterprise suite. Document free vs paid clearly so docs do not promise unfinished hierarchy as free. Local provider adapters (libvirt / Hyper-V / Tart / UTM) are free product surface, not paid unlocks.
 
 7. **Piracy:** Acceptable loss for determined self-host patching. Prefer private source for paid modules + signed license + support/updates. No kernel DRM; no mandatory always-online Nest→cloud license checks.
 

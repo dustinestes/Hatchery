@@ -6,9 +6,9 @@
 <h1>Provider and Feature Support Matrix</h1>
 <br clear="both">
 
-Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × local and remote. Update this file whenever provider capability changes.
+Living matrix of Hatchery features vs Nest **providers** (libvirt, Hyper-V, Tart, UTM) × local and remote. Update this file whenever provider capability changes.
 
-**Architecture:** Hatchery is one app with a **Controller plane** (where the UI runs) and a **Nest plane** (hypervisors that hold guest VMs). Nest backends are modular first-class adapters - see [Controller plane vs Nest plane](architecture-nests.md).
+**Architecture:** Hatchery is one app with a **Controller plane** (where the UI runs) and a **Nest plane** (hardware endpoints that hold guest VMs). A **Nest** is the machine; **providers** are adapters on that Nest ([ADR-0046](adr/0046-nest-is-hardware-multi-provider.md)). Free edition is Local Nest only ([ADR-0044](adr/0044-free-head-local-nest-only.md)); remote columns are Enterprise / Nest Agent. See [Controller plane vs Nest plane](architecture-nests.md).
 
 <br>
 
@@ -40,10 +40,11 @@ Living matrix of Hatchery features vs Nest providers (libvirt, UTM, Hyper-V) × 
 
 | Column | Nest |
 |---|---|
-| **libvirt local** | KVM/QEMU on the same machine as Hatchery (`LibvirtProvider`) - v1 |
-| **libvirt remote** | libvirt Nest reached over Nest transport |
-| **UTM local / remote** | macOS UTM Nest ([#210](https://github.com/dustinestes/Hatchery/issues/210)–[#212](https://github.com/dustinestes/Hatchery/issues/212)) |
-| **Hyper-V local / remote** | Windows Hyper-V Nest ([#213](https://github.com/dustinestes/Hatchery/issues/213); `HyperVProvider` via local PowerShell or Nest transport) |
+| **libvirt local** | KVM/QEMU on the Local Nest (`LibvirtProvider`) - reference path |
+| **libvirt remote** | libvirt on a Remote Nest (Enterprise / Nest Agent - not free HEAD) |
+| **Hyper-V local / remote** | Windows Hyper-V (`HyperVProvider`); remote = Enterprise |
+| **Tart local** | macOS Tart CLI Nest adapter ([#627](https://github.com/dustinestes/Hatchery/issues/627); free Local) |
+| **UTM local / remote** | macOS UTM ([#210](https://github.com/dustinestes/Hatchery/issues/210)); remote = Enterprise |
 
 Guest remoting is **not** Nest transport - see [Nest transport](nest-transport.md) and [Guest transport](guest-transport.md).
 
