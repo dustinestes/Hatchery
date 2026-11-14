@@ -21,10 +21,10 @@ All hypervisor ops go through `lib/providers/base.py`.
    extend base.py only if every provider must support it
 ❌ Revive Nest SSH/WinRM transport on free HEAD - that left in #620
 ❌ Change provider capability without updating the support matrix
-✅ When Nest/provider support changes, update `docs/providers.md`
+✅ When Nest/provider support changes, update `docs/providers/`
 ```
 
-Docs: [`docs/providers.md`](../../docs/providers.md) (feature matrix), [`docs/enterprise/`](../../docs/enterprise/) (Remote Nest).
+Docs: [`docs/providers/`](../../docs/providers/) (feature matrix + inventories), [`docs/enterprise/`](../../docs/enterprise/) (Remote Nest).
 
 ## Answer files
 

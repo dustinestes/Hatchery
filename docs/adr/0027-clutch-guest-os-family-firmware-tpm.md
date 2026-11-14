@@ -26,7 +26,7 @@ Nest-native knobs (Hyper-V generation, UTM backend, virt-install pins) belong un
    | `win11`, `server2025` | `os: windows`, `firmware: uefi`, `tpm: true` |
    | `win10`, `server2022` | `os: windows`, `firmware: bios`, `tpm: false` |
 
-6. **`--os-variant`:** default virt-install `win11` for `os: windows` when unset; optional pin under `providers.libvirt.os_variant` ([#505](https://github.com/dustinestes/Hatchery/issues/505)).
+6. **`--os-variant`:** default virt-install `win11` for `os: windows` when unset; optional pin under `providers.libvirt.os_variant` ([#505](https://github.com/dustinestes/Hatchery/issues/505); [libvirt-settings](../providers/libvirt-settings.md)).
 7. **`providers:` overlays** (stub in #501; inventories under #504): Nest-native bags under `libvirt` | `hyperv` | `utm`. Unknown keys in the active overlay fail validate. Hatch applies portable + active Nest overlay only.
 
 ## Consequences

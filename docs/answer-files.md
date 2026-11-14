@@ -192,7 +192,7 @@ Typical content in Hatchery’s samples:
 - Locale settings (user params in samples; hard-coded `en-US` in older shadow templates)
 - Single FirstLogonCommand that runs `hatchery-setup-windows.ps1` (WinRM, UAC Never notify for silent Software installs per [#543](https://github.com/dustinestes/Hatchery/issues/543), OpenSSH via latest GitHub MSI per [ADR-0029](adr/0029-guest-ssh-bootstrap-and-guest-transport.md), `hatchery-ready` flag)
 
-UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/providers.md`](providers.md)).
+UEFI + TPM remain a Nest/provider concern for Win11 and Server 2025 ([`docs/providers/`](providers/)).
 
 ### Per OS notes
 
@@ -237,7 +237,7 @@ Admin Username / Password form fields hide for non-Windows Guest OS today (#453)
 
 ## macOS
 
-**Planned / often N/A.** UTM and macOS guests do not use Windows Autounattend. Capability “answer file attach” may be unsupported ([`docs/providers.md`](providers.md)). The Clutch form already hides Answer File and Windows admin fields when the Guest OS is not in the Windows hatch set (#453).
+**Planned / often N/A.** UTM and macOS guests do not use Windows Autounattend. Capability “answer file attach” may be unsupported ([`docs/providers/`](providers/)). The Clutch form already hides Answer File and Windows admin fields when the Guest OS is not in the Windows hatch set (#453).
 
 <br>
 
@@ -265,7 +265,7 @@ answer media ([#144](https://github.com/dustinestes/Hatchery/issues/144) /
 [ADR-0035](adr/0035-nest-install-media-lifecycle.md)).
 
 Hatch (UI and CLI) fails early when a Clutch needs Answer File attach and the selected Nest
-reports `supports_answer_file_attach=False`. See the [provider matrix](providers.md). Do not
+reports `supports_answer_file_attach=False`. See the [provider matrix](providers/). Do not
 hard-wire libvirt floppy into operator surfaces.
 
 <br>

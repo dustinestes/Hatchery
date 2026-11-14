@@ -88,7 +88,7 @@ class BaseProvider(ABC):
 
     #: Whether this Nest can pack and attach Answer File media at hatch time.
     #: Libvirt local floppy is the first working backend (#454 / ADR-0024).
-    #: Hyper-V / UTM remain Planned (see docs/providers.md).
+    #: Hyper-V / UTM remain Planned (see docs/providers/).
     supports_answer_file_attach: ClassVar[bool] = False
 
     @classmethod
@@ -120,7 +120,7 @@ class BaseProvider(ABC):
         raise ValueError(
             f"Nest provider {type(self).__name__} does not support Answer File attach. "
             "Windows Autounattend attach works on libvirt local today; "
-            "Hyper-V and UTM are Planned (see docs/providers.md)."
+            "Hyper-V and UTM are Planned (see docs/providers/)."
         )
 
     def cleanup_install_media(self, name: str) -> list[MediaCleanupStep]:

@@ -4,7 +4,7 @@
 - **Date:** 2026-11-14
 - **Issues:** [#120](https://github.com/dustinestes/Hatchery/issues/120), Wave 0 in [#628](https://github.com/dustinestes/Hatchery/issues/628)
 - **Related:** [ADR-0036](0036-pre-mint-vm-uuid-nest-storage.md), [ADR-0039](0039-nest-health-gate-and-nest-storage.md), [#592](https://github.com/dustinestes/Hatchery/issues/592), [#601](https://github.com/dustinestes/Hatchery/issues/601), [#552](https://github.com/dustinestes/Hatchery/issues/552)
-- **How-to:** [providers.md](../providers.md), [cli/vm.md](../cli/vm.md)
+- **How-to:** [providers/](../providers/), [cli/vm.md](../cli/vm.md)
 
 ## Context
 

@@ -56,9 +56,9 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 | **Local Nest** | Hypervisor tools for the **provider** you hatch with (`virsh` / Hyper-V / Tart / UTM). Only required when this machine is also the Nest. |
 | **Remote Nest** | Enterprise (Nest Agent). Free HEAD is Local Nest only. |
 
-High-level Controller × provider × guest summary: [README - What It Supports](README.md#what-it-supports). Living feature cells and quirk rows: [`docs/providers.md`](docs/providers.md). Nest = hardware, many Local providers: [ADR-0046](docs/adr/0046-nest-is-hardware-multi-provider.md).
+High-level Controller × provider × guest summary: [README - What It Supports](README.md#what-it-supports). Living feature cells and quirk rows: [`docs/providers/`](docs/providers/). Nest = hardware, many Local providers: [ADR-0046](docs/adr/0046-nest-is-hardware-multi-provider.md).
 
-When a PR changes provider capability, update `docs/providers.md` and keep the README summary honest if the high-level story changed.
+When a PR changes provider capability, update `docs/providers/` and keep the README summary honest if the high-level story changed.
 
 ---
 
@@ -133,7 +133,7 @@ Hatchery does not ship devcontainer configurations. A **Local Nest** needs direc
 - **Tests** - `uv run pytest` locally. CI runs the portable suite on **Linux, macOS, and Windows** (see [`docs/tests.md`](docs/tests.md)). Do not add host-only assumptions that break another OS. Real Nest/hypervisor tests use `@pytest.mark.hypervisor` and are skipped in CI.
 - **Line length** - 100 characters.
 - **HTML/CSS/JS** - follow the existing patterns in `templates/ui/` and `static/`. No frameworks.
-- **Providers** - new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`docs/providers.md`](docs/providers.md) when capability changes.
+- **Providers** - new hypervisor integrations go in `lib/providers/` and implement the interface in `base.py`. Don't add methods to the interface unless the feature genuinely requires it. Update [`docs/providers/`](docs/providers/) when capability changes.
 - **Answer files** - user-owned templates under `automation/answerfiles/` (optional Library pull). New guest OS types get Library/sample Answer Files plus hatch validation in `lib/answerfile.py`; Nest attach stays in the provider.
 - **Comments** - write one only when the *why* is non-obvious. Don't describe what the code does.
 
