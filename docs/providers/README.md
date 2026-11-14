@@ -16,7 +16,7 @@ Living matrix of Hatchery features vs Nest **providers** (libvirt, Hyper-V, Tart
 
 - [Contents](#contents)
 - [Legend](#legend)
-- [Settings inventories](#settings-inventories)
+- [Provider docs](#provider-docs)
 - [Lifecycle and Power](#lifecycle-and-power)
 - [Identity, Console, and Discovery](#identity-console-and-discovery)
 - [Install and Provision](#install-and-provision)
@@ -51,16 +51,17 @@ Guest remoting is **not** Nest transport - see [Nest transport](../nest-transpor
 
 <br>
 
-## Settings inventories
+## Provider docs
 
-Clutch `providers.<id>` overlay inventories (YAML knobs - not Controller Settings panes):
+One doc per Nest provider (overlay inventory and related notes - not Controller Settings panes):
 
 | Doc | Nest | Status |
 |---|---|---|
-| [libvirt-settings.md](libvirt-settings.md) | libvirt | Planning landed ([#505](https://github.com/dustinestes/Hatchery/issues/505)) |
-| hyperv-settings.md | Hyper-V | Planned ([#506](https://github.com/dustinestes/Hatchery/issues/506)) |
-| utm-settings.md | UTM | Planned ([#507](https://github.com/dustinestes/Hatchery/issues/507)) |
-| drivers.md | Drivers / VirtIO field | Planned ([#508](https://github.com/dustinestes/Hatchery/issues/508)) |
+| [libvirt.md](libvirt.md) | libvirt | Planning landed ([#505](https://github.com/dustinestes/Hatchery/issues/505)) |
+| hyperv.md | Hyper-V | Planned ([#506](https://github.com/dustinestes/Hatchery/issues/506)) |
+| utm.md | UTM | Planned ([#507](https://github.com/dustinestes/Hatchery/issues/507)) |
+
+Portable create fields (not providers): [Drivers](../drivers.md) ([#508](https://github.com/dustinestes/Hatchery/issues/508)), [Answer Files](../answer-files.md).
 
 Epic: [#504](https://github.com/dustinestes/Hatchery/issues/504).
 
@@ -155,7 +156,7 @@ Free: one Local Nest **machine** may expose every Local provider that works ther
 
 | Guest family | libvirt local | Hyper-V local | Tart local | UTM local | Notes |
 |---|---|---|---|---|---|
-| Windows (`os: windows`) | Works | Works hatch; provision Planned | Planned | Planned | Create policy from Clutch `firmware` / `tpm` (ADR-0027). UEFI + TPM needs Nest TPM (`swtpm` on libvirt). Optional `providers.libvirt.os_variant` - see [libvirt-settings](libvirt-settings.md) |
+| Windows (`os: windows`) | Works | Works hatch; provision Planned | Planned | Planned | Create policy from Clutch `firmware` / `tpm` (ADR-0027). UEFI + TPM needs Nest TPM (`swtpm` on libvirt). Optional `providers.libvirt.os_variant` - see [libvirt](libvirt.md) |
 | Linux | Planned | Planned | N/A | Planned | Family values accepted in Clutch; remoting / persist under #482 / #202 |
 | macOS | N/A | N/A | Planned | Planned | [#558](https://github.com/dustinestes/Hatchery/issues/558) |
 
@@ -179,7 +180,7 @@ When a PR changes what a provider can do (new Nest type, local↔remote parity, 
 1. Update the relevant cell(s) in this file (Works / Partial / Planned / N/A + short caveat if needed).
 2. Keep README’s Controller × provider × guest summary aligned if the high-level story changed ([#216](https://github.com/dustinestes/Hatchery/issues/216)).
 3. Add or close **quirk cells** when a provider-specific footgun is confirmed or fixed.
-4. When Clutch `providers.<id>` inventories change, update the matching file under this directory ([libvirt-settings](libvirt-settings.md), …).
+4. When Clutch `providers.<id>` inventories change, update the matching provider doc under this directory ([libvirt](libvirt.md), …).
 5. Agents: see [providers-and-automation](../../../.cursor/rules/providers-and-automation.mdc) - capability changes must update this matrix.
 
 <br>
