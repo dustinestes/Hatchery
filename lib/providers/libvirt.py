@@ -315,17 +315,15 @@ class LibvirtProvider(BaseProvider):
         vm_dir = self._vm_dir_for(resolved_id)
 
         os_media = self._resolve_media(config.os_media, self.iso_dir)
-        virtio = (
-            self._resolve_media(config.virtio_drivers, self.virtio_dir)
-            if config.virtio_drivers
-            else None
-        )
+        drivers_media = self._resolve_drivers_media(config)
 
         _check_media_accessible(os_media)
-        if virtio:
-            _check_media_accessible(virtio)
+        if drivers_media:
+            _check_media_accessible(drivers_media)
 
-        cmd = self._build_create_cmd(config, os_media, virtio, vm_dir=vm_dir, vm_id=resolved_id)
+        cmd = self._build_create_cmd(
+            config, os_media, drivers_media, vm_dir=vm_dir, vm_id=resolved_id
+        )
         answer_img: Path | None = None
 
         try:
@@ -346,11 +344,27 @@ class LibvirtProvider(BaseProvider):
             rmdir_if_empty(vm_dir)
             raise
 
+    def _resolve_drivers_media(self, config: VMConfig) -> Path | None:
+        """Resolve portable ``drivers`` media for create, or None when omitted.
+
+        Libvirt v1 attaches drivers ISO for Windows only (#508 / #637). Other
+        guest families fail closed when ``drivers`` is set.
+        """
+        raw = getattr(config, "drivers", None)
+        if not raw:
+            return None
+        if config.os != GuestOS.WINDOWS:
+            raise ValueError(
+                f"drivers media is not supported for os={config.os.value!r} on libvirt yet; "
+                "omit drivers on the Clutch or use os: windows"
+            )
+        return self._resolve_media(str(raw), self.virtio_dir)
+
     def _build_create_cmd(
         self,
         config: VMConfig,
         os_media: Path,
-        virtio: Path | None,
+        drivers_media: Path | None,
         *,
         vm_dir: Path,
         vm_id: str,
@@ -397,8 +411,8 @@ class LibvirtProvider(BaseProvider):
         if tpm:
             cmd += ["--tpm", "emulator,model=tpm-crb,version=2.0"]
 
-        if virtio:
-            cmd += ["--disk", f"path={virtio},device=cdrom,readonly=on"]
+        if drivers_media:
+            cmd += ["--disk", f"path={drivers_media},device=cdrom,readonly=on"]
 
         return cmd
 
@@ -411,10 +425,11 @@ class LibvirtProvider(BaseProvider):
         os_media = Path(config.os_media)
         if not os_media.is_absolute():
             os_media = self.iso_dir / config.os_media
-        virtio = None
-        if config.virtio_drivers:
-            vp = Path(config.virtio_drivers)
-            virtio = vp if vp.is_absolute() else self.virtio_dir / config.virtio_drivers
+        drivers_media = None
+        raw = getattr(config, "drivers", None)
+        if raw:
+            vp = Path(str(raw))
+            drivers_media = vp if vp.is_absolute() else self.virtio_dir / str(raw)
         resolved_id = (vm_id or "").strip() or "<vm-uuid>"
         try:
             root = self.resolve_storage_root()
@@ -422,7 +437,9 @@ class LibvirtProvider(BaseProvider):
         except (ValueError, FileNotFoundError):
             vm_dir = Path("<nest_storage>") / resolved_id
         return " ".join(
-            self._build_create_cmd(config, os_media, virtio, vm_dir=vm_dir, vm_id=resolved_id)
+            self._build_create_cmd(
+                config, os_media, drivers_media, vm_dir=vm_dir, vm_id=resolved_id
+            )
         )
 
     def _floppy_path(self, vm_dir: Path) -> Path:

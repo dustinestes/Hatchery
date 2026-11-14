@@ -52,9 +52,10 @@ vms:
     # Accepts any format the hypervisor supports: ISO, VHD, VHDX, QCOW2.
     os_media: Win11_24H2.iso
 
-    # virtio_drivers (optional): VirtIO driver package
-    # Filename relative to the media/ data directory, or an absolute path.
-    virtio_drivers: virtio-win.iso
+    # drivers (optional): install-time drivers / guest tools ISO (#508 / #637)
+    # Filename relative to media/virtio/ (catalog) or an absolute path. Portable;
+    # Nest attaches when supported (libvirt + windows). Media pane may still say VirtIO.
+    drivers: virtio-win.iso
 
     # admin_username (required for Windows guests): administrator account for unattended
     # install / hatch→fledged. Injected as reserved system tokens into the selected Answer File

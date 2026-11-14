@@ -379,10 +379,10 @@ Write-Output ('{_JSON_MARKER}' + (ConvertTo-Json -InputObject (@{{
                 "Remote Hyper-V Nest hatch is not available in Hatchery free (#620). "
                 "Use a Local Hyper-V Nest, or Hatchery Enterprise (Nest Agent)."
             )
-        if config.virtio_drivers:
+        if getattr(config, "drivers", None):
             raise ValueError(
-                "Hyper-V hatch does not attach VirtIO driver media yet; "
-                "omit virtio_drivers on the Clutch for this Nest"
+                "Hyper-V hatch does not attach drivers media yet; "
+                "omit drivers on the Clutch for this Nest"
             )
 
         resolved_id = (vm_id or "").strip() or str(uuid.uuid4())

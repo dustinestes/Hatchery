@@ -3629,7 +3629,7 @@ class TestAPIClutchDetail:
         assert "vcpus" in vm
         assert "ram_gb" in vm
         assert "disk_gb" in vm
-        assert "virtio_drivers" in vm
+        assert "drivers" in vm
         assert "answer_file" in vm
         assert "answer_file_parameters" in vm
         assert "admin_username" in vm

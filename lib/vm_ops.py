@@ -111,11 +111,11 @@ def protect_media_basenames_for_destroy(provider, name: str) -> frozenset[str] |
         return None
     names: set[str] = set()
     os_media = getattr(vm, "os_media", None) or ""
-    virtio = getattr(vm, "virtio_drivers", None) or ""
+    drivers = getattr(vm, "drivers", None) or ""
     if os_media:
         names.add(Path(str(os_media)).name)
-    if virtio:
-        names.add(Path(str(virtio)).name)
+    if drivers:
+        names.add(Path(str(drivers)).name)
     return frozenset(names)
 
 

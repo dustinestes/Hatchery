@@ -37,7 +37,7 @@ FULL_VM = """\
         ram_gb: 8
         disk_gb: 80
         os_media: Win11_24H2.iso
-        virtio_drivers: virtio-win.iso
+        drivers: virtio-win.iso
         answer_file: win11-unattend.xml.j2
         automations:
           - type: script
@@ -73,7 +73,7 @@ class TestValidSingleVM:
     def test_optional_fields_default(self, tmp_path):
         result = clutch.load(write_clutch(tmp_path, MINIMAL_VM))
         vm = result.vms[0]
-        assert vm.virtio_drivers is None
+        assert vm.drivers is None
         assert vm.answer_file is None
         assert vm.automations == []
         assert vm.depends_on == []
@@ -81,7 +81,7 @@ class TestValidSingleVM:
     def test_full_vm_loads(self, tmp_path):
         result = clutch.load(write_clutch(tmp_path, FULL_VM))
         vm = result.vms[0]
-        assert vm.virtio_drivers == "virtio-win.iso"
+        assert vm.drivers == "virtio-win.iso"
         assert vm.answer_file == "win11-unattend.xml.j2"
         assert [s.name for s in vm.automations] == [
             "install-chocolatey.ps1",
@@ -89,6 +89,21 @@ class TestValidSingleVM:
         ]
         assert all(not s.reboot_after for s in vm.automations)
         assert result.description == "Full example"
+
+    def test_rejects_legacy_virtio_drivers_key(self, tmp_path):
+        content = """\
+            name: lab
+            vms:
+              - name: vm1
+                os: windows
+                vcpus: 2
+                ram_gb: 4
+                disk_gb: 40
+                os_media: win11.iso
+                virtio_drivers: virtio-win.iso
+        """
+        with pytest.raises(Exception, match="virtio_drivers was renamed to drivers"):
+            clutch.load(write_clutch(tmp_path, content))
 
     def test_legacy_os_config_key_aliases_to_answer_file(self, tmp_path):
         yaml_text = """\

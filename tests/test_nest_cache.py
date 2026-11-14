@@ -29,7 +29,7 @@ def _clutch_with_media(**kwargs) -> Clutch:
         ram_gb=4,
         disk_gb=60,
         os_media="win11.iso",
-        virtio_drivers=kwargs.get("virtio_drivers"),
+        drivers=kwargs.get("drivers"),
         answer_file=kwargs.get("answer_file", kwargs.get("os_config")),
         automations=kwargs.get("automations") or [],
     )
@@ -47,7 +47,7 @@ class TestCollectArtifacts:
     def test_collects_optional_paths_and_scripts(self):
         arts = collect_clutch_artifacts(
             _clutch_with_media(
-                virtio_drivers="virtio.iso",
+                drivers="virtio.iso",
                 answer_file="unattend.xml",
                 automations=[{"type": "script", "name": "setup.ps1"}],
             )
