@@ -15,6 +15,7 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 - [Contents](#contents)
 - [Ways to Contribute](#ways-to-contribute)
 - [Before You Open a PR](#before-you-open-a-pr)
+- [Controller vs Nest](#controller-vs-nest)
 - [Development Setup](#development-setup)
 - [Code & Style Guidelines](#code--style-guidelines)
 - [Accessibility](#accessibility)
@@ -47,13 +48,29 @@ Thanks for your interest in contributing. Hatchery is a focused project and cont
 
 <br>
 
+## Controller vs Nest
+
+| Plane | What you need |
+|---|---|
+| **Controller** | Python ≥3.11 + `uv` on Linux, macOS, or Windows. Portable CI and the default pytest suite run here. |
+| **Local Nest** | Hypervisor tools for the **provider** you hatch with (`virsh` / Hyper-V / Tart / UTM). Only required when this machine is also the Nest. |
+| **Remote Nest** | Enterprise (Nest Agent). Free HEAD is Local Nest only. |
+
+High-level Controller × provider × guest summary: [README - What It Supports](README.md#what-it-supports). Living feature cells and quirk rows: [`docs/providers.md`](docs/providers.md). Nest = hardware, many Local providers: [ADR-0046](docs/adr/0046-nest-is-hardware-multi-provider.md).
+
+When a PR changes provider capability, update `docs/providers.md` and keep the README summary honest if the high-level story changed.
+
+---
+
+<br>
+
 ## Development Setup
 
 Clone the repo and install dependencies with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/dustin-estes/hatchery.git
-cd hatchery
+git clone https://github.com/dustinestes/Hatchery.git
+cd Hatchery
 uv sync
 ```
 
@@ -65,12 +82,16 @@ If you don't have `uv` installed:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**Host dependencies** (Ubuntu):
+**Controller only:** `uv sync` is enough to run the UI with an empty Nest registry (sandbox configs below).
+
+**Local Nest (Linux + libvirt) example** - Nest-plane packages, not Controller requirements:
 
 ```bash
 sudo apt install qemu-kvm libvirt-daemon-system virt-manager virtinst \
     swtpm swtpm-tools mtools
 ```
+
+Windows Local Nest needs Hyper-V (and PowerShell) on that Nest; macOS Local Nest will need Tart and/or UTM when those providers land. Full inventory: [#271](https://github.com/dustinestes/Hatchery/issues/271).
 
 **Run the app:**
 
@@ -100,7 +121,7 @@ Sandbox dirs live under `.temp/` (already gitignored as Hatchery runtime artifac
 
 ### A note on devcontainers
 
-Hatchery does not ship devcontainer configurations. The app requires direct access to the host's libvirt daemon and KVM stack (`virsh`, `virt-install`, `qemu-img`). A container cannot reach these host-level services without privileged container configuration that adds significant complexity for no practical gain. Run Hatchery directly on your Ubuntu host.
+Hatchery does not ship devcontainer configurations. A **Local Nest** needs direct access to Nest hypervisor tools (for example libvirt’s `virsh` / `virt-install` / `qemu-img` on Linux). A container cannot reach those Nest-level services without privileged setup that adds complexity for little gain. Run the Controller (and Local Nest, when used) directly on the machine.
 
 ---
 

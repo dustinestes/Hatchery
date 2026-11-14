@@ -121,13 +121,36 @@ Free HEAD reaches the Nest host only when it is **Local** (co-located with the C
 
 ## Guests and Controller / Nest requirements
 
-| Guest / Nest | libvirt local | Notes |
-|---|---|---|
-| Windows guests (`os: windows`) | Works | Create policy from Clutch `firmware` / `tpm` (ADR-0027). UEFI + TPM needs `swtpm` on the Nest. Optional `providers.libvirt.os_variant` (#505) |
-| Linux / macOS guests | Planned | Family values accepted in Clutch; remoting / persist under #482 / #202 |
-| Hatchery Controller OS | Linux / macOS / Windows | Portable Controller checks vs Nest tools: [#208](https://github.com/dustinestes/Hatchery/issues/208) |
+**Controller OS** (where the UI / CLI runs): Linux, macOS, and Windows. Portable Controller checks vs Nest tools: [#208](https://github.com/dustinestes/Hatchery/issues/208), inventory [#271](https://github.com/dustinestes/Hatchery/issues/271). README high-level summary: [What It Supports](../README.md#what-it-supports).
 
-Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator - not as Controller requirements. On **Remote** Nests, capability is gated by Nest reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)): if the Nest is unreachable (or not yet probed), capability does not invent missing-tool Alerts. UTM implies a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
+### Controller × Local Nest provider
+
+| Controller OS | Local Nest providers | Free status |
+|---|---|---|
+| Linux | libvirt | Works (reference path) |
+| Windows | Hyper-V | Works hatch / lifecycle; guest WinRM provision Planned |
+| macOS | Tart, UTM | Planned (#627, #210) |
+
+Free: one Local Nest **machine** may expose every Local provider that works there ([ADR-0046](adr/0046-nest-is-hardware-multi-provider.md)). Remote columns below remain Enterprise.
+
+### Guest family × Local provider
+
+| Guest family | libvirt local | Hyper-V local | Tart local | UTM local | Notes |
+|---|---|---|---|---|---|
+| Windows (`os: windows`) | Works | Works hatch; provision Planned | Planned | Planned | Create policy from Clutch `firmware` / `tpm` (ADR-0027). UEFI + TPM needs Nest TPM (`swtpm` on libvirt). Optional `providers.libvirt.os_variant` (#505) |
+| Linux | Planned | Planned | N/A | Planned | Family values accepted in Clutch; remoting / persist under #482 / #202 |
+| macOS | N/A | N/A | Planned | Planned | [#558](https://github.com/dustinestes/Hatchery/issues/558) |
+
+### Quirk cells
+
+| Quirk | Provider | Status | Tracking |
+|---|---|---|---|
+| Win11 black-screen hang after install reboot | libvirt local | Open | [#141](https://github.com/dustinestes/Hatchery/issues/141) |
+| Boot-from-CD key settle / burst after Nest package upgrades | libvirt local | Open | [#171](https://github.com/dustinestes/Hatchery/issues/171) |
+
+Add a row when a provider-specific footgun is confirmed; flip Status when fixed or documented as accepted.
+
+Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_specs`) and checked by the `nest_capability` validator - not as Controller requirements. On **Remote** Nests, capability is gated by Nest reachability ([#286](https://github.com/dustinestes/Hatchery/issues/286)): if the Nest is unreachable (or not yet probed), capability does not invent missing-tool Alerts. UTM / Tart imply a macOS Nest; Hyper-V implies a Windows Nest. Remote columns assume Nest transport to that OS.
 
 <br>
 
@@ -136,8 +159,9 @@ Nest hypervisor tools (`virsh`, etc.) are declared on the provider (`nest_tool_s
 When a PR changes what a provider can do (new Nest type, local↔remote parity, or a feature gap closes):
 
 1. Update the relevant cell(s) in this file (Works / Partial / Planned / N/A + short caveat if needed).
-2. Keep README’s guest/provider summary aligned if the high-level story changed.
-3. Agents: see [providers-and-automation](../../.cursor/rules/providers-and-automation.mdc) - capability changes must update this matrix.
+2. Keep README’s Controller × provider × guest summary aligned if the high-level story changed ([#216](https://github.com/dustinestes/Hatchery/issues/216)).
+3. Add or close **quirk cells** when a provider-specific footgun is confirmed or fixed.
+4. Agents: see [providers-and-automation](../../.cursor/rules/providers-and-automation.mdc) - capability changes must update this matrix.
 
 <br>
 
