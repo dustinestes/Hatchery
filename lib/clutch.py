@@ -548,7 +548,14 @@ def _write_yaml(clutch_obj: Clutch, path: Path) -> None:
             for key in ("libvirt", "hyperv", "utm"):
                 bag = providers.get(key)
                 if bag:
-                    cleaned[key] = {k: v for k, v in bag.items() if v is not None}
+                    # Drop null and blank strings so form empties do not linger (#644).
+                    slim = {
+                        k: v
+                        for k, v in bag.items()
+                        if v is not None and not (isinstance(v, str) and not str(v).strip())
+                    }
+                    if slim:
+                        cleaned[key] = slim
             vm["providers"] = cleaned if cleaned else None
             if not vm.get("providers"):
                 vm.pop("providers", None)
