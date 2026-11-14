@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Issues:** [#620](https://github.com/dustinestes/Hatchery/issues/620), [#345](https://github.com/dustinestes/Hatchery/issues/345)
-- **Related:** [ADR-0042](0042-open-core-public-and-enterprise-tier.md), [ADR-0038](0038-nest-ssh-known-hosts-hostkeyalias.md) (superseded for free Nest plane)
+- **Related:** [ADR-0042](0042-open-core-public-and-enterprise-tier.md), [ADR-0046](0046-nest-is-hardware-multi-provider.md) (Nest = hardware; many Local providers), [ADR-0038](0038-nest-ssh-known-hosts-hostkeyalias.md) (superseded for free Nest plane)
 
 ## Context
 

@@ -52,8 +52,8 @@ One brand: **Hatchery**. Enterprise is a **purchase tier**, not a second product
 
 | Edition | North-star job |
 |---|---|
-| **Free (MIT)** | A real product in a vacuum: Controller on Linux / macOS / Windows; one Local Nest when that provider works; portable Clutches and content between independent Controllers |
-| **Enterprise** | Hierarchy at scale: Nest Agent, Remote Nest enroll/capacity, fleet Library / content origin, later SSO / RBAC / audit packs; Controller seat + Nest capacity entitlements |
+| **Free (MIT)** | A real product in a vacuum: Controller on Linux / macOS / Windows; one Local Nest **machine** with every Local provider that works there (libvirt / Hyper-V / Tart / UTM - Nest = hardware, [ADR-0046](adr/0046-nest-is-hardware-multi-provider.md)); portable Clutches and content between independent Controllers |
+| **Enterprise** | Hierarchy at scale: Nest Agent, Remote Nest enroll/capacity (`max_nests` = Nest machines), fleet Library / content origin, later SSO / RBAC / audit packs; Controller seat + Nest capacity entitlements |
 
 Mid-flight hierarchy designs in history do not mean free “took away” a finished fleet suite. Free must stay useful alone. Paid must buy hierarchy and commercial trust that free does not pretend to include.
 

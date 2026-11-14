@@ -48,9 +48,9 @@ Use these terms in UI copy, docs, issues, and agent rules. Prefer **Controller**
 | Noun | Definition |
 |---|---|
 | **Hatchery Controller** (Controller) | Device where the Hatchery UI runs; responsible for controlling the Nest(s) |
-| **Nest** | Hypervisor the Controller communicates with to manage guest VMs |
-| **Local Nest** | Nest on the same device as the Controller (`location=local`) - the Controller also manages guest VMs on that device |
-| **Remote Nest** | Nest the Controller reaches across the control plane (`location=remote`) to manage guest VMs |
+| **Nest** | Hardware endpoint the Controller manages for guest VMs ([ADR-0046](adr/0046-nest-is-hardware-multi-provider.md)); **providers** (libvirt / Hyper-V / Tart / UTM / …) are adapters on that Nest |
+| **Local Nest** | Nest on the same device as the Controller (`location=local`) - may expose multiple Local providers |
+| **Remote Nest** | Nest the Controller reaches across the control plane (`location=remote`) - Enterprise / Nest Agent; not free HEAD ([ADR-0044](adr/0044-free-head-local-nest-only.md)) |
 
 The Nest registry may be empty (Controller-only). Local Nest id `local` is optional and may be added later via Settings or session `--nest-local` ([ADR-0014](adr/0014-optional-local-nest.md) / [#266](https://github.com/dustinestes/Hatchery/issues/266)). At most one Nest may use `location=local`, and only id `local` may do so.
 
